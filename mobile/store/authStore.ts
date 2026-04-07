@@ -18,6 +18,7 @@ interface AuthState {
   register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -57,5 +58,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       await storage.clear();
       set({ user: null, isLoggedIn: false, isLoading: false });
     }
+  },
+
+  setUser: (user: User) => {
+    storage.setUser(user);
+    set({ user });
   },
 }));

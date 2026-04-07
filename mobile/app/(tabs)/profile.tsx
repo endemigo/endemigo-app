@@ -1,41 +1,68 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
+import api from '../../lib/api';
 
 export default function ProfileScreen() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
+  const { user, logout, setUser } = useAuthStore();
+  const [loading, setLoading] = useState(false);
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/(auth)/login');
+  const handleBecomeSeller = async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.patch('/users/become-seller');
+      setUser({ ...user!, isSeller: true });
+      Alert.alert('Tebrikler! 🎉', 'Artık satıcı hesabınız aktif.');
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || 'Bir hata oluştu';
+      Alert.alert('Hata', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
-          {user?.firstName?.[0]?.toUpperCase() || '?'}
-        </Text>
-      </View>
+      <Text style={styles.header}>👤 Profil</Text>
 
-      <Text style={styles.name}>
-        {user?.firstName} {user?.lastName}
-      </Text>
-      <Text style={styles.email}>{user?.email}</Text>
-      <Text style={styles.role}>
-        {user?.isSeller ? '🏪 Satıcı' : '🛒 Alıcı'}
-      </Text>
+      <View style={styles.infoCard}>
+        <Text style={styles.name}>
+          {user?.firstName} {user?.lastName}
+        </Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        <View style={styles.badgeRow}>
+          <View style={[styles.badge, user?.isSeller ? styles.sellerBadge : styles.buyerBadge]}>
+            <Text style={styles.badgeText}>
+              {user?.isSeller ? '🏪 Satıcı' : '🛒 Alıcı'}
+            </Text>
+          </View>
+        </View>
+      </View>
 
       <View style={styles.walletCard}>
         <Text style={styles.walletTitle}>💰 Cüzdanım</Text>
         <Text style={styles.walletBalance}>10.000,00 ₺</Text>
-        <Text style={styles.walletSubtext}>
-          Mock bakiye — gerçek cüzdan Phase 2'de
-        </Text>
+        <Text style={styles.walletHint}>Mock bakiye — gerçek ödeme Phase 6'da</Text>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      {!user?.isSeller && (
+        <TouchableOpacity
+          style={styles.sellerButton}
+          onPress={handleBecomeSeller}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Text style={styles.sellerButtonText}>🏪 Satıcı Ol</Text>
+              <Text style={styles.sellerButtonSub}>Ürün eklemeye başla</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
         <Text style={styles.logoutText}>Çıkış Yap</Text>
       </TouchableOpacity>
     </View>
@@ -45,76 +72,107 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0F0F1A',
     padding: 20,
-    alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 60,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#2563eb',
-    justifyContent: 'center',
-    alignItems: 'center',
+  header: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 24,
+  },
+  infoCard: {
+    backgroundColor: '#1A1A2E',
+    padding: 20,
+    borderRadius: 16,
     marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
-  },
   name: {
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '700',
-    color: '#1e293b',
   },
   email: {
+    color: '#A0A0B0',
     fontSize: 14,
-    color: '#64748b',
     marginTop: 4,
   },
-  role: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
-    textTransform: 'capitalize',
+  badgeRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  badge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  sellerBadge: {
+    backgroundColor: '#2d3436',
+    borderColor: '#6C5CE7',
+    borderWidth: 1,
+  },
+  buyerBadge: {
+    backgroundColor: '#2d3436',
+    borderColor: '#00b894',
+    borderWidth: 1,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   walletCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#1A1A2E',
     padding: 20,
-    marginTop: 24,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
+    borderRadius: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#6C5CE7',
   },
   walletTitle: {
-    fontSize: 16,
+    color: '#A0A0B0',
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
   },
   walletBalance: {
+    color: '#6C5CE7',
     fontSize: 32,
-    fontWeight: '800',
-    color: '#16a34a',
-    marginTop: 8,
+    fontWeight: '900',
+    marginTop: 4,
   },
-  walletSubtext: {
-    fontSize: 12,
-    color: '#94a3b8',
+  walletHint: {
+    color: '#555',
+    fontSize: 11,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  sellerButton: {
+    backgroundColor: '#6C5CE7',
+    padding: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sellerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sellerButtonSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
     marginTop: 4,
   },
   logoutButton: {
-    marginTop: 32,
-    backgroundColor: '#ef4444',
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 10,
+    backgroundColor: '#FF6B6B',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 'auto',
   },
   logoutText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
