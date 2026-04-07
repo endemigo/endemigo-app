@@ -23,7 +23,9 @@ export default function ProfileScreen() {
         {user?.firstName} {user?.lastName}
       </Text>
       <Text style={styles.email}>{user?.email}</Text>
-      <Text style={styles.role}>Rol: {user?.role}</Text>
+      <Text style={styles.role}>
+        {user?.isSeller ? '🏪 Satıcı' : '🛒 Alıcı'}
+      </Text>
 
       <View style={styles.walletCard}>
         <Text style={styles.walletTitle}>💰 Cüzdanım</Text>

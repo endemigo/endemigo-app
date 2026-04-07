@@ -8,7 +8,6 @@ import * as bcrypt from 'bcrypt';
 import { UserService } from '../user/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Role } from '../../shared/types/role.enum';
 
 @Injectable()
 export class AuthService {
@@ -33,7 +32,7 @@ export class AuthService {
       isVerified: true, // Skip email verification for vertical slice
     });
 
-    const token = this.generateToken(user.id, user.email, user.role);
+    const token = this.generateToken(user.id, user.email, user.isSeller);
 
     return {
       user: {
@@ -41,7 +40,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        isSeller: user.isSeller,
       },
       accessToken: token,
     };
@@ -62,7 +61,7 @@ export class AuthService {
       throw new UnauthorizedException('Hesabınız devre dışı bırakılmış');
     }
 
-    const token = this.generateToken(user.id, user.email, user.role);
+    const token = this.generateToken(user.id, user.email, user.isSeller);
 
     return {
       user: {
@@ -70,7 +69,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        isSeller: user.isSeller,
       },
       accessToken: token,
     };
@@ -86,15 +85,15 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
+      isSeller: user.isSeller,
     };
   }
 
-  private generateToken(userId: string, email: string, role: Role): string {
+  private generateToken(userId: string, email: string, isSeller: boolean): string {
     return this.jwtService.sign({
       sub: userId,
       email,
-      role,
+      isSeller,
     });
   }
 }
