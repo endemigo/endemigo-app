@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -21,5 +21,14 @@ export class UserService {
   async create(data: Partial<User>): Promise<User> {
     const user = this.userRepo.create(data);
     return this.userRepo.save(user);
+  }
+
+  async becomeSeller(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı');
+    if (user.isSeller) throw new ConflictException('Zaten satıcısınız');
+    user.isSeller = true;
+    await this.userRepo.save(user);
+    return { id: user.id, email: user.email, isSeller: true, message: 'Satıcı oldunuz' };
   }
 }
