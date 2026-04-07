@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { HealthModule } from './modules/health/health.module';
 import { ProductModule } from './modules/product/product.module';
+import { AuctionModule } from './modules/auction/auction.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -24,6 +27,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       }),
       inject: [ConfigService],
     }),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6381', 10),
+      },
+    }),
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 60000, limit: 60 },
       { name: 'auth', ttl: 60000, limit: 10 },
@@ -31,6 +40,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AuthModule,
     UserModule,
     ProductModule,
+    AuctionModule,
+    WalletModule,
     HealthModule,
   ],
   providers: [
