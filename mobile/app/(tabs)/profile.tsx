@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
+import { useWalletBalance } from '../../hooks/useWallet';
 import api from '../../lib/api';
 
 export default function ProfileScreen() {
   const { user, logout, setUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const { data: wallet } = useWalletBalance();
 
   const handleBecomeSeller = async () => {
     try {
@@ -41,8 +43,19 @@ export default function ProfileScreen() {
 
       <View style={styles.walletCard}>
         <Text style={styles.walletTitle}>💰 Cüzdanım</Text>
-        <Text style={styles.walletBalance}>10.000,00 ₺</Text>
-        <Text style={styles.walletHint}>Mock bakiye — gerçek ödeme Phase 6'da</Text>
+        <Text style={styles.walletBalance}>
+          {wallet ? `${wallet.available.toLocaleString('tr-TR')} ₺` : '...'}
+        </Text>
+        {wallet && wallet.held > 0 && (
+          <Text style={styles.walletHeld}>
+            🔒 Hold: {wallet.held.toLocaleString('tr-TR')} ₺
+          </Text>
+        )}
+        {wallet && (
+          <Text style={styles.walletHint}>
+            Toplam: {wallet.balance.toLocaleString('tr-TR')} ₺
+          </Text>
+        )}
       </View>
 
       {!user?.isSeller && (
@@ -145,7 +158,13 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 11,
     marginTop: 8,
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
+  },
+  walletHeld: {
+    color: '#FDCB6E',
+    fontSize: 14,
+    fontWeight: '600' as const,
+    marginTop: 6,
   },
   sellerButton: {
     backgroundColor: '#6C5CE7',
