@@ -12,3 +12,6 @@ export { EditorialBannerRow } from './EditorialBannerRow';
 export type { EditorialBanner } from './EditorialBannerRow';
 export { ProductCard } from './ProductCard';
 export { HorizontalProductGrid } from './HorizontalProductGrid';
+export { BlogCard } from './BlogCard';
+export { GlobalModal } from './GlobalModal';
+

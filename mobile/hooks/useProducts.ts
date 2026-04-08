@@ -64,6 +64,18 @@ export function useMostLikedProducts() {
   });
 }
 
+export function useBlogs() {
+  return useQuery({
+    queryKey: ['blogs'],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) return mockService.getBlogs();
+      // Adjust with real API endpoint when ready
+      const { data } = await api.get('/blogs');
+      return data;
+    },
+  });
+}
+
 export function useProduct(id: string) {
   return useQuery<Product>({
     queryKey: ['product', id],

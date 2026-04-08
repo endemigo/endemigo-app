@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function RegisterScreen() {
@@ -23,15 +23,16 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
+  const { showModal } = useModalStore();
   const { t } = useTranslation();
 
   const handleRegister = async () => {
     if (!email || !password) {
-      Alert.alert(t('common.error'), t('auth.loginError'));
+      showModal({ title: t('common.error'), message: t('auth.loginError'), type: 'error' });
       return;
     }
     if (password.length < 8) {
-      Alert.alert(t('common.error'), t('auth.registerError'));
+      showModal({ title: t('common.error'), message: t('auth.registerError'), type: 'error' });
       return;
     }
     setLoading(true);
@@ -40,7 +41,7 @@ export default function RegisterScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       const message = err.response?.data?.error?.message || 'Kayıt başarısız';
-      Alert.alert(t('common.error'), message);
+      showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);
     }

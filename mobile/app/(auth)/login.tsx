@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function LoginScreen() {
@@ -21,11 +21,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const { showModal } = useModalStore();
   const { t } = useTranslation();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert(t('common.error'), t('auth.loginError'));
+      showModal({ title: t('common.error'), message: t('auth.loginError'), type: 'error' });
       return;
     }
     setLoading(true);
@@ -34,7 +35,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       const message = err.response?.data?.error?.message || 'Giriş başarısız';
-      Alert.alert(t('common.error'), message);
+      showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);
     }

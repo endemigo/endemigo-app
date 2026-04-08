@@ -246,6 +246,37 @@ export const MOCK_WALLET = {
   available: 11250,
 };
 
+// ─── Blogs ───────────────────────────────────────────────────────
+export const MOCK_BLOGS = [
+  {
+    id: 'blog-1',
+    title: 'Anadolu\'nun Kayıp Lezzetleri: Siirt Fıstığının Sırrı',
+    excerpt: 'Geleneksel tarım yöntemleriyle hasat edilen gerçek Siirt fıstığını nasıl anlarsınız? Ustalarından püf noktalar.',
+    image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=800&q=80',
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    readTime: '4 dk okuma',
+    category: 'Lezzet Sırları'
+  },
+  {
+    id: 'blog-2',
+    title: 'El Dokuması Kilimlerde Motiflerin Dili',
+    excerpt: 'Anadolu kilimlerindeki her bir geometrik şekil ve rengin bir hikayesi var. İşte en yaygın motifler ve anlamları.',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80',
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    readTime: '6 dk okuma',
+    category: 'El Sanatları'
+  },
+  {
+    id: 'blog-3',
+    title: 'Gerçek Soğuk Sıkım Zeytinyağını Tanıma Rehberi',
+    excerpt: 'Piyasadaki sahte zeytinyağlarından korunmanın yolları ve evde yapabileceğiniz basit testler.',
+    image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=800&q=80',
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    readTime: '5 dk okuma',
+    category: 'Rehber'
+  }
+];
+
 // ─── Mock API Service ────────────────────────────────────────────
 export const mockService = {
 
@@ -302,6 +333,12 @@ export const mockService = {
   async getCategories() {
     await delay(300);
     return MOCK_CATEGORIES;
+  },
+
+  // Blogs
+  async getBlogs() {
+    await delay(400);
+    return MOCK_BLOGS;
   },
 
   // Auctions

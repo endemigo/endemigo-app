@@ -7,7 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Platform,
 } from 'react-native';
@@ -16,6 +15,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuction, useAuctionBids, usePlaceBid } from '../../hooks/useAuctions';
 import { useWalletBalance } from '../../hooks/useWallet';
 import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 function formatCountdown(ms: number) {
@@ -26,10 +27,13 @@ function formatCountdown(ms: number) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+const styles = StyleSheet.create({ spacer: { height: 40 } });
 export default function AuctionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { showModal } = useModalStore();
+  const { t } = useTranslation();
   const { data: auction, isLoading } = useAuction(id);
   const { data: bids } = useAuctionBids(id);
   const { data: wallet } = useWalletBalance();
@@ -69,15 +73,15 @@ export default function AuctionDetailScreen() {
   const handleBid = async () => {
     const amount = parseFloat(bidAmount);
     if (isNaN(amount) || amount < minBid) {
-      Alert.alert('Hata', `Minimum teklif: ${minBid.toFixed(2)}₺`);
+      showModal({ title: t('common.error') || 'Hata', message: `Minimum teklif: ${minBid.toFixed(2)}₺`, type: 'error' });
       return;
     }
     try {
       await placeBid.mutateAsync({ auctionId: id, amount });
-      Alert.alert('Başarılı! 🎉', `${amount.toLocaleString('tr-TR')}₺ teklifiniz kabul edildi.`);
+      showModal({ title: 'Başarılı! 🎉', message: `${amount.toLocaleString('tr-TR')}₺ teklifiniz kabul edildi.`, type: 'success' });
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || 'Teklif verilemedi';
-      Alert.alert('Hata', msg);
+      showModal({ title: t('common.error') || 'Hata', message: msg, type: 'error' });
     }
   };
 
@@ -237,7 +241,7 @@ export default function AuctionDetailScreen() {
           )}
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={styles.spacer} />
       </ScrollView>
     </View>
   );

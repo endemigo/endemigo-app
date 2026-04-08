@@ -34,7 +34,11 @@
     "trustFairSub": "Üreticiyi Korur",
     "seeAll": "Tümünü Gör",
     "topProducts": "Öne Çıkan Ürünler",
-    "noProducts": "Henüz ürün yok"
+    "noProducts": "Henüz ürün yok",
+    "discountedProducts": "İndirimdeki Ürünler",
+    "mostLikedProducts": "En Çok Beğenilenler",
+    "blog": "Blog",
+    "readMore": "Devamını Oku"
   },
   "categories": {
     "title": "Kategoriler",
@@ -118,7 +122,9 @@
     "totalSales": "Satış",
     "rating": "Puan",
     "sellerActivated": "Artık satıcı hesabınız aktif.",
-    "sellerActivateTitle": "Tebrikler! 🎉"
+    "sellerActivateTitle": "Tebrikler! 🎉",
+    "becomeSeller": "Satıcı Ol",
+    "becomeSellerSub": "Ürün eklemeye başla"
   },
   "cart": {
     "title": "Sepetim",

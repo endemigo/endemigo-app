@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxl,
   },
   badge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: `${Colors.white}40`,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: Colors.white,
-    fontSize: 10,
+    fontSize: FontSize.xs,
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.bodyMedium,
-    color: 'rgba(255,255,255,0.8)',
+    color: `${Colors.white}CC`,
     maxWidth: 220,
   },
   dotsRow: {

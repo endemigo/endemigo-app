@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View, Text, Image } from 'react-native';
-import { Colors, FontFamily, Shadows } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
+import { styles } from './_layout.styles';
 
 export default function TabLayout() {
   return (
@@ -9,37 +10,11 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.slate400,
-        tabBarStyle: {
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          borderTopColor: Colors.slate100,
-          borderTopWidth: 1,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          paddingTop: 8,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          position: 'absolute',
-          ...Shadows.tabBar,
-        },
-        tabBarLabelStyle: {
-          fontFamily: 'PlusJakartaSans-Bold',
-          fontSize: 10,
-          marginTop: 2,
-        },
-        headerStyle: {
-          backgroundColor: Colors.white,
-          elevation: 0,
-          shadowOpacity: 0,
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.slate100,
-        },
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabBarLabel,
+        headerStyle: styles.header,
         headerTintColor: Colors.onSurface,
-        headerTitleStyle: {
-          fontFamily: 'PlusJakartaSans-Bold',
-          fontWeight: '700',
-          fontSize: 18,
-          color: Colors.primary,
-        },
+        headerTitleStyle: styles.headerTitle,
       }}
     >
       <Tabs.Screen
@@ -77,12 +52,10 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Image
               source={require('../../assets/images/endemigo-icon.png')}
-              style={{
-                width: 24,
-                height: 24,
-                tintColor: color,
-                opacity: focused ? 1 : 0.8,
-              }}
+              style={[
+                styles.auctionIcon,
+                { tintColor: color, opacity: focused ? 1 : 0.8 },
+              ]}
               resizeMode="contain"
             />
           ),
@@ -99,25 +72,8 @@ export default function TabLayout() {
                 size={24}
                 color={color}
               />
-              <View style={{
-                position: 'absolute',
-                top: -4,
-                right: -8,
-                backgroundColor: Colors.accent,
-                borderRadius: 8,
-                width: 16,
-                height: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderWidth: 2,
-                borderColor: Colors.white,
-              }}>
-                <Text style={{
-                  color: Colors.white,
-                  fontSize: 8,
-                  fontFamily: 'Inter-Bold',
-                  fontWeight: '700',
-                }}>0</Text>
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>0</Text>
               </View>
             </View>
           ),

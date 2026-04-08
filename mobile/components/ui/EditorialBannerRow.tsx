@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
   labelText: {
     color: Colors.white,
-    fontSize: 9,
+    fontSize: FontSize.xs,
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.75)',
+    color: `${Colors.white}BF`,
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
   },

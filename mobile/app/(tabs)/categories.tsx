@@ -11,20 +11,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useCategories } from '../../hooks/useProducts';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { styles } from './categories.styles';
 
 // Icon mapping by category slug — no hardcoded data, just visual hints
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
   gida: { icon: 'restaurant', color: Colors.primary },
   zeytinyagi: { icon: 'leaf', color: Colors.secondary },
   taki: { icon: 'diamond', color: Colors.accent },
-  giyim: { icon: 'shirt', color: '#9333EA' },
-  aricilik: { icon: 'flower', color: '#F59E0B' },
-  el_sanatlari: { icon: 'color-palette', color: '#EC4899' },
-  mobilya: { icon: 'bed', color: '#3B82F6' },
-  bahce: { icon: 'rose', color: '#16A34A' },
-  kozmetik: { icon: 'sparkles', color: '#D946EF' },
-  seramik: { icon: 'flask', color: '#B45309' },
-  kurutulmus: { icon: 'nutrition', color: '#DC2626' },
+  giyim: { icon: 'shirt', color: Colors.tertiaryContainer },
+  aricilik: { icon: 'flower', color: Colors.auctionGreen },
+  el_sanatlari: { icon: 'color-palette', color: Colors.surfaceTint },
+  mobilya: { icon: 'bed', color: Colors.tertiary },
+  bahce: { icon: 'rose', color: Colors.auctionGreen },
+  kozmetik: { icon: 'sparkles', color: Colors.primary },
+  seramik: { icon: 'flask', color: Colors.secondaryContainer },
+  kurutulmus: { icon: 'nutrition', color: Colors.accent },
   default: { icon: 'ellipsis-horizontal', color: Colors.slate500 },
 };
 
@@ -50,7 +51,7 @@ export default function CategoriesScreen() {
       <View style={styles.center}>
         <Ionicons name="grid-outline" size={48} color={Colors.slate300} />
         <Text style={styles.emptyText}>{t('categories.empty')}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()} activeOpacity={0.8}>
           <Text style={styles.retryText}>{t('common.retry')}</Text>
         </TouchableOpacity>
       </View>
@@ -81,79 +82,7 @@ export default function CategoriesScreen() {
           );
         })}
       </View>
-      <View style={{ height: 100 }} />
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    padding: Spacing.base,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    padding: Spacing.xl,
-    gap: Spacing.md,
-  },
-  emptyText: {
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-    color: Colors.onSurfaceVariant,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    marginTop: Spacing.sm,
-  },
-  retryText: {
-    color: Colors.white,
-    fontFamily: FontFamily.bodyBold,
-    fontSize: FontSize.body,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  card: {
-    width: '30%',
-    flexGrow: 1,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius['2xl'],
-    padding: Spacing.base,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.slate100,
-    ...Shadows.sm,
-  },
-  iconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.xl,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  cardName: {
-    fontSize: FontSize.caption,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-    color: Colors.onSurface,
-    textAlign: 'center',
-    marginBottom: Spacing.xs,
-  },
-  cardCount: {
-    fontSize: 10,
-    fontFamily: FontFamily.body,
-    color: Colors.slate400,
-  },
-});

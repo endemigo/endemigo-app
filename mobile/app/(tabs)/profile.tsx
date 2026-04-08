@@ -4,19 +4,21 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 import { useWalletBalance } from '../../hooks/useWallet';
 import api from '../../lib/api';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { styles } from './profile.styles';
 
 export default function ProfileScreen() {
   const { user, logout, setUser } = useAuthStore();
+  const { showModal } = useModalStore();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const { data: wallet } = useWalletBalance();
@@ -26,10 +28,10 @@ export default function ProfileScreen() {
       setLoading(true);
       const { data } = await api.patch('/users/become-seller');
       setUser({ ...user!, isSeller: true });
-      Alert.alert('🎉', t('profile.sellerActivated') || 'Artık satıcı hesabınız aktif.');
+      showModal({ title: '🎉', message: t('profile.sellerActivated') || 'Artık satıcı hesabınız aktif.', type: 'success' });
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || 'Bir hata oluştu';
-      Alert.alert(t('common.error'), msg);
+      showModal({ title: t('common.error'), message: msg, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,7 @@ export default function ProfileScreen() {
 
       {/* Menu Items */}
       <View style={styles.menuCard}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
           <View style={[styles.menuIcon, { backgroundColor: `${Colors.primary}1A` }]}>
             <Ionicons name="receipt-outline" size={18} color={Colors.primary} />
           </View>
@@ -102,7 +104,7 @@ export default function ProfileScreen() {
 
         <View style={styles.menuDivider} />
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
           <View style={[styles.menuIcon, { backgroundColor: `${Colors.accent}1A` }]}>
             <Ionicons name="hammer-outline" size={18} color={Colors.accent} />
           </View>
@@ -112,7 +114,7 @@ export default function ProfileScreen() {
 
         <View style={styles.menuDivider} />
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
           <View style={[styles.menuIcon, { backgroundColor: `${Colors.secondary}1A` }]}>
             <Ionicons name="heart-outline" size={18} color={Colors.secondary} />
           </View>
@@ -122,7 +124,7 @@ export default function ProfileScreen() {
 
         <View style={styles.menuDivider} />
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
           <View style={[styles.menuIcon, { backgroundColor: Colors.slate100 }]}>
             <Ionicons name="settings-outline" size={18} color={Colors.slate600} />
           </View>
@@ -145,8 +147,8 @@ export default function ProfileScreen() {
             <>
               <Ionicons name="storefront" size={22} color={Colors.white} />
               <View style={styles.sellerButtonContent}>
-                <Text style={styles.sellerButtonText}>Satıcı Ol</Text>
-                <Text style={styles.sellerButtonSub}>Ürün eklemeye başla</Text>
+                <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
+                <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
               </View>
             </>
           )}
@@ -159,211 +161,7 @@ export default function ProfileScreen() {
         <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
 
-      <View style={{ height: 120 }} />
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    padding: Spacing.base,
-  },
-
-  // Profile Header
-  profileHeader: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius['3xl'],
-    padding: Spacing.xl,
-    alignItems: 'center',
-    marginBottom: Spacing.base,
-    ...Shadows.md,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    ...Shadows.colored(Colors.primary),
-  },
-  avatarText: {
-    fontSize: FontSize.heading,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
-    color: Colors.white,
-  },
-  name: {
-    color: Colors.onSurface,
-    fontSize: FontSize.title,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
-  },
-  email: {
-    color: Colors.onSurfaceVariant,
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.body,
-    marginTop: Spacing.xs,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    marginTop: Spacing.md,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-  },
-  sellerBadge: {
-    backgroundColor: `${Colors.primary}1A`,
-  },
-  buyerBadge: {
-    backgroundColor: `${Colors.secondary}1A`,
-  },
-  badgeText: {
-    fontSize: FontSize.meta,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-  },
-
-  // Wallet
-  walletCard: {
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius['2xl'],
-    marginBottom: Spacing.base,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-    ...Shadows.sm,
-  },
-  walletHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  walletIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.md,
-    backgroundColor: `${Colors.primary}1A`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  walletTitle: {
-    color: Colors.onSurfaceVariant,
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-  },
-  walletBalance: {
-    color: Colors.primary,
-    fontSize: FontSize.display,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
-    marginBottom: Spacing.xs,
-  },
-  walletHeldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
-  },
-  walletHeld: {
-    color: '#F59E0B',
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-  },
-  walletHint: {
-    color: Colors.slate400,
-    fontSize: FontSize.sm,
-    fontFamily: FontFamily.body,
-    marginTop: Spacing.sm,
-    fontStyle: 'italic',
-  },
-
-  // Menu
-  menuCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius['2xl'],
-    padding: Spacing.xs,
-    marginBottom: Spacing.base,
-    ...Shadows.sm,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.base,
-    gap: Spacing.md,
-  },
-  menuIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuText: {
-    flex: 1,
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-    color: Colors.onSurface,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: Colors.slate100,
-    marginHorizontal: Spacing.base,
-  },
-
-  // Seller Button
-  sellerButton: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius['2xl'],
-    gap: Spacing.base,
-    marginBottom: Spacing.md,
-    ...Shadows.colored(Colors.primary),
-  },
-  sellerButtonContent: {
-    flex: 1,
-  },
-  sellerButtonText: {
-    color: Colors.white,
-    fontSize: FontSize.subheading,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
-  },
-  sellerButtonSub: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: FontSize.meta,
-    fontFamily: FontFamily.body,
-    marginTop: Spacing.xs,
-  },
-
-  // Logout
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.errorContainer,
-    padding: Spacing.base,
-    borderRadius: BorderRadius['2xl'],
-    gap: Spacing.sm,
-  },
-  logoutText: {
-    color: Colors.error,
-    fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.bodyBold,
-    fontWeight: '700',
-  },
-});

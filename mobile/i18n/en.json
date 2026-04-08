@@ -34,7 +34,11 @@
     "trustFairSub": "Supporting Producers",
     "seeAll": "See All",
     "topProducts": "Featured Products",
-    "noProducts": "No products yet"
+    "noProducts": "No products yet",
+    "discountedProducts": "Discounted Products",
+    "mostLikedProducts": "Most Liked",
+    "blog": "Blog",
+    "readMore": "Read More"
   },
   "categories": {
     "title": "Categories",
@@ -118,7 +122,9 @@
     "totalSales": "Sales",
     "rating": "Rating",
     "sellerActivated": "Your seller account is now active.",
-    "sellerActivateTitle": "Congratulations! 🎉"
+    "sellerActivateTitle": "Congratulations! 🎉",
+    "becomeSeller": "Become Seller",
+    "becomeSellerSub": "Start adding products"
   },
   "cart": {
     "title": "My Cart",
