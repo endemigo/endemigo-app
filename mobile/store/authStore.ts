@@ -4,7 +4,7 @@ import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
 
-interface User {
+interface XUser {
   id: string;
   email: string;
   firstName: string;

@@ -29,7 +29,7 @@ export default function ProfileScreen() {
       const { data } = await api.patch('/users/become-seller');
       setUser({ ...user!, isSeller: true });
       showModal({ title: '🎉', message: t('profile.sellerActivated') || 'Artık satıcı hesabınız aktif.', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = err.response?.data?.error?.message || 'Bir hata oluştu';
       showModal({ title: t('common.error'), message: msg, type: 'error' });
     } finally {

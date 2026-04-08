@@ -1,3 +1,4 @@
+import { Product, Blog, Category } from '@/types';
 import React from 'react';
 import {
   View,
@@ -296,7 +297,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.productGrid}>
-            {data.items.map((item: any) => (
+            {data.items.map((item: Product) => (
               <ProductCard
                 key={item.id}
                 item={item}
@@ -360,7 +361,7 @@ export default function HomeScreen() {
         {/* ─── Kategori bazlı ürün satırları ─── */}
         {(categories || []).map((cat) => {
           const catProducts = (data?.items || []).filter(
-            (p: any) => p.categoryId === cat.id || p.categoryName === cat.name
+            (p: Product) => p.categoryId === cat.id || p.categoryName === cat.name
           );
           if (!catProducts.length) return null;
           return (
@@ -380,7 +381,7 @@ export default function HomeScreen() {
                 snapToInterval={SQUARE_CARD + Spacing.md}
                 snapToAlignment="start"
               >
-                {catProducts.map((item: any) => (
+                {catProducts.map((item: Product) => (
                   <ProductCard
                     key={item.id}
                     item={item}
@@ -408,7 +409,7 @@ export default function HomeScreen() {
               snapToInterval={SCREEN_WIDTH * 0.7 + Spacing.md}
               snapToAlignment="start"
             >
-              {blogs.map((blog: any) => (
+              {blogs.map((blog: Blog) => (
                 <BlogCard
                   key={blog.id}
                   item={blog}

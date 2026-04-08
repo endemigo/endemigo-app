@@ -12,6 +12,7 @@ import { UserService } from '../user/user.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { RC } from '../../shared/constants/response-codes';
 
 @Injectable()
 export class AuthService {
@@ -27,7 +28,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const existing = await this.userService.findByEmail(dto.email);
     if (existing) {
-      throw new ConflictException('Bu e-posta adresi zaten kayıtlı');
+      throw new ConflictException({ code: RC.DUPLICATE_EMAIL, message: 'Bu e-posta adresi zaten kayıtlı' });
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -44,6 +45,8 @@ export class AuthService {
     const refreshToken = await this.createRefreshToken(user.id);
 
     return {
+      code: RC.REGISTER_SUCCESS,
+      message: 'Kayıt başarılı',
       user: {
         id: user.id,
         email: user.email,
@@ -59,22 +62,24 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.userService.findByEmail(dto.email);
     if (!user) {
-      throw new UnauthorizedException('Geçersiz e-posta veya şifre');
+      throw new UnauthorizedException({ code: RC.INVALID_CREDENTIALS, message: 'Geçersiz e-posta veya şifre' });
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Geçersiz e-posta veya şifre');
+      throw new UnauthorizedException({ code: RC.INVALID_CREDENTIALS, message: 'Geçersiz e-posta veya şifre' });
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('Hesabınız devre dışı bırakılmış');
+      throw new UnauthorizedException({ code: RC.ACCOUNT_DISABLED, message: 'Hesabınız devre dışı bırakılmış' });
     }
 
     const accessToken = this.generateAccessToken(user.id, user.email, user.isSeller);
     const refreshToken = await this.createRefreshToken(user.id);
 
     return {
+      code: RC.LOGIN_SUCCESS,
+      message: 'Giriş başarılı',
       user: {
         id: user.id,
         email: user.email,
@@ -93,14 +98,14 @@ export class AuthService {
     });
 
     if (!tokenRecord) {
-      throw new UnauthorizedException('Geçersiz refresh token');
+      throw new UnauthorizedException({ code: RC.INVALID_REFRESH_TOKEN, message: 'Geçersiz refresh token' });
     }
 
     if (tokenRecord.expiresAt < new Date()) {
       // Token expired — revoke it
       tokenRecord.isRevoked = true;
       await this.refreshTokenRepo.save(tokenRecord);
-      throw new UnauthorizedException('Refresh token süresi dolmuş');
+      throw new UnauthorizedException({ code: RC.REFRESH_TOKEN_EXPIRED, message: 'Refresh token süresi dolmuş' });
     }
 
     // Revoke old token (rotation)
@@ -110,7 +115,7 @@ export class AuthService {
     // Get user
     const user = await this.userService.findById(tokenRecord.userId);
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Kullanıcı bulunamadı veya devre dışı');
+      throw new UnauthorizedException({ code: RC.ACCOUNT_DISABLED, message: 'Kullanıcı bulunamadı veya devre dışı' });
     }
 
     // Issue new tokens
@@ -118,6 +123,8 @@ export class AuthService {
     const newRefreshToken = await this.createRefreshToken(user.id);
 
     return {
+      code: RC.TOKEN_REFRESHED,
+      message: 'Token yenilendi',
       user: {
         id: user.id,
         email: user.email,
@@ -140,7 +147,7 @@ export class AuthService {
       await this.refreshTokenRepo.save(tokenRecord);
     }
 
-    return { message: 'Çıkış yapıldı' };
+    return { code: RC.LOGOUT_SUCCESS, message: 'Çıkış yapıldı' };
   }
 
   async revokeAllUserTokens(userId: string) {
@@ -153,7 +160,7 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.userService.findById(userId);
     if (!user) {
-      throw new UnauthorizedException('Kullanıcı bulunamadı');
+      throw new UnauthorizedException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
     }
     return {
       id: user.id,

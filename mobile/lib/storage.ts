@@ -1,3 +1,4 @@
+import { User } from '@/types';
 import * as SecureStore from 'expo-secure-store';
 
 const KEYS = {
@@ -29,7 +30,7 @@ export const storage = {
     const raw = await SecureStore.getItemAsync(KEYS.USER);
     return raw ? JSON.parse(raw) : null;
   },
-  async setUser(user: any): Promise<void> {
+  async setUser(user: User | null): Promise<void> {
     await SecureStore.setItemAsync(KEYS.USER, JSON.stringify(user));
   },
   async removeUser(): Promise<void> {

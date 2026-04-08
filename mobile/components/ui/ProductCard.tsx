@@ -9,7 +9,7 @@ interface Product {
   price: number;
   imageUrl?: string;
   categoryName?: string;
-  [key: string]: any;
+  
 }
 
 interface Props {

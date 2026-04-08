@@ -9,6 +9,7 @@ import { queryClient } from '../lib/queryClient';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../constants/theme';
 import { GlobalModal } from '../components/ui';
+import { styles } from './_layout.styles';
 import '../i18n'; // initialize i18n before any screen renders
 
 import {
@@ -57,7 +58,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+      <View style={styles.container}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
@@ -66,7 +67,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate>
-        <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <View style={styles.flex1} onLayout={onLayoutRootView}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />

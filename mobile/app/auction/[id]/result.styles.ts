@@ -1,0 +1,137 @@
+import { StyleSheet, Dimensions, Platform } from 'react-native';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../../constants/theme';
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  backText: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodyMedium,
+  },
+  iconCircle: {
+    width: 108,
+    height: 108,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
+  },
+  title: {
+    color: Colors.onSurface,
+    fontSize: FontSize.heading,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.body,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  resultCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius['3xl'],
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  label: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+  },
+  value: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  premiumVal: {
+    color: '#F59E0B',
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.slate100,
+    marginVertical: Spacing.sm,
+  },
+  totalLabel: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+  },
+  totalValue: {
+    color: Colors.primary,
+    fontSize: FontSize.titleLg,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+  },
+  winnerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceContainerLow,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  winnerBadgeActive: {
+    backgroundColor: `${Colors.secondary}1A`,
+  },
+  winnerText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+  },
+  winnerTextActive: {
+    color: Colors.secondary,
+  },
+  homeButton: {
+    flexDirection: 'row',
+    backgroundColor: Colors.auctionGreen,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: 'auto',
+    ...Shadows.colored(Colors.auctionGreen),
+  },
+  homeButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+  },
+});

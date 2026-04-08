@@ -1,11 +1,12 @@
+import { Product } from '@/types';
 import React from 'react';
 import { ScrollView, View, StyleSheet, Dimensions } from 'react-native';
 import { ProductCard } from './ProductCard';
 import { Spacing } from '../../constants/theme';
 
 interface Props {
-  data: any[];
-  onPress: (item: any) => void;
+  data: Product[];
+  onPress: (item: Product) => void;
   rows?: number;
 }
 

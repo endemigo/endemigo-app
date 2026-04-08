@@ -4,7 +4,8 @@
     "error": "Bir hata oluştu",
     "retry": "Tekrar dene",
     "search": "Ara...",
-    "all": "Tümü"
+    "all": "Tümü",
+    "back": "Geri"
   },
   "tabs": {
     "home": "Ana Sayfa",
@@ -72,7 +73,13 @@
     "originalProduct": "Orijinal Ürün",
     "noDescription": "Açıklama bulunmuyor.",
     "loading": "Ürün yükleniyor...",
-    "error": "Ürün bulunamadı"
+    "error": "Ürün bulunamadı",
+    "notFound": "Ürün bulunamadı",
+    "descriptionTitle": "Ürün Açıklaması",
+    "trust_original": "Orijinal",
+    "trust_shipping": "Hızlı Kargo",
+    "trust_return": "İade Garantisi",
+    "priceLabel": "Fiyat"
   },
   "auctionDetail": {
     "loading": "Yükleniyor...",
@@ -159,6 +166,25 @@
     "loggingIn": "Giriş yapılıyor...",
     "registering": "Kayıt olunuyor...",
     "loginError": "E-posta veya şifre hatalı",
-    "registerError": "Kayıt işlemi başarısız"
+    "registerError": "Kayıt işlemi başarısız",
+    "registerButton": "Kayıt Ol",
+    "alreadyHaveAccount": "Zaten hesabın var mı?"
+  },
+  "auction": {
+    "finalPrice": "Final Fiyat",
+    "buyerPremium": "Alıcı Primi",
+    "totalLabel": "Toplam",
+    "totalBids": "Toplam Teklif",
+    "winner": "Kazanan",
+    "backToAuctions": "Müzayedelere Dön",
+    "live": "CANLI",
+    "currentPrice": "Güncel Fiyat",
+    "placeBid": "Teklif Ver",
+    "minBid": "Min: ₺{{amount}}",
+    "bidButton": "TEKLİF",
+    "seeResult": "Sonucu Gör",
+    "yourAuction": "Bu sizin müzayedeniz",
+    "lastBidsTitle": "Son Teklifler",
+    "noBidsYet": "Henüz teklif yok"
   }
 }

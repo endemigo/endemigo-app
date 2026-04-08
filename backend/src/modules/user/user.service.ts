@@ -14,6 +14,7 @@ import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
+import { RC } from '../../shared/constants/response-codes';
 
 @Injectable()
 export class UserService {
@@ -49,13 +50,13 @@ export class UserService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Kullanıcı bulunamadı');
+    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
 
     // Telefon numarası unique kontrolü
     if (dto.phone) {
       const existing = await this.userRepo.findOne({ where: { phone: dto.phone } });
       if (existing && existing.id !== userId) {
-        throw new ConflictException('Bu telefon numarası zaten kullanılıyor');
+        throw new ConflictException({ code: RC.PHONE_ALREADY_EXISTS, message: 'Bu telefon numarası zaten kullanılıyor' });
       }
     }
 
@@ -66,6 +67,8 @@ export class UserService {
     await this.userRepo.save(user);
 
     return {
+      code: RC.PROFILE_UPDATED,
+      message: 'Profil güncellendi',
       id: user.id,
       email: user.email,
       firstName: user.firstName,
@@ -81,8 +84,8 @@ export class UserService {
 
   async becomeSeller(userId: string, dto: BecomeSellerDto) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Kullanıcı bulunamadı');
-    if (user.isSeller) throw new ConflictException('Zaten satıcısınız');
+    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
+    if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
 
     // SellerProfile oluştur
     const sellerProfile = this.sellerProfileRepo.create({
@@ -104,6 +107,8 @@ export class UserService {
     await this.userRepo.save(user);
 
     return {
+      code: RC.BECOME_SELLER_SUCCESS,
+      message: 'Satıcı hesabınız aktif edildi',
       id: user.id,
       email: user.email,
       isSeller: true,
@@ -113,13 +118,12 @@ export class UserService {
         status: sellerProfile.status,
         agreementVersion: sellerProfile.agreementVersion,
       },
-      message: 'Satıcı hesabınız aktif edildi',
     };
   }
 
   async getSellerProfile(userId: string) {
     const profile = await this.sellerProfileRepo.findOne({ where: { userId } });
-    if (!profile) throw new NotFoundException('Satıcı profili bulunamadı');
+    if (!profile) throw new NotFoundException({ code: RC.SELLER_PROFILE_NOT_FOUND, message: 'Satıcı profili bulunamadı' });
     return profile;
   }
 
@@ -152,7 +156,7 @@ export class UserService {
     });
 
     await this.kvkkConsentRepo.save(consent);
-    return consent;
+    return { code: RC.CONSENT_CREATED, message: 'Onay kaydedildi', consent };
   }
 
   // ==========================================
@@ -161,11 +165,11 @@ export class UserService {
 
   async deleteAccount(userId: string, password: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Kullanıcı bulunamadı');
+    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new UnauthorizedException('Şifre hatalı');
+    if (!isValid) throw new UnauthorizedException({ code: RC.WRONG_PASSWORD, message: 'Şifre hatalı' });
 
     // Aktif müzayede kontrolü — basit kontrol, genişletilecek
     // TODO: Phase 5+ → aktif sipariş ve müzayede kontrolleri
@@ -175,7 +179,7 @@ export class UserService {
     await this.userRepo.save(user);
     await this.userRepo.softDelete(userId);
 
-    return { message: 'Hesabınız silindi. 30 gün içinde geri aktifleştirebilirsiniz.' };
+    return { code: RC.ACCOUNT_DELETED, message: 'Hesabınız silindi. 30 gün içinde geri aktifleştirebilirsiniz.' };
   }
 
   async reactivateAccount(email: string, password: string) {
@@ -185,21 +189,21 @@ export class UserService {
       withDeleted: true,
     });
 
-    if (!user) throw new NotFoundException('Hesap bulunamadı');
+    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Hesap bulunamadı' });
     if (user.isActive && !user.deletedAt) {
-      throw new BadRequestException('Hesabınız zaten aktif');
+      throw new BadRequestException({ code: RC.ACCOUNT_ALREADY_ACTIVE, message: 'Hesabınız zaten aktif' });
     }
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new UnauthorizedException('Şifre hatalı');
+    if (!isValid) throw new UnauthorizedException({ code: RC.WRONG_PASSWORD, message: 'Şifre hatalı' });
 
     // Grace period kontrolü (30 gün)
     if (user.deletedAt) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       if (user.deletedAt < thirtyDaysAgo) {
-        throw new BadRequestException('Grace period sona erdi, hesap geri aktifleştirilemez');
+        throw new BadRequestException({ code: RC.GRACE_PERIOD_EXPIRED, message: 'Grace period sona erdi, hesap geri aktifleştirilemez' });
       }
     }
 
@@ -208,6 +212,6 @@ export class UserService {
     user.deletedAt = null;
     await this.userRepo.save(user);
 
-    return { message: 'Hesabınız başarıyla geri aktifleştirildi' };
+    return { code: RC.ACCOUNT_REACTIVATED, message: 'Hesabınız başarıyla geri aktifleştirildi' };
   }
 }
