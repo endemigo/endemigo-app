@@ -40,6 +40,13 @@ interface AuctionResult {
   product: { id: string; title: string } | null;
 }
 
+/**
+ * MİMARİ KARAR: Real-time Müzayede (Polling vs WebSockets)
+ * - Müzayede güncellemelerini anlık izlemek için şimdilik WebSockets (Socket.IO) yerine
+ *   TanStack Query'nin 'refetchInterval: 5000' polling (sürekli istek atma) özelliği kullanılmıştır.
+ * - Bu yapı (Backend Phase 2 tamamlanana dek) mock/statik veride uygulamanın canlı görünmesini sağlar.
+ * TODO: [PHASE-2-BACKEND] İleride performans adına doğrudan Socket.IO connection'ına geçilecektir.
+ */
 export function useAuctions(page = 1) {
   return useQuery({
     queryKey: ['auctions', page],

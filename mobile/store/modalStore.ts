@@ -24,6 +24,13 @@ const defaultOptions: ModalOptions = {
   confirmText: 'Tamam', // Should be translated at component level
 };
 
+/**
+ * MİMARİ KARAR: Neden Native Alert.alert() kullanmayıp bu Store'u ürettik?
+ * - Anayasanın 11. Maddesi gereği Native OS UI elemanları (Alert, Prompt) platformlar arası uyuşmazlığa
+ *   ve tasarımsal çirkinliğe () UI Drift yol açar.
+ * - Bu Global Modal Store sayesinde uygulamanın neresinden 'showModal()' çağrılırsa çağrılsın
+ *   kendi temamızda (Colors.primary), istediğimiz ikonla ve fontlarla çıkan bir Pop-up elde ediyoruz.
+ */
 export const useModalStore = create<ModalState>((set) => ({
   isVisible: false,
   options: defaultOptions,

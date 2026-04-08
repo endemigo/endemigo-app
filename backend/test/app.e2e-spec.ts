@@ -316,4 +316,130 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       expect([200, 400].includes(res.status)).toBe(true);
     });
   });
+
+  // ==========================================
+  // STEP 8: Phase 2 — Profile Update
+  // ==========================================
+  describe('Step 8: Profile Update', () => {
+    const uniquePhone = `+9055${Date.now().toString().slice(-8)}`;
+
+    it('should update profile (PATCH /users/profile)', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/users/profile')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .send({ firstName: 'UpdatedSeller', phone: uniquePhone })
+        .expect(200);
+
+      expect(res.body.code).toBe('PROFILE_UPDATED');
+      expect(res.body.firstName).toBe('UpdatedSeller');
+      expect(res.body.phone).toBe(uniquePhone);
+    });
+
+    it('should reject unauthenticated profile update', async () => {
+      await request(app.getHttpServer())
+        .patch('/users/profile')
+        .send({ firstName: 'Hacker' })
+        .expect(401);
+    });
+  });
+
+  // ==========================================
+  // STEP 9: Phase 2 — Seller Profile
+  // ==========================================
+  describe('Step 9: Seller Profile', () => {
+    it('should get seller profile', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/seller-profile')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(200);
+
+      expect(res.body.businessName).toBe('E2E Test Mağazası');
+      expect(res.body.status).toBe('APPROVED');
+      expect(res.body.agreementVersion).toBe('1.0.0');
+    });
+
+    it('should return 404 for buyer seller profile', async () => {
+      await request(app.getHttpServer())
+        .get('/users/seller-profile')
+        .set('Authorization', `Bearer ${buyerToken}`)
+        .expect(404);
+    });
+  });
+
+  // ==========================================
+  // STEP 10: Phase 2 — KVKK Consent
+  // ==========================================
+  describe('Step 10: KVKK Consent', () => {
+    it('should create KVKK consent', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/users/consents')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .send({ consentType: 'MARKETING', isAccepted: true })
+        .expect(201);
+
+      expect(res.body.code).toBe('CONSENT_CREATED');
+      expect(res.body.consent.consentType).toBe('MARKETING');
+    });
+
+    it('should list consents', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/users/consents')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ==========================================
+  // STEP 11: Phase 2 — Account Delete & Reactivate
+  // ==========================================
+  describe('Step 11: Account Lifecycle', () => {
+    let tempToken: string;
+    const TEMP_EMAIL = `e2e-temp-${Date.now()}@test.com`;
+
+    it('should register temp account for delete test', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email: TEMP_EMAIL, password: PASSWORD, firstName: 'Temp', lastName: 'User' })
+        .expect(201);
+
+      tempToken = res.body.accessToken;
+      expect(tempToken).toBeDefined();
+    });
+
+    it('should delete account with password', async () => {
+      const res = await request(app.getHttpServer())
+        .delete('/users/account')
+        .set('Authorization', `Bearer ${tempToken}`)
+        .send({ password: PASSWORD })
+        .expect(200);
+
+      expect(res.body.code).toBe('ACCOUNT_DELETED');
+    });
+
+    it('should reactivate within grace period', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/users/account/reactivate')
+        .send({ email: TEMP_EMAIL, password: PASSWORD })
+        .expect(200);
+
+      expect(res.body.code).toBe('ACCOUNT_REACTIVATED');
+    });
+
+    it('should reject delete with wrong password', async () => {
+      // Login again after reactivation
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: TEMP_EMAIL, password: PASSWORD })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete('/users/account')
+        .set('Authorization', `Bearer ${login.body.accessToken}`)
+        .send({ password: 'WrongPassword!' })
+        .expect(401);
+    });
+  });
 });
