@@ -1,0 +1,122 @@
+import { StyleSheet } from 'react-native';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingTop: 60,
+    paddingBottom: Spacing.base,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: FontFamily.headlineBlack,
+    fontSize: FontSize.subheading,
+    color: Colors.onSurface,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.heading,
+    color: Colors.onPrimary,
+  },
+  formCard: {
+    marginHorizontal: Spacing.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadows.md,
+  },
+  inputGroup: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.caption,
+    color: Colors.slate600,
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.bodyLg,
+    color: Colors.onSurface,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  inputHint: {
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.xs,
+    color: Colors.slate400,
+    marginTop: Spacing.xs,
+  },
+  disabledInput: {
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  disabledText: {
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.bodyLg,
+    color: Colors.slate400,
+  },
+  saveButton: {
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.xxxl,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.base,
+    alignItems: 'center',
+    ...Shadows.colored(Colors.primary),
+  },
+  saveButtonDisabled: {
+    backgroundColor: Colors.slate300,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  saveButtonText: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.bodyXl,
+    color: Colors.white,
+  },
+});

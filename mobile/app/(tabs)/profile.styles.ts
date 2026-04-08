@@ -46,6 +46,27 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.body,
     marginTop: Spacing.xs,
   },
+  phone: {
+    color: Colors.slate500,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    marginTop: 2,
+  },
+  editProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    backgroundColor: `${Colors.primary}10`,
+    borderRadius: BorderRadius.full,
+  },
+  editProfileText: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.caption,
+    color: Colors.primary,
+  },
   badgeRow: {
     flexDirection: 'row',
     marginTop: Spacing.md,

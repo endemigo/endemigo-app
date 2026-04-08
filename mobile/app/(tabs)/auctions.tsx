@@ -91,7 +91,7 @@ export default function AuctionsScreen() {
           return (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push(`/auction/${item.id}` as any)}
+              onPress={() => router.push(`/auction/${item.id}` as never)}
               activeOpacity={0.7}
             >
               <View style={styles.cardImage}>

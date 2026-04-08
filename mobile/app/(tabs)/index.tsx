@@ -243,7 +243,7 @@ export default function HomeScreen() {
             return (
               <TouchableOpacity key={cat.id} style={styles.categoryItem} activeOpacity={0.7}>
                 <View style={styles.categoryIcon}>
-                  <Ionicons name={icon as any} size={24} color={color} />
+                  <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
                 </View>
                 <Text style={styles.categoryName}>{cat.name}</Text>
               </TouchableOpacity>

@@ -13,6 +13,7 @@ export interface Category {
   name: string;
   icon: string;
   color?: string;
+  productCount?: number;
 }
 
 export interface Product {

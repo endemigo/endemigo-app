@@ -70,12 +70,12 @@ export default function CategoriesScreen() {
           return (
             <TouchableOpacity key={cat.id} style={styles.card} activeOpacity={0.7}>
               <View style={[styles.iconBox, { backgroundColor: `${color}1A` }]}>
-                <Ionicons name={icon as any} size={28} color={color} />
+                <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={28} color={color} />
               </View>
               <Text style={styles.cardName} numberOfLines={2}>{cat.name}</Text>
-              {(cat as any).productCount != null && (
+              {cat.productCount != null && (
                 <Text style={styles.cardCount}>
-                  {t('categories.productCount_other', { count: (cat as any).productCount })}
+                  {t('categories.productCount_other', { count: cat.productCount })}
                 </Text>
               )}
             </TouchableOpacity>

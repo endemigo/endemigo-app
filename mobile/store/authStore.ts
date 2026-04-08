@@ -4,11 +4,12 @@ import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
 
-interface XUser {
+export interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string;
   isSeller: boolean;
 }
 
@@ -21,9 +22,19 @@ interface AuthState {
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setUser: (user: User) => void;
+  updateProfile: (data: { firstName?: string; lastName?: string; phone?: string }) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+/**
+ * GLOBAL AUTH STORE (Zustand)
+ * Mimari Tercihi: Neden Redux Toolkit yerine Zustand kullanıyoruz?
+ * React Native ortamında (özellikle re-render optimizasyonu açısından) User/Token verisini tutmak için 
+ * Redux gereksiz kalabalık bir boilerplate (iş yükü) yaratmaktadır. Zustand çok daha hafif ve hızlı çalışır.
+ *
+ * Burada sadece uygulamanın UI state'ı "User Logged In mi?" ve "Loading mi?" nesnelerini (Client state) yönetiyoruz.
+ * Access ve Refresh tokenlar güvenliğinden ötürü Native Storage (SecureStore) içerisinde tutulur, state'te barındırılmaz!
+ */
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoggedIn: false,
   isLoading: true,
@@ -49,7 +60,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    // Revoke refresh token server-side
+    /** 
+     * Backend'de Refresh Token'ı silme kararı (Server-side revocation).
+     * Bu güvenlik adına kritiktir, sadece cihazdan silinmesi tokenı ağ bazında "Log out" yapmaz. 
+     */
     try {
       const refreshToken = await storage.getRefreshToken();
       if (refreshToken && !ENV.USE_MOCK) {
@@ -61,11 +75,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   restoreSession: async () => {
+    /**
+     * App (splash screen) açıldığında ilk tetiklenen fonksiyondur.
+     * Depodan token okur, token varsa /auth/profile vurarak User objesini yenileriz.
+     * Fetch fail olursa 'Storage.clear()' çalıştırarak kullanıcıyı Login'e atar.
+     */
     try {
       let user;
       if (ENV.USE_MOCK) {
-        // In mock mode restore from storage if available, else skip session
-        const stored = await storage.getUser?.();
+        const stored = await storage.getUser();
         user = stored || null;
       } else {
         const token = await storage.getToken();
@@ -84,5 +102,20 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user: User) => {
     storage.setUser(user);
     set({ user });
+  },
+
+  updateProfile: async (data: { firstName?: string; lastName?: string; phone?: string }) => {
+    const response = await api.patch('/users/profile', data);
+    const current = get().user;
+    if (current) {
+      const updated: User = {
+        ...current,
+        firstName: response.data.firstName ?? current.firstName,
+        lastName: response.data.lastName ?? current.lastName,
+        phone: response.data.phone ?? current.phone,
+      };
+      await storage.setUser(updated);
+      set({ user: updated });
+    }
   },
 }));

@@ -201,7 +201,7 @@ export default function AuctionDetailScreen() {
           {isEnded && (
             <TouchableOpacity
               style={styles.resultButton}
-              onPress={() => router.push(`/auction/${id}/result` as any)}
+              onPress={() => router.push(`/auction/${id}/result` as never)}
               activeOpacity={0.8}
             >
               <Ionicons name="trophy" size={22} color={Colors.white} />

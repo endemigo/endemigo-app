@@ -31,6 +31,15 @@ interface Category {
   productCount?: number;
 }
 
+/**
+ * MİMARİ KARAR: Neden TanStack Query (React Query) Kullanıyoruz?
+ * - useEffect + useState ikilisi manuel "loading", "error" ve "caching" takibi gerektirir.
+ * - TanStack Query ise API verisini bir nevi "Server State" olarak Redux dışında, kendi önbelleğinde tutar.
+ * - Uygulama içinde defalarca useProducts çağrılsa bile, QueryKey ['products', page] aynı olduğu sürece 
+ *   mükerrer API isteği atılmaz, 1 kere çekilen data memory'den döndürülür.
+ * 
+ * useProducts: Ansayfadaki "Tüm Ürünler" listesi veya vitrin ürünleri içindir.
+ */
 export function useProducts(page = 1) {
   return useQuery<PaginatedProducts>({
     queryKey: ['products', page],
@@ -88,6 +97,11 @@ export function useProduct(id: string) {
   });
 }
 
+/**
+ * Kategoriler nadir değişen verilerdir. 
+ * Bu yüzden `staleTime: 30 * 60 * 1000` (Yarım saat) vererek API'ye olan yükü %90 oranında azalttık.
+ * Kullanıcı her sekmeye tıkladığında tekrardan kategori aramak yerine 30 dk boyunca cache kullanır.
+ */
 export function useCategories() {
   return useQuery<Category[]>({
     queryKey: ['categories'],

@@ -8,6 +8,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/**
+ * Neden isRefreshing ve failedQueue kullanıyoruz? (Mimari Gerekçe)
+ * - Eğer birden fazla istek aynı anda 401 Unauthenticated yanıtı alırsa, cihazın 10 farklı
+ *   refresh-token isteği atmasını engellememiz gerekir (Bu hem sunucuyu boğar hem de
+ *   Rotate edilen Token'ların "Blacklist"e düşmesine neden olur).
+ * - İlk 401 hatasında isRefreshing = true yapılır, sonraki tüm istekler `failedQueue`
+ *   içinde Promise bekletme (Suspend) moduna alınır. Refresh bitince hepsi sırayla çalıştırılır.
+ */
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value: string | null) => void;
@@ -25,7 +33,12 @@ const processQueue = (error: Error | unknown | null, token: string | null = null
   failedQueue = [];
 };
 
-// Attach JWT token to every request
+/**
+ * Request Interceptor (Giden İstekler Öncesi)
+ * Amacı: Her istek atıldığında Local Storage'dan JWT token alıp `Authorization` başlığına (Header) eklemek.
+ * Mimari Tercih: Redux/Zustand store'dan okumak yerine Native Storage'dan okumayı tercih ettik, 
+ * çünkü Context veya Zustand ağacı dışında (background tasks vs) çalışan servislerin de erişmesi gerekir.
+ */
 api.interceptors.request.use(async (config) => {
   const token = await storage.getToken();
   if (token) {
@@ -34,18 +47,23 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Handle 401 responses with refresh token rotation
+/**
+ * Response Interceptor (Gelen Yanıtları Yakalama)
+ * Amacı: Token'ın expire (süresinin dolması) durumunda otomatik Refresh (Yenileme) yapmak.
+ * Bu sayede kullanıcı, müzayede ortasında "oturumunuz düştü" uyarısı almak yerine
+ * arka planda kesintisiz (seamless) bir şekilde yeni token alarak API isteğine devam edecektir.
+ */
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // If not 401 or already retried, reject
+    // Zaten yenilenen bir endpoint (auth/refresh) ise veya retry edildiyse, recursive (sonsuz) döngüye girmeyi engelle.
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
-    // Don't retry refresh/login/register endpoints
+    // Refresh döngüsüne yakalanmaması gereken Auth endpointleri
     const url = originalRequest.url || '';
     if (url.includes('/auth/refresh') || url.includes('/auth/login') || url.includes('/auth/register')) {
       await storage.clear();

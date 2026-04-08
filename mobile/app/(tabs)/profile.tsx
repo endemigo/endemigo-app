@@ -1,41 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
-import { useModalStore } from '../../store/modalStore';
 import { useWalletBalance } from '../../hooks/useWallet';
-import api from '../../lib/api';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
 import { styles } from './profile.styles';
 
 export default function ProfileScreen() {
-  const { user, logout, setUser } = useAuthStore();
-  const { showModal } = useModalStore();
+  const { user, logout } = useAuthStore();
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const { data: wallet } = useWalletBalance();
-
-  const handleBecomeSeller = async () => {
-    try {
-      setLoading(true);
-      const { data } = await api.patch('/users/become-seller');
-      setUser({ ...user!, isSeller: true });
-      showModal({ title: '🎉', message: t('profile.sellerActivated') || 'Artık satıcı hesabınız aktif.', type: 'success' });
-    } catch (err: unknown) {
-      const msg = err.response?.data?.error?.message || 'Bir hata oluştu';
-      showModal({ title: t('common.error'), message: msg, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -50,6 +32,7 @@ export default function ProfileScreen() {
           {user?.firstName} {user?.lastName}
         </Text>
         <Text style={styles.email}>{user?.email}</Text>
+        {user?.phone && <Text style={styles.phone}>{user.phone}</Text>}
         <View style={styles.badgeRow}>
           <View style={[styles.badge, user?.isSeller ? styles.sellerBadge : styles.buyerBadge]}>
             <Ionicons
@@ -64,6 +47,16 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Edit Profile Button */}
+        <TouchableOpacity
+          style={styles.editProfileBtn}
+          onPress={() => router.push('/(tabs)/edit-profile')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="pencil" size={14} color={Colors.primary} />
+          <Text style={styles.editProfileText}>{t('profile.editProfile')}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Wallet Card */}
@@ -124,7 +117,11 @@ export default function ProfileScreen() {
 
         <View style={styles.menuDivider} />
 
-        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          activeOpacity={0.7}
+          onPress={() => router.push('/(tabs)/settings')}
+        >
           <View style={[styles.menuIcon, { backgroundColor: Colors.slate100 }]}>
             <Ionicons name="settings-outline" size={18} color={Colors.slate600} />
           </View>
@@ -137,21 +134,14 @@ export default function ProfileScreen() {
       {!user?.isSeller && (
         <TouchableOpacity
           style={styles.sellerButton}
-          onPress={handleBecomeSeller}
-          disabled={loading}
+          onPress={() => router.push('/(tabs)/become-seller')}
           activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <>
-              <Ionicons name="storefront" size={22} color={Colors.white} />
-              <View style={styles.sellerButtonContent}>
-                <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
-                <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
-              </View>
-            </>
-          )}
+          <Ionicons name="storefront" size={22} color={Colors.white} />
+          <View style={styles.sellerButtonContent}>
+            <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
+            <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
+          </View>
         </TouchableOpacity>
       )}
 
