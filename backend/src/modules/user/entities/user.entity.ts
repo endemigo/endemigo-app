@@ -1,5 +1,6 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, OneToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
+import { SellerProfile } from './seller-profile.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -15,6 +16,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   lastName: string;
 
+  @Column({ nullable: true, unique: true })
+  phone: string;
+
   @Column({ default: false })
   isSeller: boolean;
 
@@ -23,6 +27,8 @@ export class User extends BaseEntity {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @OneToOne(() => SellerProfile, (sp) => sp.user, { eager: false })
+  sellerProfile: SellerProfile;
   // NOT: Admin tablosu Phase 11'de ayrı entity olarak oluşturulacak.
-  // User entity'de isAdmin flag kullanılmayacak.
 }

@@ -27,7 +27,6 @@ function formatCountdown(ms: number) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-const styles = StyleSheet.create({ spacer: { height: 40 } });
 export default function AuctionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();

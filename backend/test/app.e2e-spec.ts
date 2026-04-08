@@ -91,17 +91,20 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   describe('Step 2: Become Seller', () => {
     it('should promote to seller', async () => {
       const res = await request(app.getHttpServer())
-        .patch('/users/become-seller')
+        .post('/users/become-seller')
         .set('Authorization', `Bearer ${sellerToken}`)
-        .expect(200);
+        .send({ businessName: 'E2E Test Mağazası' })
+        .expect(201);
 
       expect(res.body.isSeller).toBe(true);
+      expect(res.body.sellerProfile).toBeDefined();
     });
 
     it('should reject already seller (409)', async () => {
       await request(app.getHttpServer())
-        .patch('/users/become-seller')
+        .post('/users/become-seller')
         .set('Authorization', `Bearer ${sellerToken}`)
+        .send({ businessName: 'Tekrar Deneme' })
         .expect(409);
     });
   });

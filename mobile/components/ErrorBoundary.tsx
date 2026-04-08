@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../constants/theme';
+import { styles } from './ErrorBoundary.styles';
 
 interface Props {
   children: ReactNode;
@@ -66,49 +67,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-    backgroundColor: Colors.background,
-  },
-  title: {
-    fontSize: FontSize.titleLg,
-    fontFamily: FontFamily.headlineBlack,
-    color: Colors.onSurface,
-    marginBottom: Spacing.sm,
-  },
-  message: {
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.body,
-    color: Colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-  errorDetails: {
-    backgroundColor: Colors.surfaceContainer,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    width: '100%',
-    marginBottom: Spacing.xl,
-  },
-  errorText: {
-    fontFamily: FontFamily.body,
-    color: Colors.error,
-    fontSize: FontSize.caption,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.lg,
-  },
-  retryButtonText: {
-    color: Colors.white,
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-  },
-});
