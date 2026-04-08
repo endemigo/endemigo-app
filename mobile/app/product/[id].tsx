@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useProduct } from '../../hooks/useProducts';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,7 +22,7 @@ export default function ProductDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -27,172 +30,319 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View style={styles.center}>
+        <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
         <Text style={styles.errorText}>Ürün bulunamadı</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Geri</Text>
-      </TouchableOpacity>
-
-      <Image
-        source={{ uri: product.imageUrl || 'https://placehold.co/400x300?text=Ürün' }}
-        style={styles.image}
-        resizeMode="cover"
-      />
-
-      <View style={styles.content}>
-        <Text style={styles.title}>{product.title}</Text>
-
-        <Text style={styles.price}>
-          {Number(product.price).toLocaleString('tr-TR')} ₺
-        </Text>
-
-        {product.categoryName && (
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{product.categoryName}</Text>
-          </View>
-        )}
-
-        {product.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Açıklama</Text>
-            <Text style={styles.description}>{product.description}</Text>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Satıcı</Text>
-          <View style={styles.sellerCard}>
-            <Text style={styles.sellerIcon}>🏪</Text>
-            <Text style={styles.sellerName}>
-              {product.sellerName || 'Bilinmiyor'}
-            </Text>
-          </View>
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Image Section */}
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: product.imageUrl || 'https://placehold.co/400x300/F8F9FA/0097D8?text=Ürün' }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          {/* Share Button */}
+          <TouchableOpacity style={styles.shareButton}>
+            <Ionicons name="share-outline" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.auctionButton} disabled>
-          <Text style={styles.auctionButtonText}>🔨 Müzayedeye Git</Text>
-          <Text style={styles.comingSoon}>Yakında</Text>
+        {/* Content */}
+        <View style={styles.content}>
+          {product.categoryName && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryText}>{product.categoryName}</Text>
+            </View>
+          )}
+
+          <Text style={styles.title}>{product.title}</Text>
+
+          <Text style={styles.price}>
+            ₺{Number(product.price).toLocaleString('tr-TR')}
+          </Text>
+
+          {/* Seller Card */}
+          <View style={styles.sellerCard}>
+            <View style={styles.sellerAvatar}>
+              <Ionicons name="storefront" size={20} color={Colors.primary} />
+            </View>
+            <View style={styles.sellerInfo}>
+              <Text style={styles.sellerLabel}>Satıcı</Text>
+              <Text style={styles.sellerName}>
+                {product.sellerName || 'Bilinmiyor'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+          </View>
+
+          {/* Description */}
+          {product.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Ürün Açıklaması</Text>
+              <View style={styles.descriptionCard}>
+                <Text style={styles.description}>{product.description}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Trust Badges */}
+          <View style={styles.trustRow}>
+            <View style={styles.trustBadge}>
+              <Ionicons name="shield-checkmark" size={16} color={Colors.secondary} />
+              <Text style={styles.trustText}>Orijinal</Text>
+            </View>
+            <View style={styles.trustBadge}>
+              <Ionicons name="flash" size={16} color={Colors.accent} />
+              <Text style={styles.trustText}>Hızlı Kargo</Text>
+            </View>
+            <View style={styles.trustBadge}>
+              <Ionicons name="return-down-back" size={16} color={Colors.primary} />
+              <Text style={styles.trustText}>İade Garantisi</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Fixed Bottom Action */}
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomPrice}>
+          <Text style={styles.bottomPriceLabel}>Fiyat</Text>
+          <Text style={styles.bottomPriceValue}>
+            ₺{Number(product.price).toLocaleString('tr-TR')}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.addToCartButton} activeOpacity={0.8}>
+          <Ionicons name="cart" size={20} color={Colors.white} />
+          <Text style={styles.addToCartText}>Hemen Al</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0F1A',
+    backgroundColor: Colors.background,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0F0F1A',
+    backgroundColor: Colors.background,
+    gap: Spacing.md,
   },
   errorText: {
-    color: '#FF6B6B',
-    fontSize: 16,
+    color: Colors.error,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodyMedium,
   },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 16,
-    zIndex: 10,
-    backgroundColor: 'rgba(15, 15, 26, 0.7)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  backText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+
+  // Image
+  imageContainer: {
+    position: 'relative',
   },
   image: {
     width: '100%',
-    height: 300,
-    backgroundColor: '#2A2A3E',
+    height: 320,
+    backgroundColor: Colors.surfaceContainerLow,
   },
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40,
+    left: Spacing.base,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  shareButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40,
+    right: Spacing.base,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+
+  // Content
   content: {
-    padding: 20,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  price: {
-    color: '#6C5CE7',
-    fontSize: 32,
-    fontWeight: '900',
-    marginBottom: 12,
+    padding: Spacing.lg,
   },
   categoryBadge: {
-    backgroundColor: '#2A2A3E',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    backgroundColor: Colors.surfaceContainerLow,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
     alignSelf: 'flex-start',
-    marginBottom: 20,
+    marginBottom: Spacing.md,
   },
   categoryText: {
-    color: '#A0A0B0',
-    fontSize: 13,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: '#A0A0B0',
-    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 8,
   },
-  description: {
-    color: '#D0D0E0',
-    fontSize: 15,
-    lineHeight: 22,
+  title: {
+    color: Colors.onSurface,
+    fontSize: FontSize.titleLg,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    marginBottom: Spacing.sm,
+    lineHeight: 30,
   },
+  price: {
+    color: Colors.primary,
+    fontSize: FontSize.heading,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+    marginBottom: Spacing.lg,
+  },
+
+  // Seller
   sellerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A2E',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    padding: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    ...Shadows.sm,
   },
-  sellerIcon: {
-    fontSize: 24,
-    marginRight: 12,
+  sellerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: `${Colors.primary}1A`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  sellerInfo: {
+    flex: 1,
+  },
+  sellerLabel: {
+    fontSize: FontSize.sm,
+    fontFamily: FontFamily.body,
+    color: Colors.slate400,
   },
   sellerName: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',
   },
-  auctionButton: {
-    backgroundColor: '#2A2A3E',
-    padding: 18,
-    borderRadius: 16,
+
+  // Section
+  section: {
+    marginBottom: Spacing.lg,
+  },
+  sectionTitle: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
+  },
+  descriptionCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+  },
+  description: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.body,
+    lineHeight: 24,
+  },
+
+  // Trust Badges
+  trustRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xxl,
+  },
+  trustBadge: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    opacity: 0.5,
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
   },
-  auctionButtonText: {
-    color: '#A0A0B0',
-    fontSize: 18,
+  trustText: {
+    fontSize: 10,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+  },
+
+  // Bottom Bar
+  bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 34 : Spacing.base,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.slate100,
+    ...Shadows.tabBar,
+  },
+  bottomPrice: {
+    flex: 1,
+  },
+  bottomPriceLabel: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate400,
+  },
+  bottomPriceValue: {
+    fontSize: FontSize.title,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+    color: Colors.primary,
+  },
+  addToCartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.accent,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.colored(Colors.accent),
+  },
+  addToCartText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
     fontWeight: '700',
-  },
-  comingSoon: {
-    color: '#6C5CE7',
-    fontSize: 12,
-    marginTop: 4,
   },
 });

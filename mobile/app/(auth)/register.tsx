@@ -12,7 +12,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -21,14 +23,15 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
+  const { t } = useTranslation();
 
   const handleRegister = async () => {
     if (!email || !password) {
-      Alert.alert('Hata', 'E-posta ve şifre gereklidir');
+      Alert.alert(t('common.error'), t('auth.loginError'));
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Hata', 'Şifre en az 8 karakter olmalıdır');
+      Alert.alert(t('common.error'), t('auth.registerError'));
       return;
     }
     setLoading(true);
@@ -37,7 +40,7 @@ export default function RegisterScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       const message = err.response?.data?.error?.message || 'Kayıt başarısız';
-      Alert.alert('Hata', message);
+      Alert.alert(t('common.error'), message);
     } finally {
       setLoading(false);
     }
@@ -48,52 +51,77 @@ export default function RegisterScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.form}>
-          <Text style={styles.title}>Hesap Oluştur</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.headerSection}>
+          <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+          <Text style={styles.subtitle}>{t('auth.registerSub')}</Text>
+        </View>
 
-          <Text style={styles.label}>Ad</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ahmet"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
+        <View style={styles.formCard}>
+          <View style={styles.row}>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>{t('auth.firstName')}</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('auth.firstNamePlaceholder')}
+                  placeholderTextColor={Colors.slate400}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                />
+              </View>
+            </View>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>{t('auth.lastName')}</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('auth.lastNamePlaceholder')}
+                  placeholderTextColor={Colors.slate400}
+                  value={lastName}
+                  onChangeText={setLastName}
+                />
+              </View>
+            </View>
+          </View>
 
-          <Text style={styles.label}>Soyad</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Yılmaz"
-            value={lastName}
-            onChangeText={setLastName}
-          />
+          <Text style={styles.label}>{t('auth.email')}</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.emailPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
 
-          <Text style={styles.label}>E-posta</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="ornek@email.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.label}>Şifre</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="En az 8 karakter"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <Text style={styles.label}>{t('auth.password')}</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.passwordPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleRegister}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.white} />
             ) : (
               <Text style={styles.buttonText}>Kayıt Ol</Text>
             )}
@@ -114,31 +142,96 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  scroll: { flexGrow: 1 },
-  form: { flex: 1, padding: 24, paddingTop: 20 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1e293b', marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input: {
-    backgroundColor: '#fff',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scroll: {
+    flexGrow: 1,
+    padding: Spacing.base,
+    paddingTop: Spacing.lg,
+  },
+  headerSection: {
+    marginBottom: Spacing.xl,
+  },
+  title: {
+    fontSize: FontSize.heading,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    color: Colors.onSurface,
+    marginBottom: Spacing.sm,
+  },
+  subtitle: {
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    lineHeight: 22,
+  },
+  formCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing.xl,
+    ...Shadows.md,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  halfField: {
+    flex: 1,
+  },
+  label: {
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+  },
+  inputWrapper: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 16,
+    borderColor: Colors.outlineVariant,
+    marginBottom: Spacing.base,
+    ...Shadows.sm,
+  },
+  input: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurface,
   },
   button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.base,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
+    ...Shadows.colored(Colors.primary),
   },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  linkButton: { marginTop: 20, alignItems: 'center' },
-  linkText: { fontSize: 14, color: '#6b7280' },
-  linkBold: { color: '#2563eb', fontWeight: '700' },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+  },
+  linkButton: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+  },
+  linkBold: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
 });

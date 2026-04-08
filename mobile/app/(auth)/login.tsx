@@ -9,19 +9,23 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const { t } = useTranslation();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Hata', 'E-posta ve şifre gereklidir');
+      Alert.alert(t('common.error'), t('auth.loginError'));
       return;
     }
     setLoading(true);
@@ -30,7 +34,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       const message = err.response?.data?.error?.message || 'Giriş başarısız';
-      Alert.alert('Hata', message);
+      Alert.alert(t('common.error'), message);
     } finally {
       setLoading(false);
     }
@@ -41,52 +45,76 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Header with gradient-like primary background */}
       <View style={styles.header}>
-        <Text style={styles.logo}>Endemigo</Text>
-        <Text style={styles.subtitle}>Hibrit E-Ticaret Platformu</Text>
+        <View style={styles.headerContent}>
+          <Image
+            source={require('../../assets/images/endemigo-logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.subtitle}>{t('auth.slogan')}</Text>
+        </View>
       </View>
 
-      <View style={styles.form}>
-        <Text style={styles.label}>E-posta</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="ornek@email.com"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+      {/* Form Card */}
+      <View style={styles.formContainer}>
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>{t('auth.loginWelcome')}</Text>
+          <Text style={styles.formSubtitle}>{t('auth.loginSub')}</Text>
 
-        <Text style={styles.label}>Şifre</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="••••••••"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <Text style={styles.label}>{t('auth.email')}</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.emailPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Giriş Yap</Text>
-          )}
-        </TouchableOpacity>
+          <Text style={styles.label}>{t('auth.password')}</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth.passwordPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => router.push('/(auth)/register')}
-        >
-          <Text style={styles.linkText}>
-            Hesabın yok mu? <Text style={styles.linkBold}>Kayıt Ol</Text>
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.forgotButton}>
+            <Text style={styles.forgotText}>{t('auth.forgotPassword')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>{t('auth.login')}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => router.push('/(auth)/register')}
+          >
+            <Text style={styles.linkText}>
+              {t('auth.noAccount')} <Text style={styles.linkBold}>{t('auth.register')}</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -95,70 +123,115 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors.background,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingTop: 80,
+    paddingBottom: 50,
     alignItems: 'center',
-    backgroundColor: '#2563eb',
+    backgroundColor: Colors.primary,
+    borderBottomLeftRadius: BorderRadius['3xl'],
+    borderBottomRightRadius: BorderRadius['3xl'],
   },
-  logo: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
+  headerContent: {
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 180,
+    height: 44,
+    tintColor: Colors.white,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#bfdbfe',
-    marginTop: 4,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyMedium,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: Spacing.xs,
   },
-  form: {
+  formContainer: {
     flex: 1,
-    padding: 24,
-    paddingTop: 32,
+    marginTop: -Spacing.lg,
+    paddingHorizontal: Spacing.base,
+  },
+  formCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing.xl,
+    ...Shadows.md,
+  },
+  formTitle: {
+    fontSize: FontSize.titleLg,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    color: Colors.onSurface,
+    marginBottom: Spacing.xs,
+  },
+  formSubtitle: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    marginBottom: Spacing.xl,
   },
   label: {
-    fontSize: 14,
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
+    color: Colors.onSurfaceVariant,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+  },
+  inputWrapper: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    marginBottom: Spacing.base,
+    ...Shadows.sm,
   },
   input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 16,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurface,
+  },
+  forgotButton: {
+    alignSelf: 'flex-end',
+    marginBottom: Spacing.lg,
+  },
+  forgotText: {
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   button: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.base,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
-    marginTop: 8,
+    ...Shadows.colored(Colors.primary),
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
     fontWeight: '700',
   },
   linkButton: {
-    marginTop: 20,
+    marginTop: Spacing.lg,
     alignItems: 'center',
   },
   linkText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
   },
   linkBold: {
-    color: '#2563eb',
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
   },
 });

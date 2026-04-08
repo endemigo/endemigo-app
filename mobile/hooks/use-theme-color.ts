@@ -1,21 +1,19 @@
 /**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
+ * Simplified theme color hook for the Endemigo premium design system.
+ * Since we use a flat color palette (no light/dark mode yet),
+ * this hook returns the color directly from the Colors constant.
  */
 
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export function useThemeColor(
   props: { light?: string; dark?: string },
-  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+  colorName: keyof typeof Colors
 ) {
-  const theme = useColorScheme() ?? 'light';
-  const colorFromProps = props[theme];
-
-  if (colorFromProps) {
-    return colorFromProps;
-  } else {
-    return Colors[theme][colorName];
+  // If a specific color is provided via props, use it
+  if (props.light) {
+    return props.light;
   }
+
+  return Colors[colorName];
 }

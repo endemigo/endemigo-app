@@ -15,6 +15,7 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -41,6 +42,25 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Geçersiz e-posta veya şifre' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Access token yenileme (refresh token rotation)' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: 'Token yenilendi' })
+  @ApiResponse({ status: 401, description: 'Geçersiz veya süresi dolmuş refresh token' })
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Çıkış yap (refresh token revoke)' })
+  @ApiResponse({ status: 200, description: 'Çıkış yapıldı' })
+  async logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 
   @Get('profile')

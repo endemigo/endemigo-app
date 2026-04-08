@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed-dim": "#ffb59d",
+                    "surface-container-low": "#f3f4f5",
+                    "inverse-on-surface": "#f0f1f2",
+                    "tertiary-container": "#c94b1d",
+                    "primary-fixed-dim": "#8aceff",
+                    "surface-container": "#edeeef",
+                    "on-secondary-fixed-variant": "#00530a",
+                    "primary-container": "#007cb2",
+                    "on-surface-variant": "#3f4850",
+                    "secondary-container": "#89fc7d",
+                    "surface": "#f8f9fa",
+                    "on-primary-fixed-variant": "#004b6f",
+                    "surface-dim": "#d9dadb",
+                    "primary-fixed": "#c9e6ff",
+                    "surface-container-high": "#e7e8e9",
+                    "on-tertiary-fixed": "#390b00",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-highest": "#e1e3e4",
+                    "on-secondary-container": "#007512",
+                    "on-error": "#ffffff",
+                    "tertiary": "#a83302",
+                    "surface-tint": "#006491",
+                    "error": "#ba1a1a",
+                    "surface-bright": "#f8f9fa",
+                    "on-primary-fixed": "#001e2f",
+                    "on-tertiary-fixed-variant": "#842600",
+                    "on-surface": "#191c1d",
+                    "on-tertiary-container": "#fffbff",
+                    "tertiary-fixed": "#ffdbd0",
+                    "secondary-fixed-dim": "#6ddf64",
+                    "on-primary-container": "#fcfcff",
+                    "on-secondary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed": "#89fc7d",
+                    "inverse-primary": "#8aceff",
+                    "secondary": "#36A936",
+                    "on-secondary-fixed": "#002202",
+                    "inverse-surface": "#2e3132",
+                    "on-background": "#191c1d",
+                    "error-container": "#ffdad6",
+                    "background": "#f8f9fa",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "outline-variant": "#bec8d1",
+                    "primary": "#0097D8",
+                    "accent": "#F26838"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#0097D8]" data-icon="menu">menu</span>
+<span class="font-['Plus_Jakarta_Sans'] font-black text-xl text-[#0097D8] tracking-tight">Endemigo</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-slate-400" data-icon="search">search</span>
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container text-sm" data-icon="notifications" style="font-variation-settings: 'FILL' 1;">notifications</span>
+</div>
+</div>
+</header>
+<main class="pt-16 pb-24">
+<!-- TOP SEARCH BAR -->
+<section class="px-4 py-4 sticky top-16 bg-surface z-40">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary" data-icon="search">search</span>
+<input class="w-full h-14 pl-12 pr-4 bg-white border-none rounded-2xl shadow-[0_4px_20px_rgba(0,100,145,0.08)] focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium" placeholder="Ürün, bölge veya kategori ara..." type="text"/>
+<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center bg-primary/10 px-3 py-1.5 rounded-xl">
+<span class="material-symbols-outlined text-primary text-lg" data-icon="qr_code_scanner">qr_code_scanner</span>
+</div>
+</div>
+</section>
+<!-- BANNER CAROUSEL (Bento Style) -->
+<section class="px-4 mb-8">
+<div class="relative w-full h-48 rounded-3xl overflow-hidden bg-primary shadow-lg shadow-primary/20">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="vibrant farmers market stall with fresh organic local produce and warm morning sunlight" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD3Gmy2D4b1_RFVNIcdP-DNJZu0zeslq2iXpAFN3rdau4Ya47ecssJqa2QOod4fYgJu2L3L-FChdGQzumufiLeNJZWvJ-AoA_y4c1Oqvnp5wUF8RpdB6D9rTdE0pDhPd0OrZDWRh1fTO_M8G3wrAr9wPAqkkRUhiTiV3p7d6gwsv62HBVZKlDIvAjgOF9qxPStC6xz1FjftH2yY7S38DMfQBDISYtBdLo-decUvsx9gfYciK7Y_b29xdC5JnZeADxhUiMxrUbHat4Y')"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-primary/90 to-transparent flex flex-col justify-center px-8 text-white">
+<span class="bg-accent text-white text-[10px] font-bold px-2 py-1 rounded-full w-fit mb-2 uppercase tracking-wider">Yeni Koleksiyon</span>
+<h2 class="font-headline font-extrabold text-2xl leading-tight mb-2">Anadolu'nun<br/>Bereketli Topraklarından</h2>
+<p class="text-xs font-medium text-white/80 max-w-[200px]">Sınırlı süreli indirimlerle taptaze coğrafi işaretli ürünler.</p>
+</div>
+</div>
+</section>
+<!-- SHOPPING VS AUCTION TILES -->
+<section class="px-4 grid grid-cols-2 gap-4 mb-8">
+<div class="bg-[#36A936]/10 rounded-[32px] p-5 flex flex-col items-center text-center border-2 border-[#36A936]/10">
+<div class="w-14 h-14 bg-[#36A936] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#36A936]/30">
+<span class="material-symbols-outlined text-white text-3xl" data-icon="shopping_bag" style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
+</div>
+<h3 class="font-headline font-bold text-[#36A936]">Hemen Al</h3>
+<p class="text-[10px] text-[#36A936]/60 mb-4 leading-tight">Yöresinden kapınıza 24 saatte teslimat</p>
+<button class="w-full py-2.5 bg-[#36A936] text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-transform">Hemen Keşfet</button>
+</div>
+<div class="bg-[#F26838]/10 rounded-[32px] p-5 flex flex-col items-center text-center border-2 border-[#F26838]/10">
+<div class="w-14 h-14 bg-[#F26838] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#F26838]/30">
+<span class="material-symbols-outlined text-white text-3xl" data-icon="gavel" style="font-variation-settings: 'FILL' 1;">gavel</span>
+</div>
+<h3 class="font-headline font-bold text-[#F26838]">Müzayede</h3>
+<p class="text-[10px] text-[#F26838]/60 mb-4 leading-tight">Eşsiz parçalar için teklifinizi hemen verin</p>
+<button class="w-full py-2.5 bg-[#F26838] text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-transform">Hemen Keşfet</button>
+</div>
+</section>
+<!-- CATEGORY SECTION (Horizontal Scroll) -->
+<section class="mb-8">
+<div class="px-4 flex justify-between items-end mb-4">
+<h3 class="font-headline font-extrabold text-lg text-on-surface">Kategoriler</h3>
+<span class="text-primary text-xs font-bold">Tümünü Gör</span>
+</div>
+<div class="flex flex-nowrap overflow-x-auto hide-scrollbar gap-5 px-4">
+<!-- Category Items -->
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="restaurant">restaurant</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Gıda</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#36A936]" data-icon="yard">yard</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Zeytinyağı</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-accent" data-icon="diamond">diamond</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Takı</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-purple-500" data-icon="checkroom">checkroom</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Giyim</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-orange-400" data-icon="hive">hive</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Arıcılık</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-400" data-icon="chair">chair</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Mobilya</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-green-600" data-icon="local_florist">local_florist</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Bahçe</span>
+</div>
+<div class="flex flex-col items-center gap-2 flex-shrink-0">
+<div class="w-14 h-14 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-500" data-icon="more_horiz">more_horiz</span>
+</div>
+<span class="text-[11px] font-semibold text-center leading-tight">Diğer</span>
+</div>
+</div>
+</section>
+<!-- SON ARAMALAR (Updated: Product Images) -->
+<section class="mb-8 px-4">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline font-extrabold text-lg text-on-surface">Son Aramalar</h3>
+<span class="text-slate-400 text-xs font-bold">Temizle</span>
+</div>
+<div class="grid grid-cols-3 gap-3">
+<div class="flex flex-col gap-2">
+<div class="aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
+<img alt="Maraş Tarhanası" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1626202133282-f8702ccd5415?auto=format&amp;fit=crop&amp;q=80&amp;w=300'" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD93fN0o_Jm_P3x7Bv9Kq_B7XfF8_V_3G_W_C_Y_Z_A_X_B_C_D_E_F_G_H"/>
+</div>
+<span class="text-[10px] font-bold text-center line-clamp-1">Tarhana</span>
+</div>
+<div class="flex flex-col gap-2">
+<div class="aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
+<img alt="Zeytinyağı" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDr0cVAS1lxddEgsMko4FI3-K9PZJucG0CGZl3GoNYvMNRsXbMniwOpG1AO49-9dOPf6OCfBNz2M8hw9XrsFJQGnfVxn2lqCPoS4UUZ3qabWAvI-9cFe_MHDoqjJx_3B8ZyjLRyhXMUDgqm3MToKFOaXIacn_0-QxUZp_yAkQz4j1VE1irLNzQzvW9oO5SXwVRgu8AK5NeXFufPDsdsJ42rgAnEXyRbno5WOefpPoB8WpqQs8gLATzdGM_F_NV95l9IoiNwUhJdX9Y"/>
+</div>
+<span class="text-[10px] font-bold text-center line-clamp-1">Zeytinyağı</span>
+</div>
+<div class="flex flex-col gap-2">
+<div class="aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
+<img alt="Süzme Bal" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5HYaOp_x-27LpefaJh7_m7s_xsrVVsQwBo3v2dEVNzoWe8787W6--0aW179JNhMeiHZmz-R0VDvJi9U3X7RTtWwPx7YLXzESDQBJgfsY6kGIazYV_qb37tDOLdzRvpSOUXYD2JpQxCcTm_mULRMY4neNCiUJtO7SnKM80NgmWcEn5M37CA-AZMvErcEgerhIbZI4JuijqaeXTwWQVEjbifb-4hGDPSk-eYaWTbldHwKYnbpuQemGwnIugDubgzO_N5vAjPyLBFdQ"/>
+</div>
+<span class="text-[10px] font-bold text-center line-clamp-1">Doğal Bal</span>
+</div>
+</div>
+</section>
+<!-- TRUST BAR -->
+<section class="px-4 mb-10">
+<div class="flex overflow-x-auto hide-scrollbar gap-6 items-center py-4 px-2 bg-white rounded-3xl border border-slate-100 shadow-sm">
+<div class="flex items-center gap-3 flex-shrink-0">
+<div class="w-10 h-10 bg-secondary/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary text-xl" data-icon="bolt">bolt</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold">Hızlı Teslimat</span>
+<span class="text-[10px] text-slate-400">24 Saatte Kapında</span>
+</div>
+</div>
+<div class="w-px h-8 bg-slate-100 flex-shrink-0"></div>
+<div class="flex items-center gap-3 flex-shrink-0">
+<div class="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="verified">verified</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold">Orijinal Ürün</span>
+<span class="text-[10px] text-slate-400">Coğrafi İşaretli</span>
+</div>
+</div>
+<div class="w-px h-8 bg-slate-100 flex-shrink-0"></div>
+<div class="flex items-center gap-3 flex-shrink-0">
+<div class="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-accent text-xl" data-icon="volunteer_activism">volunteer_activism</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold">Adil Ticaret</span>
+<span class="text-[10px] text-slate-400">Üreticiyi Korur</span>
+</div>
+</div>
+</div>
+</section>
+<!-- CANLI MÜZAYEDELER (Vertical List) -->
+<section class="px-4 mb-8">
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline font-extrabold text-lg text-on-surface">Canlı Müzayedeler</h3>
+<span class="text-accent text-xs font-bold underline underline-offset-4">Hepsine Katıl</span>
+</div>
+<div class="space-y-4">
+<!-- Auction Item 1 -->
+<div class="flex bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 h-28">
+<div class="w-28 relative flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="antique decorative silver plate with intricate middle eastern engravings" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuexd0QNZ7EmQwbemCJKmTYKPswwFF7sXuZwVBfjVL9msvKX0uhbGVtnSx5v1VKvDI1JHyXzTfqvPS3tG1TCiVcr8P58WTB2Po0l_puxzYz5ozX91T1lD1c5rWKgDW6wE6BlnFdRiUjvqTvKKRfSoQ94maCls3yvqdp1sE2GeyjQeBcQd4oynPTtxzK-c5h5CUGPX7tCGfGRZfAWgwpMujRNDIgA8VAQbydg5eWc-rW3j1DsJHgjv3lCaCO0KMVZkfD7o_9K3mRIM"/>
+<div class="absolute inset-0 bg-black/20 flex items-center justify-center">
+<span class="bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Canlı</span>
+</div>
+</div>
+<div class="flex-1 p-3 flex flex-col justify-between">
+<div>
+<h4 class="text-xs font-bold text-on-surface line-clamp-1">Antika Gümüş Tepsi (1920)</h4>
+<p class="text-[10px] text-slate-500">Müzayede Sonu: 2s 14dk</p>
+</div>
+<div class="flex justify-between items-end">
+<div>
+<span class="text-[9px] text-slate-400 block">En Yüksek Teklif</span>
+<span class="text-sm font-black text-accent">₺4.250</span>
+</div>
+<button class="px-4 py-1.5 bg-accent text-white text-[10px] font-bold rounded-lg shadow-md">Teklif Ver</button>
+</div>
+</div>
+</div>
+<!-- Auction Item 2 -->
+<div class="flex bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 h-28">
+<div class="w-28 relative flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="ancient woven rug with traditional geometric patterns in deep reds and blues" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBDHc8P-nVuTd6xsU59UcY6-6-klTEYmbrBJzONIImaC7hKzLqpXKnVf2gfJ3bcmTOqBIJ5Ru-DjTNjT5w0kUxKob9zJDDbZq1WBOyZK7w-GKfas1-M-0vB4ckvIrpXatEovvPL9PiACf8w2cxdq5Jg4S3nCjOZGGiL4yCifIYXbrtye4liLpjjb1pYu1k3mTz_KjnnkIXxat8l0XgAITzNg-TQ-85KzW4bxqe2QvJah2Wp0kxGrmTxX1P4wd3QOh4YxSKojdGqlI"/>
+<div class="absolute bottom-2 left-2 flex gap-1">
+<span class="bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">Nadir</span>
+</div>
+</div>
+<div class="flex-1 p-3 flex flex-col justify-between">
+<div>
+<h4 class="text-xs font-bold text-on-surface line-clamp-1">El Dokuması Kök Boya Kilim</h4>
+<p class="text-[10px] text-slate-500">Müzayede Sonu: 8s 45dk</p>
+</div>
+<div class="flex justify-between items-end">
+<div>
+<span class="text-[9px] text-slate-400 block">En Yüksek Teklif</span>
+<span class="text-sm font-black text-accent">₺12.800</span>
+</div>
+<button class="px-4 py-1.5 bg-accent text-white text-[10px] font-bold rounded-lg shadow-md">Teklif Ver</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- TÜM ÜRÜNLER (New: 2x3 Grid) -->
+<section class="px-4 mb-8">
+<div class="flex justify-between items-end mb-4">
+<h3 class="font-headline font-extrabold text-lg text-on-surface">Tüm Ürünler</h3>
+<span class="text-primary text-xs font-bold">Tümünü Gör</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Product 1 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Ege Zeytini" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2X9O7IsX1XNqB5zYZxeCbJ7OMVni9HUhGxb9yxA6UUpcUFu81x9IRg6GzBhIvaWx7Cfl7FOHiargLdsh9670-mTJqWlJEuAOsZEvRFzjPCGoqn24VnSRrD09HvxyXw8YW_64_W-dSvor_vB3jicr2d65cpIE7gCWuE2_uyUq7YKD8--qZGv7EM3y7Gp58zLIJuyn5e3b469WyHJLt1X125uvlTT2wXMIz2Ho5pojhMR-cpAWTvSKhFnQdAuO5EzvhBJMIEz74HVI"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">Ege Sızma Zeytinyağı 5L</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺1.450</span>
+</div>
+</div>
+</div>
+<!-- Product 2 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Karakovan Balı" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEOJPRcFSsxjQuHzyKRJnwVyj4ieqh7tVu6VhCqf-wSZJKO-Oe1lGQawXaTE-A4WZyuRsQy3oCrghUNOR8mQP22vPVafy7WxcEPopVfwTAY8sNqqEbwwqxjzndezVtn1jtujBaL_4bt82j3mCfYIMHlu6KlZlqGXG3UbhEWPtYBLqnQwKMzDGFA2nlV8lYzHi84huMP7mricWRSzFwo2TzDxnuF7eAU3eH5UaqL-UmdIIg7_6DV7vk1SfO259AcqsiAaRcRQqKGzI"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">Hakkari Karakovan Balı</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺850</span>
+</div>
+</div>
+</div>
+<!-- Product 3 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Antep Fıstığı" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkCgIg9WkIVCOSsOBoeRmgKXy_5Vf9tFFiu5LNCo_l96hNT7u6VXLNLBEpx1OjYHzMj1WtZNYr4E1zxBsPboCFUliWaJ0MimQIQPzfhR4FqoMBOtb_4hDI114Sj482ypug_hxI6y__MoLfRvlDvQX-0uiiSXwShad9cQVJ4TXI8ceurOWG9MAXbCNZ9HivFpdBLcwyJ9a5jwigwkt1l-T9TC0uydAE0BQiR4sgUAUV_fkAMc0ht43mVQI0ytF4lPx_CmZcPq60rmQ"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">Gaziantep Duble Fıstık</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺620</span>
+</div>
+</div>
+</div>
+<!-- Product 4 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Kuru İncir" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXTFsms8MlRpjMtsElPObLRu_QaI-V5XdPsO0wUhneYllMe2O9DNZvCeLYHsetQZc9RZ1Py6OZ8rbuGnOi-E3v30zkUFy5NE4CNkveL6GtkVclhXNmXMwOp7r39eWB98G6NwhGL87dAsa4jYV8OUQ5l2oRirjof3DljQxy_sXlLO1nmxh7yOOi-_DMYWuuPI_OMF69fcuID4BLEP0eYTx9MDKgCTTIL3zkHCbsu8b7WtLTsPyvYvScigjtrCDD7vGIS6lY6mPoRj4"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">Aydın Dağ İnciri 1kg</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺340</span>
+</div>
+</div>
+</div>
+<!-- Product 5 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Erişte" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvZY2cMz7YPqpKLdMNOqqG1XuwOUNYqHTmASw6GqYTF1rLyrDiJ61TY4idtwWTSbw30WU-wlxqoZLcZHfmcx0QSINc-2-1NiHI5dBwXdVwehgCZQyFtJvG5fU0nVGFIg3Pmc0Ddtra7xvQMfK2uA96OOGOqkSNKjB5kYLn147a5kGg6D7iueT8-DDjpfkQyLRYz85HUtSG9Idh6PpEJRccYcfpiHaIgsQJpHuPWFM4R1MOh53BmWcDYaKkAYheLtcKrnIK9z1my54"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">El Yapımı Yumurtalı Erişte</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺120</span>
+</div>
+</div>
+</div>
+<!-- Product 6 -->
+<div class="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm flex flex-col">
+<div class="aspect-square w-full">
+<img alt="Nar Ekşisi" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDS_VvvGe2jrCrMrbt3DfSpSnxVyEe0yiLR4e3GFWi7vfejIUZ5ZLwcEx2IMUTCe-J1Gwpx_mpbNl1zFHtN8LtSzFp7aEH2PlAldjc2pYKSGDVL66UtdL9KYeWibFlZuan0tDFqquRmtkrgoNn3VNLsHELClHQLQ7HRfvXlEwcqo414zgcj_HZqF3VDJRtc-GQjOyUnhqjhAx0fQkkR-M7i9Iyd_srLS9gzGwZZw12o4TmfqNqSfmZrSphDNfcjIcisdWOMLpgY1es"/>
+</div>
+<div class="p-3 flex flex-col flex-1">
+<h4 class="text-xs font-bold text-on-surface line-clamp-2 mb-1">Hatay Hakiki Nar Ekşisi</h4>
+<div class="mt-auto">
+<span class="text-sm font-black text-primary">₺280</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-3 pb-safe bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<div class="flex flex-col items-center justify-center text-[#0097D8] scale-105 transition-transform">
+<span class="material-symbols-outlined" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-[10px] mt-1">Ana Sayfa</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:text-accent transition-colors active:scale-95 duration-100">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-[10px] mt-1">Kategoriler</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:text-accent transition-colors active:scale-95 duration-100">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-[10px] mt-1">Müzayede</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:text-accent transition-colors active:scale-95 duration-100 relative">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-[10px] mt-1">Sepetim</span>
+<span class="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-white">2</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:text-accent transition-colors active:scale-95 duration-100">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Plus_Jakarta_Sans'] font-semibold text-[10px] mt-1">Profil</span>
+</div>
+</nav>
+</body></html>

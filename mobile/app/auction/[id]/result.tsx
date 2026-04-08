@@ -1,8 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuctionResult } from '../../../hooks/useAuctions';
 import { useAuthStore } from '../../../store/authStore';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../../constants/theme';
 
 export default function AuctionResultScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,7 +22,7 @@ export default function AuctionResultScreen() {
   if (isLoading || !result) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
+        <ActivityIndicator size="large" color={Colors.auctionGreen} />
       </View>
     );
   }
@@ -24,34 +33,42 @@ export default function AuctionResultScreen() {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-        <Text style={styles.backText}>← Geri</Text>
+        <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+        <Text style={styles.backText}>Geri</Text>
       </TouchableOpacity>
 
-      <View style={styles.iconContainer}>
-        <Text style={styles.icon}>{isWinner ? '🏆' : result.winner ? '😔' : '⏹'}</Text>
+      {/* Icon */}
+      <View style={[styles.iconCircle, {
+        backgroundColor: isWinner ? `${Colors.secondary}1A` : result.winner ? `${Colors.auctionGreen}1A` : Colors.slate100,
+      }]}>
+        <Ionicons
+          name={isWinner ? 'trophy' : result.winner ? 'close-circle' : 'stop-circle'}
+          size={56}
+          color={isWinner ? Colors.secondary : result.winner ? Colors.auctionGreen : Colors.slate500}
+        />
       </View>
 
       <Text style={styles.title}>
         {isWinner ? 'Tebrikler!' : result.winner ? 'Müzayede Bitti' : 'Teklif Alınamadı'}
       </Text>
-
       <Text style={styles.subtitle}>
         {result.product?.title || 'Ürün'}
       </Text>
 
+      {/* Result Card */}
       <View style={styles.resultCard}>
         <View style={styles.row}>
           <Text style={styles.label}>Final Fiyat</Text>
-          <Text style={styles.value}>{result.finalPrice.toLocaleString('tr-TR')} ₺</Text>
+          <Text style={styles.value}>₺{result.finalPrice.toLocaleString('tr-TR')}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Alıcı Primi</Text>
-          <Text style={styles.premiumVal}>+{result.buyerPremium.toLocaleString('tr-TR')} ₺</Text>
+          <Text style={styles.premiumVal}>+₺{result.buyerPremium.toLocaleString('tr-TR')}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.row}>
           <Text style={styles.totalLabel}>Toplam</Text>
-          <Text style={styles.totalValue}>{totalCost.toLocaleString('tr-TR')} ₺</Text>
+          <Text style={styles.totalValue}>₺{totalCost.toLocaleString('tr-TR')}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Toplam Teklif</Text>
@@ -60,14 +77,26 @@ export default function AuctionResultScreen() {
         {result.winner && (
           <View style={styles.row}>
             <Text style={styles.label}>Kazanan</Text>
-            <Text style={[styles.value, isWinner && styles.winnerText]}>
-              {isWinner ? '🏆 Siz!' : result.winner.name}
-            </Text>
+            <View style={[styles.winnerBadge, isWinner && styles.winnerBadgeActive]}>
+              <Ionicons
+                name={isWinner ? 'trophy' : 'person'}
+                size={14}
+                color={isWinner ? Colors.secondary : Colors.onSurfaceVariant}
+              />
+              <Text style={[styles.winnerText, isWinner && styles.winnerTextActive]}>
+                {isWinner ? 'Siz!' : result.winner.name}
+              </Text>
+            </View>
           </View>
         )}
       </View>
 
-      <TouchableOpacity style={styles.homeButton} onPress={() => router.replace('/(tabs)/auctions')}>
+      <TouchableOpacity
+        style={styles.homeButton}
+        onPress={() => router.replace('/(tabs)/auctions')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="hammer" size={20} color={Colors.white} />
         <Text style={styles.homeButtonText}>Müzayedelere Dön</Text>
       </TouchableOpacity>
     </View>
@@ -75,23 +104,136 @@ export default function AuctionResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F1A', padding: 20, paddingTop: 60 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0F1A' },
-  back: { marginBottom: 20 },
-  backText: { color: '#A0A0B0', fontSize: 16 },
-  iconContainer: { alignItems: 'center', marginBottom: 16 },
-  icon: { fontSize: 80 },
-  title: { color: '#FFF', fontSize: 28, fontWeight: '900', textAlign: 'center' },
-  subtitle: { color: '#A0A0B0', fontSize: 16, textAlign: 'center', marginTop: 8, marginBottom: 24 },
-  resultCard: { backgroundColor: '#1A1A2E', padding: 24, borderRadius: 20, marginBottom: 24 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  label: { color: '#A0A0B0', fontSize: 14 },
-  value: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-  premiumVal: { color: '#FDCB6E', fontSize: 14, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#2A2A3E', marginVertical: 8 },
-  totalLabel: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  totalValue: { color: '#6C5CE7', fontSize: 24, fontWeight: '900' },
-  winnerText: { color: '#00B894' },
-  homeButton: { backgroundColor: '#6C5CE7', padding: 18, borderRadius: 16, alignItems: 'center' },
-  homeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    padding: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  backText: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodyMedium,
+  },
+  iconCircle: {
+    width: 108,
+    height: 108,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
+  },
+  title: {
+    color: Colors.onSurface,
+    fontSize: FontSize.heading,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.body,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  resultCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius['3xl'],
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  label: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+  },
+  value: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  premiumVal: {
+    color: '#F59E0B',
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.slate100,
+    marginVertical: Spacing.sm,
+  },
+  totalLabel: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+  },
+  totalValue: {
+    color: Colors.primary,
+    fontSize: FontSize.titleLg,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '900',
+  },
+  winnerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceContainerLow,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  winnerBadgeActive: {
+    backgroundColor: `${Colors.secondary}1A`,
+  },
+  winnerText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    color: Colors.onSurfaceVariant,
+  },
+  winnerTextActive: {
+    color: Colors.secondary,
+  },
+  homeButton: {
+    flexDirection: 'row',
+    backgroundColor: Colors.auctionGreen,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: 'auto',
+    ...Shadows.colored(Colors.auctionGreen),
+  },
+  homeButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+  },
 });

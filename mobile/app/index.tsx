@@ -1,22 +1,19 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { Colors } from '../constants/theme';
 
 export default function Index() {
-  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const isLoading = useAuthStore((s) => s.isLoading);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#2563eb" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
 
-  if (isLoggedIn) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <Redirect href="/(auth)/login" />;
+  // Uygulama her zaman ana sayfayla açılır — login gerektiğinde kullanıcı profil üzerinden yönlendirilir
+  return <Redirect href="/(tabs)" />;
 }

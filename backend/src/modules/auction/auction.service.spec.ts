@@ -29,8 +29,8 @@ describe('AuctionService', () => {
     minIncrement: 100,
     buyerPremiumRate: 0.25,
     status: AuctionStatus.ACTIVE,
-    startTime: new Date('2026-04-07T10:00:00Z'),
-    endTime: new Date('2026-04-08T10:00:00Z'), // 24h future
+    startTime: new Date(Date.now() - 3600000), // 1 hour ago
+    endTime: new Date(Date.now() + 86400000),  // 24h from now (always future)
     winnerId: null,
     bidCount: 0,
     product: { title: 'Test' },

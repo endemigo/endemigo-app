@@ -23,4 +23,6 @@ export class User extends BaseEntity {
 
   @Column({ default: true })
   isActive: boolean;
+  // NOT: Admin tablosu Phase 11'de ayrı entity olarak oluşturulacak.
+  // User entity'de isAdmin flag kullanılmayacak.
 }
