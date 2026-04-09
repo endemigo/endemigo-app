@@ -31,8 +31,9 @@ export class UserService {
   // Mevcut — Auth tarafından kullanılır
   // ==========================================
 
+  // BIZ-04: withDeleted — login'de deletedAt kontrolü yapabilmek için soft-deleted user'ları da döndür
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepo.findOne({ where: { email } });
+    return this.userRepo.findOne({ where: { email }, withDeleted: true });
   }
 
   async findById(id: string): Promise<User | null> {
@@ -63,9 +64,14 @@ export class UserService {
     if (dto.firstName !== undefined) user.firstName = dto.firstName;
     if (dto.lastName !== undefined) user.lastName = dto.lastName;
     if (dto.phone !== undefined) user.phone = dto.phone;
+    // BIZ-15: Yeni alanlar
+    if (dto.birthDate !== undefined) user.birthDate = new Date(dto.birthDate);
+    if (dto.nationality !== undefined) user.nationality = dto.nationality;
+    if (dto.avatarUrl !== undefined) user.avatarUrl = dto.avatarUrl;
 
     await this.userRepo.save(user);
 
+    // BIZ-14: Genişletilmiş profil response
     return {
       code: RC.PROFILE_UPDATED,
       message: 'Profil güncellendi',
@@ -74,7 +80,11 @@ export class UserService {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      birthDate: user.birthDate,
+      nationality: user.nationality,
       isSeller: user.isSeller,
+      isVerified: user.isVerified,
     };
   }
 

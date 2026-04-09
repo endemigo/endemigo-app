@@ -26,7 +26,10 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.userService.findByEmail(dto.email);
+    // BIZ-16: Email normalization — prevent duplicate accounts via case ("User@X.com" vs "user@x.com")
+    const normalizedEmail = dto.email.trim().toLowerCase();
+
+    const existing = await this.userService.findByEmail(normalizedEmail);
     if (existing) {
       throw new ConflictException({ code: RC.DUPLICATE_EMAIL, message: 'Bu e-posta adresi zaten kayıtlı' });
     }
@@ -34,7 +37,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const user = await this.userService.create({
-      email: dto.email,
+      email: normalizedEmail,
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
@@ -60,9 +63,18 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.userService.findByEmail(dto.email);
+    // BIZ-16: Email normalization
+    const normalizedEmail = dto.email.trim().toLowerCase();
+
+    // BIZ-04: withDeleted ile sorgulayıp deletedAt kontrolü yap
+    const user = await this.userService.findByEmail(normalizedEmail);
     if (!user) {
       throw new UnauthorizedException({ code: RC.INVALID_CREDENTIALS, message: 'Geçersiz e-posta veya şifre' });
+    }
+
+    // BIZ-04: Soft-deleted user login engeli
+    if (user.deletedAt) {
+      throw new UnauthorizedException({ code: RC.ACCOUNT_DELETED_LOGIN, message: 'Bu hesap silinmiş. Geri aktifleştirmek için hesap kurtarma sayfasını kullanın.' });
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -162,12 +174,19 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
     }
+    // BIZ-14: Profile response — tüm kullanıcı alanları döndürülüyor
     return {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      birthDate: user.birthDate,
+      nationality: user.nationality,
       isSeller: user.isSeller,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
     };
   }
 
