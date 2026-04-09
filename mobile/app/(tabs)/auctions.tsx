@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuctions } from '../../hooks/useAuctions';
+import { AuctionStatus } from '@endemigo/shared';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { styles } from './auctions.styles';
 
@@ -33,9 +34,13 @@ export default function AuctionsScreen() {
   const [now, setNow] = useState(Date.now());
 
   const statusConfig = {
-    pending: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
-    active: { label: t('auctions.live'), color: Colors.error, bg: `${Colors.error}1A` },
-    ended: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
+    [AuctionStatus.DRAFT]: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
+    [AuctionStatus.PUBLISHED]: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
+    [AuctionStatus.ACTIVE]: { label: t('auctions.live'), color: Colors.error, bg: `${Colors.error}1A` },
+    [AuctionStatus.ENDED]: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
+    [AuctionStatus.COMPLETED]: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
+    [AuctionStatus.CANCELLED]: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
+    [AuctionStatus.FAILED]: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
   };
 
   useEffect(() => {
@@ -99,7 +104,7 @@ export default function AuctionsScreen() {
                   source={{ uri: item.productImage || `https://placehold.co/100x100/F8F9FA/42b94b?text=${encodeURIComponent(t('tabs.auctions'))}` }}
                   style={styles.image}
                 />
-                {item.status === 'active' && (
+                {item.status === AuctionStatus.ACTIVE && (
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
                     <Text style={styles.liveText}>{t('auctions.live')}</Text>

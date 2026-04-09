@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
+import { ProductStatus } from '@endemigo/shared';
 
 interface Product {
   id: string;
@@ -9,7 +10,7 @@ interface Product {
   description: string;
   price: number;
   imageUrl: string;
-  status: string;
+  status: ProductStatus;
   sellerId: string;
   sellerName: string;
   categoryId: string;

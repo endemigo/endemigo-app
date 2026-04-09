@@ -5,6 +5,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@endemigo/shared": [
+        "../shared-types/index.ts"
+      ],
+      "@endemigo/shared/*": [
+        "../shared-types/*"
       ]
     }
   },

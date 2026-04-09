@@ -1,9 +1,5 @@
-export enum AuctionStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  ACTIVE = 'ACTIVE',
-  ENDED = 'ENDED',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
-}
+/**
+ * @deprecated — Bu dosya artık shared-types'tan re-export ediyor.
+ * Yeni kodlarda doğrudan `@endemigo/shared` kullanın.
+ */
+export { AuctionStatus } from '@endemigo/shared';

@@ -1,6 +1,5 @@
-export enum BidStatus {
-  ACTIVE = 'ACTIVE',
-  OUTBID = 'OUTBID',
-  WON = 'WON',
-  CANCELLED = 'CANCELLED',
-}
+/**
+ * @deprecated — Bu dosya artık shared-types'tan re-export ediyor.
+ * Yeni kodlarda doğrudan `@endemigo/shared` kullanın.
+ */
+export { BidStatus } from '@endemigo/shared';

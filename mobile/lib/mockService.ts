@@ -11,6 +11,7 @@
  *   - /wallet/balance (useWallet.ts)
  *   - /auth/login, /auth/register, /auth/profile (authStore.ts)
  */
+import { AuctionStatus, ProductStatus } from '@endemigo/shared';
 
 // ─── Helpers ────────────────────────────────────────────────────
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
@@ -43,7 +44,7 @@ export const MOCK_PRODUCTS = [
     description: 'Ege\'nin en bereketli zeytinlerinden el ile toplanan, soğuk sıkım yöntemiyle üretilen sızma zeytinyağı. Coğrafi işaret belgesine sahiptir.',
     price: 450,
     imageUrl: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-1',
     sellerName: 'Ege Zeytinlikleri',
     categoryId: 'cat-2',
@@ -147,7 +148,7 @@ export const MOCK_AUCTIONS = [
     currentPrice: 3750,
     minIncrement: 100,
     buyerPremiumRate: 0.1,
-    status: 'active' as const,
+    status: AuctionStatus.ACTIVE,
     startTime: new Date(now - hours(2)).toISOString(),
     endTime: new Date(now + hours(1) + mins(23)).toISOString(),
     timeLeftMs: hours(1) + mins(23),
@@ -183,7 +184,7 @@ export const MOCK_AUCTIONS = [
     currentPrice: 3000,
     minIncrement: 150,
     buyerPremiumRate: 0.1,
-    status: 'pending' as const,
+    status: AuctionStatus.PUBLISHED,
     startTime: new Date(now + hours(2)).toISOString(),
     endTime: new Date(now + hours(26)).toISOString(),
     timeLeftMs: hours(26),
@@ -201,7 +202,7 @@ export const MOCK_AUCTIONS = [
     currentPrice: 11500,
     minIncrement: 500,
     buyerPremiumRate: 0.12,
-    status: 'ended' as const,
+    status: AuctionStatus.ENDED,
     startTime: new Date(now - hours(48)).toISOString(),
     endTime: new Date(now - hours(24)).toISOString(),
     timeLeftMs: 0,
@@ -367,11 +368,11 @@ export const mockService = {
   async getAuctionResult(id: string) {
     await delay(400);
     const auction = MOCK_AUCTIONS.find((a) => a.id === id);
-    if (!auction || auction.status !== 'ended') throw new Error('Sonuç bulunamadı');
+    if (!auction || auction.status !== AuctionStatus.ENDED) throw new Error('Sonuç bulunamadı');
     const bids = MOCK_BIDS[id] || [];
     return {
       id: auction.id,
-      status: 'ended',
+      status: AuctionStatus.ENDED,
       finalPrice: auction.currentPrice,
       buyerPremium: Math.round(auction.currentPrice * auction.buyerPremiumRate),
       bidCount: auction.bidCount,

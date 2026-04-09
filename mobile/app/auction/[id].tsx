@@ -1,4 +1,5 @@
 import { Bid } from '@/types';
+import { AuctionStatus } from '@endemigo/shared';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -65,8 +66,8 @@ export default function AuctionDetailScreen() {
 
   const endTime = new Date(auction.endTime).getTime();
   const timeLeft = Math.max(0, endTime - now);
-  const isEnded = auction.status === 'ended' || timeLeft <= 0;
-  const isActive = auction.status === 'active' && timeLeft > 0;
+  const isEnded = auction.status === AuctionStatus.ENDED || auction.status === AuctionStatus.COMPLETED || timeLeft <= 0;
+  const isActive = auction.status === AuctionStatus.ACTIVE && timeLeft > 0;
   const isSeller = user?.id === auction.sellerId;
   const minBid = Number(auction.currentPrice) + Number(auction.minIncrement);
   const premium = Number(bidAmount || 0) * Number(auction.buyerPremiumRate);

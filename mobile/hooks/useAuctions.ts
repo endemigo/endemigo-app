@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
+import { AuctionStatus } from '@endemigo/shared';
 
 interface Auction {
   id: string;
@@ -14,7 +15,7 @@ interface Auction {
   currentPrice: number;
   minIncrement: number;
   buyerPremiumRate: number;
-  status: 'pending' | 'active' | 'ended';
+  status: AuctionStatus;
   startTime: string;
   endTime: string;
   timeLeftMs: number;

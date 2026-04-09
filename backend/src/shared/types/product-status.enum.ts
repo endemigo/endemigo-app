@@ -1,10 +1,5 @@
-export enum ProductStatus {
-  DRAFT = 'DRAFT',
-  PENDING_REVIEW = 'PENDING_REVIEW',
-  ACTIVE = 'ACTIVE',
-  UNDER_AUCTION = 'UNDER_AUCTION',
-  SOLD = 'SOLD',
-  OUT_OF_STOCK = 'OUT_OF_STOCK',
-  ARCHIVED = 'ARCHIVED',
-  SUSPENDED = 'SUSPENDED',
-}
+/**
+ * @deprecated — Bu dosya artık shared-types'tan re-export ediyor.
+ * Yeni kodlarda doğrudan `@endemigo/shared` kullanın.
+ */
+export { ProductStatus } from '@endemigo/shared';

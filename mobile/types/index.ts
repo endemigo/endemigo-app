@@ -1,3 +1,27 @@
+/**
+ * Shared type'lardan gelen enum ve tipler
+ * Yeni tipler shared-types/'a eklenmelidir.
+ */
+import {
+  AuctionStatus,
+  ProductStatus,
+  ProductCondition,
+  ListingType,
+  BidStatus,
+} from '@endemigo/shared';
+
+export {
+  AuctionStatus,
+  ProductStatus,
+  ProductCondition,
+  ListingType,
+  BidStatus,
+};
+
+// ==========================================
+// Mobile-specific types (API response shapes)
+// ==========================================
+
 export interface User {
   id: string;
   email: string;
@@ -24,10 +48,12 @@ export interface Product {
   sellerName: string;
   price: number;
   oldPrice?: number;
-  thumbnail?: string | any;
+  thumbnail?: string;
   images?: string[];
   description?: string;
-  isAuction?: boolean;
+  listingType?: ListingType;
+  condition?: ProductCondition;
+  status?: ProductStatus;
 }
 
 export interface Bid {
@@ -45,5 +71,5 @@ export interface Blog {
   excerpt: string;
   readTime: string;
   date?: string;
-  image?: any;
+  image?: string;
 }
