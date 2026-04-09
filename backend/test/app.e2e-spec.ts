@@ -152,6 +152,59 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       expect(res.body.items).toBeDefined();
       expect(res.body.total).toBeGreaterThanOrEqual(1);
     });
+
+    it('should get product detail with Phase 3 fields', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/products/${productId}`)
+        .expect(200);
+
+      expect(res.body.id).toBe(productId);
+      expect(res.body.status).toBe('ACTIVE');
+      expect(res.body.condition).toBeDefined();
+      expect(res.body.listingType).toBeDefined();
+    });
+
+    it('should list seller own products (GET /products/my)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/products/my')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(200);
+
+      expect(res.body.items.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.items[0].sellerId).toBeDefined();
+    });
+
+    it('should reject update by non-owner (403)', async () => {
+      await request(app.getHttpServer())
+        .patch(`/products/${productId}`)
+        .set('Authorization', `Bearer ${buyerToken}`)
+        .send({ title: 'Hack' })
+        .expect(403);
+    });
+  });
+
+  // ==========================================
+  // STEP 3.5: Categories
+  // ==========================================
+  describe('Step 3.5: Categories', () => {
+    it('should seed categories', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/categories/seed')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(201);
+
+      expect(res.body.length).toBeGreaterThanOrEqual(9);
+    });
+
+    it('should list categories with children (public)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/categories')
+        .expect(200);
+
+      expect(res.body.length).toBeGreaterThanOrEqual(9);
+      expect(res.body[0].children).toBeDefined();
+      expect(res.body[0].children.length).toBeGreaterThan(0);
+    });
   });
 
   // ==========================================
