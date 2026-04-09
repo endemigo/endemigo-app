@@ -12,6 +12,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ProductModule } from './modules/product/product.module';
 import { AuctionModule } from './modules/auction/auction.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { SearchModule } from './modules/search/search.module';
 import { StorageModule } from './shared/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
@@ -50,6 +51,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     ProductModule,
     AuctionModule,
     WalletModule,
+    SearchModule,
     HealthModule,
   ],
   providers: [

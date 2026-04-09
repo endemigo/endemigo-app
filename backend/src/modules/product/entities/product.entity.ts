@@ -87,4 +87,8 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
   weight: number;
+
+  // ─── Denormalized Counters (Phase 4) ──────────────────────
+  @Column({ type: 'int', default: 0 })
+  favoriteCount: number;
 }

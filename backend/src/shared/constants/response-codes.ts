@@ -93,6 +93,14 @@ export const WALLET = {
 } as const;
 
 // ==========================================
+// Search & Favorites
+// ==========================================
+export const SEARCH = {
+  FAVORITE_ADDED: 'FAVORITE_ADDED',
+  FAVORITE_REMOVED: 'FAVORITE_REMOVED',
+} as const;
+
+// ==========================================
 // Generic
 // ==========================================
 export const GENERIC = {
@@ -114,6 +122,7 @@ export const RC = {
   ...PRODUCT,
   ...AUCTION,
   ...WALLET,
+  ...SEARCH,
   ...GENERIC,
 } as const;
 
