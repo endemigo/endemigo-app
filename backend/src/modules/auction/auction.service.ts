@@ -29,12 +29,25 @@ export class AuctionService {
       throw new ForbiddenException('Sadece satıcılar müzayede oluşturabilir');
     }
 
-    // Check product not in active auction
-    const existingAuction = await this.auctionRepo.findOne({
-      where: { productId: dto.productId, status: AuctionStatus.ACTIVE },
-    });
+    // BIZ-03: Product ownership check
+    const product = await this.auctionRepo.manager.findOne('Product', {
+      where: { id: dto.productId },
+    }) as any;
+    if (!product) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+    if (product.sellerId !== sellerId) {
+      throw new ForbiddenException('Sadece kendi ürünleriniz için müzayede oluşturabilirsiniz');
+    }
+
+    // BIZ-07: Check product not in active OR published auction
+    const existingAuction = await this.auctionRepo
+      .createQueryBuilder('a')
+      .where('a.productId = :productId', { productId: dto.productId })
+      .andWhere('a.status IN (:...statuses)', { statuses: [AuctionStatus.ACTIVE, AuctionStatus.PUBLISHED] })
+      .getOne();
     if (existingAuction) {
-      throw new BadRequestException('Bu ürün zaten aktif bir müzayedede');
+      throw new BadRequestException('Bu ürün zaten aktif veya yayında bir müzayedede');
     }
 
     const startTime = new Date(dto.startTime);
@@ -76,12 +89,18 @@ export class AuctionService {
   }
 
   async findAll(page = 1, limit = 20) {
-    const [items, total] = await this.auctionRepo.findAndCount({
-      relations: ['product', 'seller'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    // BIZ-13: Only show public-visible statuses
+    const [items, total] = await this.auctionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.product', 'product')
+      .leftJoinAndSelect('a.seller', 'seller')
+      .where('a.status IN (:...statuses)', {
+        statuses: [AuctionStatus.PUBLISHED, AuctionStatus.ACTIVE, AuctionStatus.ENDED],
+      })
+      .orderBy('a.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       items: items.map((a) => this.toResponse(a)),
@@ -125,22 +144,25 @@ export class AuctionService {
       throw new BadRequestException(`Minimum teklif: ${minBid.toFixed(2)}₺`);
     }
 
-    // 5. Balance check
+    // 5. Calculate total including buyer premium (BIZ-05)
+    const premiumAmount = dto.amount * Number(auction.buyerPremiumRate);
+    const totalWithPremium = dto.amount + premiumAmount;
+
+    // 6. Balance check (total with premium)
     const balance = await this.walletService.getBalance(bidderId);
-    if (balance.available < dto.amount) {
+    if (balance.available < totalWithPremium) {
       throw new BadRequestException(
-        `Yetersiz bakiye. Kullanılabilir: ${balance.available.toFixed(2)}₺`,
+        `Yetersiz bakiye. Gerekli: ${totalWithPremium.toFixed(2)}₺ (teklif + %${(Number(auction.buyerPremiumRate) * 100).toFixed(0)} alıcı primi), Kullanılabilir: ${balance.available.toFixed(2)}₺`,
       );
     }
 
-    // 6. Release previous hold
+    // 7. Release previous hold
     await this.walletService.releaseHold(auctionId, bidderId);
 
-    // 7. Create new hold
-    await this.walletService.createHold(auctionId, bidderId, dto.amount);
+    // 8. Create new hold (including premium)
+    await this.walletService.createHold(auctionId, bidderId, totalWithPremium);
 
-    // 8. Save bid
-    const premiumAmount = dto.amount * Number(auction.buyerPremiumRate);
+    // 9. Save bid
     const bid = this.bidRepo.create({
       auctionId,
       bidderId,

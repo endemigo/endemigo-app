@@ -66,7 +66,18 @@ export class ProductService {
       throw new ForbiddenException({ code: RC.NOT_PRODUCT_OWNER, message: 'Bu ürün size ait değil' });
     }
 
-    Object.assign(product, dto);
+    // BIZ-06: Safe field assignment — prevent mass assignment of sellerId, favoriteCount, etc.
+    const safeFields = [
+      'title', 'description', 'price', 'categoryId', 'stockQuantity', 'sku',
+      'geoIndicationCertNo', 'geoIndicationRegion', 'originCountry', 'originRegion',
+      'condition', 'listingType', 'dimensionWidth', 'dimensionHeight', 'dimensionDepth',
+      'weight', 'status',
+    ];
+    for (const field of safeFields) {
+      if ((dto as any)[field] !== undefined) {
+        (product as any)[field] = (dto as any)[field];
+      }
+    }
     await this.productRepo.save(product);
 
     const full = await this.findById(productId);
@@ -82,6 +93,16 @@ export class ProductService {
     if (!product) throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
     if (product.sellerId !== sellerId) {
       throw new ForbiddenException({ code: RC.NOT_PRODUCT_OWNER, message: 'Bu ürün size ait değil' });
+    }
+
+    // BIZ-18: Block deletion if product has active/published auction
+    const activeAuction = await this.productRepo.manager
+      .createQueryBuilder('Auction', 'a')
+      .where('a.productId = :productId', { productId })
+      .andWhere('a.status IN (:...statuses)', { statuses: ['PUBLISHED', 'ACTIVE'] })
+      .getOne();
+    if (activeAuction) {
+      throw new BadRequestException({ code: 'PRODUCT_IN_AUCTION', message: 'Bu ürün aktif bir müzayedede olduğu için silinemez' });
     }
 
     await this.productRepo.softDelete(productId);
