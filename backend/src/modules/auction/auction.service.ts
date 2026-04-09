@@ -50,6 +50,7 @@ export class AuctionService {
       startPrice: dto.startPrice,
       currentPrice: dto.startPrice,
       minIncrement: dto.minIncrement || 1,
+      status: AuctionStatus.PUBLISHED,
       startTime,
       endTime,
     });
@@ -187,7 +188,7 @@ export class AuctionService {
 
   async activateAuction(auctionId: string) {
     const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
-    if (!auction || auction.status !== AuctionStatus.PENDING) return;
+    if (!auction || auction.status !== AuctionStatus.PUBLISHED) return;
     auction.status = AuctionStatus.ACTIVE;
     await this.auctionRepo.save(auction);
   }

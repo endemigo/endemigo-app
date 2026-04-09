@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Auction } from './auction.entity';
 import { User } from '../../user/entities/user.entity';
+import { BidStatus } from '../../../shared/types/bid-status.enum';
 
 @Entity('bids')
 export class Bid extends BaseEntity {
@@ -24,4 +25,14 @@ export class Bid extends BaseEntity {
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   premiumAmount: number;
+
+  // ─── Phase 5 Fields ────────────────────────────────────
+  @Column({ type: 'enum', enum: BidStatus, default: BidStatus.ACTIVE })
+  status: BidStatus;
+
+  @Column({ default: false })
+  isWinningBid: boolean;
+
+  @Column({ nullable: true })
+  ipAddress: string;
 }

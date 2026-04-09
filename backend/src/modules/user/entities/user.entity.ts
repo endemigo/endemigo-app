@@ -19,6 +19,19 @@ export class User extends BaseEntity {
   @Column({ nullable: true, unique: true })
   phone: string;
 
+  // ─── Phase 5 Prerequisite Fields ──────────────────────
+  @Column({ nullable: true })
+  birthDate: Date;
+
+  @Column({ nullable: true })
+  tcKimlikNo: string;
+
+  @Column({ nullable: true })
+  avatarUrl: string;
+
+  @Column({ nullable: true, default: 'TR' })
+  nationality: string;
+
   @Column({ default: false })
   isSeller: boolean;
 

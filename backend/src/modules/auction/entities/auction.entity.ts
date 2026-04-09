@@ -1,8 +1,9 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Product } from '../../product/entities/product.entity';
 import { User } from '../../user/entities/user.entity';
 import { AuctionStatus } from '../../../shared/types/auction-status.enum';
+import { AuctionType } from '../../../shared/types/auction-type.enum';
 
 @Entity('auctions')
 export class Auction extends BaseEntity {
@@ -32,8 +33,11 @@ export class Auction extends BaseEntity {
   @Column({ type: 'decimal', precision: 5, scale: 4, default: 0.25 })
   buyerPremiumRate: number;
 
-  @Column({ type: 'enum', enum: AuctionStatus, default: AuctionStatus.PENDING })
+  @Column({ type: 'enum', enum: AuctionStatus, default: AuctionStatus.DRAFT })
   status: AuctionStatus;
+
+  @Column({ type: 'enum', enum: AuctionType, default: AuctionType.REALTIME })
+  auctionType: AuctionType;
 
   @Column({ type: 'timestamp' })
   startTime: Date;
@@ -50,4 +54,29 @@ export class Auction extends BaseEntity {
 
   @Column({ default: 0 })
   bidCount: number;
+
+  // ─── LOT Numaralama (AUCT-17) ────────────────────────
+  @Column({ nullable: true, unique: true })
+  lotNumber: string; // LOT-YYYYMM-XXXXX
+
+  // ─── Anti-Sniping (AUCT-06, AUCT-11) ─────────────────
+  @Column({ default: true })
+  antiSnipingEnabled: boolean;
+
+  @Column({ default: 10 })
+  maxExtensions: number;
+
+  @Column({ default: 0 })
+  currentExtensions: number;
+
+  @Column({ default: 60 })
+  extensionSeconds: number; // kademeli: 60→45→30
+
+  // ─── Oda Kapasitesi (AUCT-13) ─────────────────────────
+  @Column({ nullable: true })
+  roomCapacity: number;
+
+  // ─── Kültür Varlığı (AUCT-18) ─────────────────────────
+  @Column({ default: false })
+  culturalAssetRestricted: boolean;
 }

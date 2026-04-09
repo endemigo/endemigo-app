@@ -30,4 +30,8 @@ export class Category extends BaseEntity {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  // ─── Kültür Varlığı Flag (AUCT-18) ───────────────────
+  @Column({ type: 'boolean', default: false })
+  isCulturalAsset: boolean;
 }

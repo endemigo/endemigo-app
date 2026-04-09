@@ -304,7 +304,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       const detail = await request(app.getHttpServer())
         .get(`/auctions/${auctionId}`)
         .expect(200);
-      expect(detail.body.status).toBe('active');
+      expect(detail.body.status).toBe('ACTIVE');
     }, 10000);
 
     it('buyer should not create auction (403)', async () => {

@@ -109,14 +109,14 @@ export class SearchService {
 
     // Status filter
     if (dto.status === 'active') {
-      qb.andWhere('a.status = :s', { s: 'active' })
+      qb.andWhere('a.status = :s', { s: 'ACTIVE' })
         .andWhere('a.startTime <= :now', { now })
         .andWhere('a.endTime > :now', { now });
     } else if (dto.status === 'upcoming') {
-      qb.andWhere('a.status = :s', { s: 'active' })
+      qb.andWhere('a.status = :s', { s: 'PUBLISHED' })
         .andWhere('a.startTime > :now', { now });
     } else if (dto.status === 'ended') {
-      qb.andWhere('a.status = :s', { s: 'ended' });
+      qb.andWhere('a.status = :s', { s: 'ENDED' });
     }
 
     // Filters
