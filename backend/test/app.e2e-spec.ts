@@ -208,6 +208,78 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   });
 
   // ==========================================
+  // STEP 3.6: Search & Favorites
+  // ==========================================
+  describe('Step 3.6: Search & Favorites', () => {
+    it('should search products by text', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/products/search?q=Test')
+        .expect(200);
+
+      expect(res.body.items).toBeDefined();
+      expect(res.body.total).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should search products with filters', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/products/search?minPrice=100&maxPrice=100000&sort=price_asc')
+        .expect(200);
+
+      expect(res.body.items).toBeDefined();
+    });
+
+    it('should search auctions', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/auctions/search?sort=newest')
+        .expect(200);
+
+      expect(res.body.items).toBeDefined();
+    });
+
+    it('should do unified search', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/search?q=Test')
+        .expect(200);
+
+      expect(res.body.products).toBeDefined();
+      expect(res.body.auctions).toBeDefined();
+    });
+
+    it('should toggle favorite (add)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/favorites/${productId}`)
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(201);
+
+      expect(res.body.isFavorited).toBe(true);
+    });
+
+    it('should list favorites', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/favorites')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(200);
+
+      expect(res.body.items.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should toggle favorite (remove)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/favorites/${productId}`)
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(201);
+
+      expect(res.body.isFavorited).toBe(false);
+    });
+
+    it('should reject favorite without auth', async () => {
+      await request(app.getHttpServer())
+        .post(`/favorites/${productId}`)
+        .expect(401);
+    });
+  });
+
+  // ==========================================
   // STEP 4: Create Auction
   // ==========================================
   describe('Step 4: Auction', () => {

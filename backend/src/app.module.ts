@@ -48,10 +48,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     StorageModule,
     AuthModule,
     UserModule,
+    SearchModule,     // MUST be before ProductModule/AuctionModule — route priority
     ProductModule,
     AuctionModule,
     WalletModule,
-    SearchModule,
     HealthModule,
   ],
   providers: [
