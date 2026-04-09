@@ -124,13 +124,23 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       productId = res.body.id;
     });
 
+    it('seller should activate product', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/products/${productId}`)
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .send({ status: 'ACTIVE', stockQuantity: 10 })
+        .expect(200);
+
+      expect(res.body.code).toBe('PRODUCT_UPDATED');
+      expect(res.body.status).toBe('ACTIVE');
+    });
+
     it('buyer should not create product', async () => {
       const res = await request(app.getHttpServer())
         .post('/products')
         .set('Authorization', `Bearer ${buyerToken}`)
         .send({ title: 'X', price: 100, description: 'Y' });
 
-      // 403 (seller guard) or 400 (validation) — both reject correctly
       expect([400, 403].includes(res.status)).toBe(true);
     });
 

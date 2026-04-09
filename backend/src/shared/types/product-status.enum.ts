@@ -1,5 +1,10 @@
 export enum ProductStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  SOLD = 'sold',
+  DRAFT = 'DRAFT',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  ACTIVE = 'ACTIVE',
+  UNDER_AUCTION = 'UNDER_AUCTION',
+  SOLD = 'SOLD',
+  OUT_OF_STOCK = 'OUT_OF_STOCK',
+  ARCHIVED = 'ARCHIVED',
+  SUSPENDED = 'SUSPENDED',
 }

@@ -1,4 +1,4 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 @Entity('categories')
@@ -6,9 +6,28 @@ export class Category extends BaseEntity {
   @Column({ unique: true })
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ unique: true })
   slug: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({ nullable: true })
+  imageUrl: string;
+
+  @Column({ nullable: true })
+  parentId: string;
+
+  @ManyToOne(() => Category, (cat) => cat.children, { nullable: true })
+  @JoinColumn({ name: 'parentId' })
+  parent: Category;
+
+  @OneToMany(() => Category, (cat) => cat.parent)
+  children: Category[];
 
   @Column({ default: 0 })
   sortOrder: number;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
 }

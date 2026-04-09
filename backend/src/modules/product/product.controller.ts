@@ -2,20 +2,27 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
   ParseUUIDPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiResponse,
   ApiQuery,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -29,7 +36,6 @@ export class ProductController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Yeni ürün oluştur (sadece satıcılar)' })
   @ApiResponse({ status: 201, type: ProductResponseDto })
-  @ApiResponse({ status: 403, description: 'Sadece satıcılar ürün ekleyebilir' })
   async create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateProductDto,
@@ -37,9 +43,72 @@ export class ProductController {
     return this.productService.create(userId, dto);
   }
 
+  @Patch(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ürün güncelle (sadece ürün sahibi)' })
+  async update(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    return this.productService.update(userId, id, dto);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ürün sil (soft delete, sadece ürün sahibi)' })
+  async remove(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productService.remove(userId, id);
+  }
+
+  // ─── Image Endpoints ────────────────────────────────────────
+
+  @Post(':id/images')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ürüne görsel yükle (max 10)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  async uploadImage(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) productId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.productService.uploadImage(userId, productId, file);
+  }
+
+  @Delete('images/:imageId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ürün görselini sil' })
+  async deleteImage(
+    @CurrentUser('id') userId: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ) {
+    return this.productService.deleteImage(userId, imageId);
+  }
+
+  // ─── My Products ─────────────────────────────────────────────
+
+  @Get('my')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Satıcının kendi ürünleri (tüm durumlar)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async findMyProducts(
+    @CurrentUser('id') userId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.productService.findMyProducts(userId, +page, +limit);
+  }
+
+  // ─── Public Endpoints ─────────────────────────────────────────
+
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Ürün listele (herkes)' })
+  @ApiOperation({ summary: 'Ürün listele (herkes, sadece ACTIVE)' })
   @ApiResponse({ status: 200, type: PaginatedProductsDto })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
@@ -54,7 +123,6 @@ export class ProductController {
   @Get(':id')
   @ApiOperation({ summary: 'Ürün detay' })
   @ApiResponse({ status: 200, type: ProductResponseDto })
-  @ApiResponse({ status: 404, description: 'Ürün bulunamadı' })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productService.findById(id);
   }
@@ -67,14 +135,14 @@ export class CategoryController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Kategori listele' })
+  @ApiOperation({ summary: 'Kategori listele (ağaç yapısında)' })
   async findAll() {
     return this.productService.findCategories();
   }
 
   @Post('seed')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Kategori seed data oluştur' })
+  @ApiOperation({ summary: 'Kategori seed data oluştur (root + children)' })
   async seed() {
     return this.productService.seedCategories();
   }

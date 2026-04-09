@@ -3,7 +3,7 @@ import { UserService } from './user.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
-import { KvkkConsent } from './entities/kvkk-consent.entity';
+import { KvkkConsent, ConsentType } from './entities/kvkk-consent.entity';
 import {
   ConflictException,
   NotFoundException,
@@ -189,7 +189,7 @@ describe('UserService', () => {
     it('should create immutable consent record', async () => {
       const result = await service.createConsent(
         'user-1',
-        { consentType: 'MARKETING', isAccepted: true },
+        { consentType: ConsentType.MARKETING, isAccepted: true },
         '127.0.0.1',
         'TestAgent/1.0',
       );
@@ -203,7 +203,7 @@ describe('UserService', () => {
     it('should create consent with isAccepted=false (withdrawal)', async () => {
       const result = await service.createConsent(
         'user-1',
-        { consentType: 'THIRD_PARTY_SHARING', isAccepted: false },
+        { consentType: ConsentType.THIRD_PARTY_SHARING, isAccepted: false },
       );
 
       expect(result.consent.isAccepted).toBe(false);
