@@ -36,13 +36,25 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const user = await this.userService.create({
-      email: normalizedEmail,
-      passwordHash,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      isVerified: true, // Skip email verification for vertical slice
-    });
+    // K6: Race condition guard — concurrent register ile aynı email gelirse
+    // findByEmail kontrolünü geçen iki istek aynı anda create yapabilir.
+    // PostgreSQL UNIQUE constraint'i yakalayıp kullanıcı dostu hata döndürüyoruz.
+    let user;
+    try {
+      user = await this.userService.create({
+        email: normalizedEmail,
+        passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        isVerified: true, // Skip email verification for vertical slice
+      });
+    } catch (error: any) {
+      // PostgreSQL unique_violation error code: 23505
+      if (error?.code === '23505' || error?.driverError?.code === '23505') {
+        throw new ConflictException({ code: RC.DUPLICATE_EMAIL, message: 'Bu e-posta adresi zaten kayıtlı' });
+      }
+      throw error;
+    }
 
     const accessToken = this.generateAccessToken(user.id, user.email, user.isSeller);
     const refreshToken = await this.createRefreshToken(user.id);

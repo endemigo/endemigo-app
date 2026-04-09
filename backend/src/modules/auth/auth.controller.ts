@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -27,6 +28,8 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  // K2: Auth rate limiting — 5 istek/dk (brute force koruması)
+  @Throttle({ short: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Yeni kullanıcı kaydı' })
   @ApiResponse({ status: 201, type: AuthResponseDto, description: 'Kayıt başarılı' })
   @ApiResponse({ status: 409, description: 'E-posta zaten kayıtlı' })
@@ -37,6 +40,8 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  // K2: Auth rate limiting — 5 istek/dk
+  @Throttle({ short: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Kullanıcı girişi' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: 'Giriş başarılı' })
   @ApiResponse({ status: 401, description: 'Geçersiz e-posta veya şifre' })

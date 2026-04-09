@@ -70,7 +70,18 @@ export class ProductController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ürüne görsel yükle (max 10)' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    // D6: Dosya tipi kontrolü — sadece resim formatları kabul edilir
+    fileFilter: (_req, file, callback) => {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (allowedMimes.includes(file.mimetype)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir'), false);
+      }
+    },
+  }))
   async uploadImage(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) productId: string,

@@ -186,7 +186,13 @@ export class SearchService {
 
     if (existing) {
       await this.favoriteRepo.remove(existing);
-      await this.productRepo.decrement({ id: productId }, 'favoriteCount', 1);
+      // C5: favoriteCount negatife düşmesini engelle (GREATEST ile 0 floor)
+      await this.productRepo
+        .createQueryBuilder()
+        .update()
+        .set({ favoriteCount: () => 'GREATEST("favoriteCount" - 1, 0)' })
+        .where('id = :id', { id: productId })
+        .execute();
       return { code: 'FAVORITE_REMOVED', message: 'Favorilerden çıkarıldı', isFavorited: false };
     } else {
       const fav = this.favoriteRepo.create({ userId, productId });

@@ -60,7 +60,10 @@ export class ProductService {
   // ==========================================
 
   async update(sellerId: string, productId: string, dto: UpdateProductDto) {
-    const product = await this.productRepo.findOne({ where: { id: productId } });
+    const product = await this.productRepo.findOne({
+      where: { id: productId },
+      relations: ['images'],
+    });
     if (!product) throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
     if (product.sellerId !== sellerId) {
       throw new ForbiddenException({ code: RC.NOT_PRODUCT_OWNER, message: 'Bu ürün size ait değil' });
@@ -78,6 +81,24 @@ export class ProductService {
         (product as any)[field] = (dto as any)[field];
       }
     }
+
+    // K5: DRAFT→ACTIVE status geçiş guard'ı — yayınlama kalite kontrolü
+    if (product.status === ProductStatus.ACTIVE) {
+      const errors: string[] = [];
+      const hasImage = (product.images && product.images.length > 0) || product.imageUrl;
+      if (!hasImage) errors.push('En az 1 ürün görseli gereklidir');
+      if (!product.description || product.description.trim().length < 10) errors.push('Ürün açıklaması en az 10 karakter olmalıdır');
+      if (!product.categoryId) errors.push('Kategori seçimi zorunludur');
+      if (product.price < 1) errors.push('Fiyat en az 1₺ olmalıdır');
+      if (errors.length > 0) {
+        throw new BadRequestException({
+          code: 'PRODUCT_ACTIVATION_FAILED',
+          message: 'Ürün yayınlama gereksinimleri karşılanmıyor',
+          errors,
+        });
+      }
+    }
+
     await this.productRepo.save(product);
 
     const full = await this.findById(productId);
