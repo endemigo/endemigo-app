@@ -6,4 +6,10 @@ coverage/
 .expo/
 ios/
 android/
-
+.planning
+sozlesme.md
+gorseller/
+design/
+**/.env.example
+checklist.md
+*.docx
