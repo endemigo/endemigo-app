@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsNumber, IsDateString, IsOptional, Min } from 'class-validator';
+import {
+  IsUUID,
+  IsNumber,
+  IsDateString,
+  IsOptional,
+  IsBoolean,
+  IsEnum,
+  Min,
+  Max,
+} from 'class-validator';
+import { AuctionType } from '@endemigo/shared';
 
 export class CreateAuctionDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
@@ -16,6 +26,52 @@ export class CreateAuctionDto {
   @Min(0.01)
   @IsOptional()
   minIncrement?: number;
+
+  @ApiPropertyOptional({
+    example: 0.25,
+    minimum: 0,
+    maximum: 1,
+    default: 0.25,
+  })
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  @IsOptional()
+  buyerPremiumRate?: number;
+
+  @ApiPropertyOptional({ enum: AuctionType, default: AuctionType.REALTIME })
+  @IsEnum(AuctionType)
+  @IsOptional()
+  auctionType?: AuctionType;
+
+  @ApiPropertyOptional({ example: true, default: true })
+  @IsBoolean()
+  @IsOptional()
+  antiSnipingEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    example: 60,
+    minimum: 30,
+    maximum: 120,
+    default: 60,
+  })
+  @IsNumber()
+  @Min(30)
+  @Max(120)
+  @IsOptional()
+  extensionSeconds?: number;
+
+  @ApiPropertyOptional({
+    example: 5,
+    minimum: 1,
+    maximum: 10,
+    default: 5,
+  })
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  maxExtensions?: number;
 
   @ApiProperty({ example: '2026-04-08T12:00:00Z' })
   @IsDateString()
