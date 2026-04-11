@@ -84,4 +84,97 @@ export const styles = StyleSheet.create({
   bidAmountFirst: { color: Colors.auctionGreen },
   noBidsContainer: { alignItems: 'center', paddingVertical: Spacing.xxl, gap: Spacing.sm },
   noBids: { color: Colors.slate400, fontSize: FontSize.body, fontFamily: FontFamily.body },
+  spacer: { height: 40 },
+
+  // ─── Phase 5: Socket.IO + Real-time Additions ────────
+
+  viewerBadge: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 58 : 44,
+    right: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  viewerText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  connectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 2,
+  },
+
+  lotNumber: {
+    fontSize: 11,
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+  },
+
+  lastBidBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    padding: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.base,
+    gap: Spacing.sm,
+  },
+  lastBidText: {
+    color: '#F59E0B',
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+
+  winnerBanner: {
+    alignItems: 'center',
+    backgroundColor: '#065f46',
+    padding: Spacing.xl,
+    borderRadius: BorderRadius['2xl'],
+    marginBottom: Spacing.base,
+  },
+  winnerEmoji: {
+    fontSize: 40,
+    marginBottom: Spacing.sm,
+  },
+  winnerTitle: {
+    color: Colors.white,
+    fontSize: FontSize.heading,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  winnerText: {
+    color: '#d1fae5',
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    textAlign: 'center',
+  },
+
+  loserBanner: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    marginBottom: Spacing.base,
+  },
+  loserText: {
+    color: Colors.error,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    textAlign: 'center',
+  },
 });

@@ -8,7 +8,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   Platform,
 } from 'react-native';
@@ -139,14 +138,14 @@ export default function AuctionDetailScreen() {
           )}
           {/* Viewer Count + Connection Status */}
           {(socket.viewerCount > 0 || socket.isConnected) && (
-            <View style={localStyles.viewerBadge}>
+            <View style={styles.viewerBadge}>
               <Ionicons name="eye" size={14} color="#fff" />
-              <Text style={localStyles.viewerText}>
+              <Text style={styles.viewerText}>
                 {socket.viewerCount || '–'}
               </Text>
               <View
                 style={[
-                  localStyles.connectionDot,
+                  styles.connectionDot,
                   { backgroundColor: socket.isConnected ? '#4ade80' : '#ef4444' },
                 ]}
               />
@@ -157,7 +156,7 @@ export default function AuctionDetailScreen() {
         <View style={styles.content}>
           {/* LOT Number */}
           {auction.lotNumber && (
-            <Text style={localStyles.lotNumber}>{auction.lotNumber}</Text>
+            <Text style={styles.lotNumber}>{auction.lotNumber}</Text>
           )}
           <Text style={styles.title}>{auction.productTitle}</Text>
 
@@ -215,9 +214,9 @@ export default function AuctionDetailScreen() {
 
           {/* Live Update Indicator */}
           {socket.lastBid && isActive && (
-            <View style={localStyles.lastBidBanner}>
+            <View style={styles.lastBidBanner}>
               <Ionicons name="flash" size={16} color="#f59e0b" />
-              <Text style={localStyles.lastBidText}>
+              <Text style={styles.lastBidText}>
                 {socket.lastBid.bidderName} — ₺
                 {socket.lastBid.amount.toLocaleString('tr-TR')}
               </Text>
@@ -291,10 +290,10 @@ export default function AuctionDetailScreen() {
 
           {/* Winner Result */}
           {isEnded && socket.isWinner && (
-            <View style={localStyles.winnerBanner}>
-              <Text style={localStyles.winnerEmoji}>🏆</Text>
-              <Text style={localStyles.winnerTitle}>Tebrikler!</Text>
-              <Text style={localStyles.winnerText}>
+            <View style={styles.winnerBanner}>
+              <Text style={styles.winnerEmoji}>🏆</Text>
+              <Text style={styles.winnerTitle}>Tebrikler!</Text>
+              <Text style={styles.winnerText}>
                 Müzayedeyi ₺
                 {(socket.finalPrice || currentPrice).toLocaleString('tr-TR')}{' '}
                 ile kazandınız!
@@ -303,8 +302,8 @@ export default function AuctionDetailScreen() {
           )}
 
           {isEnded && !socket.isWinner && socket.auctionEnded && (
-            <View style={localStyles.loserBanner}>
-              <Text style={localStyles.loserText}>
+            <View style={styles.loserBanner}>
+              <Text style={styles.loserText}>
                 Müzayede sona erdi. Holdunuz iade edildi.
               </Text>
             </View>
@@ -391,84 +390,3 @@ export default function AuctionDetailScreen() {
   );
 }
 
-const localStyles = StyleSheet.create({
-  viewerBadge: {
-    position: 'absolute',
-    top: 50,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 4,
-  },
-  viewerText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  connectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 2,
-  },
-  lotNumber: {
-    fontSize: 11,
-    color: '#888',
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  lastBidBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-    gap: 6,
-  },
-  lastBidText: {
-    color: '#f59e0b',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  winnerBanner: {
-    alignItems: 'center',
-    backgroundColor: '#065f46',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  winnerEmoji: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  winnerTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  winnerText: {
-    color: '#d1fae5',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loserBanner: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  loserText: {
-    color: '#ef4444',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-});

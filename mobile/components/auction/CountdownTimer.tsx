@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { Colors, FontFamily } from '../../constants/theme';
+import { countdownStyles as styles } from './CountdownTimer.styles';
 
 interface CountdownTimerProps {
   endTime: string;
@@ -94,35 +94,3 @@ export function CountdownTimer({
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: '#1a1a2e',
-  },
-  urgent: {
-    backgroundColor: '#e63946',
-  },
-  label: {
-    fontSize: 12,
-    fontFamily: FontFamily?.medium || undefined,
-    color: '#888',
-    marginBottom: 4,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  time: {
-    fontSize: 36,
-    fontWeight: '700',
-    fontFamily: FontFamily?.bold || undefined,
-    color: '#fff',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 2,
-  },
-  urgentText: {
-    color: '#fff',
-  },
-});
