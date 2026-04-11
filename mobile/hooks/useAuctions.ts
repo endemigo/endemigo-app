@@ -16,11 +16,19 @@ interface Auction {
   minIncrement: number;
   buyerPremiumRate: number;
   status: AuctionStatus;
+  auctionType?: string;
   startTime: string;
   endTime: string;
   timeLeftMs: number;
+  serverTime?: string;
   winnerId: string | null;
   bidCount: number;
+  lotNumber?: string;
+  antiSnipingEnabled?: boolean;
+  extensionSeconds?: number;
+  maxExtensions?: number;
+  currentExtensions?: number;
+  culturalAssetRestricted?: boolean;
 }
 
 interface BidEntry {

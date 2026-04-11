@@ -1,4 +1,4 @@
-import { Bid } from '@/types';
+import { BidEntry } from '../../hooks/useAuctions';
 import { AuctionStatus } from '@endemigo/shared';
 import React, { useEffect, useState } from 'react';
 import {
@@ -342,7 +342,7 @@ export default function AuctionDetailScreen() {
             {t('auction.lastBidsTitle')}
           </Text>
           {bids?.length ? (
-            bids.map((bid: Bid, idx: number) => (
+            bids.map((bid: BidEntry, idx: number) => (
               <View
                 key={bid.id}
                 style={[styles.bidItem, idx === 0 && styles.bidItemFirst]}

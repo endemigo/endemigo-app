@@ -14,7 +14,7 @@ export const countdownStyles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    fontFamily: FontFamily?.medium || undefined,
+    fontFamily: FontFamily.bodyMedium,
     color: '#888',
     marginBottom: 4,
     letterSpacing: 1,
@@ -23,7 +23,7 @@ export const countdownStyles = StyleSheet.create({
   time: {
     fontSize: 36,
     fontWeight: '700',
-    fontFamily: FontFamily?.bold || undefined,
+    fontFamily: FontFamily.bodyBold,
     color: '#fff',
     fontVariant: ['tabular-nums'],
     letterSpacing: 2,

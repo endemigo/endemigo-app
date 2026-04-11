@@ -4,10 +4,10 @@ import ENV from '../lib/config';
 
 let socket: Socket | null = null;
 
-export function getAuctionSocket(): Socket {
+export async function getAuctionSocket(): Promise<Socket> {
   if (socket?.connected) return socket;
 
-  const token = storage.getString('token') || '';
+  const token = (await storage.getToken()) || '';
 
   socket = io(`${ENV.API_URL}/auction`, {
     transports: ['websocket', 'polling'],
@@ -21,11 +21,11 @@ export function getAuctionSocket(): Socket {
     console.log('[Socket] Connected to auction namespace');
   });
 
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', (reason: string) => {
     console.log(`[Socket] Disconnected: ${reason}`);
   });
 
-  socket.on('connect_error', (err) => {
+  socket.on('connect_error', (err: Error) => {
     console.warn(`[Socket] Connection error: ${err.message}`);
   });
 

@@ -96,7 +96,7 @@ export default function AuctionResultScreen() {
 
       <TouchableOpacity
         style={styles.homeButton}
-        onPress={() => router.replace('/(tabs)/auctions')}
+        onPress={() => router.replace('/(tabs)/auctions' as any)}
         activeOpacity={0.8}
       >
         <Ionicons name="hammer" size={20} color={Colors.white} />
