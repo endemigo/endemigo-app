@@ -6,9 +6,10 @@ module.exports = function (api) {
       [
         'module-resolver',
         {
+          root: ['.'],
           alias: {
             '@endemigo/shared': '../shared-types',
-            '@': './src',
+            '@': '.',
           },
         },
       ],

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, FontFamily } from '@/constants/theme';
+import { Colors, FontFamily } from '../../constants/theme';
 
 export default function ExploreScreen() {
   return (
