@@ -21,7 +21,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { CountdownTimer } from '../../components/auction/CountdownTimer';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { styles } from './[id].styles';
+import { styles } from '../../styles/auction/[id].styles';
 
 export default function AuctionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

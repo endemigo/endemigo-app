@@ -15,7 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import api from '../../lib/api';
 import { Colors } from '../../constants/theme';
-import { styles } from './settings.styles';
+import { styles } from '../../styles/tabs/settings.styles';
 
 interface KvkkConsent {
   id: string;

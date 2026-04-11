@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../constants/theme';
-import { styles } from './cart.styles';
+import { styles } from '../../styles/tabs/cart.styles';
 
 export default function CartScreen() {
   const { t } = useTranslation();

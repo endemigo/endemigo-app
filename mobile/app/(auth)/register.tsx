@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { styles } from './register.styles';
+import { styles } from '../../styles/auth/register.styles';
 
 export default function RegisterScreen() {
     const [firstName, setFirstName] = useState('');

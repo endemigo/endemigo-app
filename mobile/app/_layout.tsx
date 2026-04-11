@@ -9,7 +9,7 @@ import { queryClient } from '../lib/queryClient';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../constants/theme';
 import { GlobalModal } from '../components/ui';
-import { styles } from './_layout.styles';
+import { styles } from '../styles/_layout.styles';
 import '../i18n'; // initialize i18n before any screen renders
 
 import {

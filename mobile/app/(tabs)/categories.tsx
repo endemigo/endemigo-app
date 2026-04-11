@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useCategories } from '../../hooks/useProducts';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { styles } from './categories.styles';
+import { styles } from '../../styles/tabs/categories.styles';
 
 // Icon mapping by category slug — no hardcoded data, just visual hints
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {

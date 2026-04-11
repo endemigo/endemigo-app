@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../../hooks/useProducts';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard } from '../../components/ui';
-import { styles } from './index.styles';
+import { styles } from '../../styles/tabs/index.styles';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PRODUCT_CARD_WIDTH = (SCREEN_WIDTH - Spacing.base * 2 - Spacing.base) / 2;

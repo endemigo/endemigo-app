@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../constants/theme';
-import { styles } from './index.styles';
+import { styles } from '../styles/index.styles';
 
 export default function Index() {
   const isLoading = useAuthStore((s) => s.isLoading);

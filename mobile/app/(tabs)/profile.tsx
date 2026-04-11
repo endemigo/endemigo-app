@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useWalletBalance } from '../../hooks/useWallet';
 import { Colors } from '../../constants/theme';
-import { styles } from './profile.styles';
+import { styles } from '../../styles/tabs/profile.styles';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();

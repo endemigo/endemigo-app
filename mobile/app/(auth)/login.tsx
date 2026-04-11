@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { styles } from './login.styles';
+import { styles } from '../../styles/auth/login.styles';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

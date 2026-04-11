@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuctionResult } from '../../../hooks/useAuctions';
 import { useAuthStore } from '../../../store/authStore';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../../constants/theme';
-import { styles } from './result.styles';
+import { styles } from '../../../styles/auction/id/result.styles';
 
 export default function AuctionResultScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

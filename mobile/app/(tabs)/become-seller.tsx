@@ -16,7 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import api from '../../lib/api';
 import { Colors } from '../../constants/theme';
-import { styles } from './become-seller.styles';
+import { styles } from '../../styles/tabs/become-seller.styles';
 
 export default function BecomeSellerScreen() {
   const { user, setUser } = useAuthStore();

@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuctions } from '../../hooks/useAuctions';
 import { AuctionStatus } from '@endemigo/shared';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { styles } from './auctions.styles';
+import { styles } from '../../styles/tabs/auctions.styles';
 
 function formatTimeLeft(ms: number, t: (k: string) => string) {
   if (ms <= 0) return t('auctions.ended');
