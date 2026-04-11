@@ -1,29 +1,77 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { AuctionService } from './auction.service';
+import { AuctionGateway } from './auction.gateway';
 
 @Processor('auction')
 export class AuctionProcessor extends WorkerHost {
   private readonly logger = new Logger(AuctionProcessor.name);
 
-  constructor(private readonly auctionService: AuctionService) {
+  constructor(
+    private readonly auctionService: AuctionService,
+    private readonly auctionGateway: AuctionGateway,
+    @InjectQueue('auction')
+    private readonly auctionQueue: Queue,
+  ) {
     super();
   }
 
-  async process(job: Job<{ auctionId: string }>) {
+  async process(
+    job: Job<{ auctionId: string; minutesLeft?: number }>,
+  ) {
     const { auctionId } = job.data;
 
     switch (job.name) {
-      case 'start-auction':
+      case 'start-auction': {
         this.logger.log(`Starting auction ${auctionId}`);
-        await this.auctionService.activateAuction(auctionId);
-        break;
+        const auction = await this.auctionService.activateAuction(auctionId);
 
-      case 'end-auction':
+        if (auction) {
+          this.auctionGateway.emitAuctionStarted(auctionId, {
+            startPrice: Number(auction.startPrice),
+          });
+
+          // Schedule warning events (5min, 1min before end)
+          const endMs = new Date(auction.endTime).getTime();
+          const warn5 = endMs - 5 * 60 * 1000 - Date.now();
+          const warn1 = endMs - 1 * 60 * 1000 - Date.now();
+
+          if (warn5 > 0) {
+            await this.auctionQueue.add(
+              'warning',
+              { auctionId, minutesLeft: 5 },
+              { delay: warn5 },
+            );
+          }
+          if (warn1 > 0) {
+            await this.auctionQueue.add(
+              'warning',
+              { auctionId, minutesLeft: 1 },
+              { delay: warn1 },
+            );
+          }
+        }
+        break;
+      }
+
+      case 'end-auction': {
         this.logger.log(`Ending auction ${auctionId}`);
+        // Gateway events are emitted inside finalizeAuction
         await this.auctionService.finalizeAuction(auctionId);
         break;
+      }
+
+      case 'warning': {
+        const minutesLeft = job.data.minutesLeft || 1;
+        this.logger.log(
+          `Warning for auction ${auctionId}: ${minutesLeft} minute(s) left`,
+        );
+        this.auctionGateway.emitAuctionWarning(auctionId, { minutesLeft });
+        break;
+      }
 
       default:
         this.logger.warn(`Unknown job: ${job.name}`);

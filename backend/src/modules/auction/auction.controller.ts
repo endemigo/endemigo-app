@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
 import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
 import { Public } from '../../common/decorators/public.decorator';
@@ -101,6 +102,7 @@ export class AuctionController {
 
   @Post(':id/bids')
   @ApiBearerAuth()
+  @Throttle({ default: { limit: 5, ttl: 10000 } })
   @ApiOperation({ summary: 'Teklif ver' })
   @ApiResponse({ status: 201, description: 'Teklif kabul edildi' })
   @ApiResponse({ status: 400, description: 'Validation hatası' })
