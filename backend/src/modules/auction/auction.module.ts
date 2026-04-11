@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
 import { AuctionService } from './auction.service';
 import { AuctionController } from './auction.controller';
 import { AuctionProcessor } from './auction.processor';
+import { AuctionGateway } from './auction.gateway';
 import { WalletModule } from '../wallet/wallet.module';
 import { UserModule } from '../user/user.module';
 
@@ -13,11 +16,14 @@ import { UserModule } from '../user/user.module';
   imports: [
     TypeOrmModule.forFeature([Auction, Bid]),
     BullModule.registerQueue({ name: 'auction' }),
+    JwtModule.register({}),
+    ConfigModule,
     WalletModule,
     UserModule,
   ],
   controllers: [AuctionController],
-  providers: [AuctionService, AuctionProcessor],
-  exports: [AuctionService],
+  providers: [AuctionService, AuctionProcessor, AuctionGateway],
+  exports: [AuctionService, AuctionGateway],
 })
 export class AuctionModule {}
+
