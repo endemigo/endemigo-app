@@ -1,5 +1,5 @@
 export enum HoldStatus {
-  HELD = 'held',
-  RELEASED = 'released',
-  CAPTURED = 'captured',
+  HELD = 'HELD',
+  RELEASED = 'RELEASED',
+  CAPTURED = 'CAPTURED',
 }
