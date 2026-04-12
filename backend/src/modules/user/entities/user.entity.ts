@@ -1,6 +1,7 @@
 import { Entity, Column, OneToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { SellerProfile } from './seller-profile.entity';
+import { encrypt, decrypt } from '../../../common/utils/crypto.util';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -23,7 +24,14 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   birthDate: Date;
 
-  @Column({ nullable: true })
+  // WR-02: KVKK — TC Kimlik No şifrelenerek saklanır (AES-256-GCM)
+  @Column({
+    nullable: true,
+    transformer: {
+      to: (value: string | null) => value ? encrypt(value) : null,
+      from: (value: string | null) => value ? decrypt(value) : null,
+    },
+  })
   tcKimlikNo: string;
 
   @Column({ nullable: true })
