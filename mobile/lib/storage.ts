@@ -31,7 +31,11 @@ export const storage = {
     return raw ? JSON.parse(raw) : null;
   },
   async setUser(user: User | null): Promise<void> {
-    await SecureStore.setItemAsync(KEYS.USER, JSON.stringify(user));
+    if (user === null) {
+      await SecureStore.deleteItemAsync(KEYS.USER);
+    } else {
+      await SecureStore.setItemAsync(KEYS.USER, JSON.stringify(user));
+    }
   },
   async removeUser(): Promise<void> {
     await SecureStore.deleteItemAsync(KEYS.USER);
