@@ -96,6 +96,7 @@ export class AuctionService {
       antiSnipingEnabled: dto.antiSnipingEnabled ?? true,
       extensionSeconds: dto.extensionSeconds ?? 60,
       maxExtensions: dto.maxExtensions ?? 5,
+      culturalAssetRestricted: dto.culturalAssetRestricted ?? false,
       status: AuctionStatus.DRAFT,
       startTime,
       endTime,
@@ -169,6 +170,11 @@ export class AuctionService {
       throw new BadRequestException(
         'Sadece taslak müzayedeler düzenlenebilir',
       );
+    }
+
+    // WR-05: Product cannot be changed after auction creation
+    if ('productId' in dto) {
+      throw new BadRequestException('Müzayedenin ürünü değiştirilemez');
     }
 
     if (dto.startTime) auction.startTime = new Date(dto.startTime);
@@ -311,6 +317,16 @@ export class AuctionService {
         throw new BadRequestException('Müzayede sona erdi');
       }
 
+      // AUCT-18: Kültür varlığı kısıtlı müzayede — T.C. vatandaşı kontrolü
+      if (auction.culturalAssetRestricted) {
+        const bidder = await this.userService.findById(bidderId);
+        if (!bidder?.nationality || bidder.nationality !== 'TR') {
+          throw new BadRequestException(
+            'Kültür varlığı müzayedelerine sadece T.C. vatandaşları teklif verebilir',
+          );
+        }
+      }
+
       // 4. Self-bid check
       if (bidderId === auction.sellerId) {
         throw new BadRequestException(
@@ -449,12 +465,21 @@ export class AuctionService {
         });
 
         // Reschedule BullMQ end-auction job
-        try {
-          const oldJob = await this.auctionQueue.getJob(`end-${auctionId}`);
-          if (oldJob) await oldJob.remove();
-        } catch {
-          /* job may be processed */
+        // FIX: Önceki TÜM end job'larını temizle (base + tüm extension'lar)
+        const currentExt = antiSnipingResult.extensionNumber!;
+        const jobIdsToRemove = [`end-${auctionId}`];
+        for (let i = 1; i < currentExt; i++) {
+          jobIdsToRemove.push(`end-${auctionId}-ext${i}`);
         }
+        for (const jobId of jobIdsToRemove) {
+          try {
+            const oldJob = await this.auctionQueue.getJob(jobId);
+            if (oldJob) await oldJob.remove();
+          } catch {
+            /* job may already be processed */
+          }
+        }
+
         const delay = Math.max(
           0,
           antiSnipingResult.newEndTime!.getTime() - Date.now(),
@@ -464,7 +489,7 @@ export class AuctionService {
           { auctionId },
           {
             delay,
-            jobId: `end-${auctionId}-ext${antiSnipingResult.extensionNumber}`,
+            jobId: `end-${auctionId}-ext${currentExt}`,
           },
         );
       }
@@ -560,7 +585,7 @@ export class AuctionService {
     extensionNumber?: number;
     extensionSeconds?: number;
   } {
-    // AUCT-T-03: ≥3 teklif son 60sn → 2 dakika uzatma, max 3 uzatma
+    // AUCT-T-03: Son 60sn'de gelen her teklif → 2 dakika uzatma, max 3 uzatma
     const MAX_TIMED_EXTENSIONS = 3;
     const TIMED_WINDOW_SEC = 60;
     const TIMED_EXTENSION_SEC = 120; // 2 dakika
@@ -595,83 +620,117 @@ export class AuctionService {
   // ═══════════════════════════════════════════════════════════
 
   async finalizeAuction(auctionId: string) {
-    const auction = await this.auctionRepo.findOne({
-      where: { id: auctionId },
-    });
-    if (!auction || auction.status !== AuctionStatus.ACTIVE) return;
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // D-11: No bids → FAILED
-    if (auction.bidCount === 0) {
-      auction.status = AuctionStatus.FAILED;
-      await this.auctionRepo.save(auction);
-
-      this.auctionGateway.emitAuctionEnded(auctionId, {
-        finalPrice: Number(auction.startPrice),
-        winnerId: null,
-        bidCount: 0,
+    try {
+      // WR-04: Lock auction row to prevent race with last-second bids
+      const auction = await queryRunner.manager.findOne(Auction, {
+        where: { id: auctionId },
+        lock: { mode: 'pessimistic_write' },
       });
-      return auction;
-    }
+      if (!auction || auction.status !== AuctionStatus.ACTIVE) {
+        await queryRunner.commitTransaction();
+        return;
+      }
 
-    auction.status = AuctionStatus.ENDED;
+      // FIX: Orphan job guard — endTime henüz geçmediyse bu eski bir extension job'dur
+      if (auction.endTime > new Date()) {
+        this.logger.warn(
+          `Orphan end-auction job for ${auctionId}, endTime not reached yet. Skipping.`,
+        );
+        await queryRunner.commitTransaction();
+        return;
+      }
 
-    // Find winning bid (highest amount)
-    const winningBid = await this.bidRepo.findOne({
-      where: { auctionId },
-      order: { amount: 'DESC' },
-    });
+      // D-11: No bids → FAILED
+      if (auction.bidCount === 0) {
+        auction.status = AuctionStatus.FAILED;
+        await queryRunner.manager.save(auction);
+        await queryRunner.commitTransaction();
 
-    if (winningBid) {
-      auction.winnerId = winningBid.bidderId;
+        this.auctionGateway.emitAuctionEnded(auctionId, {
+          finalPrice: Number(auction.startPrice),
+          winnerId: null,
+          bidCount: 0,
+        });
+        // WR-03: Clean up viewer count
+        this.auctionGateway.clearViewerCount(auctionId);
+        return auction;
+      }
 
-      // BIZ-12: Mark winning bid as WON
-      winningBid.status = BidStatus.WON;
-      winningBid.isWinningBid = true;
-      await this.bidRepo.save(winningBid);
+      auction.status = AuctionStatus.ENDED;
 
-      // BIZ-12: Mark all other bids as OUTBID (bulk)
-      await this.bidRepo
-        .createQueryBuilder()
-        .update(Bid)
-        .set({ status: BidStatus.OUTBID, isWinningBid: false })
-        .where('auctionId = :auctionId AND id != :winnerId', {
+      // Find winning bid (highest amount)
+      const winningBid = await queryRunner.manager.findOne(Bid, {
+        where: { auctionId },
+        order: { amount: 'DESC' },
+      });
+
+      if (winningBid) {
+        auction.winnerId = winningBid.bidderId;
+
+        // BIZ-12: Mark winning bid as WON
+        winningBid.status = BidStatus.WON;
+        winningBid.isWinningBid = true;
+        await queryRunner.manager.save(winningBid);
+
+        // BIZ-12: Mark all other bids as OUTBID (bulk)
+        await queryRunner.manager
+          .createQueryBuilder()
+          .update(Bid)
+          .set({ status: BidStatus.OUTBID, isWinningBid: false })
+          .where('auctionId = :auctionId AND id != :winnerId', {
+            auctionId,
+            winnerId: winningBid.id,
+          })
+          .execute();
+      }
+
+      await queryRunner.manager.save(auction);
+      await queryRunner.commitTransaction();
+
+      // ─── Post-commit: Gateway events + wallet operations ───
+      if (winningBid) {
+        // Capture winner's hold (D-04: mock — payout deferred to Phase 6)
+        await this.walletService.captureHold(auctionId, winningBid.bidderId);
+
+        // Release all other holds
+        await this.walletService.releaseAllHoldsForAuction(
           auctionId,
-          winnerId: winningBid.id,
-        })
-        .execute();
+          winningBid.bidderId,
+        );
 
-      // Capture winner's hold (D-04: mock — payout deferred to Phase 6)
-      await this.walletService.captureHold(auctionId, winningBid.bidderId);
+        const premiumAmount =
+          Number(winningBid.amount) * Number(auction.buyerPremiumRate);
 
-      // Release all other holds
-      await this.walletService.releaseAllHoldsForAuction(
-        auctionId,
-        winningBid.bidderId,
-      );
+        this.auctionGateway.emitAuctionEnded(auctionId, {
+          finalPrice: Number(auction.currentPrice),
+          winnerId: auction.winnerId,
+          bidCount: auction.bidCount,
+        });
 
-      // ─── Gateway events ───────────────────────────────────
-      const premiumAmount =
-        Number(winningBid.amount) * Number(auction.buyerPremiumRate);
+        this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
+          finalPrice: Number(winningBid.amount),
+          premiumAmount,
+        });
 
-      this.auctionGateway.emitAuctionEnded(auctionId, {
-        finalPrice: Number(auction.currentPrice),
-        winnerId: auction.winnerId,
-        bidCount: auction.bidCount,
-      });
+        this.auctionGateway.emitBidLost(auctionId, winningBid.bidderId, {
+          finalPrice: Number(auction.currentPrice),
+          holdReleased: true,
+        });
+      }
 
-      this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
-        finalPrice: Number(winningBid.amount),
-        premiumAmount,
-      });
-
-      this.auctionGateway.emitBidLost(auctionId, winningBid.bidderId, {
-        finalPrice: Number(auction.currentPrice),
-        holdReleased: true,
-      });
+      // WR-03: Clean up viewer count for ended auction
+      this.auctionGateway.clearViewerCount(auctionId);
+      return auction;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    await this.auctionRepo.save(auction);
-    return auction;
   }
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -748,6 +807,11 @@ export class AuctionService {
     const now = new Date();
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+    // CR-02: Use advisory lock to prevent duplicate LOT numbers under concurrency
+    await this.auctionRepo.manager.query(
+      `SELECT pg_advisory_xact_lock(hashtext('lot_number_gen'))`,
+    );
+
     const count = await this.auctionRepo
       .createQueryBuilder('a')
       .where('a.lotNumber LIKE :prefix', { prefix: `LOT-${yearMonth}-%` })
@@ -793,5 +857,24 @@ export class AuctionService {
       culturalAssetRestricted: auction.culturalAssetRestricted,
       createdAt: auction.createdAt,
     };
+  }
+
+  // ─── COMPLETED Geçişi (ENDED → COMPLETED) ────────────
+
+  async completeAuction(auctionId: string) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
+    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (auction.status !== AuctionStatus.ENDED) {
+      throw new BadRequestException(
+        'Sadece bitmiş müzayedeler tamamlanabilir',
+      );
+    }
+
+    auction.status = AuctionStatus.COMPLETED;
+    await this.auctionRepo.save(auction);
+    this.logger.log(`Auction ${auctionId} marked as COMPLETED`);
+    return auction;
   }
 }
