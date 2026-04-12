@@ -26,6 +26,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Products')
 @Controller('products')
@@ -34,6 +35,7 @@ export class ProductController {
 
   @Post()
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Yeni ürün oluştur (sadece satıcılar)' })
   @ApiResponse({ status: 201, type: ProductResponseDto })
   async create(
@@ -45,6 +47,7 @@ export class ProductController {
 
   @Patch(':id')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Ürün güncelle (sadece ürün sahibi)' })
   async update(
     @CurrentUser('id') userId: string,
@@ -56,6 +59,7 @@ export class ProductController {
 
   @Delete(':id')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Ürün sil (soft delete, sadece ürün sahibi)' })
   async remove(
     @CurrentUser('id') userId: string,
@@ -68,6 +72,7 @@ export class ProductController {
 
   @Post(':id/images')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Ürüne görsel yükle (max 10)' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', {
@@ -92,6 +97,7 @@ export class ProductController {
 
   @Delete('images/:imageId')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Ürün görselini sil' })
   async deleteImage(
     @CurrentUser('id') userId: string,
@@ -104,6 +110,7 @@ export class ProductController {
 
   @Get('my')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Satıcının kendi ürünleri (tüm durumlar)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -153,7 +160,9 @@ export class CategoryController {
 
   @Post('seed')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Kategori seed data oluştur (root + children)' })
+  // CR-01: Category seeding is an admin-only operation
+  @Roles('admin')
+  @ApiOperation({ summary: 'Kategori seed data oluştur (root + children) — sadece admin' })
   async seed() {
     return this.productService.seedCategories();
   }
