@@ -4,11 +4,12 @@ import { User } from './entities/user.entity';
 import { SellerProfile } from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { Address } from './entities/address.entity';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, SellerProfile, KvkkConsent, Address])],
+  imports: [TypeOrmModule.forFeature([User, SellerProfile, KvkkConsent, Address, RefreshToken])],
   controllers: [UserController],
   providers: [UserService],
   exports: [UserService],

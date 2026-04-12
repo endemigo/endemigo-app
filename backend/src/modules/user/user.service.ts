@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
@@ -25,6 +26,9 @@ export class UserService {
     private readonly sellerProfileRepo: Repository<SellerProfile>,
     @InjectRepository(KvkkConsent)
     private readonly kvkkConsentRepo: Repository<KvkkConsent>,
+    // WR-01: RefreshToken repo for session revocation on account deletion
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepo: Repository<RefreshToken>,
   ) {}
 
   // ==========================================
@@ -211,6 +215,12 @@ export class UserService {
     user.isActive = false;
     await this.userRepo.save(user);
     await this.userRepo.softDelete(userId);
+
+    // WR-01: Revoke all refresh tokens to force logout across all devices
+    await this.refreshTokenRepo.update(
+      { userId, isRevoked: false },
+      { isRevoked: true },
+    );
 
     return { code: RC.ACCOUNT_DELETED, message: 'Hesabınız silindi. 30 gün içinde geri aktifleştirebilirsiniz.' };
   }
