@@ -52,6 +52,8 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  // WR-07: Rate limit refresh endpoint — defense-in-depth against token probing
+  @Throttle({ short: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Access token yenileme (refresh token rotation)' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: 'Token yenilendi' })
   @ApiResponse({ status: 401, description: 'Geçersiz veya süresi dolmuş refresh token' })
@@ -75,5 +77,43 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Token geçersiz' })
   async getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  // ==========================================
+  // AUTH-02: Email Doğrulama
+  // ==========================================
+
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'E-posta adresini doğrula' })
+  @ApiResponse({ status: 200, description: 'E-posta doğrulandı' })
+  @ApiResponse({ status: 400, description: 'Geçersiz token' })
+  async verifyEmail(@Body() body: { token: string }) {
+    return this.authService.verifyEmail(body.token);
+  }
+
+  // ==========================================
+  // AUTH-03: Şifre Sıfırlama
+  // ==========================================
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
+  @ApiOperation({ summary: 'Şifre sıfırlama e-postası gönder' })
+  @ApiResponse({ status: 200, description: 'Sıfırlama linki gönderildi' })
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Şifreyi sıfırla (token ile)' })
+  @ApiResponse({ status: 200, description: 'Şifre sıfırlandı' })
+  @ApiResponse({ status: 400, description: 'Geçersiz token' })
+  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(body.token, body.newPassword);
   }
 }
