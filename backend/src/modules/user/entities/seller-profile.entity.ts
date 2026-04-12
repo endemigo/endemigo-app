@@ -1,6 +1,7 @@
 import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from './user.entity';
+import { encrypt, decrypt } from '../../../common/utils/crypto.util';
 
 export enum SellerStatus {
   PENDING = 'PENDING',
@@ -27,7 +28,14 @@ export class SellerProfile extends BaseEntity {
   @Column({ nullable: true })
   taxNumber: string;
 
-  @Column({ nullable: true })
+  // CR-02: KVKK — IBAN şifrelenerek saklanır (AES-256-GCM)
+  @Column({
+    nullable: true,
+    transformer: {
+      to: (value: string | null) => value ? encrypt(value) : null,
+      from: (value: string | null) => value ? decrypt(value) : null,
+    },
+  })
   iban: string;
 
   @Column({ nullable: true })
@@ -51,4 +59,11 @@ export class SellerProfile extends BaseEntity {
 
   @Column({ default: '1.0.0' })
   agreementVersion: string;
+
+  // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
+  @Column({ nullable: true })
+  agreementIpAddress: string;
+
+  @Column({ nullable: true })
+  agreementUserAgent: string;
 }
