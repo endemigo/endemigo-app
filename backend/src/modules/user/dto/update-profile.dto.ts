@@ -34,9 +34,10 @@ export class UpdateProfileDto {
   @MaxLength(2)
   nationality?: string;
 
+  // WR-02: Restrict to HTTPS URLs to prevent SSRF and stored XSS
   @ApiPropertyOptional({ example: 'https://cdn.endemigo.com/avatars/user123.jpg' })
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['https'], require_protocol: true }, { message: 'Avatar URL HTTPS formatında olmalıdır' })
   avatarUrl?: string;
 }
 

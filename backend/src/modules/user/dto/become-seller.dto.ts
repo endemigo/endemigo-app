@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsBoolean, MinLength, MaxLength, Equals, Matches } from 'class-validator';
 
 export class BecomeSellerDto {
   @ApiProperty({ example: 'Fatih Ticaret', description: 'İşletme adı' })
@@ -15,15 +15,23 @@ export class BecomeSellerDto {
   @MaxLength(100)
   taxOffice?: string;
 
-  @ApiPropertyOptional({ example: '1234567890' })
+  // WR-04: Turkish tax number validation (Vergi Kimlik Numarası — exactly 10 digits)
+  @ApiPropertyOptional({ example: '1234567890', description: 'Vergi Kimlik Numarası (10 haneli)' })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @Matches(/^\d{10}$/, { message: 'Vergi Kimlik Numarası 10 haneli olmalıdır' })
   taxNumber?: string;
 
-  @ApiPropertyOptional({ example: 'TR330006100519786457841326' })
+  // WR-05: Turkish IBAN format validation (TR + 24 digits)
+  @ApiPropertyOptional({ example: 'TR330006100519786457841326', description: 'Türkiye IBAN (TR + 24 rakam)' })
   @IsOptional()
   @IsString()
-  @MaxLength(34)
+  @Matches(/^TR\d{24}$/, { message: 'IBAN Türkiye formatında olmalıdır (TR + 24 rakam)' })
   iban?: string;
+
+  @ApiProperty({ example: true, description: 'Satıcı sözleşmesi kabul edildi mi' })
+  @IsBoolean()
+  @Equals(true, { message: 'Satıcı sözleşmesini kabul etmelisiniz' })
+  agreementAccepted: boolean;
 }
+
