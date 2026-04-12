@@ -19,8 +19,10 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
 import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
+import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Auctions')
 @Controller('auctions')
@@ -29,6 +31,7 @@ export class AuctionController {
 
   @Post()
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Müzayede oluştur (DRAFT — sadece satıcılar)' })
   @ApiResponse({ status: 201, description: 'Müzayede taslağı oluşturuldu' })
   @ApiResponse({ status: 403, description: 'Sadece satıcılar' })
@@ -41,6 +44,7 @@ export class AuctionController {
 
   @Patch(':id/publish')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Müzayedeyi yayınla (DRAFT → PUBLISHED)' })
   @ApiResponse({ status: 200, description: 'Müzayede yayınlandı' })
   @ApiResponse({ status: 400, description: 'Sadece taslak yayınlanabilir' })
@@ -53,6 +57,7 @@ export class AuctionController {
 
   @Patch(':id')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({ summary: 'Taslak müzayedeyi düzenle' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
   @ApiResponse({ status: 400, description: 'Sadece taslak düzenlenebilir' })
@@ -66,6 +71,7 @@ export class AuctionController {
 
   @Delete(':id')
   @ApiBearerAuth()
+  @Roles('seller')
   @ApiOperation({
     summary: 'Müzayede iptal (teklif yoksa satıcı, varsa admin)',
   })
@@ -89,7 +95,14 @@ export class AuctionController {
     @Query('limit') limit = 20,
     @Query('auctionType') auctionType?: string,
   ) {
-    return this.auctionService.findAll(+page, +limit, auctionType as any);
+    // CR-03: Clamp pagination to prevent memory exhaustion
+    const safePage = Math.max(1, +page);
+    const safeLimit = Math.min(Math.max(1, +limit), 50);
+    // WR-02: Validate auctionType against enum — reject invalid values
+    const validType = auctionType && Object.values(AuctionType).includes(auctionType as AuctionType)
+      ? auctionType as AuctionType
+      : undefined;
+    return this.auctionService.findAll(safePage, safeLimit, validType);
   }
 
   @Public()
@@ -102,7 +115,8 @@ export class AuctionController {
 
   @Post(':id/bids')
   @ApiBearerAuth()
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // WR-01: Tighter rate limit — reduces pessimistic lock contention under high concurrency
+  @Throttle({ default: { limit: 2, ttl: 5000 } })
   @ApiOperation({ summary: 'Teklif ver' })
   @ApiResponse({ status: 201, description: 'Teklif kabul edildi' })
   @ApiResponse({ status: 400, description: 'Validation hatası' })
