@@ -59,10 +59,14 @@ export default function SettingsScreen() {
       });
       await loadConsents();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
+      let msg = t('common.genericError');
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        msg = axiosErr.response?.data?.message || msg;
+      }
       showModal({
         title: t('common.error'),
-        message: error.response?.data?.message || t('common.genericError'),
+        message: msg,
         type: 'error',
       });
     }
@@ -95,10 +99,14 @@ export default function SettingsScreen() {
       });
       await logout();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
+      let msg = t('common.genericError');
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        msg = axiosErr.response?.data?.message || msg;
+      }
       showModal({
         title: t('common.error'),
-        message: error.response?.data?.message || t('common.genericError'),
+        message: msg,
         type: 'error',
       });
     } finally {

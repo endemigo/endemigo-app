@@ -49,8 +49,11 @@ export default function EditProfileScreen() {
       });
       router.back();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      const msg = error.response?.data?.message || t('common.genericError');
+      let msg = t('common.genericError');
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string } } };
+        msg = axiosErr.response?.data?.message || msg;
+      }
       showModal({ title: t('common.error'), message: msg, type: 'error' });
     } finally {
       setLoading(false);

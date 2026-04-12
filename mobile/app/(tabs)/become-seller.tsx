@@ -42,6 +42,7 @@ export default function BecomeSellerScreen() {
         taxOffice: taxOffice.trim() || undefined,
         taxNumber: taxNumber.trim() || undefined,
         iban: iban.trim() || undefined,
+        agreementAccepted: true,
       });
       if (user) {
         setUser({ ...user, isSeller: true });
@@ -53,8 +54,11 @@ export default function BecomeSellerScreen() {
       });
       router.back();
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { code?: string; message?: string } } };
-      const msg = error.response?.data?.message || t('common.genericError');
+      let msg = t('common.genericError');
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { code?: string; message?: string } } };
+        msg = axiosErr.response?.data?.message || msg;
+      }
       showModal({ title: t('common.error'), message: msg, type: 'error' });
     } finally {
       setLoading(false);
