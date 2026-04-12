@@ -103,45 +103,55 @@ export class UserService {
     ipAddress?: string,
     userAgent?: string,
   ) {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
-    if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+    // CR-03: Transaction prevents TOCTOU race — concurrent requests can't create duplicate SellerProfiles
+    return this.userRepo.manager.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
+      if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
 
-    // SellerProfile oluştur
-    const sellerProfile = this.sellerProfileRepo.create({
-      userId,
-      businessName: dto.businessName,
-      taxOffice: dto.taxOffice,
-      taxNumber: dto.taxNumber,
-      iban: dto.iban,
-      status: SellerStatus.APPROVED, // Otomatik onay — admin süreci Phase 11
-      approvedAt: new Date(),
-      agreementAcceptedAt: new Date(),
-      agreementVersion: '1.0.0',
-      // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
-      agreementIpAddress: ipAddress,
-      agreementUserAgent: userAgent,
+      // WR-06: Require email verification before seller registration
+      if (!user.isVerified) {
+        throw new BadRequestException({
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'Satıcı olmak için önce e-posta adresinizi doğrulamalısınız',
+        });
+      }
+
+      // SellerProfile oluştur
+      const sellerProfile = manager.create(SellerProfile, {
+        userId,
+        businessName: dto.businessName,
+        taxOffice: dto.taxOffice,
+        taxNumber: dto.taxNumber,
+        iban: dto.iban,
+        status: SellerStatus.APPROVED, // Otomatik onay — admin süreci Phase 11
+        approvedAt: new Date(),
+        agreementAcceptedAt: new Date(),
+        agreementVersion: '1.0.0',
+        // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
+        agreementIpAddress: ipAddress,
+        agreementUserAgent: userAgent,
+      });
+      await manager.save(sellerProfile);
+
+      // User isSeller flagini güncelle
+      user.isSeller = true;
+      await manager.save(user);
+
+      return {
+        code: RC.BECOME_SELLER_SUCCESS,
+        message: 'Satıcı hesabınız aktif edildi',
+        id: user.id,
+        email: user.email,
+        isSeller: true,
+        sellerProfile: {
+          id: sellerProfile.id,
+          businessName: sellerProfile.businessName,
+          status: sellerProfile.status,
+          agreementVersion: sellerProfile.agreementVersion,
+        },
+      };
     });
-
-    await this.sellerProfileRepo.save(sellerProfile);
-
-    // User isSeller flagini güncelle
-    user.isSeller = true;
-    await this.userRepo.save(user);
-
-    return {
-      code: RC.BECOME_SELLER_SUCCESS,
-      message: 'Satıcı hesabınız aktif edildi',
-      id: user.id,
-      email: user.email,
-      isSeller: true,
-      sellerProfile: {
-        id: sellerProfile.id,
-        businessName: sellerProfile.businessName,
-        status: sellerProfile.status,
-        agreementVersion: sellerProfile.agreementVersion,
-      },
-    };
   }
 
   async getSellerProfile(userId: string) {
