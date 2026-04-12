@@ -23,6 +23,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { ReactivateAccountDto } from './dto/reactivate-account.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -56,8 +57,11 @@ export class UserController {
   async becomeSeller(
     @CurrentUser('id') userId: string,
     @Body() dto: BecomeSellerDto,
+    @Req() req: Request,
   ) {
-    return this.userService.becomeSeller(userId, dto);
+    const ip = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.userService.becomeSeller(userId, dto, ip, userAgent);
   }
 
   @Get('seller-profile')
@@ -118,8 +122,8 @@ export class UserController {
   @ApiOperation({ summary: 'Silinen hesabı geri aktifleştir — grace period içinde' })
   @ApiResponse({ status: 200, description: 'Hesap geri aktifleştirildi' })
   async reactivateAccount(
-    @Body() body: { email: string; password: string },
+    @Body() dto: ReactivateAccountDto,
   ) {
-    return this.userService.reactivateAccount(body.email, body.password);
+    return this.userService.reactivateAccount(dto.email, dto.password);
   }
 }
