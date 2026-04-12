@@ -11,7 +11,12 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
-  app.enableCors({ origin: process.env.CORS_ORIGIN || '*' });
+  // Security — CORS fail-safe: reject all origins if CORS_ORIGIN not set in production
+  const corsOrigin = process.env.CORS_ORIGIN;
+  if (!corsOrigin && process.env.NODE_ENV === 'production') {
+    throw new Error('CORS_ORIGIN must be set in production');
+  }
+  app.enableCors({ origin: corsOrigin || '*' });
 
   // Global pipes and filters
   app.useGlobalPipes(
