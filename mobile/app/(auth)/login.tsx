@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -35,7 +34,11 @@ export default function LoginScreen() {
       await login(email.trim().toLowerCase(), password);
       router.replace('/(tabs)');
     } catch (err: unknown) {
-      const message = err.response?.data?.error?.message || 'Giriş başarısız';
+      let message = 'Giriş başarısız';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+        message = axiosErr.response?.data?.error?.message || message;
+      }
       showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);
