@@ -68,6 +68,13 @@ describe('ProductService', () => {
       save: jest.fn((entity) => Promise.resolve({ ...mockProduct, ...entity })),
       softDelete: jest.fn().mockResolvedValue(undefined),
       update: jest.fn().mockResolvedValue(undefined),
+      manager: {
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(null),
+        }),
+      },
     };
 
     imageRepo = {
@@ -75,6 +82,7 @@ describe('ProductService', () => {
       create: jest.fn((data) => ({ id: 'img-1', ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       softDelete: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(undefined),
     };
 
     categoryRepo = {
@@ -273,7 +281,7 @@ describe('ProductService', () => {
 
       expect(result.code).toBe(RC.IMAGE_DELETED);
       expect(storageService.delete).toHaveBeenCalled();
-      expect(imageRepo.softDelete).toHaveBeenCalledWith('img-1');
+      expect(imageRepo.delete).toHaveBeenCalledWith('img-1');
     });
 
     it('should promote next image when primary deleted', async () => {

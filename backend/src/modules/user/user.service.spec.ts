@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { KvkkConsent, ConsentType } from './entities/kvkk-consent.entity';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import {
   ConflictException,
   NotFoundException,
@@ -18,6 +19,7 @@ describe('UserService', () => {
   let userRepo: any;
   let sellerProfileRepo: any;
   let kvkkConsentRepo: any;
+  let refreshTokenRepo: any;
 
   const mockUser = {
     id: 'user-1',
@@ -27,6 +29,7 @@ describe('UserService', () => {
     phone: null,
     isSeller: false,
     isActive: true,
+    isVerified: true,
     passwordHash: '', // Will be set in beforeEach
     deletedAt: null,
   };
@@ -39,6 +42,17 @@ describe('UserService', () => {
       create: jest.fn((data) => ({ ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       softDelete: jest.fn().mockResolvedValue(undefined),
+      manager: {
+        transaction: jest.fn((cb) => {
+          // Simulate transactional EntityManager
+          const txManager = {
+            findOne: userRepo.findOne,
+            create: (EntityClass: any, data: any) => ({ id: 'new-id', ...data }),
+            save: jest.fn((entity: any) => Promise.resolve(entity)),
+          };
+          return cb(txManager);
+        }),
+      },
     };
 
     sellerProfileRepo = {
@@ -53,12 +67,18 @@ describe('UserService', () => {
       save: jest.fn((entity) => Promise.resolve(entity)),
     };
 
+    refreshTokenRepo = {
+      delete: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
         { provide: getRepositoryToken(User), useValue: userRepo },
         { provide: getRepositoryToken(SellerProfile), useValue: sellerProfileRepo },
         { provide: getRepositoryToken(KvkkConsent), useValue: kvkkConsentRepo },
+        { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
       ],
     }).compile();
 
@@ -123,21 +143,22 @@ describe('UserService', () => {
 
       const result = await service.becomeSeller('user-1', {
         businessName: 'Test Mağazası',
+        agreementAccepted: true,
       });
 
       expect(result.code).toBe(RC.BECOME_SELLER_SUCCESS);
       expect(result.isSeller).toBe(true);
       expect(result.sellerProfile.businessName).toBe('Test Mağazası');
       expect(result.sellerProfile.status).toBe(SellerStatus.APPROVED);
-      expect(sellerProfileRepo.save).toHaveBeenCalled();
-      expect(userRepo.save).toHaveBeenCalled();
+      // CR-03: becomeSeller now runs inside a transaction
+      expect(userRepo.manager.transaction).toHaveBeenCalled();
     });
 
     it('should reject if already seller (409)', async () => {
       userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: true });
 
       await expect(
-        service.becomeSeller('user-1', { businessName: 'Test' }),
+        service.becomeSeller('user-1', { businessName: 'Test', agreementAccepted: true }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -145,7 +166,7 @@ describe('UserService', () => {
       userRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.becomeSeller('nonexistent', { businessName: 'Test' }),
+        service.becomeSeller('nonexistent', { businessName: 'Test', agreementAccepted: true }),
       ).rejects.toThrow(NotFoundException);
     });
   });

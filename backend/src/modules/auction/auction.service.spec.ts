@@ -90,6 +90,7 @@ describe('AuctionService', () => {
           id: 'product-1',
           sellerId: 'seller-1',
         }),
+        query: jest.fn().mockResolvedValue([]), // CR-02: advisory lock mock
       },
     };
 
@@ -141,6 +142,7 @@ describe('AuctionService', () => {
       emitBidWinner: jest.fn(),
       emitBidLost: jest.fn(),
       emitAuctionCancelled: jest.fn(),
+      clearViewerCount: jest.fn(),
     };
 
     // Mock queryRunner for transaction-based placeBid
@@ -704,49 +706,71 @@ describe('AuctionService', () => {
   // ══════════════════════════════════════════════════════
   describe('finalizeAuction', () => {
     it('teklif yoksa FAILED (D-11)', async () => {
-      auctionRepo.findOne.mockResolvedValue(createMockAuction({ bidCount: 0 }));
+      const auction = createMockAuction({ bidCount: 0, endTime: new Date(Date.now() - 1000) });
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce(auction);
+
       await service.finalizeAuction('auction-1');
 
-      expect(auctionRepo.save).toHaveBeenCalledWith(
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: AuctionStatus.FAILED }),
       );
       expect(auctionGateway.emitAuctionEnded).toHaveBeenCalledWith(
         'auction-1',
         expect.objectContaining({ winnerId: null, bidCount: 0 }),
       );
+      expect(auctionGateway.clearViewerCount).toHaveBeenCalledWith('auction-1');
     });
 
     it('kazanan bid WON, diğerleri OUTBID (BIZ-12)', async () => {
-      auctionRepo.findOne.mockResolvedValue(
-        createMockAuction({ bidCount: 3 }),
-      );
-      bidRepo.findOne.mockResolvedValue({
+      const auction = createMockAuction({ bidCount: 3, endTime: new Date(Date.now() - 1000) });
+      const winningBid = {
         id: 'winning-bid',
         bidderId: 'buyer-1',
         amount: 1500,
         status: BidStatus.ACTIVE,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)   // lock auction
+        .mockResolvedValueOnce(winningBid); // winning bid
+
+      // Mock createQueryBuilder for bulk OUTBID update
+      mockQueryRunner.manager.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({}),
       });
 
       await service.finalizeAuction('auction-1');
 
-      expect(bidRepo.save).toHaveBeenCalledWith(
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'winning-bid',
           status: BidStatus.WON,
           isWinningBid: true,
         }),
       );
-      expect(bidRepo.createQueryBuilder).toHaveBeenCalled();
+      expect(mockQueryRunner.manager.createQueryBuilder).toHaveBeenCalled();
     });
 
     it('gateway events emitlenmeli', async () => {
-      auctionRepo.findOne.mockResolvedValue(
-        createMockAuction({ bidCount: 2 }),
-      );
-      bidRepo.findOne.mockResolvedValue({
+      const auction = createMockAuction({ bidCount: 2, endTime: new Date(Date.now() - 1000) });
+      const winningBid = {
         id: 'winning-bid',
         bidderId: 'buyer-1',
         amount: 1200,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+
+      mockQueryRunner.manager.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({}),
       });
 
       await service.finalizeAuction('auction-1');
@@ -758,14 +782,15 @@ describe('AuctionService', () => {
         expect.objectContaining({ finalPrice: 1200 }),
       );
       expect(auctionGateway.emitBidLost).toHaveBeenCalled();
+      expect(auctionGateway.clearViewerCount).toHaveBeenCalledWith('auction-1');
     });
 
     it('ENDED müzayedeyi tekrar finalize etmemeli', async () => {
-      auctionRepo.findOne.mockResolvedValue(
+      mockQueryRunner.manager.findOne.mockResolvedValueOnce(
         createMockAuction({ status: AuctionStatus.ENDED }),
       );
       await service.finalizeAuction('auction-1');
-      expect(auctionRepo.save).not.toHaveBeenCalled();
+      expect(auctionGateway.emitAuctionEnded).not.toHaveBeenCalled();
     });
   });
 

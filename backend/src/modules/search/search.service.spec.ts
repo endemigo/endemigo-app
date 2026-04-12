@@ -48,7 +48,12 @@ describe('SearchService', () => {
 
   beforeEach(async () => {
     productRepo = {
-      createQueryBuilder: jest.fn().mockReturnValue(mockQb),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        ...mockQb,
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({}),
+      }),
       findOne: jest.fn(),
       increment: jest.fn().mockResolvedValue(undefined),
       decrement: jest.fn().mockResolvedValue(undefined),
@@ -178,15 +183,20 @@ describe('SearchService', () => {
       expect(productRepo.increment).toHaveBeenCalledWith({ id: 'p1' }, 'favoriteCount', 1);
     });
 
-    it('should remove from favorites', async () => {
+    it('should remove from favorites (optimistic insert → 23505 → remove)', async () => {
       productRepo.findOne.mockResolvedValue(mockProduct);
+      // WR-01: Optimistic insert fails with unique constraint violation
+      const uniqueError = new Error('duplicate key value');
+      (uniqueError as any).code = '23505';
+      favoriteRepo.save.mockRejectedValueOnce(uniqueError);
       favoriteRepo.findOne.mockResolvedValue({ id: 'fav-1', userId: 'user-1', productId: 'p1' });
 
       const result = await service.toggleFavorite('user-1', 'p1');
 
       expect(result.isFavorited).toBe(false);
       expect(favoriteRepo.remove).toHaveBeenCalled();
-      expect(productRepo.decrement).toHaveBeenCalledWith({ id: 'p1' }, 'favoriteCount', 1);
+      // C5: favoriteCount decrement via GREATEST() queryBuilder
+      expect(productRepo.createQueryBuilder).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException for missing product', async () => {
