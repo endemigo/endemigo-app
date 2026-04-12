@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -119,6 +120,8 @@ export class UserController {
   @Public()
   @Post('account/reactivate')
   @HttpCode(HttpStatus.OK)
+  // CR-01: Strict rate limit — public endpoint accepting email+password
+  @Throttle({ short: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Silinen hesabı geri aktifleştir — grace period içinde' })
   @ApiResponse({ status: 200, description: 'Hesap geri aktifleştirildi' })
   async reactivateAccount(

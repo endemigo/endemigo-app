@@ -212,14 +212,15 @@ export class UserService {
       withDeleted: true,
     });
 
-    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Hesap bulunamadı' });
+    // CR-01: Generic error messages to prevent user enumeration
+    if (!user) throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
     if (user.isActive && !user.deletedAt) {
-      throw new BadRequestException({ code: RC.ACCOUNT_ALREADY_ACTIVE, message: 'Hesabınız zaten aktif' });
+      throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
     }
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new UnauthorizedException({ code: RC.WRONG_PASSWORD, message: 'Şifre hatalı' });
+    if (!isValid) throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
 
     // Grace period kontrolü (30 gün)
     if (user.deletedAt) {
