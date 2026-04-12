@@ -12,6 +12,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SearchService } from './search.service';
 import { SearchProductsDto, SearchAuctionsDto } from './dto/search.dto';
 import { Public } from '../../common/decorators/public.decorator';
@@ -55,10 +56,16 @@ export class SearchController {
 
   @Public()
   @Get('search')
+  // WR-02: Rate limit — unified search triggers 2 parallel queries per request
+  @Throttle({ short: { ttl: 60000, limit: 30 } })
   @ApiOperation({ summary: 'Birleşik arama (ürün + müzayede)' })
   @ApiQuery({ name: 'q', required: true })
   async unifiedSearch(@Query('q') q: string) {
-    return this.searchService.unifiedSearch(q);
+    // WR-04: Guard against empty q — would trigger full table scan with '%%'
+    if (!q || !q.trim()) {
+      return { products: [], auctions: [], totalProducts: 0, totalAuctions: 0 };
+    }
+    return this.searchService.unifiedSearch(q.trim());
   }
 
   // ─── Favorites ───────────────────────────────────────────
@@ -83,6 +90,7 @@ export class SearchController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.searchService.getFavorites(userId, +page, +limit);
+    // WR-03: Clamp pagination to prevent memory exhaustion
+    return this.searchService.getFavorites(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 50));
   }
 }
