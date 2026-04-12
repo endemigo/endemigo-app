@@ -23,11 +23,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
-      message =
-        typeof res === 'string'
-          ? res
-          : (res as any).message || exception.message;
-      code = `HTTP_${status}`;
+      if (typeof res === 'string') {
+        message = res;
+      } else if (typeof res === 'object' && res !== null) {
+        const body = res as Record<string, unknown>;
+        // Prefer custom code if present (from ConflictException etc.)
+        code = (body.code as string) || `HTTP_${status}`;
+        message = Array.isArray(body.message)
+          ? (body.message as string[]).join(', ')
+          : (body.message as string) || exception.message;
+      }
     }
 
     if (status >= 500) {
