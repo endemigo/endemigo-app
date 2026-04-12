@@ -189,23 +189,27 @@ export class SearchService {
     const product = await this.productRepo.findOne({ where: { id: productId } });
     if (!product) throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
 
-    const existing = await this.favoriteRepo.findOne({ where: { userId, productId } });
-
-    if (existing) {
-      await this.favoriteRepo.remove(existing);
-      // C5: favoriteCount negatife düşmesini engelle (GREATEST ile 0 floor)
-      await this.productRepo
-        .createQueryBuilder()
-        .update()
-        .set({ favoriteCount: () => 'GREATEST("favoriteCount" - 1, 0)' })
-        .where('id = :id', { id: productId })
-        .execute();
-      return { code: 'FAVORITE_REMOVED', message: 'Favorilerden çıkarıldı', isFavorited: false };
-    } else {
+    // WR-01: Optimistic insert — eliminates TOCTOU race on double-tap
+    try {
       const fav = this.favoriteRepo.create({ userId, productId });
       await this.favoriteRepo.save(fav);
       await this.productRepo.increment({ id: productId }, 'favoriteCount', 1);
       return { code: 'FAVORITE_ADDED', message: 'Favorilere eklendi', isFavorited: true };
+    } catch (err: unknown) {
+      // Unique constraint violation (23505) → favorite exists, remove it
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
+        const existing = await this.favoriteRepo.findOne({ where: { userId, productId } });
+        if (existing) await this.favoriteRepo.remove(existing);
+        // C5: favoriteCount negatife düşmesini engelle (GREATEST ile 0 floor)
+        await this.productRepo
+          .createQueryBuilder()
+          .update()
+          .set({ favoriteCount: () => 'GREATEST("favoriteCount" - 1, 0)' })
+          .where('id = :id', { id: productId })
+          .execute();
+        return { code: 'FAVORITE_REMOVED', message: 'Favorilerden çıkarıldı', isFavorited: false };
+      }
+      throw err;
     }
   }
 
