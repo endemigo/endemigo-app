@@ -180,7 +180,8 @@ export class ProductService {
     }
 
     await this.storage.delete(image.url);
-    await this.imageRepo.softDelete(imageId);
+    // WR-04: Hard delete — physical file is already removed, soft delete would leave orphaned record
+    await this.imageRepo.delete(imageId);
 
     // If primary was deleted, promote next image
     if (image.isPrimary) {
