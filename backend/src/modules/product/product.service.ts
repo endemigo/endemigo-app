@@ -69,18 +69,18 @@ export class ProductService {
       throw new ForbiddenException({ code: RC.NOT_PRODUCT_OWNER, message: 'Bu ürün size ait değil' });
     }
 
-    // BIZ-06: Safe field assignment — prevent mass assignment of sellerId, favoriteCount, etc.
-    const safeFields = [
-      'title', 'description', 'price', 'categoryId', 'stockQuantity', 'sku',
-      'geoIndicationCertNo', 'geoIndicationRegion', 'originCountry', 'originRegion',
-      'condition', 'listingType', 'dimensionWidth', 'dimensionHeight', 'dimensionDepth',
-      'weight', 'status',
-    ];
-    for (const field of safeFields) {
-      if ((dto as any)[field] !== undefined) {
-        (product as any)[field] = (dto as any)[field];
-      }
-    }
+    // CR-02: Type-safe field assignment — prevents mass assignment of sellerId, favoriteCount, etc.
+    const { title, description, price, categoryId, stockQuantity, sku,
+            geoIndicationCertNo, geoIndicationRegion, originCountry, originRegion,
+            condition, listingType, dimensionWidth, dimensionHeight, dimensionDepth,
+            weight, status } = dto;
+    const safeUpdate = Object.fromEntries(
+      Object.entries({ title, description, price, categoryId, stockQuantity, sku,
+        geoIndicationCertNo, geoIndicationRegion, originCountry, originRegion,
+        condition, listingType, dimensionWidth, dimensionHeight, dimensionDepth,
+        weight, status }).filter(([, v]) => v !== undefined),
+    );
+    Object.assign(product, safeUpdate);
 
     // K5: DRAFT→ACTIVE status geçiş guard'ı — yayınlama kalite kontrolü
     if (product.status === ProductStatus.ACTIVE) {

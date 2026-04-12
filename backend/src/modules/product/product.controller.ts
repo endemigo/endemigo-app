@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -92,6 +93,10 @@ export class ProductController {
     @Param('id', ParseUUIDPipe) productId: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    // WR-05: Guard against missing file in multipart request
+    if (!file) {
+      throw new BadRequestException({ code: 'FILE_REQUIRED', message: 'Görsel dosyası zorunludur' });
+    }
     return this.productService.uploadImage(userId, productId, file);
   }
 
@@ -119,7 +124,8 @@ export class ProductController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.productService.findMyProducts(userId, +page, +limit);
+    // WR-03: Clamp pagination to prevent memory exhaustion
+    return this.productService.findMyProducts(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 100));
   }
 
   // ─── Public Endpoints ─────────────────────────────────────────
@@ -134,7 +140,8 @@ export class ProductController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.productService.findAll(+page, +limit);
+    // WR-03: Clamp pagination to prevent memory exhaustion
+    return this.productService.findAll(Math.max(1, +page), Math.min(Math.max(1, +limit), 100));
   }
 
   @Public()
