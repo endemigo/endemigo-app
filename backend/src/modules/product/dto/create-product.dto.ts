@@ -14,9 +14,10 @@ import { ProductCondition } from '../../../shared/types/product-condition.enum';
 import { ListingType } from '../../../shared/types/listing-type.enum';
 
 export class CreateProductDto {
-  @ApiProperty({ example: 'iPhone 15 Pro', minLength: 3 })
+  @ApiProperty({ example: 'iPhone 15 Pro', minLength: 3, maxLength: 200 })
   @IsString()
   @MinLength(3)
+  @MaxLength(200)
   title: string;
 
   @ApiPropertyOptional({ example: '256GB Space Black, kutusunda' })
