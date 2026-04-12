@@ -15,9 +15,13 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { ConfigService } from '@nestjs/config';
 
+// CR-01: CORS must match HTTP CORS — no wildcard in production
 @WebSocketGateway({
   namespace: '/auction',
-  cors: { origin: '*' },
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:8081',
+    credentials: true,
+  },
   transports: ['websocket', 'polling'],
 })
 export class AuctionGateway
@@ -135,6 +139,11 @@ export class AuctionGateway
       event: 'auction:left',
       data: { auctionId: data.auctionId },
     };
+  }
+
+  // WR-03: Clean up viewer count for ended auctions — prevents memory leak
+  clearViewerCount(auctionId: string) {
+    this.viewerCounts.delete(auctionId);
   }
 
   // ─── Broadcast Methods (Called by AuctionService) ─────────
