@@ -44,8 +44,9 @@ export default function SettingsScreen() {
     try {
       const { data } = await api.get('/users/consents');
       setConsents(data);
-    } catch {
-      // Silent fail — consents may not exist yet
+    } catch (err) {
+      // WR-08: Log failure instead of silent swallow — empty state could mislead user
+      console.warn('Failed to load KVKK consents:', err);
     } finally {
       setLoadingConsents(false);
     }
