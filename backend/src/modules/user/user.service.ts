@@ -45,6 +45,11 @@ export class UserService {
     return this.userRepo.save(user);
   }
 
+  // WR-01: Dedicated save method for updating existing user entities
+  async save(user: User): Promise<User> {
+    return this.userRepo.save(user);
+  }
+
   // ==========================================
   // Phase 2: Profil Güncelleme
   // ==========================================
@@ -92,7 +97,12 @@ export class UserService {
   // Phase 2: Satıcı Geçişi
   // ==========================================
 
-  async becomeSeller(userId: string, dto: BecomeSellerDto) {
+  async becomeSeller(
+    userId: string,
+    dto: BecomeSellerDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
     if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
@@ -108,6 +118,9 @@ export class UserService {
       approvedAt: new Date(),
       agreementAcceptedAt: new Date(),
       agreementVersion: '1.0.0',
+      // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
+      agreementIpAddress: ipAddress,
+      agreementUserAgent: userAgent,
     });
 
     await this.sellerProfileRepo.save(sellerProfile);
