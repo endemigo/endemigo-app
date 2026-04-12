@@ -33,7 +33,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     restoreSession();
-  }, []);
+  }, [restoreSession]);
 
   return <>{children}</>;
 }
