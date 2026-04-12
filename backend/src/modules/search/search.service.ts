@@ -23,6 +23,11 @@ export class SearchService {
     private readonly favoriteRepo: Repository<Favorite>,
   ) {}
 
+  // CR-01: Escape ILIKE metacharacters to prevent wildcard injection / DoS
+  private escapeLike(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
   // ==========================================
   // Product Search
   // ==========================================
@@ -39,9 +44,10 @@ export class SearchService {
       .where('p.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('p.deletedAt IS NULL');
 
-    // Text search
+    // Text search — CR-01: escape ILIKE metacharacters
     if (dto.q) {
-      qb.andWhere('(p.title ILIKE :q OR p.description ILIKE :q)', { q: `%${dto.q}%` });
+      const escaped = this.escapeLike(dto.q);
+      qb.andWhere('(p.title ILIKE :q OR p.description ILIKE :q)', { q: `%${escaped}%` });
     }
 
     // Filters
@@ -102,9 +108,10 @@ export class SearchService {
       .leftJoinAndSelect('product.category', 'category')
       .where('a.deletedAt IS NULL');
 
-    // Text search via product
+    // Text search via product — CR-01: escape ILIKE metacharacters
     if (dto.q) {
-      qb.andWhere('(product.title ILIKE :q OR product.description ILIKE :q)', { q: `%${dto.q}%` });
+      const escaped = this.escapeLike(dto.q);
+      qb.andWhere('(product.title ILIKE :q OR product.description ILIKE :q)', { q: `%${escaped}%` });
     }
 
     // Status filter
