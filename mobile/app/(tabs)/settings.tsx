@@ -68,9 +68,12 @@ export default function SettingsScreen() {
     }
   };
 
+  // WR-03: Explicitly sort on client to guarantee latest consent regardless of API sort order
   const getConsentValue = (type: string): boolean => {
-    const latest = consents.find((c) => c.consentType === type);
-    return latest?.isAccepted ?? false;
+    const matching = consents
+      .filter((c) => c.consentType === type)
+      .sort((a, b) => new Date(b.acceptedAt).getTime() - new Date(a.acceptedAt).getTime());
+    return matching[0]?.isAccepted ?? false;
   };
 
   const handleDeleteAccount = async () => {
