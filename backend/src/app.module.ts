@@ -14,7 +14,9 @@ import { AuctionModule } from './modules/auction/auction.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { SearchModule } from './modules/search/search.module';
 import { StorageModule } from './shared/storage/storage.module';
+import { EmailModule } from './shared/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -31,11 +33,15 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       }),
       inject: [ConfigService],
     }),
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6381', 10),
-      },
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST', 'localhost'),
+          port: configService.get<number>('REDIS_PORT', 6381),
+        },
+      }),
+      inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 60000, limit: 60 },
@@ -46,6 +52,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       serveRoot: '/uploads',
     }),
     StorageModule,
+    EmailModule,
     AuthModule,
     UserModule,
     SearchModule,     // MUST be before ProductModule/AuctionModule — route priority
@@ -57,6 +64,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
