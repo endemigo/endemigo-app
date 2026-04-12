@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -18,13 +17,14 @@ import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '..
 import { styles } from '../../styles/auth/register.styles';
 
 export default function RegisterScreen() {
-    const [firstName, setFirstName] = useState('');
+  const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
   const { showModal } = useModalStore();
+  const { t } = useTranslation();
   
   const handleRegister = async () => {
     if (!email || !password) {
@@ -40,7 +40,11 @@ export default function RegisterScreen() {
       await register(email.trim().toLowerCase(), password, firstName.trim(), lastName.trim());
       router.replace('/(tabs)');
     } catch (err: unknown) {
-      const message = err.response?.data?.error?.message || 'Kayıt başarısız';
+      let message = 'Kayıt başarısız';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+        message = axiosErr.response?.data?.error?.message || message;
+      }
       showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);
