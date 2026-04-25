@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
+import { Favorite } from '../search/entities/favorite.entity';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
 import { ProductCondition } from '../../shared/types/product-condition.enum';
@@ -21,6 +22,7 @@ describe('ProductService', () => {
   let productRepo: any;
   let imageRepo: any;
   let categoryRepo: any;
+  let favoriteRepo: any;
   let userService: any;
   let storageService: any;
 
@@ -61,9 +63,20 @@ describe('ProductService', () => {
   };
 
   beforeEach(async () => {
+    const productQb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[{ ...mockProduct, status: ProductStatus.ACTIVE }], 1]),
+    };
+
     productRepo = {
       findOne: jest.fn(),
       findAndCount: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(productQb),
       create: jest.fn((data) => ({ ...mockProduct, ...data })),
       save: jest.fn((entity) => Promise.resolve({ ...mockProduct, ...entity })),
       softDelete: jest.fn().mockResolvedValue(undefined),
@@ -92,6 +105,10 @@ describe('ProductService', () => {
       save: jest.fn((entity) => Promise.resolve({ id: 'cat-1', ...entity })),
     };
 
+    favoriteRepo = {
+      findOne: jest.fn(),
+    };
+
     userService = {
       findById: jest.fn(),
     };
@@ -107,6 +124,7 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(Product), useValue: productRepo },
         { provide: getRepositoryToken(ProductImage), useValue: imageRepo },
         { provide: getRepositoryToken(Category), useValue: categoryRepo },
+        { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
         { provide: UserService, useValue: userService },
         { provide: STORAGE_SERVICE, useValue: storageService },
       ],
@@ -328,18 +346,21 @@ describe('ProductService', () => {
   // ==========================================
   describe('findAll', () => {
     it('should return paginated active products', async () => {
-      productRepo.findAndCount.mockResolvedValue([[{ ...mockProduct, status: ProductStatus.ACTIVE }], 1]);
-
       const result = await service.findAll(1, 20);
 
       expect(result.items).toHaveLength(1);
       expect(result.total).toBe(1);
       expect(result.page).toBe(1);
-      expect(productRepo.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { status: ProductStatus.ACTIVE },
-        }),
-      );
+      expect(productRepo.createQueryBuilder).toHaveBeenCalledWith('p');
+    });
+
+    it('should sort by favorite count for likes feed', async () => {
+      const qb = productRepo.createQueryBuilder();
+
+      await service.findAll(1, 20, 'likes');
+
+      expect(qb.orderBy).toHaveBeenCalledWith('p.favoriteCount', 'DESC');
+      expect(qb.addOrderBy).toHaveBeenCalledWith('p.createdAt', 'DESC');
     });
   });
 
@@ -379,6 +400,19 @@ describe('ProductService', () => {
       expect(result.id).toBe('product-1');
       expect(result.condition).toBe(ProductCondition.EXCELLENT);
       expect(result.listingType).toBe(ListingType.DIRECT_SALE);
+    });
+
+    it('should include favorite state when userId is provided', async () => {
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+      favoriteRepo.findOne.mockResolvedValue({ id: 'fav-1' });
+
+      const result = await service.findById('product-1', 'user-1');
+
+      expect(result.isFavorited).toBe(true);
+      expect(favoriteRepo.findOne).toHaveBeenCalledWith({
+        where: { userId: 'user-1', productId: 'product-1' },
+        select: ['id'],
+      });
     });
 
     it('should throw NotFoundException', async () => {

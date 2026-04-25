@@ -23,13 +23,22 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
+  private withResponseMeta<T extends Record<string, unknown>>(
+    code: string,
+    message: string,
+    data: T,
+  ) {
+    return { code, message, ...data };
+  }
+
   // ─── Product Search ──────────────────────────────────────
 
   @Public()
   @Get('products/search')
   @ApiOperation({ summary: 'Ürün ara + filtrele + sırala' })
   async searchProducts(@Query() dto: SearchProductsDto) {
-    return this.searchService.searchProducts(dto);
+    const result = await this.searchService.searchProducts(dto);
+    return this.withResponseMeta('SEARCH_PRODUCTS_SUCCESS', 'Ürün arama sonuçları', result);
   }
 
   // Authenticated version — includes isFavorited
@@ -40,7 +49,8 @@ export class SearchController {
     @CurrentUser('id') userId: string,
     @Query() dto: SearchProductsDto,
   ) {
-    return this.searchService.searchProducts(dto, userId);
+    const result = await this.searchService.searchProducts(dto, userId);
+    return this.withResponseMeta('SEARCH_PRODUCTS_SUCCESS', 'Ürün arama sonuçları', result);
   }
 
   // ─── Auction Search ──────────────────────────────────────
@@ -49,7 +59,8 @@ export class SearchController {
   @Get('auctions/search')
   @ApiOperation({ summary: 'Müzayede ara + filtrele + sırala' })
   async searchAuctions(@Query() dto: SearchAuctionsDto) {
-    return this.searchService.searchAuctions(dto);
+    const result = await this.searchService.searchAuctions(dto);
+    return this.withResponseMeta('SEARCH_AUCTIONS_SUCCESS', 'Müzayede arama sonuçları', result);
   }
 
   // ─── Unified Search ──────────────────────────────────────
@@ -63,9 +74,15 @@ export class SearchController {
   async unifiedSearch(@Query('q') q: string) {
     // WR-04: Guard against empty q — would trigger full table scan with '%%'
     if (!q || !q.trim()) {
-      return { products: [], auctions: [], totalProducts: 0, totalAuctions: 0 };
+      return this.withResponseMeta('SEARCH_UNIFIED_SUCCESS', 'Birleşik arama sonuçları', {
+        products: [],
+        auctions: [],
+        totalProducts: 0,
+        totalAuctions: 0,
+      });
     }
-    return this.searchService.unifiedSearch(q.trim());
+    const result = await this.searchService.unifiedSearch(q.trim());
+    return this.withResponseMeta('SEARCH_UNIFIED_SUCCESS', 'Birleşik arama sonuçları', result);
   }
 
   // ─── Favorites ───────────────────────────────────────────
@@ -91,6 +108,7 @@ export class SearchController {
     @Query('limit') limit = 20,
   ) {
     // WR-03: Clamp pagination to prevent memory exhaustion
-    return this.searchService.getFavorites(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 50));
+    const result = await this.searchService.getFavorites(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 50));
+    return this.withResponseMeta('FAVORITES_LISTED', 'Favoriler listelendi', result);
   }
 }

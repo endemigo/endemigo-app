@@ -1,14 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { User } from '../src/modules/user/entities/user.entity';
+import { ProductService } from '../src/modules/product/product.service';
 
 describe('Vertical Slice E2E — Full Auction Flow', () => {
   let app: INestApplication;
+  let dataSource: DataSource;
   let sellerToken: string;
   let buyerToken: string;
   let productId: string;
   let auctionId: string;
+  let categoryId: string;
 
   const SELLER_EMAIL = `e2e-seller-${Date.now()}@test.com`;
   const BUYER_EMAIL = `e2e-buyer-${Date.now()}@test.com`;
@@ -22,11 +27,23 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
+
+    dataSource = app.get(DataSource);
+    const productService = app.get(ProductService);
+    const categories = await productService.seedCategories();
+    categoryId = categories[0]?.children?.[0]?.id || categories[0]?.id;
   }, 30000);
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
+
+  async function markEmailVerified(email: string) {
+    await dataSource.getRepository(User).update(
+      { email: email.toLowerCase() },
+      { isVerified: true },
+    );
+  }
 
   // ==========================================
   // STEP 1: Auth — Register & Login
@@ -40,6 +57,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.body.accessToken).toBeDefined();
       sellerToken = res.body.accessToken;
+      await markEmailVerified(SELLER_EMAIL);
     });
 
     it('should register buyer', async () => {
@@ -50,6 +68,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.body.accessToken).toBeDefined();
       buyerToken = res.body.accessToken;
+      await markEmailVerified(BUYER_EMAIL);
     });
 
     it('should login seller', async () => {
@@ -93,18 +112,24 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       const res = await request(app.getHttpServer())
         .post('/users/become-seller')
         .set('Authorization', `Bearer ${sellerToken}`)
-        .send({ businessName: 'E2E Test Mağazası' })
+        .send({ businessName: 'E2E Test Mağazası', agreementAccepted: true })
         .expect(201);
 
       expect(res.body.isSeller).toBe(true);
       expect(res.body.sellerProfile).toBeDefined();
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: SELLER_EMAIL, password: PASSWORD })
+        .expect(200);
+      sellerToken = login.body.accessToken;
     });
 
     it('should reject already seller (409)', async () => {
       await request(app.getHttpServer())
         .post('/users/become-seller')
         .set('Authorization', `Bearer ${sellerToken}`)
-        .send({ businessName: 'Tekrar Deneme' })
+        .send({ businessName: 'Tekrar Deneme', agreementAccepted: true })
         .expect(409);
     });
   });
@@ -117,7 +142,13 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       const res = await request(app.getHttpServer())
         .post('/products')
         .set('Authorization', `Bearer ${sellerToken}`)
-        .send({ title: 'E2E Test Ürün', price: 5000, description: 'Test' })
+        .send({
+          title: 'E2E Test Ürün',
+          price: 5000,
+          description: 'E2E test ürünü açıklaması',
+          categoryId,
+          imageUrl: 'https://example.com/e2e-product.jpg',
+        })
         .expect(201);
 
       expect(res.body.id).toBeDefined();
@@ -188,12 +219,10 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   // ==========================================
   describe('Step 3.5: Categories', () => {
     it('should seed categories', async () => {
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/categories/seed')
         .set('Authorization', `Bearer ${sellerToken}`)
-        .expect(201);
-
-      expect(res.body.length).toBeGreaterThanOrEqual(9);
+        .expect(403);
     });
 
     it('should list categories with children (public)', async () => {
@@ -285,7 +314,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   describe('Step 4: Auction', () => {
     it('seller should create auction', async () => {
       const now = new Date();
-      const startTime = new Date(now.getTime() - 1000).toISOString(); // start immediately (past)
+      const startTime = new Date(now.getTime() + 1500).toISOString();
       const endTime = new Date(now.getTime() + 300000).toISOString(); // 5 min
 
       const res = await request(app.getHttpServer())
@@ -295,10 +324,15 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.id).toBeDefined();
+      expect(res.body.status).toBe('DRAFT');
       auctionId = res.body.id;
 
-      // Wait for BullMQ to activate
-      await new Promise(r => setTimeout(r, 2000));
+      await request(app.getHttpServer())
+        .patch(`/auctions/${auctionId}/publish`)
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .expect(200);
+
+      await new Promise(r => setTimeout(r, 2500));
 
       // Verify active
       const detail = await request(app.getHttpServer())
@@ -344,6 +378,11 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   // ==========================================
   describe('Step 5: Bidding', () => {
     it('buyer should place valid bid', async () => {
+      await request(app.getHttpServer())
+        .get('/wallet/balance')
+        .set('Authorization', `Bearer ${buyerToken}`)
+        .expect(200);
+
       const res = await request(app.getHttpServer())
         .post(`/auctions/${auctionId}/bids`)
         .set('Authorization', `Bearer ${buyerToken}`)

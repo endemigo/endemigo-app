@@ -5,6 +5,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { DataSource } from 'typeorm';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
+import { WalletHold } from '../wallet/entities/wallet-hold.entity';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
@@ -459,6 +460,102 @@ describe('AuctionService', () => {
           isWinningBid: false,
         }),
       );
+    });
+
+    it('önceki lider başka kullanıcıysa hold serbest bırakılmalı', async () => {
+      const auction = createMockAuction();
+      const previousBid = {
+        id: 'prev-bid',
+        bidderId: 'buyer-2',
+        amount: 1000,
+        isWinningBid: true,
+        status: BidStatus.ACTIVE,
+      };
+      const previousLeaderHold = {
+        id: 'prev-hold',
+        auctionId: 'auction-1',
+        userId: 'buyer-2',
+        amount: 1250,
+        status: HoldStatus.HELD,
+      };
+      const previousLeaderWallet = {
+        id: 'wallet-2',
+        userId: 'buyer-2',
+        balance: 10000,
+        heldAmount: 1250,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(previousBid)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 0,
+        })
+        .mockResolvedValueOnce(previousLeaderHold)
+        .mockResolvedValueOnce(previousLeaderWallet);
+
+      userService.findById.mockResolvedValue(mockBuyer);
+      await service.placeBid('auction-1', 'buyer-1', { amount: 1100 });
+
+      expect(previousLeaderHold.status).toBe(HoldStatus.RELEASED);
+      expect(previousLeaderWallet.heldAmount).toBe(0);
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(previousLeaderHold);
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(previousLeaderWallet);
+    });
+
+    it('aynı kullanıcı teklif artırınca önceki hold ikinci kez serbest bırakılmamalı', async () => {
+      const auction = createMockAuction();
+      const previousBid = {
+        id: 'prev-bid',
+        bidderId: 'buyer-1',
+        amount: 1000,
+        isWinningBid: true,
+        status: BidStatus.ACTIVE,
+      };
+      const existingHold = {
+        id: 'existing-hold',
+        auctionId: 'auction-1',
+        userId: 'buyer-1',
+        amount: 1250,
+        status: HoldStatus.HELD,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(previousBid)
+        .mockResolvedValueOnce(existingHold)
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 1250,
+        })
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 0,
+        });
+
+      userService.findById.mockResolvedValue(mockBuyer);
+      await service.placeBid('auction-1', 'buyer-1', { amount: 1100 });
+
+      const holdReleaseSaves = mockQueryRunner.manager.save.mock.calls.filter(
+        ([entity]) => entity.id === 'existing-hold' && entity.status === HoldStatus.RELEASED,
+      );
+      const sameUserHoldLookups = mockQueryRunner.manager.findOne.mock.calls.filter(
+        ([entity, options]) =>
+          entity === WalletHold &&
+          options?.where?.auctionId === 'auction-1' &&
+          options?.where?.userId === 'buyer-1' &&
+          options?.where?.status === HoldStatus.HELD,
+      );
+      expect(holdReleaseSaves).toHaveLength(1);
+      expect(sameUserHoldLookups).toHaveLength(1);
     });
 
     it('gateway bid:new ve bid:outbid event emitlenmeli', async () => {

@@ -136,12 +136,25 @@ export class ProductController {
   @ApiResponse({ status: 200, type: PaginatedProductsDto })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'likes', 'popular'] })
   async findAll(
     @Query('page') page = 1,
     @Query('limit') limit = 20,
+    @Query('sort') sort?: string,
   ) {
     // WR-03: Clamp pagination to prevent memory exhaustion
-    return this.productService.findAll(Math.max(1, +page), Math.min(Math.max(1, +limit), 100));
+    return this.productService.findAll(Math.max(1, +page), Math.min(Math.max(1, +limit), 100), sort);
+  }
+
+  @Get(':id/auth')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ürün detay (auth — favori durumunu içerir)' })
+  @ApiResponse({ status: 200, type: ProductResponseDto })
+  async findOneAuth(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productService.findById(id, userId);
   }
 
   @Public()

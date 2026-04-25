@@ -10,6 +10,7 @@ import { Repository, IsNull } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
+import { Favorite } from '../search/entities/favorite.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
@@ -29,6 +30,8 @@ export class ProductService {
     private readonly imageRepo: Repository<ProductImage>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(Favorite)
+    private readonly favoriteRepo: Repository<Favorite>,
     private readonly userService: UserService,
     @Inject(STORAGE_SERVICE)
     private readonly storage: IStorageService,
@@ -205,14 +208,24 @@ export class ProductService {
   // List — Public
   // ==========================================
 
-  async findAll(page = 1, limit = 20) {
-    const [items, total] = await this.productRepo.findAndCount({
-      where: { status: ProductStatus.ACTIVE },
-      relations: ['category', 'seller', 'images'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  async findAll(page = 1, limit = 20, sort?: string) {
+    const qb = this.productRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.category', 'category')
+      .leftJoinAndSelect('p.seller', 'seller')
+      .leftJoinAndSelect('p.images', 'images')
+      .where('p.status = :status', { status: ProductStatus.ACTIVE });
+
+    if (sort === 'likes' || sort === 'popular') {
+      qb.orderBy('p.favoriteCount', 'DESC').addOrderBy('p.createdAt', 'DESC');
+    } else {
+      qb.orderBy('p.createdAt', 'DESC');
+    }
+
+    const [items, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       items: items.map((p) => this.toResponse(p)),
@@ -247,13 +260,23 @@ export class ProductService {
   // Find by ID
   // ==========================================
 
-  async findById(id: string) {
+  async findById(id: string, userId?: string) {
     const product = await this.productRepo.findOne({
       where: { id },
       relations: ['category', 'seller', 'images'],
     });
     if (!product) throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
-    return this.toResponse(product);
+
+    let isFavorited: boolean | undefined;
+    if (userId) {
+      const favorite = await this.favoriteRepo.findOne({
+        where: { userId, productId: id },
+        select: ['id'],
+      });
+      isFavorited = !!favorite;
+    }
+
+    return this.toResponse(product, isFavorited);
   }
 
   // ==========================================
@@ -318,7 +341,7 @@ export class ProductService {
   // Response Mapper
   // ==========================================
 
-  private toResponse(product: Product) {
+  private toResponse(product: Product, isFavorited?: boolean) {
     return {
       id: product.id,
       title: product.title,
@@ -351,6 +374,8 @@ export class ProductService {
       dimensionHeight: product.dimensionHeight ? Number(product.dimensionHeight) : null,
       dimensionDepth: product.dimensionDepth ? Number(product.dimensionDepth) : null,
       weight: product.weight ? Number(product.weight) : null,
+      favoriteCount: product.favoriteCount,
+      ...(isFavorited !== undefined ? { isFavorited } : {}),
       createdAt: product.createdAt,
     };
   }

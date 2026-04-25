@@ -11,8 +11,6 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
 import { ConfigService } from '@nestjs/config';
 
 // CR-01: CORS must match HTTP CORS — no wildcard in production
@@ -37,25 +35,6 @@ export class AuctionGateway
   ) {}
 
   async afterInit(server: Server) {
-    // ─── Redis Adapter (D-09) ───────────────────────────────
-    try {
-      const redisUrl = this.configService.get<string>(
-        'REDIS_URL',
-        'redis://localhost:6379',
-      );
-      const pubClient = createClient({ url: redisUrl });
-      const subClient = pubClient.duplicate();
-      await pubClient.connect();
-      await subClient.connect();
-      server.adapter(createAdapter(pubClient, subClient));
-      this.logger.log('Socket.IO Redis adapter initialized');
-    } catch (err) {
-      this.logger.warn(
-        'Redis adapter init failed — falling back to in-memory adapter',
-        err,
-      );
-    }
-
     // ─── Viewer count broadcast every 10 seconds ────────────
     setInterval(() => {
       this.viewerCounts.forEach((count, auctionId) => {

@@ -1,20 +1,17 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSpring,
   Easing,
-  runOnJS,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
 import { useModalStore } from '../../store/modalStore';
 import { styles } from './GlobalModal.styles';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function GlobalModal() {
   const { t } = useTranslation();
@@ -30,9 +27,7 @@ export function GlobalModal() {
       opacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
       scale.value = withTiming(0.9, { duration: 200, easing: Easing.in(Easing.ease) });
     }
-  }, [isVisible]);
-
-  if (!isVisible && opacity.value === 0) return null; // Prevent interaction when hidden but avoid layout thrashing
+  }, [isVisible, opacity, scale]);
 
   const handleConfirm = () => {
     if (options.onConfirm) options.onConfirm();
@@ -64,7 +59,6 @@ export function GlobalModal() {
     }
   };
 
-  // We keep it mounted out of screen if not visible (or zIndex trick)
   if (!isVisible && opacity.value === 0) return null;
 
   return (

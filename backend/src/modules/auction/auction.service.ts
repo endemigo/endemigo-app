@@ -397,14 +397,41 @@ export class AuctionService {
       wallet.heldAmount = Number(wallet.heldAmount) + totalWithPremium;
       await queryRunner.manager.save(wallet);
 
-      // 10. Mark previous lead bid as OUTBID (BIZ-12)
+      // 10. Release previous leader's hold when they are outbid by another user.
+      if (previousLeadBid && previousLeadBid.bidderId !== bidderId) {
+        const previousLeaderHold = await queryRunner.manager.findOne(WalletHold, {
+          where: {
+            auctionId,
+            userId: previousLeadBid.bidderId,
+            status: HoldStatus.HELD,
+          },
+        });
+
+        if (previousLeaderHold) {
+          previousLeaderHold.status = HoldStatus.RELEASED;
+          await queryRunner.manager.save(previousLeaderHold);
+
+          const previousLeaderWallet = await queryRunner.manager.findOne(Wallet, {
+            where: { userId: previousLeadBid.bidderId },
+          });
+          if (previousLeaderWallet) {
+            previousLeaderWallet.heldAmount = Math.max(
+              0,
+              Number(previousLeaderWallet.heldAmount) - Number(previousLeaderHold.amount),
+            );
+            await queryRunner.manager.save(previousLeaderWallet);
+          }
+        }
+      }
+
+      // 11. Mark previous lead bid as OUTBID (BIZ-12)
       if (previousLeadBid) {
         previousLeadBid.isWinningBid = false;
         previousLeadBid.status = BidStatus.OUTBID;
         await queryRunner.manager.save(previousLeadBid);
       }
 
-      // 11. Save new bid
+      // 12. Save new bid
       const bid = queryRunner.manager.create(Bid, {
         auctionId,
         bidderId,
@@ -415,11 +442,11 @@ export class AuctionService {
       });
       await queryRunner.manager.save(bid);
 
-      // 12. Update auction
+      // 13. Update auction
       auction.currentPrice = dto.amount;
       auction.bidCount = (auction.bidCount || 0) + 1;
 
-      // 13. Anti-sniping check (D-03, D-10)
+      // 14. Anti-sniping check (D-03, D-10)
       const antiSnipingResult = this.checkAntiSniping(auction, now);
       if (antiSnipingResult.extended) {
         auction.endTime = antiSnipingResult.newEndTime!;
