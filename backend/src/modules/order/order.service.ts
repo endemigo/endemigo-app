@@ -13,6 +13,7 @@ import {
   RC,
 } from '@endemigo/shared';
 import { Repository } from 'typeorm';
+import { CargoService } from '../cargo/cargo.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -50,6 +51,8 @@ export class OrderService {
     private readonly auditRepository?: Repository<OrderAuditEvent>,
     @InjectQueue('order')
     private readonly orderQueue?: Queue,
+    @Optional()
+    private readonly cargoService?: CargoService,
     @Optional()
     private readonly ledgerService?: LedgerService,
     @Optional()
@@ -234,6 +237,22 @@ export class OrderService {
     order.status = OrderStatus.COMPLETED;
     order.completedAt = new Date();
     await this.orderRepository?.save(order);
+  }
+
+  async createShipmentForOrder(orderId: string) {
+    const order = await this.orderRepository?.findOne({ where: { id: orderId } });
+    if (order && ![OrderStatus.ESCROW_HELD, OrderStatus.PREPARING_SHIPMENT].includes(order.status)) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Order is not ready for shipment',
+      });
+    }
+
+    if (order && order.status === OrderStatus.ESCROW_HELD) {
+      await this.transitionOrder(orderId, OrderStatus.PREPARING_SHIPMENT, order.sellerId, 'shipment_created');
+    }
+
+    return this.cargoService?.createShipmentForOrder(orderId);
   }
 
   async getBuyerOrders(buyerId: string) {
