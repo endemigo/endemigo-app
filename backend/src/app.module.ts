@@ -13,6 +13,11 @@ import { ProductModule } from './modules/product/product.module';
 import { AuctionModule } from './modules/auction/auction.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { SearchModule } from './modules/search/search.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { OrderModule } from './modules/order/order.module';
+import { CargoModule } from './modules/cargo/cargo.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { StorageModule } from './shared/storage/storage.module';
 import { EmailModule } from './shared/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -60,6 +65,11 @@ import { RolesGuard } from './common/guards/roles.guard';
     ProductModule,
     AuctionModule,
     WalletModule,
+    LedgerModule,
+    PaymentModule,
+    OrderModule,
+    CargoModule,
+    NotificationModule,
     HealthModule,
   ],
   providers: [

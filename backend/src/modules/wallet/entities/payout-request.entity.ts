@@ -28,18 +28,18 @@ export class PayoutRequest extends BaseEntity {
   @Column({ type: 'jsonb', default: {} })
   payoutMethodMetadata: Record<string, unknown>;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   reviewReason: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   manualPayoutReference: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   reviewedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   approvedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   rejectedAt: Date | null;
 }

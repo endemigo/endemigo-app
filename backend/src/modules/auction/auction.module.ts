@@ -12,6 +12,7 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletModule } from '../wallet/wallet.module';
 import { UserModule } from '../user/user.module';
 import { OrderModule } from '../order/order.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { OrderModule } from '../order/order.module';
     WalletModule,
     UserModule,
     OrderModule,
+    NotificationModule,
   ],
   controllers: [AuctionController],
   providers: [AuctionService, AuctionProcessor, AuctionGateway],

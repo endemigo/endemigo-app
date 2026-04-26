@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { NotificationModule } from '../notification/notification.module';
 import { CargoController } from './cargo.controller';
 import { CargoProcessor } from './cargo.processor';
 import { CargoService } from './cargo.service';
@@ -20,6 +21,7 @@ import { MockCargoProvider } from './providers/mock-cargo.provider';
         removeOnFail: 500,
       },
     }),
+    NotificationModule,
     ConfigModule,
   ],
   controllers: [CargoController],

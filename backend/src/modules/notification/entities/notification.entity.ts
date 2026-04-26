@@ -28,10 +28,10 @@ export class Notification extends BaseEntity {
   @Column({ type: 'text' })
   body: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   relatedEntityType: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   relatedEntityId: string | null;
 
   @Column({
@@ -41,9 +41,9 @@ export class Notification extends BaseEntity {
   })
   deliveryStatus: NotificationDeliveryStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerMessageId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   readAt: Date | null;
 }

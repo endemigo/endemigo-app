@@ -41,15 +41,15 @@ export class Order extends BaseEntity {
   @Column({ type: 'enum', enum: EscrowStatus, default: EscrowStatus.NOT_FUNDED })
   escrowStatus: EscrowStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   paymentId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   autoConfirmAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   deliveryConfirmedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;
 }

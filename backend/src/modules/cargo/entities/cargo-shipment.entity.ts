@@ -18,9 +18,9 @@ export class CargoShipment extends BaseEntity {
   @Column({ type: 'enum', enum: CargoStatus, default: CargoStatus.PREPARING })
   status: CargoStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   lastEventAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   deliveredAt: Date | null;
 }

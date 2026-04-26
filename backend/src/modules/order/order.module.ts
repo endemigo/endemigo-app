@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CargoModule } from '../cargo/cargo.module';
 import { LedgerModule } from '../ledger/ledger.module';
+import { NotificationModule } from '../notification/notification.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { OrderAuditEvent } from './entities/order-audit-event.entity';
 import { Order } from './entities/order.entity';
@@ -25,6 +26,7 @@ import { OrderService } from './order.service';
     }),
     CargoModule,
     LedgerModule,
+    NotificationModule,
     WalletModule,
     ConfigModule,
   ],

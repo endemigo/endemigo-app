@@ -12,19 +12,19 @@ export class PaymentProviderEvent extends BaseEntity {
   @Column({ unique: true })
   eventKey: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   paymentId: string | null;
 
   @ManyToOne(() => Payment, { nullable: true })
   @JoinColumn({ name: 'paymentId' })
   payment: Payment | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerPaymentId: string | null;
 
   @Column({ type: 'jsonb', default: {} })
   payload: Record<string, unknown>;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   processedAt: Date | null;
 }

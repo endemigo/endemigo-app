@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   LedgerAccountType,
@@ -6,10 +6,12 @@ import {
   LedgerReferenceType,
   PaymentProvider,
   PaymentStatus,
+  NotificationEventType,
   RC,
 } from '@endemigo/shared';
 import { EntityManager, Repository } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
+import { NotificationService } from '../notification/notification.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
@@ -27,6 +29,8 @@ export class PaymentService {
     private readonly providerEventRepository?: Repository<PaymentProviderEvent>,
     private readonly iyzicoProvider?: IyzicoProvider,
     private readonly ledgerService?: LedgerService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async initiatePayment(userId: string, dto: InitiatePaymentDto) {
@@ -136,8 +140,26 @@ export class PaymentService {
       payment.providerPaymentId = retrieved?.providerPaymentId ?? payment.providerPaymentId;
       payment.paidAt = new Date();
       await this.postPaymentLedgerEntry(payment);
+      await this.notificationService?.createFromEvent({
+        eventId: `payment-confirmed:${payment.id}`,
+        userId: payment.buyerId,
+        eventType: NotificationEventType.PAYMENT_CONFIRMED,
+        title: 'Payment confirmed',
+        body: 'Your payment was confirmed.',
+        relatedEntityType: 'payment',
+        relatedEntityId: payment.id,
+      });
     } else if ((retrieved?.status ?? payload.status) === 'failure') {
       payment.status = PaymentStatus.FAILED;
+      await this.notificationService?.createFromEvent({
+        eventId: `payment-failed:${payment.id}`,
+        userId: payment.buyerId,
+        eventType: NotificationEventType.PAYMENT_FAILED,
+        title: 'Payment failed',
+        body: 'Your payment could not be confirmed.',
+        relatedEntityType: 'payment',
+        relatedEntityId: payment.id,
+      });
     } else {
       payment.status = PaymentStatus.ADMIN_REVIEW;
       payment.adminReviewAt = new Date();
@@ -173,6 +195,15 @@ export class PaymentService {
     payment.refundProviderId = providerResult?.providerRefundId ?? null;
     payment.refundedAt = new Date();
     await this.paymentRepository.save(payment);
+    await this.notificationService?.createFromEvent({
+      eventId: `payment-refunded:${payment.id}`,
+      userId: payment.buyerId,
+      eventType: NotificationEventType.PAYMENT_REFUNDED,
+      title: 'Payment refunded',
+      body: 'Your payment refund was requested.',
+      relatedEntityType: 'payment',
+      relatedEntityId: payment.id,
+    });
 
     return {
       code: RC.PAYMENT_REFUND_REQUESTED,

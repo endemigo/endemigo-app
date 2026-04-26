@@ -464,7 +464,9 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
         .set('Authorization', `Bearer ${buyerToken}`)
         .expect(200);
 
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.code).toBe('HOLDS_FETCHED');
+      expect(res.body.message).toBeDefined();
+      expect(Array.isArray(res.body.holds)).toBe(true);
     });
 
     it('should reject unauthenticated wallet', async () => {

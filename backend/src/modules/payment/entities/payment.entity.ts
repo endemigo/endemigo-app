@@ -13,7 +13,7 @@ export class Payment extends BaseEntity {
   @JoinColumn({ name: 'buyerId' })
   buyer: User;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   orderId: string | null;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
@@ -31,27 +31,27 @@ export class Payment extends BaseEntity {
   @Column({ unique: true })
   idempotencyKey: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   checkoutToken: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   checkoutUrl: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerPaymentId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   refundProviderId: string | null;
 
   @Column({ type: 'jsonb', default: {} })
   metadata: Record<string, unknown>;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   paidAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   refundedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   adminReviewAt: Date | null;
 }

@@ -6,7 +6,7 @@ import { User } from '../../user/entities/user.entity';
 @Entity('ledger_accounts')
 @Index(['ownerId', 'type', 'currency'], { unique: true })
 export class LedgerAccount extends BaseEntity {
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   ownerId: string | null;
 
   @ManyToOne(() => User, { nullable: true })

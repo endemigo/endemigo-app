@@ -19,9 +19,9 @@ export class OrderAuditEvent extends BaseEntity {
   @Column({ type: 'enum', enum: OrderStatus })
   toStatus: OrderStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   actorId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   reason: string | null;
 }

@@ -2,10 +2,11 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CargoProvider, CargoStatus, RC } from '@endemigo/shared';
+import { CargoProvider, CargoStatus, NotificationEventType, RC } from '@endemigo/shared';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { CargoShipment } from './entities/cargo-shipment.entity';
+import { NotificationService } from '../notification/notification.service';
 import { MockCargoProvider } from './providers/mock-cargo.provider';
 
 const ALLOWED_CARGO_TRANSITIONS: Record<CargoStatus, CargoStatus[]> = {
@@ -25,6 +26,8 @@ export class CargoService {
     private readonly cargoQueue?: Queue,
     @Optional()
     private readonly mockCargoProvider?: MockCargoProvider,
+    @Optional()
+    private readonly notificationService?: NotificationService,
     @Optional()
     private readonly configService?: ConfigService,
   ) {}
@@ -112,6 +115,15 @@ export class CargoService {
       shipment.deliveredAt = new Date();
     }
     const saved = await this.cargoShipmentRepository?.save(shipment);
+    await this.notificationService?.createFromEvent({
+      eventId: `cargo-status:${shipment.id}:${nextStatus}`,
+      userId: shipment.orderId,
+      eventType: NotificationEventType.CARGO_STATUS_CHANGED,
+      title: 'Cargo status changed',
+      body: `Cargo status changed to ${nextStatus}.`,
+      relatedEntityType: 'cargoShipment',
+      relatedEntityId: shipment.id,
+    });
 
     return {
       code: RC.CARGO_STATUS_TRANSITIONED,

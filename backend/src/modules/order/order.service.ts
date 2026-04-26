@@ -10,11 +10,13 @@ import {
   LedgerReferenceType,
   OrderSource,
   OrderStatus,
+  NotificationEventType,
   RC,
 } from '@endemigo/shared';
 import { Repository } from 'typeorm';
 import { CargoService } from '../cargo/cargo.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { NotificationService } from '../notification/notification.service';
 import { WalletService } from '../wallet/wallet.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderAuditEvent } from './entities/order-audit-event.entity';
@@ -66,6 +68,8 @@ export class OrderService {
     private readonly ledgerService?: LedgerService,
     @Optional()
     private readonly walletService?: WalletService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
     @Optional()
     private readonly configService?: ConfigService,
   ) {}
@@ -142,6 +146,15 @@ export class OrderService {
 
     const saved = await this.orderRepository.save(order);
     await this.writeAuditEvent(saved.id, previousStatus, normalizedStatus, actorId, reason);
+    await this.notificationService?.createFromEvent({
+      eventId: `order-status:${saved.id}:${normalizedStatus}`,
+      userId: saved.buyerId,
+      eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+      title: 'Order status changed',
+      body: `Order status changed to ${normalizedStatus}.`,
+      relatedEntityType: 'order',
+      relatedEntityId: saved.id,
+    });
 
     return {
       code: RC.ORDER_TRANSITIONED,

@@ -23,6 +23,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
 import { OrderService } from '../order/order.service';
+import { NotificationEventType } from '@endemigo/shared';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class AuctionService {
@@ -41,6 +43,8 @@ export class AuctionService {
     private readonly userService: UserService,
     @Optional()
     private readonly orderService?: OrderService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
   ) {}
 
   // ─── Create (D-18: DRAFT status, no BullMQ jobs) ─────────
@@ -486,6 +490,15 @@ export class AuctionService {
             yourBid: Number(previousLeadBid.amount),
           },
         );
+        await this.notificationService?.createFromEvent({
+          eventId: `auction-outbid:${auctionId}:${previousLeadBid.bidderId}:${bid.id}`,
+          userId: previousLeadBid.bidderId,
+          eventType: NotificationEventType.AUCTION_OUTBID,
+          title: 'Outbid',
+          body: 'A higher bid was placed.',
+          relatedEntityType: 'auction',
+          relatedEntityId: auctionId,
+        });
       }
 
       // If anti-sniping extended, notify room + reschedule BullMQ
@@ -754,6 +767,15 @@ export class AuctionService {
         this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
           finalPrice: Number(winningBid.amount),
           premiumAmount,
+        });
+        await this.notificationService?.createFromEvent({
+          eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
+          userId: winningBid.bidderId,
+          eventType: NotificationEventType.AUCTION_WON,
+          title: 'Auction won',
+          body: 'You won the auction.',
+          relatedEntityType: 'auction',
+          relatedEntityId: auctionId,
         });
 
         this.auctionGateway.emitBidLost(auctionId, winningBid.bidderId, {

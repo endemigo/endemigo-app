@@ -2,11 +2,11 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LedgerAccountType, LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
-import { RC } from '@endemigo/shared';
-import { PayoutRequestStatus } from '@endemigo/shared';
+import { NotificationEventType, PayoutRequestStatus, RC } from '@endemigo/shared';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { HoldStatus } from '../../shared/types/hold-status.enum';
 import { LedgerService } from '../ledger/ledger.service';
+import { NotificationService } from '../notification/notification.service';
 import { RequestPayoutDto } from './dto/request-payout.dto';
 import { ReviewPayoutDto } from './dto/review-payout.dto';
 import { PayoutRequest } from './entities/payout-request.entity';
@@ -29,6 +29,8 @@ export class WalletService {
     private readonly payoutRequestRepo: Repository<PayoutRequest>,
     private readonly dataSource: DataSource,
     private readonly ledgerService: LedgerService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
     @Optional()
     private readonly configService?: ConfigService,
   ) {}
@@ -331,6 +333,24 @@ export class WalletService {
       }
 
       const saved = await manager.save(PayoutRequest, payoutRequest);
+      await this.notificationService?.createFromEvent({
+        eventId: `payout:${saved.id}:${saved.status}`,
+        userId: saved.sellerId,
+        eventType:
+          targetStatus === PayoutRequestStatus.APPROVED
+            ? NotificationEventType.PAYOUT_REQUEST_APPROVED
+            : NotificationEventType.PAYOUT_REQUEST_REJECTED,
+        title:
+          targetStatus === PayoutRequestStatus.APPROVED
+            ? 'Payout request approved'
+            : 'Payout request rejected',
+        body:
+          targetStatus === PayoutRequestStatus.APPROVED
+            ? 'Your payout request was approved.'
+            : 'Your payout request was rejected.',
+        relatedEntityType: 'payoutRequest',
+        relatedEntityId: saved.id,
+      });
 
       return {
         code:
