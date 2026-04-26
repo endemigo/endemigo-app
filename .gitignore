@@ -15,6 +15,9 @@ gorseller/
 design/
 **/.env.example
 checklist.md
+CONVENTIONS.md
+DEFINITION_OF_DONE.md
+GEMINI.md
 *.docx
 .vscode
 .docx
