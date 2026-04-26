@@ -1,0 +1,7 @@
+export enum CargoStatus {
+  PREPARING = 'PREPARING',
+  IN_TRANSIT = 'IN_TRANSIT',
+  DELIVERED = 'DELIVERED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}

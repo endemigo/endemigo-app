@@ -1,0 +1,8 @@
+export enum NotificationDeliveryStatus {
+  PENDING = 'PENDING',
+  SENT = 'SENT',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  NO_PUSH_SUBSCRIPTION = 'NO_PUSH_SUBSCRIPTION',
+  IN_APP_ONLY = 'IN_APP_ONLY',
+}
