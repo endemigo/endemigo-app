@@ -19,6 +19,7 @@ export const AUTH = {
   ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
   ACCOUNT_DELETED_LOGIN: 'ACCOUNT_DELETED_LOGIN', // BIZ-04: Soft-deleted user login rejection
   USER_NOT_FOUND: 'USER_NOT_FOUND',
+  TOKEN_REUSE_DETECTED: 'TOKEN_REUSE_DETECTED', // T-1-05: Refresh token reuse → all sessions revoked
 } as const;
 
 // ==========================================

@@ -8,11 +8,14 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserModule } from '../user/user.module';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { VerificationToken } from './entities/verification-token.entity';
+import { EmailModule } from '../../shared/email/email.module';
 
 @Module({
   imports: [
     UserModule,
-    TypeOrmModule.forFeature([RefreshToken]),
+    EmailModule,
+    TypeOrmModule.forFeature([RefreshToken, VerificationToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

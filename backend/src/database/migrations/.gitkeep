@@ -1,0 +1,2 @@
+# TypeORM Migrations
+# Run `npm run migration:generate -- src/database/migrations/InitialSchema` to generate

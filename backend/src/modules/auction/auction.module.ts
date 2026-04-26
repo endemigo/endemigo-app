@@ -15,7 +15,15 @@ import { UserModule } from '../user/user.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Auction, Bid]),
-    BullModule.registerQueue({ name: 'auction' }),
+    BullModule.registerQueue({
+      name: 'auction',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    }),
     JwtModule.register({}),
     ConfigModule,
     WalletModule,

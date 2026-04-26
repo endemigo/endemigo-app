@@ -80,6 +80,11 @@ export class CreateAuctionDto {
   @ApiProperty({ example: '2026-04-08T13:00:00Z' })
   @IsDateString()
   endTime: string;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsBoolean()
+  @IsOptional()
+  culturalAssetRestricted?: boolean;
 }
 
 export class PlaceBidDto {

@@ -48,13 +48,17 @@ export default function TabLayout() {
         name="auctions"
         options={{
           title: 'Müzayede',
-          tabBarActiveTintColor: Colors.auctionGreen,
-          tabBarIcon: ({ color, focused }) => (
+          tabBarLabel: ({ focused }) => (
+            <Text style={[styles.tabBarLabel, { color: Colors.auctionGreen, opacity: focused ? 1 : 0.6 }]}>
+              Müzayede
+            </Text>
+          ),
+          tabBarIcon: ({ focused }) => (
             <Image
               source={require('../../assets/images/endemigo-icon.png')}
               style={[
                 styles.auctionIcon,
-                { tintColor: color, opacity: focused ? 1 : 0.8 },
+                { tintColor: Colors.auctionGreen, opacity: focused ? 1 : 0.6 },
               ]}
               resizeMode="contain"
             />
@@ -93,6 +97,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="explore" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="become-seller" options={{ href: null }} />
+      <Tabs.Screen name="edit-profile" options={{ href: null }} />
     </Tabs>
   );
 }

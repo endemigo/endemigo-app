@@ -164,7 +164,7 @@ export default function HomeScreen() {
               <Ionicons name="search" size={22} color={Colors.slate400} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.notificationBadge}>
-              <Ionicons name="notifications" size={20} color={Colors.secondary} />
+              <Ionicons name="notifications" size={20} color={Colors.slate400} />
             </TouchableOpacity>
           </View>
         </View>

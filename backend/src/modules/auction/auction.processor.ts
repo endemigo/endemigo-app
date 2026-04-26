@@ -24,57 +24,65 @@ export class AuctionProcessor extends WorkerHost {
   ) {
     const { auctionId } = job.data;
 
-    switch (job.name) {
-      case 'start-auction': {
-        this.logger.log(`Starting auction ${auctionId}`);
-        const auction = await this.auctionService.activateAuction(auctionId);
+    try {
+      switch (job.name) {
+        case 'start-auction': {
+          this.logger.log(`Starting auction ${auctionId}`);
+          const auction = await this.auctionService.activateAuction(auctionId);
 
-        if (auction) {
-          this.auctionGateway.emitAuctionStarted(auctionId, {
-            startPrice: Number(auction.startPrice),
-          });
+          if (auction) {
+            this.auctionGateway.emitAuctionStarted(auctionId, {
+              startPrice: Number(auction.startPrice),
+            });
 
-          // Schedule warning events (5min, 1min before end)
-          const endMs = new Date(auction.endTime).getTime();
-          const warn5 = endMs - 5 * 60 * 1000 - Date.now();
-          const warn1 = endMs - 1 * 60 * 1000 - Date.now();
+            // Schedule warning events (5min, 1min before end)
+            const endMs = new Date(auction.endTime).getTime();
+            const warn5 = endMs - 5 * 60 * 1000 - Date.now();
+            const warn1 = endMs - 1 * 60 * 1000 - Date.now();
 
-          if (warn5 > 0) {
-            await this.auctionQueue.add(
-              'warning',
-              { auctionId, minutesLeft: 5 },
-              { delay: warn5 },
-            );
+            if (warn5 > 0) {
+              await this.auctionQueue.add(
+                'warning',
+                { auctionId, minutesLeft: 5 },
+                { delay: warn5 },
+              );
+            }
+            if (warn1 > 0) {
+              await this.auctionQueue.add(
+                'warning',
+                { auctionId, minutesLeft: 1 },
+                { delay: warn1 },
+              );
+            }
           }
-          if (warn1 > 0) {
-            await this.auctionQueue.add(
-              'warning',
-              { auctionId, minutesLeft: 1 },
-              { delay: warn1 },
-            );
-          }
+          break;
         }
-        break;
-      }
 
-      case 'end-auction': {
-        this.logger.log(`Ending auction ${auctionId}`);
-        // Gateway events are emitted inside finalizeAuction
-        await this.auctionService.finalizeAuction(auctionId);
-        break;
-      }
+        case 'end-auction': {
+          this.logger.log(`Ending auction ${auctionId}`);
+          // Gateway events are emitted inside finalizeAuction
+          await this.auctionService.finalizeAuction(auctionId);
+          break;
+        }
 
-      case 'warning': {
-        const minutesLeft = job.data.minutesLeft || 1;
-        this.logger.log(
-          `Warning for auction ${auctionId}: ${minutesLeft} minute(s) left`,
-        );
-        this.auctionGateway.emitAuctionWarning(auctionId, { minutesLeft });
-        break;
-      }
+        case 'warning': {
+          const minutesLeft = job.data.minutesLeft || 1;
+          this.logger.log(
+            `Warning for auction ${auctionId}: ${minutesLeft} minute(s) left`,
+          );
+          this.auctionGateway.emitAuctionWarning(auctionId, { minutesLeft });
+          break;
+        }
 
-      default:
-        this.logger.warn(`Unknown job: ${job.name}`);
+        default:
+          this.logger.warn(`Unknown job: ${job.name}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to process job ${job.name} for auction ${auctionId} (attempt ${job.attemptsMade + 1}/${job.opts.attempts || 1}): ${error}`,
+      );
+      throw error; // Re-throw so BullMQ can retry
     }
   }
 }
+

@@ -89,7 +89,7 @@ describe('WalletService', () => {
       walletRepo.findOne.mockResolvedValue({ ...mockWallet });
       await service.createHold('auction-1', 'user-1', 5000);
       expect(holdRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: 5000, status: 'held' }),
+        expect.objectContaining({ amount: 5000, status: 'HELD' }),
       );
       expect(holdRepo.save).toHaveBeenCalled();
     });
@@ -124,7 +124,8 @@ describe('WalletService', () => {
       holdRepo.findOne.mockResolvedValue({ id: 'hold-1', amount: 5000, status: 'held' });
       walletRepo.findOne.mockResolvedValue({ ...mockWallet, heldAmount: 5000 });
       const result = await service.releaseHold('auction-1', 'user-1');
-      expect(result.status).toBe('released');
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('RELEASED');
     });
 
     it('hold yoksa null dönmeli', async () => {
