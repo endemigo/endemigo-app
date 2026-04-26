@@ -1,26 +1,16 @@
-import { BidEntry } from '../../hooks/useAuctions';
+import { BidEntry, useAuction, useAuctionBids, usePlaceBid } from '../../hooks/useAuctions';
 import { AuctionStatus } from '@endemigo/shared';
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuction, useAuctionBids, usePlaceBid } from '../../hooks/useAuctions';
 import { useAuctionSocket } from '../../hooks/useAuctionSocket';
 import { useWalletBalance } from '../../hooks/useWallet';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { CountdownTimer } from '../../components/auction/CountdownTimer';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auction/[id].styles';
 
 export default function AuctionDetailScreen() {
@@ -50,7 +40,7 @@ export default function AuctionDetailScreen() {
     if (socket.lastBid) {
       refetchBids();
     }
-  }, [socket.lastBid]);
+  }, [refetchBids, socket.lastBid]);
 
   // Refetch when auction ends via socket
   useEffect(() => {
@@ -58,10 +48,10 @@ export default function AuctionDetailScreen() {
       refetch();
       refetchBids();
     }
-  }, [socket.auctionEnded]);
+  }, [refetch, refetchBids, socket.auctionEnded]);
 
   useEffect(() => {
-    if (auction) {
+    if (auction?.minIncrement) {
       const minBid = currentPrice + Number(auction.minIncrement);
       setBidAmount(minBid.toString());
     }
@@ -389,4 +379,3 @@ export default function AuctionDetailScreen() {
     </View>
   );
 }
-

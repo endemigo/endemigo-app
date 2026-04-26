@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { Colors, FontFamily } from '../../constants/theme';
+import { FontFamily } from '../../constants/theme';
 
 export const countdownStyles = StyleSheet.create({
   container: {

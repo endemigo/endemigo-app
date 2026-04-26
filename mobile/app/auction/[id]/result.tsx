@@ -1,18 +1,11 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuctionResult } from '../../../hooks/useAuctions';
 import { useAuthStore } from '../../../store/authStore';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../../constants/theme';
+import { Colors } from '../../../constants/theme';
 import { styles } from '../../../styles/auction/id/result.styles';
 
 export default function AuctionResultScreen() {

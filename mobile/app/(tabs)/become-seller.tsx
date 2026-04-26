@@ -37,7 +37,7 @@ export default function BecomeSellerScreen() {
     if (!isValid) return;
     try {
       setLoading(true);
-      const { data } = await api.post('/users/become-seller', {
+      await api.post('/users/become-seller', {
         businessName: businessName.trim(),
         taxOffice: taxOffice.trim() || undefined,
         taxNumber: taxNumber.trim() || undefined,

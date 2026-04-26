@@ -1,27 +1,15 @@
-import { Product, Blog, Category } from '@/types';
+import { Product, Blog } from '@/types';
 import React from 'react';
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  TextInput,
-  Dimensions,
-} from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, TextInput, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../../hooks/useProducts';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard } from '../../components/ui';
 import { styles } from '../../styles/tabs/index.styles';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PRODUCT_CARD_WIDTH = (SCREEN_WIDTH - Spacing.base * 2 - Spacing.base) / 2;
 
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
   gida: { icon: 'restaurant-outline', color: Colors.primary },
@@ -37,8 +25,6 @@ function getCategoryIcon(slug: string) {
   const k = slug?.toLowerCase().replace(/[- ]/g, '_');
   return CATEGORY_ICONS[k] || CATEGORY_ICONS.default;
 }
-
-const BANNER_WIDTH = SCREEN_WIDTH - Spacing.base * 2;
 const SQUARE_CARD = 148;
 
 // Banner slides — sourced from mock service contract (campaigns endpoint).

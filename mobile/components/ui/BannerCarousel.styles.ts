@@ -1,7 +1,7 @@
+import { StyleSheet, Dimensions } from 'react-native';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
-import { StyleSheet, Dimensions, Platform } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const styles = StyleSheet.create({
   wrapper: {

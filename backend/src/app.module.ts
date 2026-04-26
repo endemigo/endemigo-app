@@ -38,7 +38,8 @@ import { RolesGuard } from './common/guards/roles.guard';
       useFactory: (configService: ConfigService) => ({
         connection: {
           host: configService.get<string>('REDIS_HOST', 'localhost'),
-          port: configService.get<number>('REDIS_PORT', 6381),
+          port: Number(configService.get<string | number>('REDIS_PORT', 6381)),
+          password: configService.get<string>('REDIS_PASSWORD') || undefined,
         },
       }),
       inject: [ConfigService],

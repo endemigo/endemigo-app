@@ -2,35 +2,18 @@
 
 Guncelleme tarihi: 26 Nisan 2026
 
-Bu dosya, mevcut `main` branch uzerindeki proje durumunu, tamamlanan isleri, test sonuclarini ve siradaki isleri ozetler.
+Bu dosya, mevcut `main` branch uzerindeki proje durumunu, tamamlanan isleri, test sonuclarini ve siradaki urun fazlarini ozetler.
 
-## Kisa Durum
+## Bu Oturumda Tamamlananlar
 
-- Aktif branch: `main`
-- GitHub'da kalan branch: sadece `main`
-- Phase 5 tamamlandi.
-- Backend build basarili.
-- Backend unit testleri basarili: 107/107 test gecti.
-- Mobile lint hata vermedi, ancak 131 warning var.
-- E2E testleri ortam bagimliligi nedeniyle calismadi: Redis/Postgres baglantisi sandbox icinde engellendi.
-
-## Git ve Repo Temizligi
-
-GitHub ve lokal Git gecmisinden gereksiz dosyalar temizlendi:
-
-- `.planning/`
-- `.DS_Store`
-- `dump.rdb`
-- `endemigo_platform_analysis.md.resolved`
-- `mobile/.vscode/`
-- `rebuild_conversations.py`
-- `CONVENTIONS.md`
-- `DEFINITION_OF_DONE.md`
-- `GEMINI.md`
-
-Ek olarak GitHub'da `phase-3` branch'i silindi. Su anda remote tarafta sadece `main` branch'i bulunuyor.
-
-Tekrar eklenmemesi icin `.gitignore` guncellendi. `rebuild_conversations.py` kullanici istegiyle `.gitignore` icine eklenmedi.
+- Backend E2E test ortami netlestirildi.
+- `backend/docker-compose.test.yml` eklendi.
+- E2E icin izole Postgres ve Redis servisleri tanimlandi.
+- Backend `package.json` icine E2E servis komutlari eklendi.
+- BullMQ Redis port degeri sayiya cevrildi ve opsiyonel `REDIS_PASSWORD` destegi eklendi.
+- Mobile lint warning temizligi yapildi.
+- Mobile lint sonucu `0 error, 0 warning` seviyesine indirildi.
+- README sadeleştirildi; istenmeyen bolumler kaldirildi.
 
 ## Tamamlanan Isler
 
@@ -161,6 +144,42 @@ Mobile ana ekranlari:
 - Detail: product detail, auction detail, auction result
 - Ortak UI: product card, banner carousel, blog card, modal, countdown timer
 
+## Test Ortami
+
+Backend E2E icin izole servis dosyasi:
+
+```bash
+cd backend
+npm run test:e2e:services
+```
+
+Bu komut `docker-compose.test.yml` ile su servisleri acar:
+
+- Postgres test DB: `localhost:55432`
+- Redis test servisi: `localhost:56379`
+
+E2E testleri lokal servislerle calistirma:
+
+```bash
+cd backend
+npm run test:e2e:local
+```
+
+Servisleri kapatma:
+
+```bash
+cd backend
+npm run test:e2e:services:down
+```
+
+`test:e2e:local` komutu gerekli test environment degerlerini komut icinde verir:
+
+- `NODE_ENV=development`
+- `DATABASE_URL=postgres://endemigo:endemigo_test@localhost:55432/endemigo_test`
+- `REDIS_HOST=localhost`
+- `REDIS_PORT=56379`
+- `JWT_SECRET=e2e_test_secret`
+
 ## Test Sonuclari
 
 Testler 26 Nisan 2026 tarihinde lokal ortamda calistirildi.
@@ -181,8 +200,6 @@ Sonuc:
 
 ### Backend unit test
 
-Ilk deneme Watchman'in `~/Library/LaunchAgents` alanina yazma izni olmadigi icin ortam hatasiyla durdu. Ardindan Watchman kapatilarak tekrar calistirildi.
-
 Komut:
 
 ```bash
@@ -199,25 +216,27 @@ Sonuc:
 
 ### Backend E2E test
 
-Komut:
+Onceki dogrudan kosumda E2E suite uygulama baslamadan Redis/Postgres baglantisinda dustu. Bu nedenle test ortami ayrildi ve `test:e2e:services` + `test:e2e:local` komutlari eklendi.
 
-```bash
-cd backend
-npm run test:e2e -- --runInBand --watchman=false
-```
-
-Sonuc:
+Son bilinen dogrudan kosum sonucu:
 
 - Test Suites: 1 failed, 1 total
 - Tests: 49 failed, 49 total
-- Hata tipi: uygulama bootstrap sirasinda `AggregateError`
-- Kok neden: test ortami Redis/Postgres baglantisi istiyor, sandbox icinde `127.0.0.1:6379` ve `::1:6379` baglantilari `EPERM` ile engellendi.
+- Kok neden: sandbox icinde `127.0.0.1:6379` ve `::1:6379` Redis baglantilari `EPERM` ile engellendi.
 
-Degerlendirme:
+Yeni dogrulama komutu:
 
-- Bu sonuc, is kurali assertionlarinin tek tek bozuldugunu gostermiyor.
-- E2E suite uygulama baslamadan database/Redis baglantisinda dustugu icin tum senaryolar ayni kok nedenle fail oldu.
-- E2E'yi dogru dogrulamak icin Redis ve Postgres servisleri calisir halde, sandbox disinda veya izinli lokal ortamda tekrar kosulmali.
+```bash
+cd backend
+npm run test:e2e:services
+npm run test:e2e:local
+```
+
+Bu oturumdaki servis dogrulama notu:
+
+- `docker compose -f docker-compose.test.yml config` komutu denenmistir.
+- Lokal makinede `docker` CLI bulunmadigi icin servisler bu oturumda ayaga kaldirilamamistir.
+- Docker kurulu ortamda yukaridaki komutlarla E2E tekrar kosulmalidir.
 
 ### Mobile lint
 
@@ -231,40 +250,26 @@ npm run lint
 Sonuc:
 
 - 0 error
-- 131 warning
-- 6 warning otomatik fixlenebilir gorunuyor.
+- 0 warning
+- Sonuc: Basarili
 
-Warning gruplari:
+### Mobile TypeScript
 
-- Kullanilmayan import/degerler
-- Import sirasi uyarilari
-- Bazi React hook dependency uyarilari
-- Bazi duplicate import uyarilari
-- i18next named export uyarilari
+Komut:
 
-Degerlendirme:
+```bash
+cd mobile
+npx tsc --noEmit
+```
 
-- Build'i dogrudan bozan lint error yok.
-- Warning sayisi yuksek; Phase 6 oncesi temizlenmesi iyi olur.
+Sonuc:
+
+- Basarili.
+- TypeScript hata raporlamadi.
 
 ## Yapilacaklar
 
-### 1. Test ortamini netlestirme
-
-- Lokal Redis ve Postgres calisma sekli dokumante edilmeli.
-- E2E test icin tek komutla ortam ayaga kalkmali.
-- `npm run test:e2e` sandbox/CI uyumlu hale getirilmeli.
-- BullMQ ve Redis baglantilari test ortaminda mock veya test container ile izole edilmeli.
-
-### 2. Mobile lint warning temizligi
-
-- Kullanilmayan importlar kaldirilmali.
-- Hook dependency uyarilari incelenmeli.
-- Duplicate importlar duzeltilmeli.
-- Import sirasi warningleri temizlenmeli.
-- Lint sonucu hedefi: 0 error, 0 warning.
-
-### 3. Phase 6: Dijital cuzdan ve odeme
+### 1. Phase 6: Dijital cuzdan ve odeme
 
 Mevcut wallet modulu var, ancak odeme ve muhasebe akisi daha netlestirilmeli.
 
@@ -279,7 +284,7 @@ Yapilacak ana basliklar:
 - Finansal audit trail.
 - Wallet ekranlarinin mobile tarafinda tamamlanmasi.
 
-### 4. Phase 7: Siparis yonetimi
+### 2. Phase 7: Siparis yonetimi
 
 Yapilacak ana basliklar:
 
@@ -292,7 +297,7 @@ Yapilacak ana basliklar:
 - Alici ve satici siparis ekranlari.
 - Review/degerlendirme akisi.
 
-### 5. Phase 8: Bildirim ve mobil UI guclendirme
+### 3. Phase 8: Bildirim ve mobil UI guclendirme
 
 Yapilacak ana basliklar:
 
@@ -301,10 +306,9 @@ Yapilacak ana basliklar:
 - Order status bildirimleri.
 - Wallet/payment bildirimleri.
 - Notification preference ekranlari.
-- Mobile UI warning temizligi ve polish.
 - Bos/loading/error state standardizasyonu.
 
-### 6. Admin panel
+### 4. Admin panel
 
 Yapilacak ana basliklar:
 
@@ -315,31 +319,3 @@ Yapilacak ana basliklar:
 - Finansal hareket izleme.
 - Audit log goruntuleme.
 - Raporlama ekranlari.
-
-### 7. CI/CD ve release guvenligi
-
-Yapilacak ana basliklar:
-
-- Backend build, test, lint pipeline.
-- Mobile lint ve typecheck pipeline.
-- E2E test icin servisli CI ortami.
-- Secret scanning.
-- Dependency audit.
-- Release checklist.
-- Main branch protection.
-
-## Riskler ve Notlar
-
-- E2E testler servis bagimliliklari netlesmeden guvenilir sinyal vermez.
-- Mobile lint warning sayisi teknik borc olusturuyor.
-- Phase 5 tamamlanmis olsa da Redis/BullMQ davranisi production benzeri ortamda tekrar dogrulanmali.
-- Git history rewrite yapildigi icin eski clone'lar yeniden clone edilmeli veya hard reset ile yeni `main`e alinmali.
-
-## Sonraki Onerilen Adim
-
-En mantikli siralama:
-
-1. Mobile lint warning temizligi.
-2. Redis/Postgres destekli E2E test ortamini duzeltme.
-3. Phase 5 icin E2E'yi tekrar kosup sonucu netlestirme.
-4. Phase 6 dijital cuzdan ve odeme akisina baslama.

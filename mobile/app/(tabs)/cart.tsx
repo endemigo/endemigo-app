@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/tabs/cart.styles';
 
 export default function CartScreen() {

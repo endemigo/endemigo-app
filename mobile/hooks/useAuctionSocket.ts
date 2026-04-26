@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Alert, Vibration } from 'react-native';
 import { Socket } from 'socket.io-client';
-import { getAuctionSocket, disconnectAuctionSocket } from '../services/socket';
+import { getAuctionSocket } from '../services/socket';
 import ENV from '../lib/config';
 
 interface AuctionSocketState {

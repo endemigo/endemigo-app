@@ -25,13 +25,13 @@ interface KvkkConsent {
 }
 
 export default function SettingsScreen() {
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
 
   const [consents, setConsents] = useState<KvkkConsent[]>([]);
-  const [loadingConsents, setLoadingConsents] = useState(true);
+  const [, setLoadingConsents] = useState(true);
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteSection, setShowDeleteSection] = useState(false);
   const [deleting, setDeleting] = useState(false);

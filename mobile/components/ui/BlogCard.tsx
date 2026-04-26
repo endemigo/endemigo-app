@@ -1,13 +1,10 @@
 import { Blog } from '@/types';
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { Colors } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { styles } from './BlogCard.styles';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.7; // Shows about 1.2 cards on screen to indicate horizontal scroll
 
 interface Props {
   item: Blog;

@@ -1,16 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-} from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { View, Text, Image, FlatList, TouchableOpacity, Dimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { Spacing } from '../../constants/theme';
 import { styles } from './BannerCarousel.styles';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

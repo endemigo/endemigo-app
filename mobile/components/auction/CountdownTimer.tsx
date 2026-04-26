@@ -39,7 +39,7 @@ export function CountdownTimer({
     } else {
       pulse.value = 1;
     }
-  }, [isUrgent]);
+  }, [isUrgent, pulse]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     opacity: pulse.value,
@@ -73,7 +73,7 @@ export function CountdownTimer({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endTime, serverTime]);
+  }, [endTime, onExpired, serverTime]);
 
   const pad = (n: number) => String(n).padStart(2, '0');
   const display =

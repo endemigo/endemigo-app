@@ -1,7 +1,7 @@
+import { StyleSheet, Dimensions } from 'react-native';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SQUARE_SIZE = (SCREEN_WIDTH - 16 * 3) / 2;
-import { StyleSheet, Dimensions, Platform } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const styles = StyleSheet.create({
   // ─── Square variant ───

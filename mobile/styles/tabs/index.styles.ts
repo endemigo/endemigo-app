@@ -2,7 +2,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PRODUCT_CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 16) / 2;
 const BANNER_WIDTH = SCREEN_WIDTH - 16 * 2;
 const SQUARE_CARD = 148;
-import { StyleSheet, Dimensions, Platform } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const styles = StyleSheet.create({

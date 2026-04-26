@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { styles } from './ProductCard.styles';
 
 interface Product {
@@ -18,8 +17,6 @@ interface Props {
   /** variant: 'grid' (2-col, default) | 'square' (1-row horizontal) */
   variant?: 'grid' | 'square';
 }
-
-const SQUARE_SIZE = 148;
 
 /**
  * ProductCard — ürün kartı, iki farklı variant destekler:

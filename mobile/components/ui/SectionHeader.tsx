@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../constants/theme';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { styles } from './SectionHeader.styles';
 
 interface Props {
