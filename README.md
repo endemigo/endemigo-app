@@ -4,17 +4,6 @@ Guncelleme tarihi: 26 Nisan 2026
 
 Bu dosya, mevcut `main` branch uzerindeki proje durumunu, tamamlanan isleri, test sonuclarini ve siradaki urun fazlarini ozetler.
 
-## Bu Oturumda Tamamlananlar
-
-- Backend E2E test ortami netlestirildi.
-- `backend/docker-compose.test.yml` eklendi.
-- E2E icin izole Postgres ve Redis servisleri tanimlandi.
-- Backend `package.json` icine E2E servis komutlari eklendi.
-- BullMQ Redis port degeri sayiya cevrildi ve opsiyonel `REDIS_PASSWORD` destegi eklendi.
-- Mobile lint warning temizligi yapildi.
-- Mobile lint sonucu `0 error, 0 warning` seviyesine indirildi.
-- README sadeleştirildi; istenmeyen bolumler kaldirildi.
-
 ## Tamamlanan Isler
 
 ### Phase 1: Proje altyapisi ve authentication
