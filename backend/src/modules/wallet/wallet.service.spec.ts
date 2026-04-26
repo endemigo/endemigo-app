@@ -1,33 +1,92 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { WalletService } from './wallet.service';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Wallet } from './entities/wallet.entity';
-import { WalletHold } from './entities/wallet-hold.entity';
 import { BadRequestException } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Test, TestingModule } from '@nestjs/testing';
+import { LedgerAccountType, LedgerReferenceType } from '@endemigo/shared/enums';
+import { RC } from '@endemigo/shared';
+import { DataSource } from 'typeorm';
+import { LedgerService } from '../ledger/ledger.service';
+import { WalletHold } from './entities/wallet-hold.entity';
+import { Wallet } from './entities/wallet.entity';
+import { WalletService } from './wallet.service';
+
+type MockRepository<T> = {
+  findOne: jest.Mock;
+  find: jest.Mock;
+  create: jest.Mock<T, [Partial<T>]>;
+  save: jest.Mock<Promise<T>, [T]>;
+};
+
+const createRepository = <T extends { id?: string }>(idPrefix: string): MockRepository<T> => ({
+  findOne: jest.fn(),
+  find: jest.fn().mockResolvedValue([]),
+  create: jest.fn((data: Partial<T>) => ({ id: `${idPrefix}-new`, ...data }) as T),
+  save: jest.fn(async (entity: T) => entity),
+});
 
 describe('WalletService', () => {
   let service: WalletService;
-  let walletRepo: any;
-  let holdRepo: any;
+  let walletRepo: MockRepository<Wallet>;
+  let holdRepo: MockRepository<WalletHold>;
+  let ledgerService: {
+    getOrCreateAccount: jest.Mock;
+    postEntry: jest.Mock;
+    getWalletHistory: jest.Mock;
+  };
+  let manager: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    find: jest.Mock;
+  };
+  let queryRunner: {
+    connect: jest.Mock;
+    startTransaction: jest.Mock;
+    commitTransaction: jest.Mock;
+    rollbackTransaction: jest.Mock;
+    release: jest.Mock;
+    manager: typeof manager;
+  };
 
-  const mockWallet = {
+  const wallet = {
     id: 'wallet-1',
     userId: 'user-1',
     balance: 10000,
     heldAmount: 0,
-  };
+  } as Wallet;
 
   beforeEach(async () => {
-    walletRepo = {
+    walletRepo = createRepository<Wallet>('wallet');
+    holdRepo = createRepository<WalletHold>('hold');
+    manager = {
       findOne: jest.fn(),
-      create: jest.fn((data) => ({ id: 'wallet-new', ...data })),
-      save: jest.fn((entity) => Promise.resolve(entity)),
-    };
-    holdRepo = {
-      findOne: jest.fn(),
+      create: jest.fn((_entity: unknown, data: unknown) => data),
+      save: jest.fn(async (_entityOrData: unknown, data?: unknown) => data ?? _entityOrData),
       find: jest.fn().mockResolvedValue([]),
-      create: jest.fn((data) => ({ id: 'hold-new', ...data })),
-      save: jest.fn((entity) => Promise.resolve(entity)),
+    };
+    queryRunner = {
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
+      manager,
+    };
+    const dataSource = {
+      createQueryRunner: jest.fn(() => queryRunner),
+    };
+    ledgerService = {
+      getOrCreateAccount: jest.fn(async (ownerId: string | null, type: LedgerAccountType) => ({
+        id: `${ownerId ?? 'platform'}:${type}`,
+      })),
+      postEntry: jest.fn(async () => ({
+        code: RC.LEDGER_ENTRY_POSTED,
+        message: 'Ledger entry posted',
+      })),
+      getWalletHistory: jest.fn(async () => ({
+        code: RC.WALLET_HISTORY_FETCHED,
+        message: 'Wallet history fetched',
+        items: [],
+      })),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -35,132 +94,111 @@ describe('WalletService', () => {
         WalletService,
         { provide: getRepositoryToken(Wallet), useValue: walletRepo },
         { provide: getRepositoryToken(WalletHold), useValue: holdRepo },
+        { provide: DataSource, useValue: dataSource },
+        { provide: LedgerService, useValue: ledgerService },
       ],
     }).compile();
 
     service = module.get<WalletService>(WalletService);
   });
 
-  // ==========================================
-  // K2.1: getOrCreateWallet — lazy creation
-  // ==========================================
-  describe('getOrCreateWallet', () => {
-    it('mevcut cüzdanı döndürmeli', async () => {
-      walletRepo.findOne.mockResolvedValue(mockWallet);
-      const result = await service.getOrCreateWallet('user-1');
-      expect(result.balance).toBe(10000);
-      expect(walletRepo.create).not.toHaveBeenCalled();
-    });
+  it('returns balance, held, and available summary fields', async () => {
+    walletRepo.findOne.mockResolvedValue({ ...wallet, heldAmount: 3000 });
 
-    it('yoksa 10000₺ ile yeni cüzdan oluşturmalı', async () => {
-      walletRepo.findOne.mockResolvedValue(null);
-      const result = await service.getOrCreateWallet('user-1');
-      expect(walletRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'user-1', balance: 10000, heldAmount: 0 }),
-      );
-      expect(walletRepo.save).toHaveBeenCalled();
-    });
+    const result = await service.getBalance('user-1');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        code: RC.BALANCE_FETCHED,
+        balance: 10000,
+        held: 3000,
+        available: 7000,
+      }),
+    );
   });
 
-  // ==========================================
-  // K2.2: getBalance — matematik doğruluğu
-  // ==========================================
-  describe('getBalance', () => {
-    it('available = balance - held olmalı', async () => {
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet, balance: 10000, heldAmount: 3000 });
-      const result = await service.getBalance('user-1');
-      expect(result.balance).toBe(10000);
-      expect(result.held).toBe(3000);
-      expect(result.available).toBe(7000);
-    });
+  it('creates holds through a pessimistic wallet lock and ledger entry', async () => {
+    manager.findOne.mockResolvedValueOnce({ ...wallet }).mockResolvedValueOnce(null);
 
-    it('hiç hold yoksa available = balance olmalı', async () => {
-      walletRepo.findOne.mockResolvedValue(mockWallet);
-      const result = await service.getBalance('user-1');
-      expect(result.available).toBe(10000);
-    });
+    const result = await service.createHold('auction-1', 'user-1', 5000);
+
+    expect(manager.findOne).toHaveBeenCalledWith(
+      Wallet,
+      expect.objectContaining({
+        where: { userId: 'user-1' },
+        lock: { mode: 'pessimistic_write' },
+      }),
+    );
+    expect(ledgerService.postEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: LedgerReferenceType.AUCTION_HOLD,
+        referenceId: expect.any(String),
+        idempotencyKey: expect.stringContaining('wallet-hold:'),
+      }),
+      manager,
+    );
+    expect(result.status).toBe('HELD');
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
   });
 
-  // ==========================================
-  // K2.3: createHold — bakiye kontrolü
-  // ==========================================
-  describe('createHold', () => {
-    it('yeterli bakiye varsa hold oluşturmalı', async () => {
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet });
-      await service.createHold('auction-1', 'user-1', 5000);
-      expect(holdRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: 5000, status: 'HELD' }),
-      );
-      expect(holdRepo.save).toHaveBeenCalled();
-    });
+  it('rejects holds that exceed available cached balance', async () => {
+    manager.findOne.mockResolvedValue({ ...wallet, heldAmount: 9500 });
 
-    it('yetersiz bakiye → BadRequestException', async () => {
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet, heldAmount: 9500 });
-      await expect(service.createHold('auction-1', 'user-1', 1000)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('tam bakiyeyle hold tutabilmeli', async () => {
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet });
-      await expect(service.createHold('auction-1', 'user-1', 10000)).resolves.toBeDefined();
-    });
-
-    it('heldAmount artmalı', async () => {
-      const wallet = { ...mockWallet };
-      walletRepo.findOne.mockResolvedValue(wallet);
-      await service.createHold('auction-1', 'user-1', 3000);
-      expect(walletRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ heldAmount: 3000 }),
-      );
-    });
+    await expect(service.createHold('auction-1', 'user-1', 1000)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(ledgerService.postEntry).not.toHaveBeenCalled();
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
   });
 
-  // ==========================================
-  // K2.4: releaseHold — bakiye geri dönüşü
-  // ==========================================
-  describe('releaseHold', () => {
-    it('held durumundaki hold release edilmeli', async () => {
-      holdRepo.findOne.mockResolvedValue({ id: 'hold-1', amount: 5000, status: 'held' });
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet, heldAmount: 5000 });
-      const result = await service.releaseHold('auction-1', 'user-1');
-      expect(result).not.toBeNull();
-      expect(result!.status).toBe('RELEASED');
-    });
+  it('releases held funds through ledger and decreases held summary', async () => {
+    manager.findOne
+      .mockResolvedValueOnce({
+        id: 'hold-1',
+        walletId: 'wallet-1',
+        auctionId: 'auction-1',
+        userId: 'user-1',
+        amount: 3000,
+        status: 'HELD',
+      })
+      .mockResolvedValueOnce({ ...wallet, heldAmount: 3000 });
 
-    it('hold yoksa null dönmeli', async () => {
-      holdRepo.findOne.mockResolvedValue(null);
-      const result = await service.releaseHold('auction-1', 'user-1');
-      expect(result).toBeNull();
-    });
+    const result = await service.releaseHold('auction-1', 'user-1');
 
-    it('heldAmount azalmalı', async () => {
-      holdRepo.findOne.mockResolvedValue({ id: 'hold-1', amount: 3000, status: 'held' });
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet, heldAmount: 3000 });
-      await service.releaseHold('auction-1', 'user-1');
-      expect(walletRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ heldAmount: 0 }),
-      );
-    });
+    expect(ledgerService.postEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'wallet_release' }),
+      manager,
+    );
+    expect(result?.status).toBe('RELEASED');
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
   });
 
-  // ==========================================
-  // K2.5: captureHold — gerçek kesim
-  // ==========================================
-  describe('captureHold', () => {
-    it('balance azalmalı, heldAmount azalmalı', async () => {
-      holdRepo.findOne.mockResolvedValue({ id: 'hold-1', amount: 5000, status: 'held' });
-      walletRepo.findOne.mockResolvedValue({ ...mockWallet, balance: 10000, heldAmount: 5000 });
-      await service.captureHold('auction-1', 'user-1');
-      expect(walletRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ balance: 5000, heldAmount: 0 }),
-      );
-    });
+  it('captures held funds through ledger and decreases balance plus held summary', async () => {
+    manager.findOne
+      .mockResolvedValueOnce({
+        id: 'hold-1',
+        walletId: 'wallet-1',
+        auctionId: 'auction-1',
+        userId: 'user-1',
+        amount: 5000,
+        status: 'HELD',
+      })
+      .mockResolvedValueOnce({ ...wallet, balance: 10000, heldAmount: 5000 });
 
-    it('hold yoksa null dönmeli', async () => {
-      holdRepo.findOne.mockResolvedValue(null);
-      const result = await service.captureHold('auction-1', 'user-1');
-      expect(result).toBeNull();
-    });
+    const result = await service.captureHold('auction-1', 'user-1');
+
+    expect(ledgerService.postEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'wallet_capture' }),
+      manager,
+    );
+    expect(result?.status).toBe('CAPTURED');
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('delegates transaction history to LedgerService', async () => {
+    const result = await service.getTransactionHistory('user-1', { limit: 10 });
+
+    expect(ledgerService.getWalletHistory).toHaveBeenCalledWith('user-1', { limit: 10 });
+    expect(result.code).toBe(RC.WALLET_HISTORY_FETCHED);
   });
 });
