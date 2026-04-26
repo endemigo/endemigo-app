@@ -13,3 +13,5 @@ design/
 **/.env.example
 checklist.md
 *.docx
+.vscode
+.docx
