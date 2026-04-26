@@ -6,6 +6,7 @@ import {
   IsUUID,
   IsEnum,
   IsInt,
+  IsBoolean,
   Min,
   MinLength,
   MaxLength,
@@ -83,6 +84,17 @@ export class CreateProductDto {
   @IsEnum(ListingType)
   @IsOptional()
   listingType?: ListingType;
+
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  askPriceEnabled?: boolean;
+
+  @ApiPropertyOptional({ example: 15000 })
+  @IsNumber()
+  @Min(0.01)
+  @IsOptional()
+  askPriceMinAmount?: number;
 
   @ApiPropertyOptional({ example: 120.5, description: 'Genişlik (cm)' })
   @IsNumber()

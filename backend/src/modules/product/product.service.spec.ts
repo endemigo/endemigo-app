@@ -52,6 +52,8 @@ describe('ProductService', () => {
     originRegion: 'Marmara',
     condition: ProductCondition.EXCELLENT,
     listingType: ListingType.DIRECT_SALE,
+    askPriceEnabled: false,
+    askPriceMinAmount: null,
     dimensionWidth: 200,
     dimensionHeight: 300,
     dimensionDepth: 2,
@@ -169,6 +171,19 @@ describe('ProductService', () => {
       await expect(
         service.create('nonexistent', { title: 'X', price: 100 }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should reject auction products with Ask Price enabled', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+
+      await expect(
+        service.create('seller-1', {
+          title: 'Auction Hook',
+          price: 1000,
+          listingType: ListingType.AUCTION,
+          askPriceEnabled: true,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

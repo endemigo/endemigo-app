@@ -42,6 +42,15 @@ interface AuctionOrderInput {
   currency?: string;
 }
 
+interface AskPriceOrderInput {
+  acceptedOfferId: string;
+  buyerId: string;
+  sellerId: string;
+  productId: string;
+  amount: number;
+  currency?: string;
+}
+
 @Injectable()
 export class OrderService {
   constructor(
@@ -85,7 +94,7 @@ export class OrderService {
     });
   }
 
-  async createFromAskPriceHook(input: AuctionOrderInput) {
+  async createFromAskPriceHook(input: AskPriceOrderInput) {
     return this.createFromSource({
       buyerId: input.buyerId,
       sellerId: input.sellerId,
@@ -93,7 +102,7 @@ export class OrderService {
       amount: input.amount,
       currency: input.currency ?? 'TRY',
       source: OrderSource.ASK_PRICE,
-      sourceReferenceId: input.auctionId,
+      sourceReferenceId: input.acceptedOfferId,
     });
   }
 

@@ -75,6 +75,12 @@ export class Product extends BaseEntity {
   @Column({ type: 'enum', enum: ListingType, default: ListingType.DIRECT_SALE })
   listingType: ListingType;
 
+  @Column({ default: false })
+  askPriceEnabled: boolean;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  askPriceMinAmount: number | null;
+
   // ─── Physical Dimensions (PROD-11) ────────────────────────
   @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
   dimensionWidth: number;

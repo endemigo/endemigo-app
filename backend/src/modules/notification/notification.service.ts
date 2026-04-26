@@ -83,6 +83,24 @@ export class NotificationService {
     };
   }
 
+  async createAskPriceOrderHookNotification(input: {
+    eventId: string;
+    buyerId: string;
+    sellerId: string;
+    productId: string;
+    acceptedOfferId: string;
+  }) {
+    return this.createFromEvent({
+      eventId: input.eventId,
+      userId: input.sellerId,
+      eventType: NotificationEventType.ASK_PRICE,
+      title: 'Ask Price order hook',
+      body: 'An accepted Ask Price offer is ready for order processing.',
+      relatedEntityType: 'acceptedOffer',
+      relatedEntityId: input.acceptedOfferId,
+    });
+  }
+
   async listForUser(userId: string) {
     const notifications = await this.notificationRepository.find({
       where: { userId },

@@ -15,6 +15,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
+import { ListingType } from '../../shared/types/listing-type.enum';
 import { RC } from '../../shared/constants/response-codes';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
 import type { IStorageService } from '../../shared/storage/storage.interface';
@@ -46,6 +47,7 @@ export class ProductService {
     if (!user || !user.isSeller) {
       throw new ForbiddenException({ code: RC.SELLER_REQUIRED, message: 'Sadece satıcılar ürün ekleyebilir' });
     }
+    this.validateAskPriceCompatibility(dto.listingType, dto.askPriceEnabled);
 
     const product = this.productRepo.create({
       ...dto,
@@ -76,12 +78,13 @@ export class ProductService {
     const { title, description, price, categoryId, stockQuantity, sku,
             geoIndicationCertNo, geoIndicationRegion, originCountry, originRegion,
             condition, listingType, dimensionWidth, dimensionHeight, dimensionDepth,
-            weight, status } = dto;
+            weight, status, askPriceEnabled, askPriceMinAmount } = dto;
+    this.validateAskPriceCompatibility(listingType ?? product.listingType, askPriceEnabled ?? product.askPriceEnabled);
     const safeUpdate = Object.fromEntries(
       Object.entries({ title, description, price, categoryId, stockQuantity, sku,
         geoIndicationCertNo, geoIndicationRegion, originCountry, originRegion,
         condition, listingType, dimensionWidth, dimensionHeight, dimensionDepth,
-        weight, status }).filter(([, v]) => v !== undefined),
+        weight, status, askPriceEnabled, askPriceMinAmount }).filter(([, v]) => v !== undefined),
     );
     Object.assign(product, safeUpdate);
 
@@ -370,6 +373,11 @@ export class ProductService {
       originRegion: product.originRegion,
       condition: product.condition,
       listingType: product.listingType,
+      listingMode: product.askPriceEnabled ? 'ASK_PRICE' : product.listingType,
+      orderSource: product.askPriceEnabled ? 'ASK_PRICE' : product.listingType,
+      askPriceEnabled: product.askPriceEnabled,
+      askPriceMinAmount: product.askPriceMinAmount ? Number(product.askPriceMinAmount) : null,
+      isAskPriceCompatible: this.isAskPriceCompatible(product),
       dimensionWidth: product.dimensionWidth ? Number(product.dimensionWidth) : null,
       dimensionHeight: product.dimensionHeight ? Number(product.dimensionHeight) : null,
       dimensionDepth: product.dimensionDepth ? Number(product.dimensionDepth) : null,
@@ -378,5 +386,21 @@ export class ProductService {
       ...(isFavorited !== undefined ? { isFavorited } : {}),
       createdAt: product.createdAt,
     };
+  }
+
+  isAskPriceCompatible(product: Pick<Product, 'listingType' | 'askPriceEnabled'>): boolean {
+    return product.askPriceEnabled === true && product.listingType !== ListingType.AUCTION;
+  }
+
+  private validateAskPriceCompatibility(
+    listingType?: ListingType,
+    askPriceEnabled?: boolean,
+  ) {
+    if (askPriceEnabled === true && listingType === ListingType.AUCTION) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Auction products cannot enable Ask Price',
+      });
+    }
   }
 }
