@@ -1,0 +1,8 @@
+export enum PayoutRequestStatus {
+  REQUESTED = 'REQUESTED',
+  ADMIN_REVIEW = 'ADMIN_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  PAID = 'PAID',
+  CANCELLED = 'CANCELLED',
+}

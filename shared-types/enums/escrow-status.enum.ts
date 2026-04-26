@@ -1,0 +1,7 @@
+export enum EscrowStatus {
+  NOT_FUNDED = 'NOT_FUNDED',
+  HELD = 'HELD',
+  RELEASED = 'RELEASED',
+  REFUNDED = 'REFUNDED',
+  ADMIN_REVIEW = 'ADMIN_REVIEW',
+}

@@ -1,0 +1,8 @@
+export enum LedgerReferenceType {
+  AUCTION_HOLD = 'AUCTION_HOLD',
+  PAYMENT = 'PAYMENT',
+  ORDER = 'ORDER',
+  REFUND = 'REFUND',
+  PAYOUT_REQUEST = 'PAYOUT_REQUEST',
+  ADJUSTMENT = 'ADJUSTMENT',
+}

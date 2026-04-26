@@ -91,7 +91,68 @@ export const AUCTION = {
 export const WALLET = {
   BALANCE_FETCHED: 'BALANCE_FETCHED',
   HOLDS_FETCHED: 'HOLDS_FETCHED',
+  WALLET_HISTORY_FETCHED: 'WALLET_HISTORY_FETCHED',
   INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
+} as const;
+
+// ==========================================
+// Ledger / Financial
+// ==========================================
+export const LEDGER = {
+  LEDGER_ENTRY_POSTED: 'LEDGER_ENTRY_POSTED',
+  LEDGER_UNBALANCED: 'LEDGER_UNBALANCED',
+} as const;
+
+// ==========================================
+// Payout
+// ==========================================
+export const PAYOUT = {
+  PAYOUT_REQUEST_CREATED: 'PAYOUT_REQUEST_CREATED',
+  PAYOUT_REQUEST_FETCHED: 'PAYOUT_REQUEST_FETCHED',
+  PAYOUT_REQUEST_APPROVED: 'PAYOUT_REQUEST_APPROVED',
+  PAYOUT_REQUEST_REJECTED: 'PAYOUT_REQUEST_REJECTED',
+  PAYOUT_REQUEST_INVALID_STATUS: 'PAYOUT_REQUEST_INVALID_STATUS',
+} as const;
+
+// ==========================================
+// Payment
+// ==========================================
+export const PAYMENT = {
+  PAYMENT_INITIATED: 'PAYMENT_INITIATED',
+  PAYMENT_WEBHOOK_PROCESSED: 'PAYMENT_WEBHOOK_PROCESSED',
+  PAYMENT_WEBHOOK_DUPLICATE: 'PAYMENT_WEBHOOK_DUPLICATE',
+  PAYMENT_WEBHOOK_SIGNATURE_INVALID: 'PAYMENT_WEBHOOK_SIGNATURE_INVALID',
+  PAYMENT_REFUND_REQUESTED: 'PAYMENT_REFUND_REQUESTED',
+} as const;
+
+// ==========================================
+// Order
+// ==========================================
+export const ORDER = {
+  ORDER_CREATED: 'ORDER_CREATED',
+  ORDER_TRANSITIONED: 'ORDER_TRANSITIONED',
+  ORDER_INVALID_TRANSITION: 'ORDER_INVALID_TRANSITION',
+  ORDER_DELIVERY_CONFIRMED: 'ORDER_DELIVERY_CONFIRMED',
+} as const;
+
+// ==========================================
+// Cargo
+// ==========================================
+export const CARGO = {
+  CARGO_TRACKING_CREATED: 'CARGO_TRACKING_CREATED',
+  CARGO_STATUS_TRANSITIONED: 'CARGO_STATUS_TRANSITIONED',
+} as const;
+
+// ==========================================
+// Notification
+// ==========================================
+export const NOTIFICATION = {
+  NOTIFICATION_CREATED: 'NOTIFICATION_CREATED',
+  NOTIFICATION_PUSH_SENT: 'NOTIFICATION_PUSH_SENT',
+  NOTIFICATION_PUSH_FAILED: 'NOTIFICATION_PUSH_FAILED',
+  NOTIFICATION_DUPLICATE: 'NOTIFICATION_DUPLICATE',
+  NOTIFICATION_PREFERENCES_FETCHED: 'NOTIFICATION_PREFERENCES_FETCHED',
+  NOTIFICATION_PREFERENCES_UPDATED: 'NOTIFICATION_PREFERENCES_UPDATED',
 } as const;
 
 // ==========================================
@@ -124,6 +185,12 @@ export const RC = {
   ...PRODUCT,
   ...AUCTION,
   ...WALLET,
+  ...LEDGER,
+  ...PAYOUT,
+  ...PAYMENT,
+  ...ORDER,
+  ...CARGO,
+  ...NOTIFICATION,
   ...SEARCH,
   ...GENERIC,
 } as const;
