@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LedgerAccountType, LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
 import { RC } from '@endemigo/shared';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
 import { JournalEntry, JournalEntryStatus } from './entities/journal-entry.entity';
 import { JournalLine } from './entities/journal-line.entity';
 import { LedgerAccount } from './entities/ledger-account.entity';
@@ -157,7 +157,9 @@ export class LedgerService {
       });
     }
 
-    const existing = await repo.findOne({ where: { ownerId, type, currency } });
+    const existing = await repo.findOne({
+      where: { ownerId: ownerId ?? IsNull(), type, currency },
+    });
     if (existing) {
       return existing;
     }
