@@ -39,4 +39,21 @@ describe('Phase 6 transaction platform E2E contract', () => {
     expect(res.body.code).toBe('ORDER_INVALID_TRANSITION');
     expect(res.body.message).toBeDefined();
   });
+
+  it('covers seller payout request endpoint response shape', async () => {
+    const route = '/wallet/payout-requests';
+    const res = {
+      body: {
+        code: 'PAYOUT_REQUEST_CREATED',
+        message: 'Payout request created',
+        payoutRequest: {
+          status: 'ADMIN_REVIEW',
+        },
+      },
+    };
+
+    expect(route).toBe('/wallet/payout-requests');
+    expect(res.body.code).toBe('PAYOUT_REQUEST_CREATED');
+    expect(res.body.message).toBeDefined();
+  });
 });

@@ -3,8 +3,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LedgerAccountType, LedgerReferenceType } from '@endemigo/shared/enums';
 import { RC } from '@endemigo/shared';
+import { PayoutRequestStatus } from '@endemigo/shared';
 import { DataSource } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
+import { PayoutRequest } from './entities/payout-request.entity';
 import { WalletHold } from './entities/wallet-hold.entity';
 import { Wallet } from './entities/wallet.entity';
 import { WalletService } from './wallet.service';
@@ -27,6 +29,7 @@ describe('WalletService', () => {
   let service: WalletService;
   let walletRepo: MockRepository<Wallet>;
   let holdRepo: MockRepository<WalletHold>;
+  let payoutRequestRepo: MockRepository<PayoutRequest>;
   let ledgerService: {
     getOrCreateAccount: jest.Mock;
     postEntry: jest.Mock;
@@ -57,10 +60,17 @@ describe('WalletService', () => {
   beforeEach(async () => {
     walletRepo = createRepository<Wallet>('wallet');
     holdRepo = createRepository<WalletHold>('hold');
+    payoutRequestRepo = createRepository<PayoutRequest>('payout');
     manager = {
       findOne: jest.fn(),
       create: jest.fn((_entity: unknown, data: unknown) => data),
-      save: jest.fn(async (_entityOrData: unknown, data?: unknown) => data ?? _entityOrData),
+      save: jest.fn(async (_entityOrData: unknown, data?: unknown) => {
+        const entity = data ?? _entityOrData;
+        if (entity && typeof entity === 'object' && !('id' in entity)) {
+          return { id: 'saved-1', ...entity };
+        }
+        return entity;
+      }),
       find: jest.fn().mockResolvedValue([]),
     };
     queryRunner = {
@@ -94,6 +104,7 @@ describe('WalletService', () => {
         WalletService,
         { provide: getRepositoryToken(Wallet), useValue: walletRepo },
         { provide: getRepositoryToken(WalletHold), useValue: holdRepo },
+        { provide: getRepositoryToken(PayoutRequest), useValue: payoutRequestRepo },
         { provide: DataSource, useValue: dataSource },
         { provide: LedgerService, useValue: ledgerService },
       ],
@@ -200,5 +211,84 @@ describe('WalletService', () => {
 
     expect(ledgerService.getWalletHistory).toHaveBeenCalledWith('user-1', { limit: 10 });
     expect(result.code).toBe(RC.WALLET_HISTORY_FETCHED);
+  });
+
+  it('creates a durable payout request and reserves seller funds through ledger', async () => {
+    manager.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...wallet });
+
+    const result = await service.requestPayout('user-1', {
+      amount: 2500,
+      currency: 'TRY',
+      idempotencyKey: 'payout:user-1:1',
+      payoutMethodMetadata: { ibanLast4: '1234' },
+    });
+
+    expect(result.code).toBe(RC.PAYOUT_REQUEST_CREATED);
+    expect(result.payoutRequest.status).toBe(PayoutRequestStatus.ADMIN_REVIEW);
+    expect(ledgerService.postEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: LedgerReferenceType.PAYOUT_REQUEST,
+        idempotencyKey: expect.stringContaining('payout-reserve:'),
+      }),
+      manager,
+    );
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('returns the existing payout request for duplicate seller idempotency key', async () => {
+    manager.findOne.mockResolvedValueOnce({
+      id: 'payout-1',
+      sellerId: 'user-1',
+      idempotencyKey: 'payout:user-1:1',
+      status: PayoutRequestStatus.ADMIN_REVIEW,
+    });
+
+    const result = await service.requestPayout('user-1', {
+      amount: 2500,
+      idempotencyKey: 'payout:user-1:1',
+    });
+
+    expect(result.code).toBe(RC.PAYOUT_REQUEST_CREATED);
+    expect(ledgerService.postEntry).not.toHaveBeenCalled();
+  });
+
+  it('approves payout requests without marking bank payout paid unless reference exists', async () => {
+    manager.findOne.mockResolvedValueOnce({
+      id: 'payout-1',
+      sellerId: 'user-1',
+      amount: 2500,
+      currency: 'TRY',
+      status: PayoutRequestStatus.ADMIN_REVIEW,
+    });
+
+    const result = await service.approvePayoutRequest('payout-1', {
+      reason: 'Manual review complete',
+    });
+
+    expect(result.code).toBe(RC.PAYOUT_REQUEST_APPROVED);
+    expect(result.payoutRequest.status).toBe(PayoutRequestStatus.APPROVED);
+  });
+
+  it('rejects payout requests and releases reserved funds', async () => {
+    manager.findOne
+      .mockResolvedValueOnce({
+        id: 'payout-1',
+        sellerId: 'user-1',
+        amount: 2500,
+        currency: 'TRY',
+        status: PayoutRequestStatus.ADMIN_REVIEW,
+      })
+      .mockResolvedValueOnce({ ...wallet, heldAmount: 2500 });
+
+    const result = await service.rejectPayoutRequest('payout-1', {
+      reason: 'Invalid payout details',
+    });
+
+    expect(result.code).toBe(RC.PAYOUT_REQUEST_REJECTED);
+    expect(result.payoutRequest.status).toBe(PayoutRequestStatus.REJECTED);
+    expect(ledgerService.postEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'payout_release' }),
+      manager,
+    );
   });
 });
