@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
+import { LedgerAccountType, LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
 import { RC } from '@endemigo/shared';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { JournalEntry, JournalEntryStatus } from './entities/journal-entry.entity';
@@ -141,6 +141,36 @@ export class LedgerService {
         createdAt: line.entry.createdAt,
       })),
     };
+  }
+
+  async getOrCreateAccount(
+    ownerId: string | null,
+    type: LedgerAccountType,
+    currency = 'TRY',
+    manager?: EntityManager,
+  ): Promise<LedgerAccount> {
+    const repo = manager?.getRepository(LedgerAccount) ?? this.accountRepo;
+    if (!repo) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Ledger account repository is not configured',
+      });
+    }
+
+    const existing = await repo.findOne({ where: { ownerId, type, currency } });
+    if (existing) {
+      return existing;
+    }
+
+    return repo.save(
+      repo.create({
+        ownerId,
+        type,
+        currency,
+        postedBalance: 0,
+        isActive: true,
+      }),
+    );
   }
 
   private async saveEntry(input: PostLedgerEntryInput, manager: EntityManager): Promise<JournalEntry> {

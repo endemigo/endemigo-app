@@ -28,4 +28,7 @@ export class WalletHold extends BaseEntity {
 
   @Column({ type: 'enum', enum: HoldStatus, default: HoldStatus.HELD })
   status: HoldStatus;
+
+  @Column({ unique: true, nullable: true })
+  idempotencyKey: string | null;
 }

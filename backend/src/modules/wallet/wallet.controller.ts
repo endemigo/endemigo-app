@@ -23,4 +23,12 @@ export class WalletController {
   async getHolds(@CurrentUser('id') userId: string) {
     return this.walletService.getHolds(userId);
   }
+
+  @Get('history')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cüzdan işlem geçmişi' })
+  @ApiResponse({ status: 200, description: 'Ledger-backed işlem geçmişi' })
+  async getTransactionHistory(@CurrentUser('id') userId: string) {
+    return this.walletService.getTransactionHistory(userId);
+  }
 }
