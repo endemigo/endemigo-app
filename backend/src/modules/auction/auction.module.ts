@@ -11,6 +11,7 @@ import { AuctionProcessor } from './auction.processor';
 import { AuctionGateway } from './auction.gateway';
 import { WalletModule } from '../wallet/wallet.module';
 import { UserModule } from '../user/user.module';
+import { OrderModule } from '../order/order.module';
 
 @Module({
   imports: [
@@ -28,10 +29,10 @@ import { UserModule } from '../user/user.module';
     ConfigModule,
     WalletModule,
     UserModule,
+    OrderModule,
   ],
   controllers: [AuctionController],
   providers: [AuctionService, AuctionProcessor, AuctionGateway],
   exports: [AuctionService, AuctionGateway],
 })
 export class AuctionModule {}
-

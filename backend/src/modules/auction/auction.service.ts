@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -21,6 +22,7 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
+import { OrderService } from '../order/order.service';
 
 @Injectable()
 export class AuctionService {
@@ -37,6 +39,8 @@ export class AuctionService {
     private readonly auctionGateway: AuctionGateway,
     private readonly walletService: WalletService,
     private readonly userService: UserService,
+    @Optional()
+    private readonly orderService?: OrderService,
   ) {}
 
   // ─── Create (D-18: DRAFT status, no BullMQ jobs) ─────────
@@ -728,6 +732,15 @@ export class AuctionService {
           auctionId,
           winningBid.bidderId,
         );
+
+        await this.orderService?.createFromAuction({
+          auctionId,
+          buyerId: winningBid.bidderId,
+          sellerId: auction.sellerId,
+          productId: auction.productId,
+          amount: Number(winningBid.amount),
+          currency: 'TRY',
+        });
 
         const premiumAmount =
           Number(winningBid.amount) * Number(auction.buyerPremiumRate);
