@@ -1,11 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { OrderStatus } from '@endemigo/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CargoProvider, CargoStatus, OrderStatus } from '@endemigo/shared';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { useRoleModeStore } from '../store/roleModeStore';
 import {
   ORDER_QUERY_KEYS,
+  WALLET_QUERY_KEYS,
   type ApiResponseEnvelope,
+  type CargoSummary,
   type OrderDetail,
   type OrderListItem,
   type RoleMode,
@@ -37,6 +39,26 @@ interface RawOrder {
 
 interface OrdersResponse extends ApiResponseEnvelope {
   orders: RawOrder[];
+}
+
+interface CargoShipment {
+  id: string;
+  orderId: string;
+  trackingNumber: string;
+  provider: CargoProvider;
+  status: CargoStatus;
+  lastEventAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CargoResponse extends ApiResponseEnvelope {
+  shipment: CargoShipment | null;
+}
+
+interface ConfirmDeliveryResponse extends ApiResponseEnvelope {
+  order?: RawOrder;
 }
 
 function getOrderEndpoint(activeMode: RoleMode) {
@@ -111,5 +133,61 @@ export function useOrderDetail(orderId?: string) {
       };
     },
     enabled: Boolean(orderId),
+  });
+}
+
+export function useOrderCargo(orderId?: string) {
+  return useQuery<CargoSummary | null>({
+    queryKey: ORDER_QUERY_KEYS.cargo(orderId ?? 'unknown'),
+    queryFn: async () => {
+      if (!orderId || ENV.USE_MOCK) return null;
+      const { data } = await api.get<CargoResponse>(`/cargo/orders/${orderId}/shipment`);
+      if (!data.shipment) return null;
+      const shipment = data.shipment;
+      return {
+        provider: shipment.provider,
+        trackingNumber: shipment.trackingNumber,
+        status: shipment.status,
+        shippedAt: shipment.createdAt,
+        deliveredAt: shipment.deliveredAt,
+        updatedAt: shipment.lastEventAt ?? shipment.updatedAt,
+        timeline: [
+          {
+            id: shipment.id,
+            status: shipment.status,
+            title: shipment.status,
+            detail: shipment.trackingNumber,
+            createdAt: shipment.lastEventAt ?? shipment.updatedAt,
+          },
+        ],
+      };
+    },
+    enabled: Boolean(orderId),
+  });
+}
+
+export function useOrderConfirmDelivery(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ConfirmDeliveryResponse, Error, void>({
+    mutationFn: async () => {
+      if (!orderId) throw new Error('Order id is required');
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'ORDER_DELIVERY_CONFIRMED',
+          message: 'Order delivery confirmed',
+        };
+      }
+      const { data } = await api.post<ConfirmDeliveryResponse>(`/orders/${orderId}/confirm-delivery`);
+      return data;
+    },
+    onSuccess: () => {
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.detail(orderId) });
+        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.cargo(orderId) });
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
+    },
   });
 }

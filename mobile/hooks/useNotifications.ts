@@ -168,7 +168,7 @@ export function useMarkNotificationRead() {
 
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, NotificationItem[]>({
+  return useMutation<void, Error, NotificationItem[], { rollback?: NotificationItem[] }>({
     mutationFn: async (notifications) => {
       if (ENV.USE_MOCK) return;
       await Promise.all(

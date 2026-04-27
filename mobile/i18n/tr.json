@@ -313,6 +313,13 @@
     "confirmDelivery": "Teslimatı onayla",
     "disputeDelivery": "Sorun bildir",
     "confirmDeliveryTitle": "Teslimat onayı",
+    "confirmDeliveryModal": "Teslimatı onayladığınızda sipariş tamamlanma süreci başlar. Devam etmek istiyor musunuz?",
+    "confirmDeliverySuccessTitle": "Teslimat onaylandı",
+    "confirmDeliverySuccessMessage": "Sipariş teslimatı onaylandı.",
+    "confirmDeliveryErrorTitle": "Teslimat onaylanamadı",
+    "disputeWindow": "Teslimatla ilgili sorun varsa destek ekibine bildirin.",
+    "detailLoadError": "Sipariş detayı yüklenemedi",
+    "detailNotFound": "Sipariş bulunamadı",
     "roleBuyer": "Alıcı",
     "roleSeller": "Satıcı",
     "filterAll": "Tümü",
@@ -368,6 +375,15 @@
     "buyerDescription": "Satın alma ve teslimat işlemleriniz",
     "sellerDescription": "Satış, sipariş ve paket bilgileri"
   },
+  "profileMenu": {
+    "orders": "Siparişler",
+    "wallet": "Cüzdan",
+    "notifications": "Bildirimler",
+    "paketim": "Paketim",
+    "settings": "Ayarlar",
+    "sellerOrders": "Satış siparişleri",
+    "sellerOperations": "Sipariş operasyonları"
+  },
   "paketim": {
     "title": "Paketim",
     "sellerInfoTitle": "Satıcı paketiniz",
@@ -378,7 +394,12 @@
     "benefitTrust": "Alıcı güvenini artıran satıcı profili",
     "benefitPayout": "Satış gelirleri için düzenli takip",
     "benefitSupport": "Satıcı operasyonlarında öncelikli destek",
-    "sellerOnlyNotice": "Paketim ekranı satıcı modunda gösterilir."
+    "sellerOnlyNotice": "Paketim ekranı satıcı modunda gösterilir.",
+    "accessDeniedTitle": "Satıcı modu gerekli",
+    "accessDeniedMessage": "Paketim ekranı yalnızca satıcı modunda kullanılabilir.",
+    "currentPackage": "Mevcut paket",
+    "standardPackage": "Standart Satıcı",
+    "highlightedBenefit": "Öne çıkan avantaj"
   },
   "orderStatuses": {
     "CREATED": "Oluşturuldu",
@@ -414,5 +435,12 @@
     "order_escrow_release": "Sipariş ödemesi",
     "payout_reserve": "Payout rezervi",
     "payout_release": "Payout çözümü"
+  },
+  "cargoStatuses": {
+    "PREPARING": "Hazırlanıyor",
+    "IN_TRANSIT": "Yolda",
+    "DELIVERED": "Teslim edildi",
+    "FAILED": "Başarısız",
+    "CANCELLED": "İptal edildi"
   }
 }

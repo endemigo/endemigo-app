@@ -1,10 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Image } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/tabs/_layout.styles';
 
 export default function TabLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -20,7 +23,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Ana Sayfa',
+          title: t('tabs.home'),
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
@@ -34,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="categories"
         options={{
-          title: 'Kategoriler',
+          title: t('tabs.categories'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'grid' : 'grid-outline'}
@@ -47,10 +50,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="auctions"
         options={{
-          title: 'Müzayede',
+          title: t('tabs.auctions'),
           tabBarLabel: ({ focused }) => (
             <Text style={[styles.tabBarLabel, { color: Colors.auctionGreen, opacity: focused ? 1 : 0.6 }]}>
-              Müzayede
+              {t('tabs.auctions')}
             </Text>
           ),
           tabBarIcon: ({ focused }) => (
@@ -68,7 +71,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="cart"
         options={{
-          title: 'Sepetim',
+          title: t('tabs.cart'),
           tabBarIcon: ({ color, focused }) => (
             <View>
               <Ionicons
@@ -86,7 +89,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profil',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
@@ -100,6 +103,12 @@ export default function TabLayout() {
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="become-seller" options={{ href: null }} />
       <Tabs.Screen name="edit-profile" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ href: null }} />
+      <Tabs.Screen name="orders" options={{ href: null }} />
+      <Tabs.Screen name="orders/[orderId]" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
+      <Tabs.Screen name="notification-preferences" options={{ href: null }} />
+      <Tabs.Screen name="paketim" options={{ href: null }} />
     </Tabs>
   );
 }

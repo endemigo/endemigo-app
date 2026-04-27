@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
+import { useRoleModeStore } from '../../store/roleModeStore';
 import { useWalletBalance } from '../../hooks/useWallet';
 import { Colors } from '../../constants/theme';
+import { RoleModeSwitch } from '../../components/ui/profile/RoleModeSwitch';
+import {
+  ProfileMenuSection,
+  type ProfileMenuItemConfig,
+} from '../../components/ui/profile/ProfileMenuSection';
+import { formatCurrency } from '../../utils/transactionFormatters';
 import { styles } from '../../styles/tabs/profile.styles';
 
 export default function ProfileScreen() {
@@ -18,6 +25,71 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { data: wallet } = useWalletBalance();
+  const activeMode = useRoleModeStore((state) => state.activeMode);
+  const syncRoleModeFromUser = useRoleModeStore((state) => state.syncRoleModeFromUser);
+  const resetRoleMode = useRoleModeStore((state) => state.resetRoleMode);
+
+  useEffect(() => {
+    syncRoleModeFromUser(user);
+  }, [syncRoleModeFromUser, user]);
+
+  const menuItems = useMemo<ProfileMenuItemConfig[]>(() => [
+    {
+      key: activeMode === 'seller' ? 'seller-orders' : 'orders',
+      labelKey: activeMode === 'seller' ? 'profileMenu.sellerOrders' : 'profileMenu.orders',
+      icon: 'receipt-outline',
+      route: '/(tabs)/orders',
+      order: 1,
+      tone: 'primary',
+    },
+    {
+      key: 'seller-operations',
+      labelKey: 'profileMenu.sellerOperations',
+      icon: 'cube-outline',
+      route: '/(tabs)/orders',
+      sellerOnly: true,
+      order: 2,
+      tone: 'accent',
+    },
+    {
+      key: 'wallet',
+      labelKey: 'profileMenu.wallet',
+      icon: 'wallet-outline',
+      route: '/(tabs)/wallet',
+      order: activeMode === 'seller' ? 3 : 2,
+      tone: 'secondary',
+    },
+    {
+      key: 'paketim',
+      labelKey: 'profileMenu.paketim',
+      icon: 'ribbon-outline',
+      route: '/(tabs)/paketim',
+      sellerOnly: true,
+      order: 4,
+      tone: 'primary',
+    },
+    {
+      key: 'notifications',
+      labelKey: 'profileMenu.notifications',
+      icon: 'notifications-outline',
+      route: '/(tabs)/notifications',
+      order: activeMode === 'seller' ? 5 : 3,
+      tone: 'accent',
+    },
+    {
+      key: 'settings',
+      labelKey: 'profileMenu.settings',
+      icon: 'settings-outline',
+      route: '/(tabs)/settings',
+      order: activeMode === 'seller' ? 6 : 4,
+      tone: 'neutral',
+    },
+  ], [activeMode]);
+
+  const handleLogout = async () => {
+    resetRoleMode();
+    await logout();
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -40,13 +112,15 @@ export default function ProfileScreen() {
               size={14}
               color={user?.isSeller ? Colors.primary : Colors.secondary}
             />
-            <Text style={[styles.badgeText, {
-              color: user?.isSeller ? Colors.primary : Colors.secondary,
-            }]}>
+            <Text style={[
+              styles.badgeText,
+              user?.isSeller ? styles.badgeTextSeller : styles.badgeTextBuyer,
+            ]}>
               {user?.isSeller ? t('profile.seller') : t('profile.buyer')}
             </Text>
           </View>
         </View>
+        <RoleModeSwitch isSeller={Boolean(user?.isSeller)} />
 
         {/* Edit Profile Button */}
         <TouchableOpacity
@@ -68,67 +142,28 @@ export default function ProfileScreen() {
           <Text style={styles.walletTitle}>{t('profile.wallet')}</Text>
         </View>
         <Text style={styles.walletBalance}>
-          {wallet ? `${wallet.available.toLocaleString('tr-TR')} ₺` : '...'}
+          {wallet ? formatCurrency(wallet.available) : t('common.loading')}
         </Text>
         {wallet && wallet.held > 0 && (
           <View style={styles.walletHeldRow}>
-            <Ionicons name="lock-closed" size={12} color="#F59E0B" />
+            <Ionicons name="lock-closed" size={12} color={Colors.accent} />
             <Text style={styles.walletHeld}>
-              Hold: {wallet.held.toLocaleString('tr-TR')} ₺
+              {t('wallet.heldBalance')}: {formatCurrency(wallet.held)}
             </Text>
           </View>
         )}
         {wallet && (
           <Text style={styles.walletHint}>
-            {t('profile.walletBalance')}: {wallet.balance.toLocaleString('tr-TR')} ₺
+            {t('profile.walletBalance')}: {formatCurrency(wallet.balance)}
           </Text>
         )}
       </View>
 
-      {/* Menu Items */}
-      <View style={styles.menuCard}>
-        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-          <View style={[styles.menuIcon, { backgroundColor: `${Colors.primary}1A` }]}>
-            <Ionicons name="receipt-outline" size={18} color={Colors.primary} />
-          </View>
-          <Text style={styles.menuText}>{t('profile.orders')}</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-        </TouchableOpacity>
-
-        <View style={styles.menuDivider} />
-
-        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-          <View style={[styles.menuIcon, { backgroundColor: `${Colors.accent}1A` }]}>
-            <Ionicons name="hammer-outline" size={18} color={Colors.accent} />
-          </View>
-          <Text style={styles.menuText}>{t('auctions.title')}</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-        </TouchableOpacity>
-
-        <View style={styles.menuDivider} />
-
-        <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-          <View style={[styles.menuIcon, { backgroundColor: `${Colors.secondary}1A` }]}>
-            <Ionicons name="heart-outline" size={18} color={Colors.secondary} />
-          </View>
-          <Text style={styles.menuText}>{t('profile.favorites')}</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-        </TouchableOpacity>
-
-        <View style={styles.menuDivider} />
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          activeOpacity={0.7}
-          onPress={() => router.push('/(tabs)/settings')}
-        >
-          <View style={[styles.menuIcon, { backgroundColor: Colors.slate100 }]}>
-            <Ionicons name="settings-outline" size={18} color={Colors.slate600} />
-          </View>
-          <Text style={styles.menuText}>{t('profile.settings')}</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-        </TouchableOpacity>
-      </View>
+      <ProfileMenuSection
+        activeMode={activeMode}
+        items={menuItems}
+        onNavigate={(route) => router.push(route as never)}
+      />
 
       {/* Become Seller Button */}
       {!user?.isSeller && (
@@ -146,7 +181,7 @@ export default function ProfileScreen() {
       )}
 
       {/* Logout Button */}
-      <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.8}>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
         <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>

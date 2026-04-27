@@ -252,6 +252,13 @@
     "confirmDelivery": "Confirm delivery",
     "disputeDelivery": "Report issue",
     "confirmDeliveryTitle": "Delivery confirmation",
+    "confirmDeliveryModal": "Confirming delivery starts the order completion process. Do you want to continue?",
+    "confirmDeliverySuccessTitle": "Delivery confirmed",
+    "confirmDeliverySuccessMessage": "Order delivery has been confirmed.",
+    "confirmDeliveryErrorTitle": "Delivery could not be confirmed",
+    "disputeWindow": "If there is a delivery issue, report it to support.",
+    "detailLoadError": "Order detail could not be loaded",
+    "detailNotFound": "Order not found",
     "roleBuyer": "Buyer",
     "roleSeller": "Seller",
     "filterAll": "All",
@@ -307,6 +314,15 @@
     "buyerDescription": "Your purchase and delivery actions",
     "sellerDescription": "Sales, orders, and package information"
   },
+  "profileMenu": {
+    "orders": "Orders",
+    "wallet": "Wallet",
+    "notifications": "Notifications",
+    "paketim": "My Package",
+    "settings": "Settings",
+    "sellerOrders": "Sales orders",
+    "sellerOperations": "Order operations"
+  },
   "paketim": {
     "title": "My Package",
     "sellerInfoTitle": "Your seller package",
@@ -317,7 +333,12 @@
     "benefitTrust": "A seller profile that increases buyer trust",
     "benefitPayout": "Organized tracking for sales revenue",
     "benefitSupport": "Priority support for seller operations",
-    "sellerOnlyNotice": "My Package is shown in seller mode."
+    "sellerOnlyNotice": "My Package is shown in seller mode.",
+    "accessDeniedTitle": "Seller mode required",
+    "accessDeniedMessage": "My Package is available only in seller mode.",
+    "currentPackage": "Current package",
+    "standardPackage": "Standard Seller",
+    "highlightedBenefit": "Highlighted benefit"
   },
   "orderStatuses": {
     "CREATED": "Created",
@@ -353,5 +374,12 @@
     "order_escrow_release": "Order payout",
     "payout_reserve": "Payout reserve",
     "payout_release": "Payout release"
+  },
+  "cargoStatuses": {
+    "PREPARING": "Preparing",
+    "IN_TRANSIT": "In transit",
+    "DELIVERED": "Delivered",
+    "FAILED": "Failed",
+    "CANCELLED": "Cancelled"
   }
 }

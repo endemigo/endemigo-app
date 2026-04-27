@@ -90,6 +90,12 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',
   },
+  badgeTextSeller: {
+    color: Colors.primary,
+  },
+  badgeTextBuyer: {
+    color: Colors.secondary,
+  },
 
   // Wallet
   walletCard: {
