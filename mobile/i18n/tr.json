@@ -10,7 +10,9 @@
     "success": "Başarılı",
     "save": "Kaydet",
     "goBack": "Geri Dön",
-    "genericError": "Bir hata oluştu, lütfen tekrar deneyin."
+    "genericError": "Bir hata oluştu, lütfen tekrar deneyin.",
+    "cancel": "İptal",
+    "ok": "Tamam"
   },
   "tabs": {
     "home": "Ana Sayfa",
@@ -255,6 +257,10 @@
     "history": "Hareketler",
     "holds": "Blokeler",
     "emptyHistory": "Henüz cüzdan hareketi yok",
+    "emptyTitle": "Cüzdan hareketi yok",
+    "emptyBody": "İşlemleriniz oluştuğunda burada listelenecek.",
+    "loadError": "Cüzdan bilgileri yüklenemedi",
+    "retry": "Tekrar dene",
     "filterAll": "Tümü",
     "filterTopUp": "Yükleme",
     "filterPayment": "Ödeme",
@@ -272,6 +278,14 @@
     "payoutAmount": "Tutar",
     "payoutIban": "IBAN",
     "payoutNote": "Not",
+    "payoutSuccessTitle": "Talep alındı",
+    "payoutSuccessMessage": "Ödeme talebiniz incelenmek üzere alındı.",
+    "payoutErrorTitle": "Talep gönderilemedi",
+    "payoutSubmit": "Talep gönder",
+    "payoutAmountPlaceholder": "Tutar girin",
+    "payoutIbanPlaceholder": "IBAN girin",
+    "payoutNotePlaceholder": "Not ekleyin",
+    "latestPayouts": "Son ödeme talepleri",
     "refresh": "Yenile"
   },
   "orders": {
@@ -280,6 +294,10 @@
     "sellerTitle": "Sattıklarım",
     "emptyBuyer": "Henüz satın aldığınız sipariş yok",
     "emptySeller": "Henüz satış siparişiniz yok",
+    "emptyTitle": "Sipariş bulunamadı",
+    "emptyBody": "Seçili mod ve filtre için sipariş yok.",
+    "loadError": "Siparişler yüklenemedi",
+    "retry": "Tekrar dene",
     "orderCode": "Sipariş no",
     "status": "Durum",
     "total": "Toplam",
@@ -296,7 +314,13 @@
     "disputeDelivery": "Sorun bildir",
     "confirmDeliveryTitle": "Teslimat onayı",
     "roleBuyer": "Alıcı",
-    "roleSeller": "Satıcı"
+    "roleSeller": "Satıcı",
+    "filterAll": "Tümü",
+    "filterPayment": "Ödeme",
+    "filterPreparing": "Hazırlık",
+    "filterInTransit": "Kargoda",
+    "filterDelivered": "Teslim",
+    "filterCompleted": "Tamamlanan"
   },
   "cargo": {
     "title": "Kargo",
@@ -312,8 +336,13 @@
   "notifications": {
     "title": "Bildirimler",
     "empty": "Henüz bildiriminiz yok",
+    "emptyTitle": "Bildirim yok",
+    "emptyBody": "Yeni aksiyonlar ve bilgilendirmeler burada görünür.",
+    "loadError": "Bildirimler yüklenemedi",
+    "retry": "Tekrar dene",
     "markAllRead": "Tümünü okundu yap",
     "actionRequired": "İşlem gerekiyor",
+    "informational": "Bilgilendirmeler",
     "preferences": "Bildirim tercihleri",
     "preferencesTitle": "Bildirim tercihleri",
     "inApp": "Uygulama içi",
@@ -324,6 +353,9 @@
     "payment": "Ödeme",
     "payout": "Satıcı ödemeleri",
     "savePreferences": "Tercihleri kaydet",
+    "preferencesSavedTitle": "Tercihler kaydedildi",
+    "preferencesSavedMessage": "Bildirim tercihleriniz güncellendi.",
+    "preferencesErrorTitle": "Tercihler kaydedilemedi",
     "unread": "Okunmadı",
     "read": "Okundu",
     "routeAction": "İşleme git",
@@ -347,5 +379,40 @@
     "benefitPayout": "Satış gelirleri için düzenli takip",
     "benefitSupport": "Satıcı operasyonlarında öncelikli destek",
     "sellerOnlyNotice": "Paketim ekranı satıcı modunda gösterilir."
+  },
+  "orderStatuses": {
+    "CREATED": "Oluşturuldu",
+    "PAYMENT_PENDING": "Ödeme bekliyor",
+    "ESCROW_HELD": "Güvende ödeme alındı",
+    "PREPARING_SHIPMENT": "Hazırlanıyor",
+    "IN_TRANSIT": "Kargoda",
+    "DELIVERED": "Teslim edildi",
+    "COMPLETED": "Tamamlandı",
+    "CANCELLED": "İptal edildi",
+    "FAILED": "Başarısız",
+    "ADMIN_REVIEW": "İncelemede"
+  },
+  "payoutStatuses": {
+    "REQUESTED": "Talep edildi",
+    "ADMIN_REVIEW": "İncelemede",
+    "APPROVED": "Onaylandı",
+    "REJECTED": "Reddedildi",
+    "PAID": "Ödendi",
+    "CANCELLED": "İptal edildi"
+  },
+  "walletTransactionTypes": {
+    "top_up": "Yükleme",
+    "payment": "Ödeme",
+    "hold": "Bloke",
+    "refund": "İade",
+    "payout": "Satıcı ödemesi",
+    "wallet_hold": "Cüzdan blokesi",
+    "wallet_release": "Bloke çözümü",
+    "wallet_capture": "Bloke tahsilatı",
+    "payment_escrow": "Güvende ödeme",
+    "payment_refund": "Ödeme iadesi",
+    "order_escrow_release": "Sipariş ödemesi",
+    "payout_reserve": "Payout rezervi",
+    "payout_release": "Payout çözümü"
   }
 }

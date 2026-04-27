@@ -13,7 +13,20 @@ export type WalletTransactionType =
   | 'payment'
   | 'hold'
   | 'refund'
-  | 'payout';
+  | 'payout'
+  | 'wallet_hold'
+  | 'wallet_release'
+  | 'wallet_capture'
+  | 'payment_escrow'
+  | 'payment_refund'
+  | 'order_escrow_release'
+  | 'payout_reserve'
+  | 'payout_release';
+
+export interface ApiResponseEnvelope {
+  code: string;
+  message: string;
+}
 
 export interface WalletSummary {
   walletId: string;
@@ -34,11 +47,14 @@ export interface WalletHoldItem {
 export interface WalletHistoryItem {
   id: string;
   type: WalletTransactionType;
+  status?: string;
   amount: number;
   currency: string;
-  direction: 'credit' | 'debit';
+  direction: 'CREDIT' | 'DEBIT' | 'credit' | 'debit';
   description: string;
-  referenceId: string | null;
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
+  referenceId?: string | null;
   createdAt: string;
 }
 
@@ -52,19 +68,29 @@ export interface WalletHistoryResponse {
 
 export interface PayoutRequestPayload {
   amount: number;
-  iban: string;
-  note?: string;
+  currency?: string;
+  idempotencyKey: string;
+  payoutMethodMetadata?: {
+    iban?: string;
+    note?: string;
+  };
 }
 
 export interface PayoutRequestItem {
   id: string;
   sellerId: string;
   amount: number;
+  currency?: string;
   status: PayoutRequestStatus;
-  ibanMasked: string;
-  note: string | null;
+  payoutMethodMetadata?: {
+    iban?: string;
+    note?: string;
+  };
+  reviewReason?: string | null;
   manualPayoutReference: string | null;
   reviewedAt: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
   paidAt: string | null;
   createdAt: string;
 }
@@ -81,6 +107,10 @@ export interface OrderListItem {
   status: OrderStatus;
   updatedAt: string;
   autoCompleteAt: string | null;
+}
+
+export interface OrderListResponse {
+  orders: OrderListItem[];
 }
 
 export interface OrderTimelineStep {
@@ -133,7 +163,10 @@ export interface NotificationItem {
   requiresAction: boolean;
   actionRoute: string | null;
   actionEntityId: string | null;
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
   isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
 }
 

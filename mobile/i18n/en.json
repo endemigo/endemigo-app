@@ -8,7 +8,9 @@
     "back": "Back",
     "success": "Success",
     "save": "Save",
-    "genericError": "Something went wrong. Please try again."
+    "genericError": "Something went wrong. Please try again.",
+    "cancel": "Cancel",
+    "ok": "OK"
   },
   "tabs": {
     "home": "Home",
@@ -194,6 +196,10 @@
     "history": "Activity",
     "holds": "Holds",
     "emptyHistory": "No wallet activity yet",
+    "emptyTitle": "No wallet activity",
+    "emptyBody": "Your transactions will be listed here when they are created.",
+    "loadError": "Wallet information could not be loaded",
+    "retry": "Try again",
     "filterAll": "All",
     "filterTopUp": "Top up",
     "filterPayment": "Payment",
@@ -211,6 +217,14 @@
     "payoutAmount": "Amount",
     "payoutIban": "IBAN",
     "payoutNote": "Note",
+    "payoutSuccessTitle": "Request received",
+    "payoutSuccessMessage": "Your payout request has been received for review.",
+    "payoutErrorTitle": "Request could not be sent",
+    "payoutSubmit": "Submit request",
+    "payoutAmountPlaceholder": "Enter amount",
+    "payoutIbanPlaceholder": "Enter IBAN",
+    "payoutNotePlaceholder": "Add a note",
+    "latestPayouts": "Latest payout requests",
     "refresh": "Refresh"
   },
   "orders": {
@@ -219,6 +233,10 @@
     "sellerTitle": "Sales",
     "emptyBuyer": "You have no purchase orders yet",
     "emptySeller": "You have no sales orders yet",
+    "emptyTitle": "No orders found",
+    "emptyBody": "There are no orders for the selected mode and filter.",
+    "loadError": "Orders could not be loaded",
+    "retry": "Try again",
     "orderCode": "Order no",
     "status": "Status",
     "total": "Total",
@@ -235,7 +253,13 @@
     "disputeDelivery": "Report issue",
     "confirmDeliveryTitle": "Delivery confirmation",
     "roleBuyer": "Buyer",
-    "roleSeller": "Seller"
+    "roleSeller": "Seller",
+    "filterAll": "All",
+    "filterPayment": "Payment",
+    "filterPreparing": "Preparing",
+    "filterInTransit": "In cargo",
+    "filterDelivered": "Delivered",
+    "filterCompleted": "Completed"
   },
   "cargo": {
     "title": "Cargo",
@@ -251,8 +275,13 @@
   "notifications": {
     "title": "Notifications",
     "empty": "You have no notifications yet",
+    "emptyTitle": "No notifications",
+    "emptyBody": "New actions and updates will appear here.",
+    "loadError": "Notifications could not be loaded",
+    "retry": "Try again",
     "markAllRead": "Mark all as read",
     "actionRequired": "Action required",
+    "informational": "Updates",
     "preferences": "Notification preferences",
     "preferencesTitle": "Notification preferences",
     "inApp": "In-app",
@@ -263,6 +292,9 @@
     "payment": "Payment",
     "payout": "Seller payouts",
     "savePreferences": "Save preferences",
+    "preferencesSavedTitle": "Preferences saved",
+    "preferencesSavedMessage": "Your notification preferences have been updated.",
+    "preferencesErrorTitle": "Preferences could not be saved",
     "unread": "Unread",
     "read": "Read",
     "routeAction": "Go to action",
@@ -286,5 +318,40 @@
     "benefitPayout": "Organized tracking for sales revenue",
     "benefitSupport": "Priority support for seller operations",
     "sellerOnlyNotice": "My Package is shown in seller mode."
+  },
+  "orderStatuses": {
+    "CREATED": "Created",
+    "PAYMENT_PENDING": "Payment pending",
+    "ESCROW_HELD": "Escrow held",
+    "PREPARING_SHIPMENT": "Preparing",
+    "IN_TRANSIT": "In cargo",
+    "DELIVERED": "Delivered",
+    "COMPLETED": "Completed",
+    "CANCELLED": "Cancelled",
+    "FAILED": "Failed",
+    "ADMIN_REVIEW": "Under review"
+  },
+  "payoutStatuses": {
+    "REQUESTED": "Requested",
+    "ADMIN_REVIEW": "Under review",
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected",
+    "PAID": "Paid",
+    "CANCELLED": "Cancelled"
+  },
+  "walletTransactionTypes": {
+    "top_up": "Top up",
+    "payment": "Payment",
+    "hold": "Hold",
+    "refund": "Refund",
+    "payout": "Seller payout",
+    "wallet_hold": "Wallet hold",
+    "wallet_release": "Hold release",
+    "wallet_capture": "Hold capture",
+    "payment_escrow": "Escrow payment",
+    "payment_refund": "Payment refund",
+    "order_escrow_release": "Order payout",
+    "payout_reserve": "Payout reserve",
+    "payout_release": "Payout release"
   }
 }
