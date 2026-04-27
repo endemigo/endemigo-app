@@ -107,7 +107,7 @@ export function useOrderDetail(orderId?: string) {
   const activeMode = useRoleModeStore((state) => state.activeMode);
 
   return useQuery<OrderDetail | null>({
-    queryKey: ORDER_QUERY_KEYS.detail(orderId ?? 'unknown'),
+    queryKey: [...ORDER_QUERY_KEYS.detail(orderId ?? 'unknown'), activeMode],
     queryFn: async () => {
       if (!orderId || ENV.USE_MOCK) return null;
       const { data } = await api.get<OrdersResponse>(getOrderEndpoint(activeMode));

@@ -3,6 +3,7 @@ import { storage } from '../lib/storage';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
+import { useRoleModeStore } from './roleModeStore';
 
 export interface User {
   id: string;
@@ -46,6 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await storage.setToken(data.accessToken);
     if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
     await storage.setUser(data.user);
+    useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
 
@@ -56,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await storage.setToken(data.accessToken);
     if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
     await storage.setUser(data.user);
+    useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
 
@@ -71,6 +74,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {} // eslint-disable-line no-empty
     await storage.clear();
+    useRoleModeStore.getState().resetRoleMode();
     set({ user: null, isLoggedIn: false });
   },
 
@@ -91,16 +95,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { data } = await api.get('/auth/profile');
         user = data;
       }
-      if (user) set({ user, isLoggedIn: true, isLoading: false });
-      else set({ isLoading: false });
+      if (user) {
+        useRoleModeStore.getState().syncRoleModeFromUser(user);
+        set({ user, isLoggedIn: true, isLoading: false });
+      } else {
+        useRoleModeStore.getState().resetRoleMode();
+        set({ isLoading: false });
+      }
     } catch {
       await storage.clear();
+      useRoleModeStore.getState().resetRoleMode();
       set({ user: null, isLoggedIn: false, isLoading: false });
     }
   },
 
   setUser: (user: User) => {
     storage.setUser(user);
+    useRoleModeStore.getState().syncRoleModeFromUser(user);
     set({ user });
   },
 

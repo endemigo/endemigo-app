@@ -36,6 +36,22 @@ export const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
+  auctionIconActive: {
+    opacity: 1,
+    tintColor: Colors.auctionGreen,
+  },
+  auctionIconInactive: {
+    opacity: 0.6,
+    tintColor: Colors.auctionGreen,
+  },
+  auctionLabelActive: {
+    color: Colors.auctionGreen,
+    opacity: 1,
+  },
+  auctionLabelInactive: {
+    color: Colors.auctionGreen,
+    opacity: 0.6,
+  },
   cartBadge: {
     position: 'absolute',
     top: -4,

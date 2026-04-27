@@ -52,7 +52,10 @@ export default function TabLayout() {
         options={{
           title: t('tabs.auctions'),
           tabBarLabel: ({ focused }) => (
-            <Text style={[styles.tabBarLabel, { color: Colors.auctionGreen, opacity: focused ? 1 : 0.6 }]}>
+            <Text style={[
+              styles.tabBarLabel,
+              focused ? styles.auctionLabelActive : styles.auctionLabelInactive,
+            ]}>
               {t('tabs.auctions')}
             </Text>
           ),
@@ -61,7 +64,7 @@ export default function TabLayout() {
               source={require('../../assets/images/endemigo-icon.png')}
               style={[
                 styles.auctionIcon,
-                { tintColor: Colors.auctionGreen, opacity: focused ? 1 : 0.6 },
+                focused ? styles.auctionIconActive : styles.auctionIconInactive,
               ]}
               resizeMode="contain"
             />
