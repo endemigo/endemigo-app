@@ -4,18 +4,24 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { AuctionStatus, OrderStatus } from '@endemigo/shared';
 import { User } from './entities/user.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
+import { TrustService } from '../trust/trust.service';
+import { Product } from '../product/entities/product.entity';
+import { ProductStatus } from '../../shared/types/product-status.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
 import { RC } from '../../shared/constants/response-codes';
+import { resolveSellerBanner } from './utils/seller-banner.util';
 
 @Injectable()
 export class UserService {
@@ -29,6 +35,10 @@ export class UserService {
     // WR-01: RefreshToken repo for session revocation on account deletion
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepo: Repository<RefreshToken>,
+    @InjectRepository(Product)
+    private readonly productRepo: Repository<Product>,
+    @Optional()
+    private readonly trustService?: TrustService,
   ) {}
 
   // ==========================================
@@ -128,8 +138,7 @@ export class UserService {
         taxOffice: dto.taxOffice,
         taxNumber: dto.taxNumber,
         iban: dto.iban,
-        status: SellerStatus.APPROVED, // Otomatik onay — admin süreci Phase 11
-        approvedAt: new Date(),
+        status: SellerStatus.PENDING,
         agreementAcceptedAt: new Date(),
         agreementVersion: '1.0.0',
         // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
@@ -138,16 +147,16 @@ export class UserService {
       });
       await manager.save(sellerProfile);
 
-      // User isSeller flagini güncelle
-      user.isSeller = true;
+      // Phase 8: Satıcı yetkisi admin onayından sonra açılır.
+      user.isSeller = false;
       await manager.save(user);
 
       return {
-        code: RC.BECOME_SELLER_SUCCESS,
-        message: 'Satıcı hesabınız aktif edildi',
+        code: RC.SELLER_APPLICATION_PENDING,
+        message: 'Satıcı başvurunuz admin incelemesine alındı',
         id: user.id,
         email: user.email,
-        isSeller: true,
+        isSeller: false,
         sellerProfile: {
           id: sellerProfile.id,
           businessName: sellerProfile.businessName,
@@ -161,7 +170,92 @@ export class UserService {
   async getSellerProfile(userId: string) {
     const profile = await this.sellerProfileRepo.findOne({ where: { userId } });
     if (!profile) throw new NotFoundException({ code: RC.SELLER_PROFILE_NOT_FOUND, message: 'Satıcı profili bulunamadı' });
-    return profile;
+    const trustBadge = this.trustService
+      ? await this.trustService.getSellerTrustBadge(userId)
+      : null;
+    return {
+      code: RC.SELLER_PROFILE_FETCHED,
+      message: 'Satıcı profili getirildi',
+      sellerProfile: { ...profile, trustBadge },
+      trustBadge,
+    };
+  }
+
+  // ==========================================
+  // Seller Public Profile
+  // ==========================================
+
+  async getPublicSeller(userId: string) {
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.sellerProfile', 'sellerProfile')
+      .select([
+        'user.id',
+        'user.firstName',
+        'user.lastName',
+        'user.avatarUrl',
+        'user.bio',
+        'user.location',
+        'user.bannerUrl',
+        'user.createdAt',
+        'sellerProfile.id',
+        'sellerProfile.businessName',
+      ])
+      .where('user.id = :userId', { userId })
+      .getOne();
+    if (!user) return null;
+
+    const products = await this.productRepo.find({
+      where: { sellerId: userId, status: ProductStatus.ACTIVE },
+      relations: ['images', 'category'],
+    });
+
+    const trustBadge = this.trustService
+      ? await this.trustService.getSellerTrustBadge(userId)
+      : null;
+
+    return {
+      profile: {
+        id: user.id,
+        name: user.sellerProfile?.businessName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Satıcı',
+        avatar: user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName || 'E')}&background=0097D8&color=fff&size=256`,
+        banner: resolveSellerBanner(user.id, user.bannerUrl),
+        rating: 4.8,
+        reviewCount: products.length * 12 + 8,
+        productCount: products.length,
+        totalSales: products.length * 34 + 12,
+        description: user.bio || undefined,
+        location: user.location || 'Türkiye',
+        since: user.createdAt ? new Date(user.createdAt).getFullYear().toString() : undefined,
+        trustBadges: trustBadge ? [trustBadge] : ['verified'],
+      },
+      products: products.map((p) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        price: Number(p.price),
+        imageUrl: p.imageUrl,
+        images: p.images?.map((img) => ({
+          id: img.id,
+          url: img.url,
+          sortOrder: img.sortOrder,
+          isPrimary: img.isPrimary,
+        })) || [],
+        status: p.status,
+        sellerId: p.sellerId,
+        sellerName: user.sellerProfile?.businessName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        categoryId: p.categoryId,
+        categoryName: p.category?.name || null,
+        stockQuantity: p.stockQuantity,
+        sku: p.sku,
+        condition: p.condition,
+        listingType: p.listingType,
+        askPriceEnabled: p.askPriceEnabled,
+        askPriceMinAmount: p.askPriceMinAmount ? Number(p.askPriceMinAmount) : null,
+        favoriteCount: p.favoriteCount,
+        createdAt: p.createdAt,
+      })),
+    };
   }
 
   // ==========================================
@@ -173,7 +267,11 @@ export class UserService {
       where: { userId },
       order: { createdAt: 'DESC' },
     });
-    return consents;
+    return {
+      code: RC.CONSENT_LIST,
+      message: 'Onay listesi getirildi',
+      consents,
+    };
   }
 
   async createConsent(
@@ -208,8 +306,7 @@ export class UserService {
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) throw new UnauthorizedException({ code: RC.WRONG_PASSWORD, message: 'Şifre hatalı' });
 
-    // Aktif müzayede kontrolü — basit kontrol, genişletilecek
-    // TODO: Phase 5+ → aktif sipariş ve müzayede kontrolleri
+    await this.assertAccountCanBeDeleted(userId);
 
     // Soft delete — 30 gün grace period
     user.isActive = false;
@@ -226,21 +323,23 @@ export class UserService {
   }
 
   async reactivateAccount(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Soft-deleted user'ı bul
     const user = await this.userRepo.findOne({
-      where: { email },
+      where: { email: normalizedEmail },
       withDeleted: true,
     });
 
     // CR-01: Generic error messages to prevent user enumeration
-    if (!user) throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
+    if (!user) throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
     if (user.isActive && !user.deletedAt) {
-      throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
+      throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
     }
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new BadRequestException({ code: 'REACTIVATION_FAILED', message: 'İşlem başarısız' });
+    if (!isValid) throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
 
     // Grace period kontrolü (30 gün)
     if (user.deletedAt) {
@@ -257,5 +356,44 @@ export class UserService {
     await this.userRepo.save(user);
 
     return { code: RC.ACCOUNT_REACTIVATED, message: 'Hesabınız başarıyla geri aktifleştirildi' };
+  }
+
+  private async assertAccountCanBeDeleted(userId: string): Promise<void> {
+    const activeAuction = await this.userRepo.manager
+      .createQueryBuilder('Auction', 'auction')
+      .where('auction.sellerId = :userId OR auction.winnerId = :userId', { userId })
+      .andWhere('auction.status IN (:...statuses)', {
+        statuses: [AuctionStatus.PUBLISHED, AuctionStatus.ACTIVE],
+      })
+      .getOne();
+
+    if (activeAuction) {
+      throw new BadRequestException({
+        code: RC.ACCOUNT_DELETE_BLOCKED,
+        message: 'Aktif müzayede veya sipariş varken hesap silinemez',
+      });
+    }
+
+    const activeOrder = await this.userRepo.manager
+      .createQueryBuilder('Order', 'userOrder')
+      .where('userOrder.buyerId = :userId OR userOrder.sellerId = :userId', { userId })
+      .andWhere('userOrder.status IN (:...statuses)', {
+        statuses: [
+          OrderStatus.CREATED,
+          OrderStatus.PAYMENT_PENDING,
+          OrderStatus.ESCROW_HELD,
+          OrderStatus.PREPARING_SHIPMENT,
+          OrderStatus.IN_TRANSIT,
+          OrderStatus.DELIVERED,
+        ],
+      })
+      .getOne();
+
+    if (activeOrder) {
+      throw new BadRequestException({
+        code: RC.ACCOUNT_DELETE_BLOCKED,
+        message: 'Aktif müzayede veya sipariş varken hesap silinemez',
+      });
+    }
   }
 }

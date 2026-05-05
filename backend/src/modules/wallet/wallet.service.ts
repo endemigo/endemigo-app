@@ -1,12 +1,24 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LedgerAccountType, LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
-import { NotificationEventType, PayoutRequestStatus, RC } from '@endemigo/shared';
+import {
+  JournalEntryType,
+  LedgerAccountType,
+  LedgerDirection,
+  LedgerReferenceType,
+} from '@endemigo/shared/enums';
+import {
+  NotificationEventType,
+  PayoutRequestStatus,
+  RC,
+} from '@endemigo/shared';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { HoldStatus } from '../../shared/types/hold-status.enum';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../notification/notification.service';
+import { UserService } from '../user/user.service';
+import { MembershipService } from '../membership/membership.service';
+import { TrustService } from '../trust/trust.service';
 import { RequestPayoutDto } from './dto/request-payout.dto';
 import { ReviewPayoutDto } from './dto/review-payout.dto';
 import { PayoutRequest } from './entities/payout-request.entity';
@@ -15,7 +27,9 @@ import { Wallet } from './entities/wallet.entity';
 
 export interface WalletHistoryFilters {
   limit?: number;
+  page?: number;
   type?: string;
+  types?: string[];
 }
 
 @Injectable()
@@ -33,18 +47,29 @@ export class WalletService {
     private readonly notificationService?: NotificationService,
     @Optional()
     private readonly configService?: ConfigService,
+    @Optional()
+    private readonly userService?: UserService,
+    @Optional()
+    private readonly membershipService?: MembershipService,
+    @Optional()
+    private readonly trustService?: TrustService,
   ) {}
 
   async getOrCreateWallet(userId: string): Promise<Wallet> {
     let wallet = await this.walletRepo.findOne({ where: { userId } });
     if (!wallet) {
-      wallet = this.walletRepo.create({ userId, balance: 10000, heldAmount: 0 });
+      wallet = this.walletRepo.create({
+        userId,
+        balance: 10000,
+        heldAmount: 0,
+      });
       wallet = await this.walletRepo.save(wallet);
     }
     return wallet;
   }
 
   async getBalance(userId: string) {
+    await this.assertActiveUser(userId);
     const wallet = await this.getOrCreateWallet(userId);
     const balance = Number(wallet.balance);
     const held = Number(wallet.heldAmount);
@@ -58,9 +83,15 @@ export class WalletService {
     };
   }
 
-  async createHold(auctionId: string, userId: string, amount: number): Promise<WalletHold> {
-    return this.withTransaction(async (manager) => {
-      const wallet = await this.getOrCreateLockedWallet(userId, manager);
+  async createHold(
+    auctionId: string,
+    userId: string,
+    amount: number,
+    manager?: EntityManager,
+  ): Promise<WalletHold> {
+    await this.assertActiveUser(userId);
+    return this.withOptionalTransaction(manager, async (transactionManager) => {
+      const wallet = await this.getOrCreateLockedWallet(userId, transactionManager);
       const available = Number(wallet.balance) - Number(wallet.heldAmount);
 
       if (available < amount) {
@@ -70,7 +101,7 @@ export class WalletService {
         });
       }
 
-      const existingHold = await manager.findOne(WalletHold, {
+      const existingHold = await transactionManager.findOne(WalletHold, {
         where: { auctionId, userId, status: HoldStatus.HELD },
         lock: { mode: 'pessimistic_write' },
       });
@@ -78,7 +109,7 @@ export class WalletService {
         return existingHold;
       }
 
-      const hold = manager.create(WalletHold, {
+      const hold = transactionManager.create(WalletHold, {
         walletId: wallet.id,
         auctionId,
         userId,
@@ -86,15 +117,17 @@ export class WalletService {
         status: HoldStatus.HELD,
         idempotencyKey: `wallet-hold:${auctionId}:${userId}:${amount.toFixed(2)}`,
       });
-      const savedHold = await manager.save(WalletHold, hold);
-      const referenceId = savedHold.id ?? `${auctionId}:${userId}:${amount.toFixed(2)}`;
+      const savedHold = await transactionManager.save(WalletHold, hold);
+      const referenceId =
+        savedHold.id ?? `${auctionId}:${userId}:${amount.toFixed(2)}`;
       await this.postWalletMovement(
-        manager,
+        transactionManager,
         {
-          type: 'wallet_hold',
+          type: JournalEntryType.WALLET_HOLD,
           description: 'Hold wallet funds for auction bid',
           referenceId,
-          idempotencyKey: savedHold.idempotencyKey ?? `wallet-hold:${referenceId}`,
+          idempotencyKey:
+            savedHold.idempotencyKey ?? `wallet-hold:${referenceId}`,
         },
         userId,
         amount,
@@ -103,14 +136,31 @@ export class WalletService {
       );
 
       wallet.heldAmount = Number(wallet.heldAmount) + amount;
-      await manager.save(Wallet, wallet);
+      await transactionManager.save(Wallet, wallet);
       return savedHold;
     });
   }
 
-  async releaseHold(auctionId: string, userId: string): Promise<WalletHold | null> {
-    return this.withTransaction(async (manager) => {
-      const hold = await manager.findOne(WalletHold, {
+  private async assertActiveUser(userId: string): Promise<void> {
+    if (!this.userService) {
+      return;
+    }
+    const user = await this.userService.findById(userId);
+    if (!user?.isActive) {
+      throw new BadRequestException({
+        code: RC.ACCOUNT_DISABLED,
+        message: 'Kullanıcı bulunamadı veya devre dışı',
+      });
+    }
+  }
+
+  async releaseHold(
+    auctionId: string,
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<WalletHold | null> {
+    return this.withOptionalTransaction(manager, async (transactionManager) => {
+      const hold = await transactionManager.findOne(WalletHold, {
         where: { auctionId, userId, status: HoldStatus.HELD },
         lock: { mode: 'pessimistic_write' },
       });
@@ -118,11 +168,11 @@ export class WalletService {
         return null;
       }
 
-      const wallet = await this.getOrCreateLockedWallet(userId, manager);
+      const wallet = await this.getOrCreateLockedWallet(userId, transactionManager);
       await this.postWalletMovement(
-        manager,
+        transactionManager,
         {
-          type: 'wallet_release',
+          type: JournalEntryType.WALLET_RELEASE,
           description: 'Release auction wallet hold',
           referenceId: hold.id,
           idempotencyKey: `wallet-release:${hold.id}`,
@@ -134,14 +184,20 @@ export class WalletService {
       );
 
       hold.status = HoldStatus.RELEASED;
-      await manager.save(WalletHold, hold);
-      wallet.heldAmount = Math.max(0, Number(wallet.heldAmount) - Number(hold.amount));
-      await manager.save(Wallet, wallet);
+      await transactionManager.save(WalletHold, hold);
+      wallet.heldAmount = Math.max(
+        0,
+        Number(wallet.heldAmount) - Number(hold.amount),
+      );
+      await transactionManager.save(Wallet, wallet);
       return hold;
     });
   }
 
-  async captureHold(auctionId: string, userId: string): Promise<WalletHold | null> {
+  async captureHold(
+    auctionId: string,
+    userId: string,
+  ): Promise<WalletHold | null> {
     return this.withTransaction(async (manager) => {
       const hold = await manager.findOne(WalletHold, {
         where: { auctionId, userId, status: HoldStatus.HELD },
@@ -155,7 +211,7 @@ export class WalletService {
       await this.postWalletMovement(
         manager,
         {
-          type: 'wallet_capture',
+          type: JournalEntryType.WALLET_CAPTURE,
           description: 'Capture auction wallet hold',
           referenceId: hold.id,
           idempotencyKey: `wallet-capture:${hold.id}`,
@@ -169,7 +225,10 @@ export class WalletService {
       hold.status = HoldStatus.CAPTURED;
       await manager.save(WalletHold, hold);
       wallet.balance = Number(wallet.balance) - Number(hold.amount);
-      wallet.heldAmount = Math.max(0, Number(wallet.heldAmount) - Number(hold.amount));
+      wallet.heldAmount = Math.max(
+        0,
+        Number(wallet.heldAmount) - Number(hold.amount),
+      );
       await manager.save(Wallet, wallet);
       return hold;
     });
@@ -183,7 +242,10 @@ export class WalletService {
     return { code: RC.HOLDS_FETCHED, message: 'Wallet holds fetched', holds };
   }
 
-  async getTransactionHistory(userId: string, filters: WalletHistoryFilters = {}) {
+  async getTransactionHistory(
+    userId: string,
+    filters: WalletHistoryFilters = {},
+  ) {
     return this.ledgerService.getWalletHistory(userId, filters);
   }
 
@@ -211,6 +273,7 @@ export class WalletService {
         });
       }
 
+      const payoutReview = await this.resolvePayoutReview(sellerId);
       const payoutRequest = manager.create(PayoutRequest, {
         sellerId,
         amount,
@@ -220,6 +283,9 @@ export class WalletService {
         payoutMethodMetadata: {
           ...(dto.payoutMethodMetadata ?? {}),
           platformCommissionRate: this.getPlatformCommissionRate(),
+          payoutPriority: payoutReview.payoutPriority,
+          manualReviewForced: payoutReview.manualReviewForced,
+          manualReviewReason: payoutReview.manualReviewReason,
         },
         reviewReason: null,
         manualPayoutReference: null,
@@ -232,7 +298,7 @@ export class WalletService {
       await this.postPayoutMovement(
         manager,
         {
-          type: 'payout_reserve',
+          type: JournalEntryType.PAYOUT_RESERVE,
           description: 'Reserve seller funds for payout review',
           referenceId: saved.id,
           idempotencyKey: `payout-reserve:${saved.id}`,
@@ -276,7 +342,10 @@ export class WalletService {
     return this.reviewPayoutRequest(id, PayoutRequestStatus.REJECTED, dto);
   }
 
-  async releaseAllHoldsForAuction(auctionId: string, exceptUserId?: string): Promise<void> {
+  async releaseAllHoldsForAuction(
+    auctionId: string,
+    exceptUserId?: string,
+  ): Promise<void> {
     const holds = await this.holdRepo.find({
       where: { auctionId, status: HoldStatus.HELD },
     });
@@ -306,9 +375,10 @@ export class WalletService {
       }
 
       if (
-        ![PayoutRequestStatus.REQUESTED, PayoutRequestStatus.ADMIN_REVIEW].includes(
-          payoutRequest.status,
-        )
+        ![
+          PayoutRequestStatus.REQUESTED,
+          PayoutRequestStatus.ADMIN_REVIEW,
+        ].includes(payoutRequest.status)
       ) {
         return {
           code: RC.PAYOUT_REQUEST_INVALID_STATUS,
@@ -366,13 +436,20 @@ export class WalletService {
     });
   }
 
-  private async getOrCreateLockedWallet(userId: string, manager: EntityManager): Promise<Wallet> {
+  private async getOrCreateLockedWallet(
+    userId: string,
+    manager: EntityManager,
+  ): Promise<Wallet> {
     let wallet = await manager.findOne(Wallet, {
       where: { userId },
       lock: { mode: 'pessimistic_write' },
     });
     if (!wallet) {
-      wallet = manager.create(Wallet, { userId, balance: 10000, heldAmount: 0 });
+      wallet = manager.create(Wallet, {
+        userId,
+        balance: 10000,
+        heldAmount: 0,
+      });
       wallet = await manager.save(Wallet, wallet);
     }
     return wallet;
@@ -381,7 +458,7 @@ export class WalletService {
   private async postWalletMovement(
     manager: EntityManager,
     entry: {
-      type: string;
+      type: JournalEntryType;
       description: string;
       referenceId: string;
       idempotencyKey: string;
@@ -391,7 +468,12 @@ export class WalletService {
     debitType: LedgerAccountType,
     creditType: LedgerAccountType,
   ): Promise<void> {
-    const debitAccount = await this.ledgerService.getOrCreateAccount(userId, debitType, 'TRY', manager);
+    const debitAccount = await this.ledgerService.getOrCreateAccount(
+      userId,
+      debitType,
+      'TRY',
+      manager,
+    );
     const creditAccount = await this.ledgerService.getOrCreateAccount(
       creditType === LedgerAccountType.SELLER_PENDING ? null : userId,
       creditType,
@@ -430,7 +512,7 @@ export class WalletService {
   private async postPayoutMovement(
     manager: EntityManager,
     entry: {
-      type: string;
+      type: JournalEntryType;
       description: string;
       referenceId: string;
       idempotencyKey: string;
@@ -489,7 +571,7 @@ export class WalletService {
     await this.postPayoutMovement(
       manager,
       {
-        type: 'payout_release',
+        type: JournalEntryType.PAYOUT_RELEASE,
         description: 'Release rejected payout reservation',
         referenceId: payoutRequest.id,
         idempotencyKey: `payout-release:${payoutRequest.id}`,
@@ -501,17 +583,47 @@ export class WalletService {
       LedgerAccountType.SELLER_AVAILABLE,
     );
 
-    const wallet = await this.getOrCreateLockedWallet(payoutRequest.sellerId, manager);
-    wallet.heldAmount = Math.max(0, Number(wallet.heldAmount) - Number(payoutRequest.amount));
+    const wallet = await this.getOrCreateLockedWallet(
+      payoutRequest.sellerId,
+      manager,
+    );
+    wallet.heldAmount = Math.max(
+      0,
+      Number(wallet.heldAmount) - Number(payoutRequest.amount),
+    );
     await manager.save(Wallet, wallet);
   }
 
   private getPlatformCommissionRate(): number {
-    const configuredRate = this.configService?.get<number>('PLATFORM_COMMISSION_RATE');
+    const configuredRate = this.configService?.get<number>(
+      'PLATFORM_COMMISSION_RATE',
+    );
     return configuredRate ?? 0.1;
   }
 
-  private async withTransaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+  private async resolvePayoutReview(sellerId: string) {
+    const benefits = await this.membershipService?.getSellerBenefits(sellerId);
+    let payoutPriority: 'standard' | 'priority' | 'manual review' =
+      benefits?.payoutPriority ?? 'standard';
+    let manualReviewForced = false;
+    let manualReviewReason: string | null = null;
+
+    if (this.trustService) {
+      try {
+        await this.trustService.assertAllowed(sellerId, 'PAYOUT');
+      } catch {
+        payoutPriority = 'manual review';
+        manualReviewForced = true;
+        manualReviewReason = 'PAYOUT_MANUAL_REVIEW';
+      }
+    }
+
+    return { payoutPriority, manualReviewForced, manualReviewReason };
+  }
+
+  private async withTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -526,5 +638,15 @@ export class WalletService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async withOptionalTransaction<T>(
+    manager: EntityManager | undefined,
+    work: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    if (manager) {
+      return work(manager);
+    }
+    return this.withTransaction(work);
   }
 }

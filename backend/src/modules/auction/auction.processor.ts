@@ -20,7 +20,7 @@ export class AuctionProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<{ auctionId: string; minutesLeft?: number }>,
+    job: Job<{ auctionId: string; minutesLeft?: number; errorMessage?: string }>,
   ) {
     const { auctionId } = job.data;
 
@@ -65,6 +65,12 @@ export class AuctionProcessor extends WorkerHost {
           break;
         }
 
+        case 'auction-finalization-compensation': {
+          this.logger.log(`Retrying finalization side effects for ${auctionId}`);
+          await this.auctionService.retryFinalizationSideEffects(auctionId);
+          break;
+        }
+
         case 'warning': {
           const minutesLeft = job.data.minutesLeft || 1;
           this.logger.log(
@@ -85,4 +91,3 @@ export class AuctionProcessor extends WorkerHost {
     }
   }
 }
-

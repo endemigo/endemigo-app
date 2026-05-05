@@ -1,5 +1,6 @@
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PRODUCT_CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 16) / 2;
+const LISTING_CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 16) / 2;
 const BANNER_WIDTH = SCREEN_WIDTH - 16 * 2;
 const SQUARE_CARD = 148;
 import { StyleSheet, Dimensions } from 'react-native';
@@ -58,12 +59,15 @@ export const styles = StyleSheet.create({
     gap: Spacing.base,
   },
   notificationBadge: {
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.secondaryContainer,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.slate200,
     justifyContent: 'center',
     alignItems: 'center',
+    ...Shadows.sm,
   },
 
   // ─── Search Bar ───
@@ -72,7 +76,13 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.base,
     backgroundColor: Colors.background,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   searchBar: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
@@ -81,8 +91,18 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     ...Shadows.md,
   },
-  searchIcon: {
-    marginRight: Spacing.md,
+  searchLogoOverlay: {
+    position: 'absolute',
+    left: Spacing.base,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  searchLogoPlaceholder: {
+    width: 108,
+    height: 24,
+    opacity: 0.5,
   },
   searchInput: {
     flex: 1,
@@ -90,11 +110,30 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyMedium,
     color: Colors.onSurface,
   },
-  qrButton: {
-    backgroundColor: `${Colors.primary}1A`,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+  searchActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  searchActionButton: {
+    minWidth: 44,
+    height: 40,
     borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}1F`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  profileActionButton: {
+    backgroundColor: `${Colors.primary}10`,
+    borderColor: `${Colors.primary}2E`,
+  },
+  notificationActionButton: {
+    backgroundColor: `${Colors.accent}10`,
+    borderColor: `${Colors.accent}33`,
   },
 
   // ─── Banner ───
@@ -181,8 +220,8 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
   },
   shopTile: {
-    backgroundColor: `${Colors.accent}1A`,
-    borderColor: `${Colors.accent}1A`,
+    backgroundColor: `${Colors.primary}1A`,
+    borderColor: `${Colors.primary}1A`,
   },
   auctionTile: {
     backgroundColor: `${Colors.auctionGreen}1A`,
@@ -309,6 +348,101 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     fontFamily: FontFamily.headlineBlack,
     color: Colors.primary,
+  },
+
+  // ─── Listings (2x2, 3:6 image) ───
+  listingGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.base,
+    marginBottom: Spacing.xl,
+  },
+  listingCard: {
+    width: LISTING_CARD_WIDTH,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    ...Shadows.sm,
+  },
+  listingImage: {
+    width: '100%',
+    aspectRatio: 3 / 4,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  listingBody: {
+    padding: Spacing.sm,
+  },
+  listingTitle: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+    lineHeight: 16,
+    marginBottom: 4,
+    minHeight: 32,
+  },
+  listingPrice: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.headlineBlack,
+    color: Colors.primary,
+  },
+  listingSeeAllButton: {
+    alignSelf: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    ...Shadows.sm,
+  },
+  listingSeeAllText: {
+    color: Colors.white,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  listingBannerRow: {
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  listingBannerCard: {
+    width: SCREEN_WIDTH * 0.8,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    ...Shadows.sm,
+  },
+  listingBannerImage: {
+    width: '100%',
+    aspectRatio: 2 / 1,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  discountedSeeAllButton: {
+    alignSelf: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    ...Shadows.sm,
+  },
+  discountedSeeAllText: {
+    color: Colors.white,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
   },
 
   // ─── Trust Bar ───
@@ -549,6 +683,237 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     fontSize: FontSize.body,
     color: Colors.primary,
+  },
+
+  // ─── Trust Hub (clean premium) ───
+  trustHubCard: {
+    marginHorizontal: Spacing.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius['3xl'],
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    padding: Spacing.lg,
+    ...Shadows.md,
+  },
+  trustHubTitle: {
+    color: Colors.primary,
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  trustHubSubtitle: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headline,
+    fontWeight: '700',
+    lineHeight: 24,
+    marginBottom: Spacing.base,
+  },
+  trustChipWrap: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  trustChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  trustChipText: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  trustBannerRow: {
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.md,
+    marginBottom: Spacing.base,
+  },
+  trustBannerCard: {
+    width: SCREEN_WIDTH * 0.78,
+    height: 118,
+    borderRadius: BorderRadius['2xl'],
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  trustBannerImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  trustBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    padding: Spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  trustBannerText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+  },
+
+  // ─── Magazine Blog ───
+  magazineGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.base,
+    marginTop: Spacing.sm,
+  },
+  magazineCard: {
+    flex: 1,
+    minHeight: 108,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    ...Shadows.sm,
+  },
+  magazineCardTitle: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  magazineAllButton: {
+    alignSelf: 'center',
+    marginTop: Spacing.base,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    ...Shadows.sm,
+  },
+  magazineAllButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+
+  // ─── About Hero ───
+  aboutTitle: {
+    paddingHorizontal: Spacing.base,
+    color: Colors.onSurface,
+    fontSize: FontSize.titleSm,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    marginBottom: Spacing.md,
+  },
+  trustPointsCard: {
+    marginHorizontal: Spacing.base,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+    ...Shadows.sm,
+  },
+  trustPointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  trustPointDot: {
+    width: 7,
+    height: 7,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+  },
+  trustPointText: {
+    flex: 1,
+    color: Colors.onSurface,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyMedium,
+  },
+  notifyButton: {
+    marginTop: Spacing.base,
+    marginHorizontal: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    ...Shadows.colored(Colors.primary),
+  },
+  notifyButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  aboutHeroCard: {
+    marginHorizontal: Spacing.base,
+    borderRadius: BorderRadius['3xl'],
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    ...Shadows.md,
+  },
+  aboutHeroImage: {
+    width: '100%',
+    height: 220,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  aboutHeroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    padding: Spacing.lg,
+  },
+  aboutHeroText: {
+    color: Colors.white,
+    fontSize: FontSize.title,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+  },
+
+  // ─── Fixed Banner ───
+  fixedBannerWrap: {
+    marginTop: Spacing.xl,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.accent,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.base,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    ...Shadows.colored(Colors.accent),
+  },
+  fixedBannerText: {
+    color: Colors.white,
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  trendDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+    gap: Spacing.md,
+  },
+  trendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
   },
 
   // ─── Square Category Product Cards ───

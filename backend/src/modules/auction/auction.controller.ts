@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +24,27 @@ import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RC } from '@endemigo/shared';
+
+function parsePositiveIntQuery(
+  value: unknown,
+  field: string,
+  defaultValue: number,
+  maxValue?: number,
+): number {
+  const rawValue = value ?? defaultValue;
+  const parsed =
+    typeof rawValue === 'number' ? rawValue : Number(String(rawValue));
+
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    throw new BadRequestException({
+      code: RC.VALIDATION_ERROR,
+      message: `${field} must be a positive integer`,
+    });
+  }
+
+  return maxValue ? Math.min(parsed, maxValue) : parsed;
+}
 
 @ApiTags('Auctions')
 @Controller('auctions')
@@ -91,17 +113,22 @@ export class AuctionController {
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'auctionType', required: false, enum: ['REALTIME', 'TIMED'] })
   async findAll(
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('auctionType') auctionType?: string,
   ) {
-    // CR-03: Clamp pagination to prevent memory exhaustion
-    const safePage = Math.max(1, +page);
-    const safeLimit = Math.min(Math.max(1, +limit), 50);
-    // WR-02: Validate auctionType against enum — reject invalid values
-    const validType = auctionType && Object.values(AuctionType).includes(auctionType as AuctionType)
-      ? auctionType as AuctionType
-      : undefined;
+    const safePage = parsePositiveIntQuery(page, 'page', 1);
+    const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 50);
+    if (
+      auctionType &&
+      !Object.values(AuctionType).includes(auctionType as AuctionType)
+    ) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'auctionType must be a valid AuctionType',
+      });
+    }
+    const validType = auctionType as AuctionType | undefined;
     return this.auctionService.findAll(safePage, safeLimit, validType);
   }
 

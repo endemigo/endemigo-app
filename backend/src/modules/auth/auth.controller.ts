@@ -17,6 +17,11 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  VerifyEmailDto,
+} from './dto/password-recovery.dto';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -89,8 +94,8 @@ export class AuthController {
   @ApiOperation({ summary: 'E-posta adresini doğrula' })
   @ApiResponse({ status: 200, description: 'E-posta doğrulandı' })
   @ApiResponse({ status: 400, description: 'Geçersiz token' })
-  async verifyEmail(@Body() body: { token: string }) {
-    return this.authService.verifyEmail(body.token);
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
   }
 
   // ==========================================
@@ -103,8 +108,8 @@ export class AuthController {
   @Throttle({ short: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Şifre sıfırlama e-postası gönder' })
   @ApiResponse({ status: 200, description: 'Sıfırlama linki gönderildi' })
-  async forgotPassword(@Body() body: { email: string }) {
-    return this.authService.forgotPassword(body.email);
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
   }
 
   @Public()
@@ -113,7 +118,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Şifreyi sıfırla (token ile)' })
   @ApiResponse({ status: 200, description: 'Şifre sıfırlandı' })
   @ApiResponse({ status: 400, description: 'Geçersiz token' })
-  async resetPassword(@Body() body: { token: string; newPassword: string }) {
-    return this.authService.resetPassword(body.token, body.newPassword);
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }

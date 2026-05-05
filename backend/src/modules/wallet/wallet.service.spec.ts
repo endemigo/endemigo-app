@@ -6,6 +6,8 @@ import { RC } from '@endemigo/shared';
 import { PayoutRequestStatus } from '@endemigo/shared';
 import { DataSource } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
+import { MembershipService } from '../membership/membership.service';
+import { TrustService } from '../trust/trust.service';
 import { PayoutRequest } from './entities/payout-request.entity';
 import { WalletHold } from './entities/wallet-hold.entity';
 import { Wallet } from './entities/wallet.entity';
@@ -34,6 +36,12 @@ describe('WalletService', () => {
     getOrCreateAccount: jest.Mock;
     postEntry: jest.Mock;
     getWalletHistory: jest.Mock;
+  };
+  let membershipService: {
+    getSellerBenefits: jest.Mock;
+  };
+  let trustService: {
+    assertAllowed: jest.Mock;
   };
   let manager: {
     findOne: jest.Mock;
@@ -98,6 +106,19 @@ describe('WalletService', () => {
         items: [],
       })),
     };
+    membershipService = {
+      getSellerBenefits: jest.fn().mockResolvedValue({
+        visibilityBoost: 0,
+        adCredits: 0,
+        adDiscountRate: 0,
+        commissionRate: 0.1,
+        payoutPriority: 'standard',
+        badgeLevel: 'New',
+      }),
+    };
+    trustService = {
+      assertAllowed: jest.fn().mockResolvedValue({ allowed: true }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -107,6 +128,8 @@ describe('WalletService', () => {
         { provide: getRepositoryToken(PayoutRequest), useValue: payoutRequestRepo },
         { provide: DataSource, useValue: dataSource },
         { provide: LedgerService, useValue: ledgerService },
+        { provide: MembershipService, useValue: membershipService },
+        { provide: TrustService, useValue: trustService },
       ],
     }).compile();
 
@@ -150,6 +173,35 @@ describe('WalletService', () => {
     );
     expect(result.status).toBe('HELD');
     expect(queryRunner.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('forces payout manual review when trust restrictions override priority benefits', async () => {
+    membershipService.getSellerBenefits.mockResolvedValueOnce({
+      visibilityBoost: 0,
+      adCredits: 0,
+      adDiscountRate: 0,
+      commissionRate: 0.08,
+      payoutPriority: 'priority',
+      badgeLevel: 'Trusted',
+    });
+    trustService.assertAllowed.mockRejectedValueOnce(new Error('manual review'));
+    manager.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...wallet });
+
+    const result = await service.requestPayout('user-1', {
+      amount: 2500,
+      currency: 'TRY',
+      idempotencyKey: 'payout:user-1:restricted',
+      payoutMethodMetadata: { ibanLast4: '1234' },
+    });
+
+    expect(result.payoutRequest.status).toBe(PayoutRequestStatus.ADMIN_REVIEW);
+    expect(result.payoutRequest.payoutMethodMetadata).toEqual(
+      expect.objectContaining({
+        payoutPriority: 'manual review',
+        manualReviewForced: true,
+        manualReviewReason: 'PAYOUT_MANUAL_REVIEW',
+      }),
+    );
   });
 
   it('rejects holds that exceed available cached balance', async () => {

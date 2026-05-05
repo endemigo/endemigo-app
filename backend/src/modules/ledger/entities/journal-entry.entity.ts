@@ -1,4 +1,4 @@
-import { LedgerReferenceType } from '@endemigo/shared/enums';
+import { JournalEntryType, LedgerReferenceType } from '@endemigo/shared/enums';
 import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { JournalLine } from './journal-line.entity';
@@ -11,10 +11,15 @@ export enum JournalEntryStatus {
 @Index(['referenceType', 'referenceId'])
 @Index(['idempotencyKey'], { unique: true })
 export class JournalEntry extends BaseEntity {
-  @Column()
-  type: string;
+  @Column({ type: 'enum', enum: JournalEntryType, enumName: 'journal_entry_type' })
+  type: JournalEntryType;
 
-  @Column({ type: 'enum', enum: JournalEntryStatus, default: JournalEntryStatus.POSTED })
+  @Column({
+    type: 'enum',
+    enum: JournalEntryStatus,
+    enumName: 'journal_entry_status',
+    default: JournalEntryStatus.POSTED,
+  })
   status: JournalEntryStatus;
 
   @Column({ type: 'enum', enum: LedgerReferenceType })

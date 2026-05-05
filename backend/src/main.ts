@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { buildCorsOptions, getAllowedCorsOrigins } from './common/http/cors.util';
 import { RedisIoAdapter } from './shared/websocket/redis-io.adapter';
 
 async function bootstrap() {
@@ -14,12 +15,12 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
-  // Security — CORS fail-safe: reject all origins if CORS_ORIGIN not set in production
   const corsOrigin = process.env.CORS_ORIGIN;
-  if (!corsOrigin && process.env.NODE_ENV === 'production') {
+  const allowedOrigins = getAllowedCorsOrigins(process.env.NODE_ENV, corsOrigin);
+  if (allowedOrigins.length === 0 && process.env.NODE_ENV === 'production') {
     throw new Error('CORS_ORIGIN must be set in production');
   }
-  app.enableCors({ origin: corsOrigin || '*' });
+  app.enableCors(buildCorsOptions(process.env.NODE_ENV, corsOrigin));
 
   // Global pipes and filters
   app.useGlobalPipes(

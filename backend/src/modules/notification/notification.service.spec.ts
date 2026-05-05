@@ -15,26 +15,42 @@ type MockRepository<T extends { id?: string }> = Partial<
   items: T[];
 };
 
-const createMockRepository = <T extends { id?: string }>(): MockRepository<T> => {
+const createMockRepository = <
+  T extends { id?: string },
+>(): MockRepository<T> => {
   const repo: MockRepository<T> = {
     items: [],
     create: jest.fn((input: Partial<T>) => input as T),
-    save: jest.fn(async (input: T) => {
-      const saved = { ...input, id: input.id ?? `id-${repo.items.length + 1}` } as T;
+    save: jest.fn((input: T) => {
+      const saved = {
+        ...input,
+        id: input.id ?? `id-${repo.items.length + 1}`,
+      } as T;
       const index = repo.items.findIndex((item) => item.id === saved.id);
       if (index >= 0) {
         repo.items[index] = saved;
       } else {
         repo.items.push(saved);
       }
-      return saved;
+      return Promise.resolve(saved);
     }),
-    find: jest.fn(async () => repo.items),
-    findOne: jest.fn(async ({ where }: { where: Partial<T> }) => {
-      return (
+    find: jest.fn(({ where }: { where?: Partial<T> } = {}) => {
+      if (!where) return Promise.resolve(repo.items);
+      return Promise.resolve(
+        repo.items.filter((item) =>
+          Object.entries(where).every(
+            ([key, value]) => item[key as keyof T] === value,
+          ),
+        ),
+      );
+    }),
+    findOne: jest.fn(({ where }: { where: Partial<T> }) => {
+      return Promise.resolve(
         repo.items.find((item) =>
-          Object.entries(where).every(([key, value]) => item[key as keyof T] === value),
-        ) ?? null
+          Object.entries(where).every(
+            ([key, value]) => item[key as keyof T] === value,
+          ),
+        ) ?? null,
       );
     }),
   };
@@ -72,7 +88,9 @@ describe('NotificationService', () => {
     });
 
     expect(result.code).toBe(RC.NOTIFICATION_CREATED);
-    expect(result.notification.deliveryStatus).toBe(NotificationDeliveryStatus.PENDING);
+    expect(result.notification.deliveryStatus).toBe(
+      NotificationDeliveryStatus.PENDING,
+    );
     const saveOrder = notificationRepository.save.mock.invocationCallOrder[0];
     const enqueueOrder = (queue.add as jest.Mock).mock.invocationCallOrder[0];
     expect(saveOrder).toBeLessThan(enqueueOrder);
@@ -111,7 +129,9 @@ describe('NotificationService', () => {
     const defaults = await service.getPreferences('user-1');
 
     expect(defaults.code).toBe(RC.NOTIFICATION_PREFERENCES_FETCHED);
-    expect(defaults.preferences.channels[NotificationEventType.AUCTION_OUTBID]).toEqual({
+    expect(
+      defaults.preferences.channels[NotificationEventType.AUCTION_OUTBID],
+    ).toEqual({
       inApp: true,
       push: true,
     });
@@ -126,7 +146,9 @@ describe('NotificationService', () => {
     });
 
     expect(updated.code).toBe(RC.NOTIFICATION_PREFERENCES_UPDATED);
-    expect(updated.preferences.channels[NotificationEventType.AUCTION_OUTBID].push).toBe(false);
+    expect(
+      updated.preferences.channels[NotificationEventType.AUCTION_OUTBID].push,
+    ).toBe(false);
   });
 
   it('lists and marks only the authenticated user notifications as read', async () => {
@@ -148,7 +170,9 @@ describe('NotificationService', () => {
     const list = await service.listForUser('user-1');
     const read = await service.markRead('user-1', owned.notification.id);
 
+    expect(list.code).toBe(RC.NOTIFICATION_FETCHED);
     expect(list.notifications).toHaveLength(1);
+    expect(read.code).toBe(RC.NOTIFICATION_READ);
     expect(read.notification.readAt).toBeInstanceOf(Date);
   });
 });

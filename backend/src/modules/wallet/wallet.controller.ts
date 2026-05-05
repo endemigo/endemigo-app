@@ -1,5 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -31,8 +44,22 @@ export class WalletController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cüzdan işlem geçmişi' })
   @ApiResponse({ status: 200, description: 'Ledger-backed işlem geçmişi' })
-  async getTransactionHistory(@CurrentUser('id') userId: string) {
-    return this.walletService.getTransactionHistory(userId);
+  async getTransactionHistory(
+    @CurrentUser('id') userId: string,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('type') type?: string,
+    @Query('types') types?: string,
+  ) {
+    return this.walletService.getTransactionHistory(userId, {
+      limit: this.parsePositiveNumber(limit),
+      page: this.parsePositiveNumber(page),
+      type,
+      types: types
+        ?.split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
   }
 
   @Post('payout-requests')
@@ -58,7 +85,10 @@ export class WalletController {
   @ApiBearerAuth()
   @Roles('admin')
   @ApiOperation({ summary: 'Payout talebini onayla' })
-  async approvePayoutRequest(@Param('id') id: string, @Body() dto: ReviewPayoutDto) {
+  async approvePayoutRequest(
+    @Param('id') id: string,
+    @Body() dto: ReviewPayoutDto,
+  ) {
     return this.walletService.approvePayoutRequest(id, dto);
   }
 
@@ -66,7 +96,16 @@ export class WalletController {
   @ApiBearerAuth()
   @Roles('admin')
   @ApiOperation({ summary: 'Payout talebini reddet' })
-  async rejectPayoutRequest(@Param('id') id: string, @Body() dto: ReviewPayoutDto) {
+  async rejectPayoutRequest(
+    @Param('id') id: string,
+    @Body() dto: ReviewPayoutDto,
+  ) {
     return this.walletService.rejectPayoutRequest(id, dto);
+  }
+
+  private parsePositiveNumber(value?: string): number | undefined {
+    if (!value) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   }
 }

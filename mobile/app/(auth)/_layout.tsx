@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { Colors } from '../../constants/theme';
+import { Colors, FontFamily } from '../../constants/theme';
 
 export default function AuthLayout() {
   return (
@@ -10,7 +10,7 @@ export default function AuthLayout() {
         },
         headerTintColor: Colors.white,
         headerTitleStyle: {
-          fontFamily: 'PlusJakartaSans-Bold',
+          fontFamily: FontFamily.headline,
           fontWeight: '600',
         },
         headerShadowVisible: false,

@@ -26,7 +26,10 @@ export const useRoleModeStore = create<RoleModeState>()(
     (set, get) => ({
       activeMode: 'buyer',
       setRoleMode: (mode, user) => {
-        set({ activeMode: mode === 'seller' && !isSellerUser(user) ? 'buyer' : mode });
+        set({
+          activeMode:
+            mode === 'seller' && user !== undefined && !isSellerUser(user) ? 'buyer' : mode,
+        });
       },
       syncRoleModeFromUser: (user) => {
         if (!isSellerUser(user) && get().activeMode === 'seller') {

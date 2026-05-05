@@ -1,0 +1,75 @@
+import type { ImagePickerAsset } from 'expo-image-picker';
+
+export const PRODUCT_CREATE_LISTING_TYPES = {
+  DIRECT_SALE: 'DIRECT_SALE',
+  AUCTION: 'AUCTION',
+} as const;
+
+export type ProductCreateListingType =
+  (typeof PRODUCT_CREATE_LISTING_TYPES)[keyof typeof PRODUCT_CREATE_LISTING_TYPES];
+
+export const PRODUCT_CREATE_CONDITIONS = {
+  NEW: 'NEW',
+  EXCELLENT: 'EXCELLENT',
+  VERY_GOOD: 'VERY_GOOD',
+  GOOD: 'GOOD',
+} as const;
+
+export type ProductCreateCondition =
+  (typeof PRODUCT_CREATE_CONDITIONS)[keyof typeof PRODUCT_CREATE_CONDITIONS];
+
+export const PRODUCT_CREATE_AUCTION_TYPES = {
+  REALTIME: 'REALTIME',
+  TIMED: 'TIMED',
+} as const;
+
+export type ProductCreateAuctionType =
+  (typeof PRODUCT_CREATE_AUCTION_TYPES)[keyof typeof PRODUCT_CREATE_AUCTION_TYPES];
+
+export type ProductCreateWizardStep = 1 | 2 | 3 | 4 | 5;
+
+export interface ProductCreateImageDraft {
+  id: string;
+  uri: string;
+  fileName: string;
+  mimeType: string;
+  width?: number | null;
+  height?: number | null;
+  fileSize?: number | null;
+}
+
+export interface ProductCreateWizardState {
+  listingType: ProductCreateListingType;
+  title: string;
+  categoryId: string;
+  directSalePrice: string;
+  stockQuantity: string;
+  description: string;
+  condition: ProductCreateCondition;
+  originCountry: string;
+  originRegion: string;
+  askPriceEnabled: boolean;
+  askPriceMinAmount: string;
+  auctionStartPrice: string;
+  auctionMinIncrement: string;
+  auctionStartTime: string;
+  auctionEndTime: string;
+  auctionType: ProductCreateAuctionType;
+  antiSnipingEnabled: boolean;
+  extensionSeconds: string;
+  maxExtensions: string;
+  selectedAuctionStartDelayHours?: number | null;
+  selectedAuctionDurationHours?: number | null;
+  sku: string;
+  geoIndicationCertNo: string;
+  geoIndicationRegion: string;
+  weight: string;
+  dimensionWidth: string;
+  dimensionHeight: string;
+  dimensionDepth: string;
+}
+
+export type ProductCreatePickerAsset = Pick<
+  ImagePickerAsset,
+  'uri' | 'fileName' | 'mimeType' | 'width' | 'height' | 'fileSize' | 'assetId'
+>;

@@ -7,11 +7,17 @@ import { Favorite } from '../search/entities/favorite.entity';
 import { ProductService } from './product.service';
 import { ProductController, CategoryController } from './product.controller';
 import { UserModule } from '../user/user.module';
+import { AdsModule } from '../ads/ads.module';
+import { TrustModule } from '../trust/trust.module';
+import { MembershipModule } from '../membership/membership.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Product, ProductImage, Category, Favorite]),
     UserModule,
+    AdsModule,
+    TrustModule,
+    MembershipModule,
   ],
   controllers: [ProductController, CategoryController],
   providers: [ProductService],

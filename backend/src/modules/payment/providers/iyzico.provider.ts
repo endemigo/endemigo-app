@@ -8,9 +8,11 @@ import {
   RefundResult,
   RetrievedPaymentResult,
 } from './payment-provider.interface';
+import { MembershipPeriod } from '@endemigo/shared';
+import { MembershipPaymentProvider } from '../../membership/providers/membership-payment.provider';
 
 @Injectable()
-export class IyzicoProvider implements PaymentProviderPort {
+export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentProvider {
   private readonly apiKey?: string;
   private readonly secretKey?: string;
   private readonly baseUrl: string;
@@ -45,6 +47,33 @@ export class IyzicoProvider implements PaymentProviderPort {
 
   async cancelPayment(providerPaymentId: string): Promise<RefundResult> {
     return { providerRefundId: `cancel:${providerPaymentId}` };
+  }
+
+  async startSubscription(input: {
+    sellerId: string;
+    packageId: string;
+    period: MembershipPeriod;
+    amount: number;
+    currency: string;
+  }) {
+    const providerSubscriptionId = `iyzico-sub:${input.sellerId}:${input.packageId}:${input.period}`;
+    return {
+      providerSubscriptionId,
+      status: 'active' as const,
+      checkoutUrl: `${this.baseUrl}/recurring/${encodeURIComponent(providerSubscriptionId)}`,
+    };
+  }
+
+  async cancelAtPeriodEnd(providerSubscriptionId: string) {
+    return { cancelledAtPeriodEnd: Boolean(providerSubscriptionId) };
+  }
+
+  async handleRenewalWebhook(payload: unknown) {
+    const event = payload as { providerSubscriptionId?: string; status?: string };
+    return {
+      providerSubscriptionId: event.providerSubscriptionId ?? 'iyzico-sub:unknown',
+      status: event.status === 'success' ? 'success' as const : 'failed' as const,
+    };
   }
 
   assertSignatureV3(payload: unknown, signature?: string): boolean {

@@ -9,6 +9,7 @@ import { WalletHold } from '../wallet/entities/wallet-hold.entity';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
+import { OrderService } from '../order/order.service';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { BidStatus } from '../../shared/types/bid-status.enum';
@@ -25,6 +26,7 @@ describe('AuctionService', () => {
   let bidRepo: any;
   let walletService: any;
   let userService: any;
+  let orderService: any;
   let auctionQueue: any;
   let auctionGateway: any;
   let mockQueryRunner: any;
@@ -32,12 +34,14 @@ describe('AuctionService', () => {
   const mockSeller = {
     id: 'seller-1',
     isSeller: true,
+    isActive: true,
     firstName: 'Ali',
     lastName: 'Veli',
   };
   const mockBuyer = {
     id: 'buyer-1',
     isSeller: false,
+    isActive: true,
     firstName: 'Buyer',
     lastName: 'Test',
   };
@@ -116,7 +120,7 @@ describe('AuctionService', () => {
       getBalance: jest
         .fn()
         .mockResolvedValue({ balance: 10000, held: 0, available: 10000 }),
-      createHold: jest.fn().mockResolvedValue({ id: 'hold-1' }),
+      createHold: jest.fn().mockResolvedValue({ id: 'hold-1', status: HoldStatus.HELD }),
       releaseHold: jest.fn().mockResolvedValue(null),
       captureHold: jest
         .fn()
@@ -125,7 +129,11 @@ describe('AuctionService', () => {
     };
 
     userService = {
-      findById: jest.fn(),
+      findById: jest.fn().mockResolvedValue(mockBuyer),
+    };
+
+    orderService = {
+      createFromAuction: jest.fn().mockResolvedValue({ id: 'order-1' }),
     };
 
     auctionQueue = {
@@ -155,12 +163,19 @@ describe('AuctionService', () => {
       release: jest.fn(),
       manager: {
         findOne: jest.fn(),
+        query: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          getCount: jest.fn().mockResolvedValue(0),
+        }),
         create: jest.fn((EntityClass: any, data: any) => ({
           id: `new-${Date.now()}`,
           createdAt: new Date(),
           ...data,
         })),
-        save: jest.fn((entity: any) => Promise.resolve(entity)),
+        save: jest.fn((entityOrTarget: any, maybeEntity?: any) =>
+          Promise.resolve(maybeEntity ?? entityOrTarget),
+        ),
       },
     };
 
@@ -177,6 +192,7 @@ describe('AuctionService', () => {
         { provide: AuctionGateway, useValue: auctionGateway },
         { provide: WalletService, useValue: walletService },
         { provide: UserService, useValue: userService },
+        { provide: OrderService, useValue: orderService },
         { provide: getQueueToken('auction'), useValue: auctionQueue },
       ],
     }).compile();
@@ -269,6 +285,30 @@ describe('AuctionService', () => {
         }),
       );
     });
+
+    it('LOT üretimi ve auction kaydı aynı transaction içinde yapılmalı', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      auctionRepo.findOne.mockResolvedValue(createMockAuction());
+
+      await service.create('seller-1', {
+        productId: 'product-1',
+        startPrice: 1000,
+        startTime: '2026-04-08T10:00:00Z',
+        endTime: '2026-04-08T12:00:00Z',
+      });
+
+      expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('pg_advisory_xact_lock'),
+      );
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        Auction,
+        expect.objectContaining({
+          lotNumber: expect.stringMatching(/^LOT-\d{6}-\d{5}$/),
+        }),
+      );
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+    });
   });
 
   // ══════════════════════════════════════════════════════
@@ -360,6 +400,51 @@ describe('AuctionService', () => {
       );
     });
 
+    it('bidder hold release/create işlemlerini wallet service ile aynı transaction manager üzerinden yapmalı', async () => {
+      const existingHold = {
+        id: 'existing-hold',
+        auctionId: 'auction-1',
+        userId: 'buyer-1',
+        amount: 1250,
+        status: HoldStatus.HELD,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(createMockAuction())
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existingHold)
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 1250,
+        })
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 0,
+        });
+
+      await service.placeBid('auction-1', 'buyer-1', { amount: 1100 });
+
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
+      );
+      expect(walletService.createHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        1375,
+        mockQueryRunner.manager,
+      );
+      expect(mockQueryRunner.manager.create).not.toHaveBeenCalledWith(
+        WalletHold,
+        expect.anything(),
+      );
+    });
+
     it('rollback on error', async () => {
       mockQueryRunner.manager.findOne.mockRejectedValue(new Error('DB down'));
 
@@ -415,14 +500,13 @@ describe('AuctionService', () => {
       const auction = createMockAuction();
       mockQueryRunner.manager.findOne
         .mockResolvedValueOnce(auction)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'wallet-1',
-          userId: 'buyer-1',
-          balance: 500,
-          heldAmount: 0,
-        });
+        .mockResolvedValueOnce(null);
+      walletService.createHold.mockRejectedValueOnce(
+        new BadRequestException({
+          code: 'INSUFFICIENT_BALANCE',
+          message: 'Yetersiz bakiye',
+        }),
+      );
 
       await expect(
         service.placeBid('auction-1', 'buyer-1', { amount: 1100 }),
@@ -471,40 +555,18 @@ describe('AuctionService', () => {
         isWinningBid: true,
         status: BidStatus.ACTIVE,
       };
-      const previousLeaderHold = {
-        id: 'prev-hold',
-        auctionId: 'auction-1',
-        userId: 'buyer-2',
-        amount: 1250,
-        status: HoldStatus.HELD,
-      };
-      const previousLeaderWallet = {
-        id: 'wallet-2',
-        userId: 'buyer-2',
-        balance: 10000,
-        heldAmount: 1250,
-      };
-
       mockQueryRunner.manager.findOne
         .mockResolvedValueOnce(auction)
-        .mockResolvedValueOnce(previousBid)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'wallet-1',
-          userId: 'buyer-1',
-          balance: 10000,
-          heldAmount: 0,
-        })
-        .mockResolvedValueOnce(previousLeaderHold)
-        .mockResolvedValueOnce(previousLeaderWallet);
+        .mockResolvedValueOnce(previousBid);
 
       userService.findById.mockResolvedValue(mockBuyer);
       await service.placeBid('auction-1', 'buyer-1', { amount: 1100 });
 
-      expect(previousLeaderHold.status).toBe(HoldStatus.RELEASED);
-      expect(previousLeaderWallet.heldAmount).toBe(0);
-      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(previousLeaderHold);
-      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(previousLeaderWallet);
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-2',
+        mockQueryRunner.manager,
+      );
     });
 
     it('aynı kullanıcı teklif artırınca önceki hold ikinci kez serbest bırakılmamalı', async () => {
@@ -516,46 +578,19 @@ describe('AuctionService', () => {
         isWinningBid: true,
         status: BidStatus.ACTIVE,
       };
-      const existingHold = {
-        id: 'existing-hold',
-        auctionId: 'auction-1',
-        userId: 'buyer-1',
-        amount: 1250,
-        status: HoldStatus.HELD,
-      };
-
       mockQueryRunner.manager.findOne
         .mockResolvedValueOnce(auction)
-        .mockResolvedValueOnce(previousBid)
-        .mockResolvedValueOnce(existingHold)
-        .mockResolvedValueOnce({
-          id: 'wallet-1',
-          userId: 'buyer-1',
-          balance: 10000,
-          heldAmount: 1250,
-        })
-        .mockResolvedValueOnce({
-          id: 'wallet-1',
-          userId: 'buyer-1',
-          balance: 10000,
-          heldAmount: 0,
-        });
+        .mockResolvedValueOnce(previousBid);
 
       userService.findById.mockResolvedValue(mockBuyer);
       await service.placeBid('auction-1', 'buyer-1', { amount: 1100 });
 
-      const holdReleaseSaves = mockQueryRunner.manager.save.mock.calls.filter(
-        ([entity]) => entity.id === 'existing-hold' && entity.status === HoldStatus.RELEASED,
+      expect(walletService.releaseHold).toHaveBeenCalledTimes(1);
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
       );
-      const sameUserHoldLookups = mockQueryRunner.manager.findOne.mock.calls.filter(
-        ([entity, options]) =>
-          entity === WalletHold &&
-          options?.where?.auctionId === 'auction-1' &&
-          options?.where?.userId === 'buyer-1' &&
-          options?.where?.status === HoldStatus.HELD,
-      );
-      expect(holdReleaseSaves).toHaveLength(1);
-      expect(sameUserHoldLookups).toHaveLength(1);
     });
 
     it('gateway bid:new ve bid:outbid event emitlenmeli', async () => {
@@ -878,8 +913,37 @@ describe('AuctionService', () => {
         'buyer-1',
         expect.objectContaining({ finalPrice: 1200 }),
       );
-      expect(auctionGateway.emitBidLost).toHaveBeenCalled();
+      expect(auctionGateway.emitBidLost).not.toHaveBeenCalled();
       expect(auctionGateway.clearViewerCount).toHaveBeenCalledWith('auction-1');
+    });
+
+    it('post-commit side-effect failure schedules compensation without rollback', async () => {
+      const auction = createMockAuction({ bidCount: 2, endTime: new Date(Date.now() - 1000) });
+      const winningBid = {
+        id: 'winning-bid',
+        bidderId: 'buyer-1',
+        amount: 1200,
+      };
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+      mockQueryRunner.manager.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({}),
+      });
+      walletService.captureHold.mockRejectedValueOnce(new Error('wallet down'));
+
+      await expect(service.finalizeAuction('auction-1')).rejects.toThrow('wallet down');
+
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
+      expect(auctionQueue.add).toHaveBeenCalledWith(
+        'auction-finalization-compensation',
+        expect.objectContaining({ auctionId: 'auction-1' }),
+        expect.objectContaining({ attempts: 5 }),
+      );
     });
 
     it('ENDED müzayedeyi tekrar finalize etmemeli', async () => {

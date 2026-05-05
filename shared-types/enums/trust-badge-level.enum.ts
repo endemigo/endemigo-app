@@ -1,0 +1,6 @@
+export enum TrustBadgeLevel {
+  NEW = 'NEW',
+  TRUSTED = 'TRUSTED',
+  HIGHLY_TRUSTED = 'HIGHLY_TRUSTED',
+  RESTRICTED = 'RESTRICTED',
+}

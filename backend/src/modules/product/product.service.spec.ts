@@ -10,6 +10,7 @@ import { ProductStatus } from '../../shared/types/product-status.enum';
 import { ProductCondition } from '../../shared/types/product-condition.enum';
 import { ListingType } from '../../shared/types/listing-type.enum';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
+import { CreateProductDto } from './dto/create-product.dto';
 import {
   ForbiddenException,
   NotFoundException,
@@ -72,7 +73,12 @@ describe('ProductService', () => {
       addOrderBy: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn().mockResolvedValue([[{ ...mockProduct, status: ProductStatus.ACTIVE }], 1]),
+      getManyAndCount: jest
+        .fn()
+        .mockResolvedValue([
+          [{ ...mockProduct, status: ProductStatus.ACTIVE }],
+          1,
+        ]),
     };
 
     productRepo = {
@@ -116,7 +122,9 @@ describe('ProductService', () => {
     };
 
     storageService = {
-      upload: jest.fn().mockResolvedValue('/uploads/products/product-1/test.webp'),
+      upload: jest
+        .fn()
+        .mockResolvedValue('/uploads/products/product-1/test.webp'),
       delete: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -157,8 +165,27 @@ describe('ProductService', () => {
       );
     });
 
+    it('should ignore client-supplied imageUrl during creation', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      await service.create('seller-1', {
+        title: 'Antik Halı',
+        price: 25000,
+        imageUrl: 'https://example.com/bypass.jpg',
+      } as CreateProductDto & { imageUrl: string });
+
+      expect(productRepo.create.mock.calls[0][0]).not.toHaveProperty(
+        'imageUrl',
+      );
+    });
+
     it('should reject non-seller', async () => {
-      userService.findById.mockResolvedValue({ ...mockSeller, isSeller: false });
+      userService.findById.mockResolvedValue({
+        ...mockSeller,
+        isSeller: false,
+      });
 
       await expect(
         service.create('buyer-1', { title: 'X', price: 100 }),
@@ -194,16 +221,26 @@ describe('ProductService', () => {
     it('should update product fields', async () => {
       productRepo.findOne
         .mockResolvedValueOnce({ ...mockProduct }) // first call: ownership check
-        .mockResolvedValueOnce({ ...mockProduct, title: 'Updated', images: [], seller: mockSeller }); // second call: findById
+        .mockResolvedValueOnce({
+          ...mockProduct,
+          title: 'Updated',
+          images: [],
+          seller: mockSeller,
+        }); // second call: findById
 
-      const result = await service.update('seller-1', 'product-1', { title: 'Updated' });
+      const result = await service.update('seller-1', 'product-1', {
+        title: 'Updated',
+      });
 
       expect(result.code).toBe(RC.PRODUCT_UPDATED);
       expect(productRepo.save).toHaveBeenCalled();
     });
 
     it('should reject update by non-owner', async () => {
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, sellerId: 'other-seller' });
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        sellerId: 'other-seller',
+      });
 
       await expect(
         service.update('seller-1', 'product-1', { title: 'Hack' }),
@@ -216,6 +253,23 @@ describe('ProductService', () => {
       await expect(
         service.update('seller-1', 'nonexistent', { title: 'X' }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should require uploaded image records when activating', async () => {
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        imageUrl: '/uploads/products/product-1/bypass.webp',
+        images: [],
+        description: 'Yeterince uzun ürün açıklaması',
+        categoryId: 'cat-1',
+        price: 100,
+      });
+
+      await expect(
+        service.update('seller-1', 'product-1', {
+          status: ProductStatus.ACTIVE,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -233,19 +287,22 @@ describe('ProductService', () => {
     });
 
     it('should reject delete by non-owner', async () => {
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, sellerId: 'other' });
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        sellerId: 'other',
+      });
 
-      await expect(
-        service.remove('seller-1', 'product-1'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.remove('seller-1', 'product-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should throw NotFoundException', async () => {
       productRepo.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.remove('seller-1', 'nonexistent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.remove('seller-1', 'nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -262,7 +319,11 @@ describe('ProductService', () => {
     it('should upload image and set first as primary', async () => {
       productRepo.findOne.mockResolvedValue({ ...mockProduct, images: [] });
 
-      const result = await service.uploadImage('seller-1', 'product-1', mockFile);
+      const result = await service.uploadImage(
+        'seller-1',
+        'product-1',
+        mockFile,
+      );
 
       expect(result.code).toBe(RC.IMAGE_UPLOADED);
       expect(result.image.isPrimary).toBe(true);
@@ -272,16 +333,28 @@ describe('ProductService', () => {
 
     it('should set subsequent images as non-primary', async () => {
       const existingImages = [{ id: 'img-0', isPrimary: true }];
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, images: existingImages });
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        images: existingImages,
+      });
 
-      const result = await service.uploadImage('seller-1', 'product-1', mockFile);
+      const result = await service.uploadImage(
+        'seller-1',
+        'product-1',
+        mockFile,
+      );
 
       expect(result.image.isPrimary).toBe(false);
     });
 
     it('should reject when max images reached', async () => {
-      const tenImages = Array.from({ length: 10 }, (_, i) => ({ id: `img-${i}` }));
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, images: tenImages });
+      const tenImages = Array.from({ length: 10 }, (_, i) => ({
+        id: `img-${i}`,
+      }));
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        images: tenImages,
+      });
 
       await expect(
         service.uploadImage('seller-1', 'product-1', mockFile),
@@ -289,7 +362,10 @@ describe('ProductService', () => {
     });
 
     it('should reject upload by non-owner', async () => {
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, sellerId: 'other' });
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        sellerId: 'other',
+      });
 
       await expect(
         service.uploadImage('seller-1', 'product-1', mockFile),
@@ -350,9 +426,9 @@ describe('ProductService', () => {
         product: { sellerId: 'other' },
       });
 
-      await expect(
-        service.deleteImage('seller-1', 'img-1'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.deleteImage('seller-1', 'img-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -363,6 +439,7 @@ describe('ProductService', () => {
     it('should return paginated active products', async () => {
       const result = await service.findAll(1, 20);
 
+      expect(result.code).toBe(RC.PRODUCT_LIST);
       expect(result.items).toHaveLength(1);
       expect(result.total).toBe(1);
       expect(result.page).toBe(1);
@@ -376,6 +453,162 @@ describe('ProductService', () => {
 
       expect(qb.orderBy).toHaveBeenCalledWith('p.favoriteCount', 'DESC');
       expect(qb.addOrderBy).toHaveBeenCalledWith('p.createdAt', 'DESC');
+    });
+  });
+
+  describe('categories', () => {
+    it('returns active categories in response-code envelope', async () => {
+      categoryRepo.find.mockResolvedValue([
+        {
+          id: 'cat-1',
+          name: 'Root',
+          children: [
+            { id: 'cat-2', name: 'Active child', isActive: true, sortOrder: 2 },
+            {
+              id: 'cat-3',
+              name: 'Inactive child',
+              isActive: false,
+              sortOrder: 1,
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.findCategories();
+
+      expect(result).toMatchObject({
+        code: RC.CATEGORY_LIST,
+        message: expect.any(String),
+        categories: [
+          {
+            id: 'cat-1',
+            children: [{ id: 'cat-2' }],
+          },
+        ],
+      });
+    });
+
+    it('seeds category metadata with stable image urls', async () => {
+      const categoryStore = new Map<string, Record<string, unknown>>([
+        [
+          'elektronik',
+          {
+            id: 'root-electronic',
+            slug: 'elektronik',
+            name: 'Legacy Electronics',
+            description: 'legacy description',
+            imageUrl: 'https://legacy.example/electronics.jpg',
+            sortOrder: 99,
+            isActive: false,
+            isCulturalAsset: false,
+          },
+        ],
+        [
+          'elektronik-cep-telefonu',
+          {
+            id: 'child-phone',
+            slug: 'elektronik-cep-telefonu',
+            name: 'Legacy Phone',
+            parentId: 'old-parent',
+            description: null,
+            imageUrl: null,
+            sortOrder: 77,
+            isActive: false,
+            isCulturalAsset: false,
+          },
+        ],
+        [
+          'legacy-bedroom',
+          {
+            id: 'legacy-bedroom',
+            slug: 'legacy-bedroom',
+            name: 'Yatak Odası',
+            parentId: 'old-parent',
+            description: 'legacy bedroom',
+            imageUrl: 'https://legacy.example/bedroom.jpg',
+            sortOrder: 12,
+            isActive: true,
+            isCulturalAsset: false,
+          },
+        ],
+      ]);
+      let generatedId = 1;
+
+      categoryRepo.findOne.mockImplementation(async ({ where }) => {
+        if (where.slug) {
+          return categoryStore.get(where.slug) ?? null;
+        }
+
+        if (where.name) {
+          return (
+            Array.from(categoryStore.values()).find(
+              (category) => category.name === where.name,
+            ) ?? null
+          );
+        }
+
+        return null;
+      });
+      categoryRepo.create.mockImplementation((data) => data);
+      categoryRepo.save.mockImplementation(async (entity) => {
+        const savedEntity = {
+          ...entity,
+          id: entity.id ?? `seeded-category-${generatedId++}`,
+        };
+        categoryStore.set(savedEntity.slug, savedEntity);
+        return savedEntity;
+      });
+      categoryRepo.find.mockImplementation(async () => {
+        const allCategories = Array.from(categoryStore.values());
+
+        return allCategories
+          .filter(
+            (category) => !category.parentId && category.isActive !== false,
+          )
+          .sort(
+            (left, right) => Number(left.sortOrder) - Number(right.sortOrder),
+          )
+          .map((root) => ({
+            ...root,
+            children: allCategories
+              .filter(
+                (category) =>
+                  category.parentId === root.id && category.isActive !== false,
+              )
+              .sort(
+                (left, right) =>
+                  Number(left.sortOrder) - Number(right.sortOrder),
+              ),
+          }));
+      });
+
+      const result = await service.seedCategories();
+
+      expect(result.code).toBe(RC.CATEGORY_SEEDED);
+      expect(result.categories).toHaveLength(9);
+      expect(categoryStore.get('elektronik')).toMatchObject({
+        id: 'root-electronic',
+        name: 'Elektronik',
+        sortOrder: 1,
+        isActive: true,
+        imageUrl:
+          'https://commons.wikimedia.org/wiki/Special:FilePath/A%20laptop%20as%20a%20computer%20machine.jpg',
+      });
+      expect(categoryStore.get('elektronik-cep-telefonu')).toMatchObject({
+        id: 'child-phone',
+        parentId: 'root-electronic',
+        sortOrder: 1,
+        isActive: true,
+        imageUrl:
+          'https://commons.wikimedia.org/wiki/Special:FilePath/Smartphone.png',
+      });
+      expect(categoryStore.get('mobilya-dekor-yatak-odasi')).toMatchObject({
+        id: 'legacy-bedroom',
+        name: 'Yatak Odası',
+      });
+      expect(categoryStore.get('antika-koleksiyon')).toMatchObject({
+        isCulturalAsset: true,
+      });
     });
   });
 
@@ -394,6 +627,7 @@ describe('ProductService', () => {
 
       const result = await service.findMyProducts('seller-1');
 
+      expect(result.code).toBe(RC.PRODUCT_LIST);
       expect(result.items).toHaveLength(2);
       expect(productRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -412,6 +646,7 @@ describe('ProductService', () => {
 
       const result = await service.findById('product-1');
 
+      expect(result.code).toBe(RC.PRODUCT_FETCHED);
       expect(result.id).toBe('product-1');
       expect(result.condition).toBe(ProductCondition.EXCELLENT);
       expect(result.listingType).toBe(ListingType.DIRECT_SALE);
@@ -433,7 +668,65 @@ describe('ProductService', () => {
     it('should throw NotFoundException', async () => {
       productRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findById('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findPublicById', () => {
+    it('should only fetch ACTIVE products for public detail', async () => {
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        status: ProductStatus.ACTIVE,
+      });
+
+      const result = await service.findPublicById('product-1');
+
+      expect(result.code).toBe(RC.PRODUCT_FETCHED);
+      expect(productRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'product-1', status: ProductStatus.ACTIVE },
+        }),
+      );
+    });
+
+    it('should hide non-active products from public detail', async () => {
+      productRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findPublicById('product-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should hide public price fields for Ask Price products', async () => {
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        status: ProductStatus.ACTIVE,
+        askPriceEnabled: true,
+        askPriceMinAmount: 10000,
+      });
+
+      const result = await service.findPublicById('product-1');
+
+      expect(result.price).toBeNull();
+      expect(result.askPriceMinAmount).toBeNull();
+    });
+  });
+
+  describe('findById', () => {
+    it('should keep price visible for the product owner', async () => {
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        status: ProductStatus.ACTIVE,
+        askPriceEnabled: true,
+        askPriceMinAmount: 10000,
+      });
+
+      const result = await service.findById('product-1', 'seller-1');
+
+      expect(result.price).toBe(25000);
+      expect(result.askPriceMinAmount).toBe(10000);
     });
   });
 });

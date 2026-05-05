@@ -1,5 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LedgerService } from './ledger.service';
 
@@ -18,8 +23,14 @@ export class LedgerController {
     @Query('type') type?: string,
   ) {
     return this.ledgerService.getWalletHistory(userId, {
-      limit: limit ? Number(limit) : undefined,
+      limit: this.parsePositiveNumber(limit),
       type,
     });
+  }
+
+  private parsePositiveNumber(value?: string): number | undefined {
+    if (!value) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   }
 }

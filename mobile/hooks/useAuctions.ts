@@ -40,6 +40,8 @@ interface BidEntry {
 }
 
 interface AuctionResult {
+  code?: string;
+  message?: string;
   id: string;
   status: string;
   finalPrice: number;
@@ -47,6 +49,17 @@ interface AuctionResult {
   bidCount: number;
   winner: { id: string; name: string } | null;
   product: { id: string; title: string } | null;
+}
+
+interface ApiResponseEnvelope {
+  code: string;
+  message: string;
+}
+
+type BidListResponse = ApiResponseEnvelope & { bids: BidEntry[] };
+
+function unwrapBids(data: BidEntry[] | BidListResponse): BidEntry[] {
+  return Array.isArray(data) ? data : data.bids;
 }
 
 /**
@@ -86,8 +99,10 @@ export function useAuctionBids(id: string) {
     queryKey: ['auction-bids', id],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getAuctionBids(id);
-      const { data } = await api.get(`/auctions/${id}/bids`);
-      return data;
+      const { data } = await api.get<BidEntry[] | BidListResponse>(
+        `/auctions/${id}/bids`,
+      );
+      return unwrapBids(data);
     },
     enabled: !!id,
     refetchInterval: 5000,

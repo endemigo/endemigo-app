@@ -1,9 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LedgerAccountType, LedgerDirection, LedgerReferenceType } from '@endemigo/shared/enums';
+import {
+  JournalEntryType,
+  LedgerAccountType,
+  LedgerDirection,
+  LedgerReferenceType,
+} from '@endemigo/shared/enums';
 import { RC } from '@endemigo/shared';
 import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
-import { JournalEntry, JournalEntryStatus } from './entities/journal-entry.entity';
+import {
+  JournalEntry,
+  JournalEntryStatus,
+} from './entities/journal-entry.entity';
 import { JournalLine } from './entities/journal-line.entity';
 import { LedgerAccount } from './entities/ledger-account.entity';
 
@@ -16,7 +24,7 @@ export interface LedgerLineInput {
 }
 
 export interface PostLedgerEntryInput {
-  type: string;
+  type: JournalEntryType;
   description: string;
   referenceType: LedgerReferenceType;
   referenceId: string;
@@ -26,7 +34,9 @@ export interface PostLedgerEntryInput {
 
 export interface LedgerHistoryFilters {
   limit?: number;
+  page?: number;
   type?: string;
+  types?: string[];
 }
 
 @Injectable()
@@ -41,14 +51,17 @@ export class LedgerService {
     private readonly journalLineRepo?: Repository<JournalLine>,
   ) {}
 
-  assertBalanced(lines: Array<{ direction: LedgerDirection | string; amount: number }>): void {
+  assertBalanced(
+    lines: Array<{ direction: LedgerDirection | string; amount: number }>,
+  ): void {
     const totals = lines.reduce(
       (acc, line) => {
         const amount = Number(line.amount);
-        if (line.direction === LedgerDirection.DEBIT) {
+        const direction = String(line.direction);
+        if (direction === 'DEBIT') {
           acc.debits += amount;
         }
-        if (line.direction === LedgerDirection.CREDIT) {
+        if (direction === 'CREDIT') {
           acc.credits += amount;
         }
         return acc;
@@ -81,7 +94,11 @@ export class LedgerService {
 
     if (manager) {
       const entry = await this.saveEntry(input, manager);
-      return { code: RC.LEDGER_ENTRY_POSTED, message: 'Ledger entry posted', entry };
+      return {
+        code: RC.LEDGER_ENTRY_POSTED,
+        message: 'Ledger entry posted',
+        entry,
+      };
     }
 
     if (!this.dataSource) {
@@ -98,7 +115,11 @@ export class LedgerService {
     try {
       const entry = await this.saveEntry(input, queryRunner.manager);
       await queryRunner.commitTransaction();
-      return { code: RC.LEDGER_ENTRY_POSTED, message: 'Ledger entry posted', entry };
+      return {
+        code: RC.LEDGER_ENTRY_POSTED,
+        message: 'Ledger entry posted',
+        entry,
+      };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -109,25 +130,42 @@ export class LedgerService {
 
   async getWalletHistory(userId: string, filters: LedgerHistoryFilters = {}) {
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
+    const page = Math.max(filters.page ?? 1, 1);
+    const offset = (page - 1) * limit;
     const query = this.journalLineRepo
       ?.createQueryBuilder('line')
       .leftJoinAndSelect('line.entry', 'entry')
       .where('line.userId = :userId', { userId })
       .orderBy('line.createdAt', 'DESC')
+      .skip(offset)
       .take(limit);
 
     if (!query) {
-      return { code: RC.WALLET_HISTORY_FETCHED, message: 'Wallet history fetched', items: [] };
+      return {
+        code: RC.WALLET_HISTORY_FETCHED,
+        message: 'Wallet history fetched',
+        items: [],
+        total: 0,
+        page,
+        limit,
+        hasNextPage: false,
+      };
     }
 
-    if (filters.type) {
+    if (filters.types?.length) {
+      query.andWhere('entry.type IN (:...types)', { types: filters.types });
+    } else if (filters.type) {
       query.andWhere('entry.type = :type', { type: filters.type });
     }
 
-    const lines = await query.getMany();
+    const [lines, total] = await query.getManyAndCount();
     return {
       code: RC.WALLET_HISTORY_FETCHED,
       message: 'Wallet history fetched',
+      total,
+      page,
+      limit,
+      hasNextPage: offset + lines.length < total,
       items: lines.map((line) => ({
         id: line.id,
         amount: Number(line.amount),
@@ -175,7 +213,10 @@ export class LedgerService {
     );
   }
 
-  private async saveEntry(input: PostLedgerEntryInput, manager: EntityManager): Promise<JournalEntry> {
+  private async saveEntry(
+    input: PostLedgerEntryInput,
+    manager: EntityManager,
+  ): Promise<JournalEntry> {
     const entry = manager.create(JournalEntry, {
       type: input.type,
       status: JournalEntryStatus.POSTED,
@@ -192,6 +233,31 @@ export class LedgerService {
       }),
     );
     await manager.save(JournalLine, lines);
+    await this.applyAccountBalanceDeltas(input.lines, manager);
     return savedEntry;
+  }
+
+  private async applyAccountBalanceDeltas(
+    lines: LedgerLineInput[],
+    manager: EntityManager,
+  ): Promise<void> {
+    for (const line of lines) {
+      const account = await manager.findOne(LedgerAccount, {
+        where: { id: line.accountId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!account) {
+        throw new BadRequestException({
+          code: RC.NOT_FOUND,
+          message: 'Ledger account not found',
+        });
+      }
+
+      const delta =
+        line.direction === LedgerDirection.DEBIT ? line.amount : -line.amount;
+      account.postedBalance = Number(account.postedBalance) + delta;
+      await manager.save(LedgerAccount, account);
+    }
   }
 }

@@ -1,17 +1,26 @@
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   LedgerAccountType,
   LedgerDirection,
+  JournalEntryType,
   LedgerReferenceType,
   PaymentProvider,
   PaymentStatus,
+  EscrowStatus,
   NotificationEventType,
+  OrderStatus,
   RC,
 } from '@endemigo/shared';
 import { EntityManager, Repository } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../notification/notification.service';
+import { OrderService } from '../order/order.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
@@ -31,6 +40,8 @@ export class PaymentService {
     private readonly ledgerService?: LedgerService,
     @Optional()
     private readonly notificationService?: NotificationService,
+    @Optional()
+    private readonly orderService?: OrderService,
   ) {}
 
   async initiatePayment(userId: string, dto: InitiatePaymentDto) {
@@ -38,6 +49,20 @@ export class PaymentService {
       where: { idempotencyKey: dto.idempotencyKey },
     });
     if (existing) {
+      if (existing.buyerId !== userId) {
+        throw new BadRequestException({
+          code: RC.ORDER_BUYER_MISMATCH,
+          message: 'Ödeme bu kullanıcıya ait değil',
+        });
+      }
+
+      if (dto.orderId && existing.orderId !== dto.orderId) {
+        throw new BadRequestException({
+          code: RC.ORDER_NOT_PAYABLE,
+          message: 'Ödeme sipariş bilgisi ile eşleşmiyor',
+        });
+      }
+
       return {
         code: RC.PAYMENT_INITIATED,
         message: 'Payment already initiated',
@@ -47,11 +72,15 @@ export class PaymentService {
       };
     }
 
+    const payableOrder = await this.resolvePayableOrder(userId, dto);
+    const amount = payableOrder?.amount ?? Number(dto.amount);
+    const currency = payableOrder?.currency ?? dto.currency ?? 'TRY';
+
     const draft = this.paymentRepository?.create({
       buyerId: userId,
-      orderId: dto.orderId ?? null,
-      amount: dto.amount,
-      currency: dto.currency ?? 'TRY',
+      orderId: payableOrder?.orderId ?? dto.orderId ?? null,
+      amount,
+      currency,
       provider: PaymentProvider.IYZICO,
       status: PaymentStatus.PENDING,
       idempotencyKey: dto.idempotencyKey,
@@ -65,12 +94,15 @@ export class PaymentService {
       adminReviewAt: null,
     });
 
-    const payment = draft && this.paymentRepository ? await this.paymentRepository.save(draft) : undefined;
+    const payment =
+      draft && this.paymentRepository
+        ? await this.paymentRepository.save(draft)
+        : undefined;
     const checkout = await this.iyzicoProvider?.initializeCheckout({
       paymentId: payment?.id ?? dto.idempotencyKey,
       buyerId: userId,
-      amount: dto.amount,
-      currency: dto.currency ?? 'TRY',
+      amount,
+      currency,
       callbackUrl: dto.callbackUrl,
     });
 
@@ -94,7 +126,10 @@ export class PaymentService {
     const eventKey = payload.eventKey;
 
     if (this.providerEventRepository && this.iyzicoProvider) {
-      const signatureValid = this.iyzicoProvider.assertSignatureV3(payload, signature);
+      const signatureValid = this.iyzicoProvider.assertSignatureV3(
+        payload,
+        signature,
+      );
       if (!signatureValid) {
         return {
           code: RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID,
@@ -121,7 +156,9 @@ export class PaymentService {
     };
   }
 
-  async retrieveAndApplyPayment(payload: IyzicoWebhookDto): Promise<Payment | undefined> {
+  async retrieveAndApplyPayment(
+    payload: IyzicoWebhookDto,
+  ): Promise<Payment | undefined> {
     const token = payload.token ?? payload.paymentId ?? payload.eventKey;
     const retrieved = await this.iyzicoProvider?.retrieveCheckout(token);
     const payment = await this.paymentRepository?.findOne({
@@ -137,7 +174,8 @@ export class PaymentService {
 
     if ((retrieved?.status ?? payload.status) === 'success') {
       payment.status = PaymentStatus.ESCROW_HELD;
-      payment.providerPaymentId = retrieved?.providerPaymentId ?? payment.providerPaymentId;
+      payment.providerPaymentId =
+        retrieved?.providerPaymentId ?? payment.providerPaymentId;
       payment.paidAt = new Date();
       await this.postPaymentLedgerEntry(payment);
       await this.notificationService?.createFromEvent({
@@ -165,18 +203,31 @@ export class PaymentService {
       payment.adminReviewAt = new Date();
     }
 
-    return this.paymentRepository.save(payment);
+    const saved = await this.paymentRepository.save(payment);
+    if (saved.orderId && saved.status === PaymentStatus.ESCROW_HELD) {
+      await this.orderService?.markPaymentEscrowHeld(
+        saved.orderId,
+        saved.id,
+        saved.buyerId,
+      );
+    }
+    if (saved.orderId && saved.status === PaymentStatus.FAILED) {
+      await this.orderService?.markPaymentFailedForReview(saved.orderId);
+    }
+
+    return saved;
   }
 
   async requestRefund(paymentId: string, userId?: string) {
-    const payment = await this.paymentRepository?.findOne({ where: { id: paymentId } });
+    const payment = await this.paymentRepository?.findOne({
+      where: { id: paymentId },
+    });
 
     if (!payment || !this.paymentRepository) {
-      return {
-        code: RC.PAYMENT_REFUND_REQUESTED,
-        message: 'Payment refund requested',
-        ledgerEntryId: `refund-ledger:${paymentId}`,
-      };
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Payment not found',
+      });
     }
 
     if (userId && payment.buyerId !== userId) {
@@ -187,7 +238,10 @@ export class PaymentService {
     }
 
     const providerResult = payment.providerPaymentId
-      ? await this.iyzicoProvider?.refundPayment(payment.providerPaymentId, Number(payment.amount))
+      ? await this.iyzicoProvider?.refundPayment(
+          payment.providerPaymentId,
+          Number(payment.amount),
+        )
       : undefined;
     const ledgerEntry = await this.postRefundLedgerEntry(payment);
 
@@ -214,7 +268,9 @@ export class PaymentService {
   }
 
   async markAdminReview(paymentId: string) {
-    const payment = await this.paymentRepository?.findOne({ where: { id: paymentId } });
+    const payment = await this.paymentRepository?.findOne({
+      where: { id: paymentId },
+    });
     if (!payment || !this.paymentRepository) {
       return {
         code: RC.PAYMENT_WEBHOOK_PROCESSED,
@@ -242,11 +298,68 @@ export class PaymentService {
       return false;
     }
 
-    const existing = await this.providerEventRepository.findOne({ where: { eventKey } });
+    const existing = await this.providerEventRepository.findOne({
+      where: { eventKey },
+    });
     return Boolean(existing);
   }
 
-  private async saveProviderEvent(payload: IyzicoWebhookDto, paymentId: string | null) {
+  private async resolvePayableOrder(
+    userId: string,
+    dto: InitiatePaymentDto,
+  ): Promise<{ orderId: string; amount: number; currency: string } | null> {
+    if (!dto.orderId) {
+      return null;
+    }
+
+    const order = await this.orderService?.findPaymentOrder(dto.orderId);
+    if (!order) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
+    }
+
+    if (order.buyerId !== userId) {
+      throw new BadRequestException({
+        code: RC.ORDER_BUYER_MISMATCH,
+        message: 'Order does not belong to authenticated user',
+      });
+    }
+
+    if (
+      ![OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING].includes(order.status) ||
+      order.escrowStatus !== EscrowStatus.NOT_FUNDED
+    ) {
+      throw new BadRequestException({
+        code: RC.ORDER_NOT_PAYABLE,
+        message: 'Order is not payable',
+      });
+    }
+
+    const orderAmount = Number(order.amount);
+    if (Number(dto.amount) !== orderAmount) {
+      throw new BadRequestException({
+        code: RC.ORDER_AMOUNT_MISMATCH,
+        message: 'Payment amount does not match order amount',
+      });
+    }
+
+    const currency = dto.currency ?? order.currency;
+    if (currency !== order.currency) {
+      throw new BadRequestException({
+        code: RC.ORDER_CURRENCY_MISMATCH,
+        message: 'Payment currency does not match order currency',
+      });
+    }
+
+    return { orderId: order.id, amount: orderAmount, currency: order.currency };
+  }
+
+  private async saveProviderEvent(
+    payload: IyzicoWebhookDto,
+    paymentId: string | null,
+  ) {
     if (!this.providerEventRepository) {
       return;
     }
@@ -262,7 +375,10 @@ export class PaymentService {
     await this.providerEventRepository.save(event);
   }
 
-  private async postPaymentLedgerEntry(payment: Payment, manager?: EntityManager) {
+  private async postPaymentLedgerEntry(
+    payment: Payment,
+    manager?: EntityManager,
+  ) {
     if (!this.ledgerService) {
       return undefined;
     }
@@ -282,7 +398,7 @@ export class PaymentService {
 
     return this.ledgerService.postEntry(
       {
-        type: 'payment_escrow',
+        type: JournalEntryType.PAYMENT_ESCROW,
         description: 'Move buyer payment into escrow',
         referenceType: LedgerReferenceType.PAYMENT,
         referenceId: payment.id,
@@ -325,7 +441,7 @@ export class PaymentService {
     );
 
     return this.ledgerService.postEntry({
-      type: 'payment_refund',
+      type: JournalEntryType.PAYMENT_REFUND,
       description: 'Reverse payment escrow for refund',
       referenceType: LedgerReferenceType.REFUND,
       referenceId: payment.id,

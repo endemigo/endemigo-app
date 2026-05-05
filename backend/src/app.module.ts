@@ -13,11 +13,23 @@ import { ProductModule } from './modules/product/product.module';
 import { AuctionModule } from './modules/auction/auction.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { SearchModule } from './modules/search/search.module';
+import { CartModule } from './modules/cart/cart.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { OrderModule } from './modules/order/order.module';
 import { CargoModule } from './modules/cargo/cargo.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
+import { AdminAuditModule } from './modules/admin-audit/admin-audit.module';
+import { AdminSettingsModule } from './modules/admin-settings/admin-settings.module';
+import { AdminOperationsModule } from './modules/admin-operations/admin-operations.module';
+import { AdsModule } from './modules/ads/ads.module';
+import { CampaignModule } from './modules/campaign/campaign.module';
+import { MembershipModule } from './modules/membership/membership.module';
+import { NegotiationModule } from './modules/negotiation/negotiation.module';
+import { TrustModule } from './modules/trust/trust.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { MobileConfigModule } from './modules/mobile-config/mobile-config.module';
 import { StorageModule } from './shared/storage/storage.module';
 import { EmailModule } from './shared/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -32,7 +44,7 @@ import { RolesGuard } from './common/guards/roles.guard';
         type: 'postgres' as const,
         url: configService.get<string>('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: configService.get<string>('NODE_ENV') === 'development',
+        synchronize: false,
         logging: configService.get<string>('NODE_ENV') === 'development',
         poolSize: 20,
       }),
@@ -61,6 +73,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     EmailModule,
     AuthModule,
     UserModule,
+    CartModule,
     SearchModule,     // MUST be before ProductModule/AuctionModule — route priority
     ProductModule,
     AuctionModule,
@@ -70,6 +83,17 @@ import { RolesGuard } from './common/guards/roles.guard';
     OrderModule,
     CargoModule,
     NotificationModule,
+    AdminAuthModule,
+    AdminAuditModule,
+    AdminSettingsModule,
+    AdminOperationsModule,
+    AdsModule,
+    CampaignModule,
+    MembershipModule,
+    NegotiationModule,
+    TrustModule,
+    MobileConfigModule,
+    ReportsModule,
     HealthModule,
   ],
   providers: [

@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { CountdownTimer } from '../../components/auction/CountdownTimer';
 import { Colors } from '../../constants/theme';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 import { styles } from '../../styles/auction/[id].styles';
 
 export default function AuctionDetailScreen() {
@@ -73,13 +74,16 @@ export default function AuctionDetailScreen() {
   const isSeller = user?.id === auction.sellerId;
   const minBid = currentPrice + Number(auction.minIncrement);
   const premium = Number(bidAmount || 0) * Number(auction.buyerPremiumRate);
+  const placeholderLabel = encodeURIComponent(t('auction.placeholderImage'));
 
   const handleBid = async () => {
     const amount = parseFloat(bidAmount);
     if (isNaN(amount) || amount < minBid) {
       showModal({
-        title: t('common.error') || 'Hata',
-        message: `Minimum teklif: ${minBid.toFixed(2)}₺`,
+        title: t('common.error'),
+        message: t('auction.minBidError', {
+          amount: minBid.toFixed(2),
+        }),
         type: 'error',
       });
       return;
@@ -87,14 +91,20 @@ export default function AuctionDetailScreen() {
     try {
       await placeBid.mutateAsync({ auctionId: id, amount });
       showModal({
-        title: 'Başarılı! 🎉',
-        message: `${amount.toLocaleString('tr-TR')}₺ teklifiniz kabul edildi.`,
+        title: t('auction.bidAcceptedTitle'),
+        message: t('auction.bidAcceptedMessage', {
+          amount: amount.toLocaleString('tr-TR'),
+        }),
         type: 'success',
       });
-    } catch (err: any) {
-      const msg = err.response?.data?.error?.message || 'Teklif verilemedi';
+    } catch (err: unknown) {
+      const msg = resolveApiErrorMessage(
+        err,
+        t,
+        'auction.bidErrorFallback',
+      );
       showModal({
-        title: t('common.error') || 'Hata',
+        title: t('common.error'),
         message: msg,
         type: 'error',
       });
@@ -110,7 +120,7 @@ export default function AuctionDetailScreen() {
             source={{
               uri:
                 auction.productImage ||
-                'https://placehold.co/400x300/F8F9FA/F26838?text=Müzayede',
+                `https://placehold.co/400x300/F8F9FA/F26838?text=${placeholderLabel}`,
             }}
             style={styles.image}
           />
@@ -129,14 +139,18 @@ export default function AuctionDetailScreen() {
           {/* Viewer Count + Connection Status */}
           {(socket.viewerCount > 0 || socket.isConnected) && (
             <View style={styles.viewerBadge}>
-              <Ionicons name="eye" size={14} color="#fff" />
+              <Ionicons name="eye" size={14} color={Colors.white} />
               <Text style={styles.viewerText}>
                 {socket.viewerCount || '–'}
               </Text>
               <View
                 style={[
                   styles.connectionDot,
-                  { backgroundColor: socket.isConnected ? '#4ade80' : '#ef4444' },
+                  {
+                    backgroundColor: socket.isConnected
+                      ? Colors.secondary
+                      : Colors.error,
+                  },
                 ]}
               />
             </View>
@@ -162,8 +176,9 @@ export default function AuctionDetailScreen() {
             </View>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>
-                Alıcı Primi (
-                %{(Number(auction.buyerPremiumRate) * 100).toFixed(0)})
+                {t('auction.buyerPremiumRate', {
+                  rate: (Number(auction.buyerPremiumRate) * 100).toFixed(0),
+                })}
               </Text>
               <Text style={styles.premiumValue}>
                 +₺
@@ -184,7 +199,9 @@ export default function AuctionDetailScreen() {
               <View style={styles.timerRow}>
                 <View style={styles.timerLeft}>
                   <Ionicons name="stop-circle" size={18} color={Colors.error} />
-                  <Text style={styles.timerLabel}>Müzayede Bitti</Text>
+                  <Text style={styles.timerLabel}>
+                    {t('auction.auctionEnded')}
+                  </Text>
                 </View>
                 <Text style={[styles.timerValue, styles.timerEnded]}>
                   00:00:00
@@ -198,14 +215,16 @@ export default function AuctionDetailScreen() {
                 size={14}
                 color={Colors.onSurfaceVariant}
               />
-              <Text style={styles.bidCount}>{bidCount} teklif</Text>
+              <Text style={styles.bidCount}>
+                {t('auction.bidCountLabel', { count: bidCount })}
+              </Text>
             </View>
           </View>
 
           {/* Live Update Indicator */}
           {socket.lastBid && isActive && (
             <View style={styles.lastBidBanner}>
-              <Ionicons name="flash" size={16} color="#f59e0b" />
+              <Ionicons name="flash" size={16} color={Colors.accent} />
               <Text style={styles.lastBidText}>
                 {socket.lastBid.bidderName} — ₺
                 {socket.lastBid.amount.toLocaleString('tr-TR')}
@@ -230,7 +249,9 @@ export default function AuctionDetailScreen() {
                 <View style={styles.walletRow}>
                   <Ionicons name="wallet" size={14} color={Colors.secondary} />
                   <Text style={styles.walletInfo}>
-                    Bakiye: {wallet.available.toLocaleString('tr-TR')}₺
+                    {t('auction.walletAvailable', {
+                      amount: wallet.available.toLocaleString('tr-TR'),
+                    })}
                   </Text>
                 </View>
               )}
@@ -269,10 +290,11 @@ export default function AuctionDetailScreen() {
               </View>
               {premium > 0 && (
                 <Text style={styles.premiumInfo}>
-                  Alıcı primi dahil toplam: ₺
-                  {(parseFloat(bidAmount || '0') + premium).toLocaleString(
-                    'tr-TR',
-                  )}
+                  {t('auction.premiumTotal', {
+                    amount: (
+                      parseFloat(bidAmount || '0') + premium
+                    ).toLocaleString('tr-TR'),
+                  })}
                 </Text>
               )}
             </View>
@@ -282,11 +304,15 @@ export default function AuctionDetailScreen() {
           {isEnded && socket.isWinner && (
             <View style={styles.winnerBanner}>
               <Text style={styles.winnerEmoji}>🏆</Text>
-              <Text style={styles.winnerTitle}>Tebrikler!</Text>
+              <Text style={styles.winnerTitle}>
+                {t('auction.winnerTitle')}
+              </Text>
               <Text style={styles.winnerText}>
-                Müzayedeyi ₺
-                {(socket.finalPrice || currentPrice).toLocaleString('tr-TR')}{' '}
-                ile kazandınız!
+                {t('auction.winnerMessage', {
+                  amount: (socket.finalPrice || currentPrice).toLocaleString(
+                    'tr-TR',
+                  ),
+                })}
               </Text>
             </View>
           )}
@@ -294,7 +320,7 @@ export default function AuctionDetailScreen() {
           {isEnded && !socket.isWinner && socket.auctionEnded && (
             <View style={styles.loserBanner}>
               <Text style={styles.loserText}>
-                Müzayede sona erdi. Holdunuz iade edildi.
+                {t('auction.loserMessage')}
               </Text>
             </View>
           )}

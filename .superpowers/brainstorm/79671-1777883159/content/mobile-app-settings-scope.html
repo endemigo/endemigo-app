@@ -1,0 +1,93 @@
+<h2>Mobil Uygulama Menusu: Ne Yönetilebilir?</h2>
+<p class="subtitle">Admin panelde "Mobil Uygulama" alanı için ilk analiz. Amaç: teknik riski düşük tutup, iş tarafına yüksek esneklik vermek.</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Ana Sayfa Konfigürasyon Haritası</div>
+    <div class="mockup-body" style="display:grid;gap:14px">
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:12px">
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#fff7ec">
+          <div class="label">1. HERO ALANI</div>
+          <h3 style="margin:6px 0 8px">Banner Carousel</h3>
+          <p style="margin:0">Badge, baslik, alt metin, gorsel, tiklaninca gidilecek yer, aktif/pasif, siralama</p>
+        </div>
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#eef8ff">
+          <div class="label">2. HIZLI GIRIS</div>
+          <h3 style="margin:6px 0 8px">Hemen Al / Muzayede Kartlari</h3>
+          <p style="margin:0">Baslik, aciklama, buton metni, hedef ekran, gizle/goster, kart sirasi</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#f7fdf4">
+          <div class="label">3. URUN BLOKLARI</div>
+          <p style="margin:6px 0 0">Keşfettiklerim, Ilanlar, Indirimdekiler, En Cok Begenilenler</p>
+          <p style="margin:6px 0 0">Baslik, "Tumunu Gor", gizle/goster, sira, kaynak tipi</p>
+        </div>
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#f8f5ff">
+          <div class="label">4. KATEGORI SATIRLARI</div>
+          <p style="margin:6px 0 0">Kategori bazli section ac/kapat, section sirasi, max urun sayisi</p>
+        </div>
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#fff5f5">
+          <div class="label">5. KAMPANYA / BLOG / GUVEN</div>
+          <p style="margin:6px 0 0">Kampanya kartlari, Guven Merkezi, blog blogu, sabit bannerlar</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#f5fbff">
+          <div class="label">6. KART DUZEYI</div>
+          <p style="margin:6px 0 0">Product card CTA, fiyat yerine "Fiyat Sor", badge, etiket, kartta hangi alanlar gorunsun</p>
+        </div>
+        <div style="padding:14px;border:1px solid #d7e0ea;border-radius:16px;background:#fcfaf3">
+          <div class="label">7. MUZAYEDE LISTESI</div>
+          <p style="margin:6px 0 0">Baslik, buton metni, canli badge metni, meta alanlarini ac/kapat</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Ilk Surum Kapsami</h3>
+  <p class="subtitle">Asagidaki seceneklerden biriyle baslamak hem maliyeti hem operasyon zorlugunu belirler.</p>
+  <div class="options">
+    <div class="option" data-choice="core" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Core Configs</h3>
+        <p>Metin degistir, buton metni degistir, blok gizle/goster, section sirasi degistir.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Artı</h4><ul><li>Hizli cikar</li><li>Dusuk teknik risk</li><li>Admin kullanimi net</li></ul></div>
+          <div class="cons"><h4>Eksi</h4><ul><li>Tam tasarim ozgurlugu vermez</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <div class="option" data-choice="content-plus" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Content Plus</h3>
+        <p>A'ya ek olarak hedef ekran/route, section bazli veri kaynagi, kart icindeki alan secimleri.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Artı</h4><ul><li>Is ekibine guclu kontrol</li><li>Kampanya yonetimi daha esnek</li></ul></div>
+          <div class="cons"><h4>Eksi</h4><ul><li>Dogrulama kurallari artar</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <div class="option" data-choice="full-cms" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Full Visual CMS</h3>
+        <p>Admin tarafinda neredeyse tum ana sayfa bloklari serbest, renk/ikon/gorsel yerlesimi dahil.</p>
+        <div class="pros-cons">
+          <div class="pros"><h4>Artı</h4><ul><li>Maksimum esneklik</li></ul></div>
+          <div class="cons"><h4>Eksi</h4><ul><li>Yuksek teknik risk</li><li>UI tutarliligi bozulabilir</li><li>Validasyon cok buyur</li></ul></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">Onerim: <strong>A veya B</strong> ile baslamak. C secenegi ilk faz icin gereksiz agir kalir.</p>
+</div>

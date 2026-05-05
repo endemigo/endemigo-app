@@ -8,12 +8,55 @@ import { ProductStatus } from '../../shared/types/product-status.enum';
 import { ProductCondition } from '../../shared/types/product-condition.enum';
 import { ListingType } from '../../shared/types/listing-type.enum';
 import { NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { AuctionStatus } from '../../shared/types/auction-status.enum';
+import { RC } from '../../shared/constants/response-codes';
+import {
+  AuctionSearchStatus,
+  ProductSearchSort,
+  SearchAuctionsDto,
+  SearchProductsDto,
+} from './dto/search.dto';
+
+type FavoriteQueryBuilderMock = {
+  innerJoinAndSelect: jest.Mock;
+  leftJoinAndSelect: jest.Mock;
+  where: jest.Mock;
+  orderBy: jest.Mock;
+  skip: jest.Mock;
+  take: jest.Mock;
+  getManyAndCount: jest.Mock;
+};
+
+type ProductRepositoryMock = {
+  createQueryBuilder: jest.Mock;
+  findOne: jest.Mock;
+  increment: jest.Mock;
+  decrement: jest.Mock;
+};
+
+type AuctionRepositoryMock = {
+  createQueryBuilder: jest.Mock;
+};
+
+type FavoriteRepositoryMock = {
+  find: jest.Mock;
+  findOne: jest.Mock;
+  findAndCount: jest.Mock;
+  createQueryBuilder: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  remove: jest.Mock;
+  delete: jest.Mock;
+};
 
 describe('SearchService', () => {
   let service: SearchService;
-  let productRepo: any;
-  let auctionRepo: any;
-  let favoriteRepo: any;
+  let productRepo: ProductRepositoryMock;
+  let auctionRepo: AuctionRepositoryMock;
+  let favoriteRepo: FavoriteRepositoryMock;
+  let favoriteQb: FavoriteQueryBuilderMock;
 
   const mockProduct = {
     id: 'p1',
@@ -47,6 +90,18 @@ describe('SearchService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
+    favoriteQb = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+
     productRepo = {
       createQueryBuilder: jest.fn().mockReturnValue({
         ...mockQb,
@@ -70,9 +125,11 @@ describe('SearchService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
       findAndCount: jest.fn().mockResolvedValue([[], 0]),
+      createQueryBuilder: jest.fn().mockReturnValue(favoriteQb),
       create: jest.fn((data) => ({ id: 'fav-1', ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       remove: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -111,24 +168,30 @@ describe('SearchService', () => {
     it('should apply price filter', async () => {
       await service.searchProducts({ minPrice: 100, maxPrice: 5000 });
 
-      expect(mockQb.andWhere).toHaveBeenCalledWith('p.price >= :minPrice', { minPrice: 100 });
-      expect(mockQb.andWhere).toHaveBeenCalledWith('p.price <= :maxPrice', { maxPrice: 5000 });
+      expect(mockQb.andWhere).toHaveBeenCalledWith('p.price >= :minPrice', {
+        minPrice: 100,
+      });
+      expect(mockQb.andWhere).toHaveBeenCalledWith('p.price <= :maxPrice', {
+        maxPrice: 5000,
+      });
     });
 
     it('should apply condition filter', async () => {
       await service.searchProducts({ condition: ProductCondition.EXCELLENT });
 
-      expect(mockQb.andWhere).toHaveBeenCalledWith('p.condition = :condition', { condition: 'EXCELLENT' });
+      expect(mockQb.andWhere).toHaveBeenCalledWith('p.condition = :condition', {
+        condition: 'EXCELLENT',
+      });
     });
 
     it('should sort by price ascending', async () => {
-      await service.searchProducts({ sort: 'price_asc' });
+      await service.searchProducts({ sort: ProductSearchSort.PRICE_ASC });
 
       expect(mockQb.orderBy).toHaveBeenCalledWith('p.price', 'ASC');
     });
 
     it('should sort by popular (favoriteCount)', async () => {
-      await service.searchProducts({ sort: 'popular' });
+      await service.searchProducts({ sort: ProductSearchSort.POPULAR });
 
       expect(mockQb.orderBy).toHaveBeenCalledWith('p.favoriteCount', 'DESC');
     });
@@ -139,6 +202,13 @@ describe('SearchService', () => {
       const result = await service.searchProducts({}, 'user-1');
 
       expect(result.items[0].isFavorited).toBe(true);
+    });
+
+    it('should normalize invalid pagination before skip/take', async () => {
+      await service.searchProducts({ page: -3, limit: Number.NaN });
+
+      expect(mockQb.skip).toHaveBeenCalledWith(0);
+      expect(mockQb.take).toHaveBeenCalledWith(20);
     });
   });
 
@@ -151,6 +221,29 @@ describe('SearchService', () => {
 
       expect(result.items).toHaveLength(0);
       expect(result.total).toBe(0);
+    });
+
+    it('should restrict omitted auction status to public statuses', async () => {
+      await service.searchAuctions({});
+
+      expect(mockQb.andWhere).toHaveBeenCalledWith(
+        'a.status IN (:...statuses)',
+        {
+          statuses: [
+            AuctionStatus.PUBLISHED,
+            AuctionStatus.ACTIVE,
+            AuctionStatus.ENDED,
+          ],
+        },
+      );
+    });
+
+    it('should filter active auctions with AuctionStatus enum values', async () => {
+      await service.searchAuctions({ status: AuctionSearchStatus.ACTIVE });
+
+      expect(mockQb.andWhere).toHaveBeenCalledWith('a.status = :status', {
+        status: AuctionStatus.ACTIVE,
+      });
     });
   });
 
@@ -179,30 +272,62 @@ describe('SearchService', () => {
       const result = await service.toggleFavorite('user-1', 'p1');
 
       expect(result.isFavorited).toBe(true);
+      expect(result.code).toBe(RC.FAVORITE_ADDED);
       expect(favoriteRepo.save).toHaveBeenCalled();
-      expect(productRepo.increment).toHaveBeenCalledWith({ id: 'p1' }, 'favoriteCount', 1);
+      expect(productRepo.increment).toHaveBeenCalledWith(
+        { id: 'p1' },
+        'favoriteCount',
+        1,
+      );
     });
 
     it('should remove from favorites (optimistic insert → 23505 → remove)', async () => {
       productRepo.findOne.mockResolvedValue(mockProduct);
       // WR-01: Optimistic insert fails with unique constraint violation
       const uniqueError = new Error('duplicate key value');
-      (uniqueError as any).code = '23505';
+      (uniqueError as { code?: string }).code = '23505';
       favoriteRepo.save.mockRejectedValueOnce(uniqueError);
-      favoriteRepo.findOne.mockResolvedValue({ id: 'fav-1', userId: 'user-1', productId: 'p1' });
+      favoriteRepo.findOne.mockResolvedValue({
+        id: 'fav-1',
+        userId: 'user-1',
+        productId: 'p1',
+      });
 
       const result = await service.toggleFavorite('user-1', 'p1');
 
       expect(result.isFavorited).toBe(false);
-      expect(favoriteRepo.remove).toHaveBeenCalled();
+      expect(result.code).toBe(RC.FAVORITE_REMOVED);
+      expect(favoriteRepo.delete).toHaveBeenCalledWith({
+        userId: 'user-1',
+        productId: 'p1',
+      });
       // C5: favoriteCount decrement via GREATEST() queryBuilder
       expect(productRepo.createQueryBuilder).toHaveBeenCalled();
+    });
+
+    it('should not decrement favoriteCount when duplicate removal deletes no row', async () => {
+      productRepo.findOne.mockResolvedValue(mockProduct);
+      const uniqueError = new Error('duplicate key value');
+      (uniqueError as { code?: string }).code = '23505';
+      favoriteRepo.save.mockRejectedValueOnce(uniqueError);
+      favoriteRepo.delete.mockResolvedValueOnce({ affected: 0 });
+
+      const result = await service.toggleFavorite('user-1', 'p1');
+
+      expect(result.isFavorited).toBe(false);
+      expect(favoriteRepo.delete).toHaveBeenCalledWith({
+        userId: 'user-1',
+        productId: 'p1',
+      });
+      expect(productRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException for missing product', async () => {
       productRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.toggleFavorite('user-1', 'nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.toggleFavorite('user-1', 'nonexistent'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -211,7 +336,7 @@ describe('SearchService', () => {
   // ==========================================
   describe('getFavorites', () => {
     it('should return paginated favorites', async () => {
-      favoriteRepo.findAndCount.mockResolvedValue([
+      favoriteQb.getManyAndCount.mockResolvedValue([
         [{ product: mockProduct, createdAt: new Date() }],
         1,
       ]);
@@ -220,6 +345,49 @@ describe('SearchService', () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0].isFavorited).toBe(true);
+    });
+
+    it('should count only active non-deleted product favorites', async () => {
+      await service.getFavorites('user-1', -1, Number.NaN);
+
+      expect(favoriteRepo.createQueryBuilder).toHaveBeenCalledWith('f');
+      expect(favoriteQb.innerJoinAndSelect).toHaveBeenCalledWith(
+        'f.product',
+        'product',
+        'product.deletedAt IS NULL AND product.status = :status',
+        { status: ProductStatus.ACTIVE },
+      );
+      expect(favoriteQb.skip).toHaveBeenCalledWith(0);
+      expect(favoriteQb.take).toHaveBeenCalledWith(20);
+      expect(favoriteRepo.findAndCount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Search DTO validation', () => {
+    it('should transform inStock=false to false without applying truthy boolean coercion', async () => {
+      const dto = plainToInstance(SearchProductsDto, { inStock: 'false' });
+
+      expect(dto.inStock).toBe(false);
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    });
+
+    it('should reject invalid product sort, decimal page, and oversized limit', async () => {
+      const dto = plainToInstance(SearchProductsDto, {
+        sort: 'unknown',
+        page: 1.5,
+        limit: 51,
+      });
+
+      await expect(validate(dto)).resolves.not.toHaveLength(0);
+    });
+
+    it('should reject invalid auction status and sort values', async () => {
+      const dto = plainToInstance(SearchAuctionsDto, {
+        status: 'cancelled',
+        sort: 'random',
+      });
+
+      await expect(validate(dto)).resolves.not.toHaveLength(0);
     });
   });
 });

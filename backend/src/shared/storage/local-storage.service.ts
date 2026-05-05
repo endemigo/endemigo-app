@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IStorageService } from './storage.interface';
+import { RC } from '../constants/response-codes';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const sharp = require('sharp');
@@ -28,9 +29,9 @@ export class LocalStorageService implements IStorageService {
     }
 
     // WR-02: Verify image buffer before processing — MIME type alone is client-spoofable
-    const metadata = await sharp(file.buffer).metadata();
+    const metadata = await this.readImageMetadata(file.buffer);
     if (!metadata.format || !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
-      throw new Error('Geçersiz görsel formatı');
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel formatı' });
     }
 
     // Generate unique filename with webp extension
@@ -38,20 +39,40 @@ export class LocalStorageService implements IStorageService {
     const filePath = path.join(dir, filename);
 
     // Optimize with Sharp: resize max 800px, webp, quality 80
-    await sharp(file.buffer)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toFile(filePath);
+    try {
+      await sharp(file.buffer)
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toFile(filePath);
+    } catch {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
+    }
 
     this.logger.log(`Uploaded: ${subPath}/${filename}`);
     return `/uploads/${subPath}/${filename}`;
   }
 
   async delete(filePath: string): Promise<void> {
-    const fullPath = path.join(process.cwd(), filePath);
+    const uploadRoot = path.resolve(this.uploadDir);
+    const storagePath = filePath.startsWith('/') ? `.${filePath}` : filePath;
+    const fullPath = path.resolve(process.cwd(), storagePath);
+    const relativePath = path.relative(uploadRoot, fullPath);
+
+    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error('Invalid storage delete path');
+    }
+
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
       this.logger.log(`Deleted: ${filePath}`);
+    }
+  }
+
+  private async readImageMetadata(buffer: Buffer): Promise<{ format?: string }> {
+    try {
+      return await sharp(buffer).metadata();
+    } catch {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
     }
   }
 }

@@ -21,7 +21,6 @@ const defaultOptions: ModalOptions = {
   title: '',
   message: '',
   type: 'info',
-  confirmText: 'Tamam', // Should be translated at component level
 };
 
 /**

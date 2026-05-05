@@ -1,0 +1,117 @@
+<h2>Mobil Uygulama Ayar Ekrani</h2>
+<p class="subtitle">Telefon birebir gorunsun, tiklanan bolum drawer ile duzenlensin. Hangisi daha dogal geliyor?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Birebir Telefon + Tikla Duzenle</h3>
+      <p>Benim onerim. Ana odak telefon ekraninin kendisi olur.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Telefon + Katman Listesi</h3>
+      <p>Solda blok listesi, ortada telefon, sagda drawer.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Telefon + Hızlı Araç Cubugu</h3>
+      <p>Telefon ustunde hizli gizle/sira/meta aksiyonlari, detay drawer'da.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">A - Onerilen akis</div>
+      <div class="mockup-body">
+        <div style="display:flex; gap:18px; align-items:flex-start;">
+          <div style="width:230px; margin:0 auto; border:10px solid #1f2937; border-radius:34px; background:#f8fafc; padding:12px;">
+            <div style="height:18px; width:86px; background:#111827; border-radius:999px; margin:0 auto 14px;"></div>
+            <div style="display:grid; gap:10px;">
+              <div style="padding:12px; border-radius:18px; background:linear-gradient(135deg,#dbeafe,#fef3c7); border:2px solid #2563eb;">
+                <div class="label">Hero Banner</div>
+                <strong>Anadolu'nun Bereketli Topraklarindan</strong>
+                <p style="margin:6px 0 0;">Tiklaninca sag drawer acilir</p>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div style="padding:10px; border-radius:14px; background:#fff; border:1px solid #cbd5e1;">
+                  <strong>Hemen Al</strong>
+                  <p style="margin:6px 0 0;">Kart</p>
+                </div>
+                <div style="padding:10px; border-radius:14px; background:#fff; border:1px solid #cbd5e1;">
+                  <strong>Muzayede</strong>
+                  <p style="margin:6px 0 0;">Kart</p>
+                </div>
+              </div>
+              <div style="padding:10px; border-radius:14px; background:#fff; border:1px dashed #94a3b8;">Section: Kampanyalar</div>
+              <div style="padding:10px; border-radius:14px; background:#fff; border:1px dashed #94a3b8;">Section: Blog</div>
+            </div>
+          </div>
+          <div style="flex:1; min-width:220px; border:1px solid #cbd5e1; border-radius:20px; background:#fff; padding:14px;">
+            <div class="label">Sag Drawer</div>
+            <h3 style="margin-top:4px;">Hero Banner Ayarlari</h3>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px;">
+              <button class="mock-button">Icerik</button>
+              <button class="mock-button">Gorunurluk</button>
+              <button class="mock-button">Siralama</button>
+            </div>
+            <input class="mock-input" value="Baslik TR" />
+            <input class="mock-input" value="Baslik EN" />
+            <input class="mock-input" value="CTA Route" />
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="mock-button">Gizle</button>
+              <button class="mock-button">Yukari Al</button>
+              <button class="mock-button">Kaydet</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">B - Katman listeli</div>
+      <div class="mockup-body">
+        <div style="display:grid; grid-template-columns:150px 1fr; gap:14px;">
+          <div style="border-right:1px solid #cbd5e1; padding-right:10px;">
+            <div class="label">Bloklar</div>
+            <p>Hero</p>
+            <p>Hemen Al</p>
+            <p>Muzayede</p>
+            <p>Kampanyalar</p>
+            <p>Blog</p>
+          </div>
+          <div style="padding:14px; border-radius:20px; background:#f8fafc; border:1px solid #cbd5e1;">
+            Telefon preview ikinci planda kalir.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">C - Hızlı araç cubuklu</div>
+  <div class="mockup-body">
+    <div style="display:flex; gap:18px; align-items:flex-start;">
+      <div style="width:230px; border:10px solid #1f2937; border-radius:34px; background:#f8fafc; padding:12px;">
+        <div style="padding:12px; border-radius:18px; background:#fff; border:2px solid #16a34a;">
+          <div class="label">Secili Kart</div>
+          <strong>Hemen Al</strong>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
+            <button class="mock-button">Gizle</button>
+            <button class="mock-button">Yukari</button>
+            <button class="mock-button">Metin</button>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <p>Daha hizli ama kalabaliklasma riski var.</p>
+      </div>
+    </div>
+  </div>
+</div>

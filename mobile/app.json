@@ -1,11 +1,20 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Endemigo",
+    "slug": "endemigo",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/endemigo-logo.jpg",
-    "scheme": "mobile",
+    "scheme": "endemigo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -28,6 +37,11 @@
       "output": "static",
       "favicon": "./assets/images/endemigo-logo.jpg"
     },
+    "extra": {
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    },
     "plugins": [
       "expo-router",
       [
@@ -44,6 +58,14 @@
       ],
       "expo-font",
       "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Endemigo ürün görselleri yükleyebilmeniz için fotoğraflarınıza erişmek ister.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "expo-web-browser",
       "expo-secure-store"
     ],

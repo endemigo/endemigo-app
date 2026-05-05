@@ -28,6 +28,27 @@ import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RC } from '../../shared/constants/response-codes';
+
+function parsePositiveIntQuery(
+  value: unknown,
+  field: string,
+  defaultValue: number,
+  maxValue?: number,
+): number {
+  const rawValue = value ?? defaultValue;
+  const parsed =
+    typeof rawValue === 'number' ? rawValue : Number(String(rawValue));
+
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    throw new BadRequestException({
+      code: RC.VALIDATION_ERROR,
+      message: `${field} must be a positive integer`,
+    });
+  }
+
+  return maxValue ? Math.min(parsed, maxValue) : parsed;
+}
 
 @ApiTags('Products')
 @Controller('products')
@@ -84,7 +105,13 @@ export class ProductController {
       if (allowedMimes.includes(file.mimetype)) {
         callback(null, true);
       } else {
-        callback(new Error('Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir'), false);
+        callback(
+          new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
+          }),
+          false,
+        );
       }
     },
   }))
@@ -95,7 +122,7 @@ export class ProductController {
   ) {
     // WR-05: Guard against missing file in multipart request
     if (!file) {
-      throw new BadRequestException({ code: 'FILE_REQUIRED', message: 'Görsel dosyası zorunludur' });
+      throw new BadRequestException({ code: RC.FILE_REQUIRED, message: 'Görsel dosyası zorunludur' });
     }
     return this.productService.uploadImage(userId, productId, file);
   }
@@ -121,11 +148,14 @@ export class ProductController {
   @ApiQuery({ name: 'limit', required: false })
   async findMyProducts(
     @CurrentUser('id') userId: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    // WR-03: Clamp pagination to prevent memory exhaustion
-    return this.productService.findMyProducts(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 100));
+    return this.productService.findMyProducts(
+      userId,
+      parsePositiveIntQuery(page, 'page', 1),
+      parsePositiveIntQuery(limit, 'limit', 20, 100),
+    );
   }
 
   // ─── Public Endpoints ─────────────────────────────────────────
@@ -138,12 +168,15 @@ export class ProductController {
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'likes', 'popular'] })
   async findAll(
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('sort') sort?: string,
   ) {
-    // WR-03: Clamp pagination to prevent memory exhaustion
-    return this.productService.findAll(Math.max(1, +page), Math.min(Math.max(1, +limit), 100), sort);
+    return this.productService.findAll(
+      parsePositiveIntQuery(page, 'page', 1),
+      parsePositiveIntQuery(limit, 'limit', 20, 100),
+      sort,
+    );
   }
 
   @Get(':id/auth')
@@ -162,7 +195,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Ürün detay' })
   @ApiResponse({ status: 200, type: ProductResponseDto })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.productService.findById(id);
+    return this.productService.findPublicById(id);
   }
 }
 

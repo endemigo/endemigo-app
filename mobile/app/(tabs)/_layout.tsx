@@ -1,15 +1,19 @@
-import { Tabs } from 'expo-router';
+import React from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, Image } from 'react-native';
+import { TouchableOpacity, View, Text, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/tabs/_layout.styles';
 
 export default function TabLayout() {
   const { t } = useTranslation();
+  const router = useRouter();
 
   return (
     <Tabs
+      initialRouteName="home"
+      backBehavior="initialRoute"
       screenOptions={{
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.slate400,
@@ -18,10 +22,43 @@ export default function TabLayout() {
         headerStyle: styles.header,
         headerTintColor: Colors.onSurface,
         headerTitleStyle: styles.headerTitle,
+        headerTitleAlign: 'center',
+        headerTitle: () => (
+          <Image
+            source={require('../../assets/images/endemigo-icon.png')}
+            style={styles.headerGoatIcon}
+            resizeMode="contain"
+          />
+        ),
+        headerLeft: () => null,
+        headerRight: () => (
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionButtonCompact}
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t('tabs.profile')}
+            >
+              <Ionicons name="person-outline" size={18} color={Colors.primary} />
+              <Text style={styles.headerActionText}>{t('tabs.profile')}</Text>
+            </TouchableOpacity>
+            <View style={styles.headerDivider} />
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => router.push('/(tabs)/notifications')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t('tabs.notifications')}
+            >
+              <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ),
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: t('tabs.home'),
           headerShown: false,
@@ -35,12 +72,42 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="categories"
+        name="explore"
         options={{
-          title: t('tabs.categories'),
+          title: t('tabs.search'),
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'grid' : 'grid-outline'}
+              name={focused ? 'search' : 'search-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="become-seller"
+        options={{
+          title: t('tabs.listing'),
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'add-circle' : 'add-circle-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="favoriler"
+        options={{
+          title: t('tabs.favorites'),
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'heart' : 'heart-outline'}
               size={24}
               color={color}
             />
@@ -51,67 +118,69 @@ export default function TabLayout() {
         name="auctions"
         options={{
           title: t('tabs.auctions'),
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+          tabBarActiveTintColor: Colors.auctionGreen,
+          tabBarInactiveTintColor: `${Colors.auctionGreen}99`,
           tabBarLabel: ({ focused }) => (
-            <Text style={[
-              styles.tabBarLabel,
-              focused ? styles.auctionLabelActive : styles.auctionLabelInactive,
-            ]}>
+            <Text style={[styles.tabBarLabel, { color: focused ? Colors.auctionGreen : `${Colors.auctionGreen}99` }]}>
               {t('tabs.auctions')}
             </Text>
           ),
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/images/endemigo-icon.png')}
-              style={[
-                styles.auctionIcon,
-                focused ? styles.auctionIconActive : styles.auctionIconInactive,
-              ]}
-              resizeMode="contain"
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: t('tabs.cart'),
-          tabBarIcon: ({ color, focused }) => (
-            <View>
-              <Ionicons
-                name={focused ? 'cart' : 'cart-outline'}
-                size={24}
-                color={color}
-              />
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>0</Text>
-              </View>
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'person' : 'person-outline'}
+              name={focused ? 'hammer' : 'hammer-outline'}
               size={24}
-              color={color}
+              color={Colors.auctionGreen}
             />
           ),
         }}
       />
-      <Tabs.Screen name="explore" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
-      <Tabs.Screen name="become-seller" options={{ href: null }} />
       <Tabs.Screen name="edit-profile" options={{ href: null }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
       <Tabs.Screen name="orders" options={{ href: null }} />
       <Tabs.Screen name="orders/[orderId]" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="notification-preferences" options={{ href: null }} />
-      <Tabs.Screen name="paketim" options={{ href: null }} />
+      <Tabs.Screen
+        name="categories"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen name="categories/[id]" options={{ href: null }} />
+      <Tabs.Screen
+        name="cart"
+        options={{
+          href: null,
+          title: t('tabs.cart'),
+          tabBarStyle: { display: 'none' },
+          headerStyle: styles.headerOnBackground,
+          headerTitle: t('tabs.cart'),
+          headerLeft: () => (
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace('/(tabs)/home');
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+          headerRight: () => null,
+        }}
+      />
+      <Tabs.Screen name="messages" options={{ href: null }} />
+      <Tabs.Screen name="membership" options={{ href: null }} />
+      <Tabs.Screen name="seller-ads" options={{ href: null }} />
+      <Tabs.Screen name="seller-campaigns" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );
 }

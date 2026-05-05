@@ -12,14 +12,12 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { buildCorsOptions } from '../../common/http/cors.util';
 
 // CR-01: CORS must match HTTP CORS — no wildcard in production
 @WebSocketGateway({
   namespace: '/auction',
-  cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:8081',
-    credentials: true,
-  },
+  cors: buildCorsOptions(process.env.NODE_ENV, process.env.CORS_ORIGIN),
   transports: ['websocket', 'polling'],
 })
 export class AuctionGateway

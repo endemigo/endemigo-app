@@ -1,0 +1,414 @@
+<style>
+  .hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .hero-copy {
+    flex: 1;
+  }
+  .hero-copy h2 {
+    margin-bottom: 8px;
+  }
+  .hero-note {
+    min-width: 260px;
+    padding: 16px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #eff8ff 0%, #f4fff1 100%);
+    border: 1px solid rgba(0, 151, 216, 0.15);
+  }
+  .hero-note .label {
+    margin-bottom: 8px;
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .flow-card {
+    border: 1px solid #dbe4ea;
+    border-radius: 24px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+  }
+  .flow-top {
+    padding: 18px 18px 10px;
+    border-bottom: 1px solid #eef2f5;
+  }
+  .flow-kicker {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f3f8fb;
+    color: #007cb2;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .flow-top h3 {
+    margin: 10px 0 6px;
+    font-size: 20px;
+  }
+  .flow-top p {
+    margin: 0;
+    color: #52606d;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .phone {
+    margin: 16px;
+    border-radius: 28px;
+    background: #f8f9fa;
+    border: 1px solid #e4e8eb;
+    padding: 12px;
+  }
+  .phone-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .screen {
+    border-radius: 22px;
+    background: #ffffff;
+    padding: 12px;
+    min-height: 360px;
+  }
+  .eyebrow {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .mock-title {
+    height: 12px;
+    width: 72%;
+    border-radius: 999px;
+    background: #d6e7f4;
+    margin-bottom: 8px;
+  }
+  .mock-sub {
+    height: 10px;
+    width: 48%;
+    border-radius: 999px;
+    background: #e7eef4;
+    margin-bottom: 14px;
+  }
+  .panel {
+    border: 1px solid #edf1f4;
+    border-radius: 18px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+  .panel.soft {
+    background: #fbfcfd;
+  }
+  .chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .chip {
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #eef6fb;
+    color: #007cb2;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .field {
+    height: 42px;
+    border-radius: 14px;
+    background: #f5f7f9;
+    border: 1px solid #e8edf1;
+    margin-bottom: 8px;
+  }
+  .field.short {
+    width: 46%;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+  }
+  .cta {
+    margin-top: 12px;
+    height: 46px;
+    border-radius: 16px;
+    background: linear-gradient(90deg, #36a936 0%, #42b94b 100%);
+  }
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .step {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    background: #0097d8;
+  }
+  .step.idle {
+    background: #d9e2e9;
+    color: #475569;
+  }
+  .step-line {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: #d9edf8;
+  }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: #334155;
+    font-size: 13px;
+  }
+  .check {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #e8f7e8;
+    border: 1px solid #bfe3bf;
+  }
+  .assistant {
+    border-radius: 18px;
+    padding: 12px;
+    background: linear-gradient(135deg, #f3fbff 0%, #ffffff 100%);
+    border: 1px solid #d9edf8;
+    margin-bottom: 12px;
+  }
+  .assistant strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #0f172a;
+  }
+  .bubble {
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: #f6f8fa;
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .bubble.reply {
+    background: #eef8ef;
+    color: #1f5130;
+  }
+  .footer-notes {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .mini-note {
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid #e8edf1;
+    padding: 14px;
+  }
+  .mini-note strong {
+    display: block;
+    margin-bottom: 6px;
+  }
+  @media (max-width: 1100px) {
+    .flow-grid,
+    .footer-notes {
+      grid-template-columns: 1fr;
+    }
+    .hero {
+      flex-direction: column;
+    }
+    .hero-note {
+      min-width: 0;
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="hero">
+  <div class="hero-copy">
+    <h2>Urun ekleme akisi icin 3 sade yon</h2>
+    <p class="subtitle">Hedef: teknolojiden anlamayan kullanici ilk denemede urun ekleyebilsin, ama akisin backend alanlariyla uyumu da bozulmasin.</p>
+  </div>
+  <div class="hero-note">
+    <div class="label">Backend uyumu</div>
+    <strong>Hepsi ayni payload'a iner.</strong>
+    <p style="margin:8px 0 0;color:#52606d;">`title`, `price`, `categoryId`, `stockQuantity`, `description`, `condition`, `listingType`, `askPriceEnabled` ve opsiyonel menşei alanlari korunur.</p>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <strong>Tek Sayfa, Akilli Gruplanmis</strong>
+      <div style="color:#64748b;font-size:13px;margin-top:4px;">En hizli akış. Tum temel alanlar tek ekranda, ileri alanlar kapali.</div>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <strong>Adim Adim Sihirbaz</strong>
+      <div style="color:#64748b;font-size:13px;margin-top:4px;">En guvenli akış. Her adimda tek karar verilir.</div>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <strong>Rehberli Konusma Formu</strong>
+      <div style="color:#64748b;font-size:13px;margin-top:4px;">En sicak deneyim. Uygulama kullaniciya neyi dolduracagini anlatir.</div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-grid">
+  <div class="flow-card">
+    <div class="flow-top">
+      <span class="flow-kicker">A / HIZLI</span>
+      <h3>Tek sayfa</h3>
+      <p>Baslik, fiyat, kategori ve stok yukarida. Daha az kullanilan alanlar "daha fazla detay" altinda.</p>
+    </div>
+    <div class="phone">
+      <div class="phone-top">
+        <span>09:41</span>
+        <span>Yeni Urun</span>
+        <span>89%</span>
+      </div>
+      <div class="screen">
+        <div class="eyebrow">3 adim yerine tek ekranda</div>
+        <div class="panel soft">
+          <div class="chip-row">
+            <span class="chip">Temel bilgiler</span>
+            <span class="chip">2 dk</span>
+          </div>
+          <div class="field"></div>
+          <div class="row">
+            <div class="field short"></div>
+            <div class="field short"></div>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="panel">
+          <div class="mock-title"></div>
+          <div class="mock-sub"></div>
+          <div class="field"></div>
+        </div>
+        <div class="panel soft">
+          <div class="check-row"><div class="check"></div><span>Pazarliga acik</span></div>
+          <div class="check-row"><div class="check"></div><span>Urun durumu sec</span></div>
+        </div>
+        <div class="cta"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="flow-top">
+      <span class="flow-kicker">B / ONERILEN</span>
+      <h3>Adim adim sihirbaz</h3>
+      <p>Her ekranda tek karar: once urun nedir, sonra fiyat, sonra guven veren detaylar.</p>
+    </div>
+    <div class="phone">
+      <div class="phone-top">
+        <span>09:41</span>
+        <span>Urun Ekle</span>
+        <span>2/4</span>
+      </div>
+      <div class="screen">
+        <div class="stepper">
+          <div class="step">1</div>
+          <div class="step-line"></div>
+          <div class="step">2</div>
+          <div class="step-line"></div>
+          <div class="step idle">3</div>
+          <div class="step-line"></div>
+          <div class="step idle">4</div>
+        </div>
+        <div class="eyebrow">Adim 2 / Fiyat ve kategori</div>
+        <div class="panel">
+          <div class="mock-title"></div>
+          <div class="mock-sub"></div>
+          <div class="field"></div>
+        </div>
+        <div class="panel soft">
+          <div class="chip-row">
+            <span class="chip">Elektronik</span>
+            <span class="chip">Telefon</span>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="panel">
+          <div class="check-row"><div class="check"></div><span>Zorunlu alanlar tamam</span></div>
+          <div class="check-row"><div class="check"></div><span>Sonraki adim: durum ve aciklama</span></div>
+        </div>
+        <div class="cta"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="flow-top">
+      <span class="flow-kicker">C / SICAK</span>
+      <h3>Rehberli form</h3>
+      <p>Uygulama mini yardim metinleriyle kullaniciyi yonlendirir. Daha samimi ama biraz daha uzun.</p>
+    </div>
+    <div class="phone">
+      <div class="phone-top">
+        <span>09:41</span>
+        <span>Kolay Ilan</span>
+        <span>Canli Yardim</span>
+      </div>
+      <div class="screen">
+        <div class="assistant">
+          <strong>Birlikte ekleyelim</strong>
+          <div style="color:#52606d;font-size:13px;">Once urunun adini yaz. Sonra ben seni yonlendirecegim.</div>
+        </div>
+        <div class="bubble">Ne satiyorsun?</div>
+        <div class="field"></div>
+        <div class="bubble reply">Ikinci el ama temiz bir kahve makinesi</div>
+        <div class="bubble">Harika. Hangi kategoriye daha yakin?</div>
+        <div class="chip-row">
+          <span class="chip">Mutfak</span>
+          <span class="chip">Elektronik</span>
+          <span class="chip">Ev</span>
+        </div>
+        <div class="bubble">Fiyat icin istersen "emin degilim" diyebilirsin.</div>
+        <div class="cta"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer-notes">
+  <div class="mini-note">
+    <strong>A avantaj</strong>
+    En az tiklama. Mevcut backend ve form mantigina en hizli uyarlanir.
+  </div>
+  <div class="mini-note">
+    <strong>B avantaj</strong>
+    Hata oranini dusurur. Teknolojiye uzak kullanici icin en net yol.
+  </div>
+  <div class="mini-note">
+    <strong>C avantaj</strong>
+    En insani his. Ama ilk surumde daha fazla UI ve durum yonetimi ister.
+  </div>
+</div>

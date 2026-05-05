@@ -189,8 +189,8 @@ export interface NotificationPreferencesUpdatePayload {
 export const WALLET_QUERY_KEYS = {
   summary: ['wallet'] as const,
   holds: ['wallet-holds'] as const,
-  history: (type?: WalletTransactionType, page?: number) =>
-    ['wallet-history', type ?? 'all', page ?? 1] as const,
+  history: (filter?: string, page?: number) =>
+    ['wallet-history', filter ?? 'all', page ?? 1] as const,
   payoutRequests: ['wallet-payout-requests'] as const,
 };
 

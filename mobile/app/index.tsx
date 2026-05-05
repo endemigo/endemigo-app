@@ -15,6 +15,6 @@ export default function Index() {
     );
   }
 
-  // Uygulama her zaman ana sayfayla açılır — login gerektiğinde kullanıcı profil üzerinden yönlendirilir
-  return <Redirect href="/(tabs)" />;
+  // Uygulama açılışında tab'dan bağımsız ana sayfaya yönlendir
+  return <Redirect href="/(tabs)/home" />;
 }

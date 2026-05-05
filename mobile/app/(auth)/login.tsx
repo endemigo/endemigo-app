@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auth/login.styles';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -32,13 +33,9 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
-      router.replace('/(tabs)');
+      router.replace('/home');
     } catch (err: unknown) {
-      let message = 'Giriş başarısız';
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-        message = axiosErr.response?.data?.error?.message || message;
-      }
+      const message = resolveApiErrorMessage(err, t, 'auth.loginError');
       showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);

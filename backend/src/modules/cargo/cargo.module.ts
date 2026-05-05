@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../notification/notification.module';
+import { Order } from '../order/entities/order.entity';
 import { CargoController } from './cargo.controller';
 import { CargoProcessor } from './cargo.processor';
 import { CargoService } from './cargo.service';
@@ -11,7 +12,7 @@ import { MockCargoProvider } from './providers/mock-cargo.provider';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CargoShipment]),
+    TypeOrmModule.forFeature([CargoShipment, Order]),
     BullModule.registerQueue({
       name: 'cargo',
       defaultJobOptions: {

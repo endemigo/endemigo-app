@@ -70,7 +70,8 @@ SELLER_TOKEN=$(curl -s -X POST $API/auth/login -H "Content-Type: application/jso
   -d '{"email":"new@test.com","password":"Test1234!"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
 
 # Already seller → 409
-check "P2.1: Already seller → 409" "$API/users/become-seller" "PATCH" "409" "$SELLER_TOKEN"
+check "P2.1: Already seller → 409" "$API/users/become-seller" "POST" "409" "$SELLER_TOKEN" \
+  '{"businessName":"Regression Seller","agreementAccepted":true}'
 
 echo ""
 

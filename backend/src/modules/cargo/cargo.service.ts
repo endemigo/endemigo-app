@@ -2,15 +2,25 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CargoProvider, CargoStatus, NotificationEventType, RC } from '@endemigo/shared';
+import {
+  CargoProvider,
+  CargoStatus,
+  NotificationEventType,
+  RC,
+} from '@endemigo/shared';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
 import { CargoShipment } from './entities/cargo-shipment.entity';
 import { NotificationService } from '../notification/notification.service';
+import { Order } from '../order/entities/order.entity';
 import { MockCargoProvider } from './providers/mock-cargo.provider';
 
 const ALLOWED_CARGO_TRANSITIONS: Record<CargoStatus, CargoStatus[]> = {
-  [CargoStatus.PREPARING]: [CargoStatus.IN_TRANSIT, CargoStatus.CANCELLED, CargoStatus.FAILED],
+  [CargoStatus.PREPARING]: [
+    CargoStatus.IN_TRANSIT,
+    CargoStatus.CANCELLED,
+    CargoStatus.FAILED,
+  ],
   [CargoStatus.IN_TRANSIT]: [CargoStatus.DELIVERED, CargoStatus.FAILED],
   [CargoStatus.DELIVERED]: [],
   [CargoStatus.FAILED]: [],
@@ -30,9 +40,11 @@ export class CargoService {
     private readonly notificationService?: NotificationService,
     @Optional()
     private readonly configService?: ConfigService,
+    @InjectRepository(Order)
+    private readonly orderRepository?: Repository<Order>,
   ) {}
 
-  async createMockShipment(orderId: string) {
+  createMockShipment(orderId: string) {
     const trackingNumber = this.buildFallbackTrackingNumber(orderId);
     return {
       orderId,
@@ -43,7 +55,9 @@ export class CargoService {
   }
 
   async createShipmentForOrder(orderId: string) {
-    const existing = await this.cargoShipmentRepository?.findOne({ where: { orderId } });
+    const existing = await this.cargoShipmentRepository?.findOne({
+      where: { orderId },
+    });
     if (existing) {
       return {
         code: RC.CARGO_TRACKING_CREATED,
@@ -83,9 +97,11 @@ export class CargoService {
   }
 
   async getShipmentForOrder(orderId: string) {
-    const shipment = await this.cargoShipmentRepository?.findOne({ where: { orderId } });
+    const shipment = await this.cargoShipmentRepository?.findOne({
+      where: { orderId },
+    });
     return {
-      code: RC.CARGO_TRACKING_CREATED,
+      code: RC.CARGO_TRACKING_FETCHED,
       message: 'Cargo shipment fetched',
       shipment,
     };
@@ -98,7 +114,11 @@ export class CargoService {
     });
 
     if (!shipment || shipment.status === nextStatus) {
-      return { code: RC.CARGO_STATUS_TRANSITIONED, message: 'Cargo status unchanged', idempotent: true };
+      return {
+        code: RC.CARGO_STATUS_TRANSITIONED,
+        message: 'Cargo status unchanged',
+        idempotent: true,
+      };
     }
 
     if (!ALLOWED_CARGO_TRANSITIONS[shipment.status].includes(nextStatus)) {
@@ -108,22 +128,17 @@ export class CargoService {
       });
     }
 
-    await this.mockCargoProvider?.transitionShipment(shipment.trackingNumber, nextStatus);
+    await this.mockCargoProvider?.transitionShipment(
+      shipment.trackingNumber,
+      nextStatus,
+    );
     shipment.status = nextStatus;
     shipment.lastEventAt = new Date();
     if (nextStatus === CargoStatus.DELIVERED) {
       shipment.deliveredAt = new Date();
     }
     const saved = await this.cargoShipmentRepository?.save(shipment);
-    await this.notificationService?.createFromEvent({
-      eventId: `cargo-status:${shipment.id}:${nextStatus}`,
-      userId: shipment.orderId,
-      eventType: NotificationEventType.CARGO_STATUS_CHANGED,
-      title: 'Cargo status changed',
-      body: `Cargo status changed to ${nextStatus}.`,
-      relatedEntityType: 'cargoShipment',
-      relatedEntityId: shipment.id,
-    });
+    await this.notifyCargoStatusChanged(shipment, nextStatus);
 
     return {
       code: RC.CARGO_STATUS_TRANSITIONED,
@@ -161,7 +176,9 @@ export class CargoService {
     const count =
       (await this.cargoShipmentRepository
         ?.createQueryBuilder('shipment')
-        .where('shipment.trackingNumber LIKE :prefix', { prefix: `${prefix}-%` })
+        .where('shipment.trackingNumber LIKE :prefix', {
+          prefix: `${prefix}-%`,
+        })
         .getCount()) ?? 0;
     return `${prefix}-${String(count + 1).padStart(5, '0')}`;
   }
@@ -170,11 +187,47 @@ export class CargoService {
     return `MOCK-${orderId}`;
   }
 
+  private async notifyCargoStatusChanged(
+    shipment: CargoShipment,
+    nextStatus: CargoStatus,
+  ) {
+    if (!this.notificationService || !this.orderRepository) {
+      return;
+    }
+
+    const order = await this.orderRepository.findOne({
+      where: { id: shipment.orderId },
+    });
+    const recipientIds = new Set<string>();
+    if (order?.buyerId) recipientIds.add(order.buyerId);
+    if (order?.sellerId) recipientIds.add(order.sellerId);
+
+    const notificationService = this.notificationService;
+
+    await Promise.all(
+      Array.from(recipientIds).map((userId) =>
+        notificationService.createFromEvent({
+          eventId: `cargo-status:${shipment.id}:${nextStatus}`,
+          userId,
+          eventType: NotificationEventType.CARGO_STATUS_CHANGED,
+          title: 'Cargo status changed',
+          body: `Cargo status changed to ${nextStatus}.`,
+          relatedEntityType: 'cargoShipment',
+          relatedEntityId: shipment.id,
+        }),
+      ),
+    );
+  }
+
   private getTransitDelayMs() {
-    return this.configService?.get<number>('MOCK_CARGO_TRANSIT_DELAY_MS') ?? 1000;
+    return (
+      this.configService?.get<number>('MOCK_CARGO_TRANSIT_DELAY_MS') ?? 1000
+    );
   }
 
   private getDeliveredDelayMs() {
-    return this.configService?.get<number>('MOCK_CARGO_DELIVERED_DELAY_MS') ?? 2000;
+    return (
+      this.configService?.get<number>('MOCK_CARGO_DELIVERED_DELAY_MS') ?? 2000
+    );
   }
 }

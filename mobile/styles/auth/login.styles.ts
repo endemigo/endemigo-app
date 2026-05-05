@@ -25,7 +25,7 @@ export const styles = StyleSheet.create({
   subtitle: {
     fontSize: FontSize.body,
     fontFamily: FontFamily.bodyMedium,
-    color: 'rgba(255,255,255,0.8)',
+    color: Colors.onPrimaryContainer,
     marginTop: Spacing.xs,
   },
   formContainer: {

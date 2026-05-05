@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auth/register.styles';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -38,13 +39,9 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(email.trim().toLowerCase(), password, firstName.trim(), lastName.trim());
-      router.replace('/(tabs)');
+      router.replace('/home');
     } catch (err: unknown) {
-      let message = 'Kayıt başarısız';
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-        message = axiosErr.response?.data?.error?.message || message;
-      }
+      const message = resolveApiErrorMessage(err, t, 'auth.registerError');
       showModal({ title: t('common.error'), message, type: 'error' });
     } finally {
       setLoading(false);

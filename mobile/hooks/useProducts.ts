@@ -2,20 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
-import { ProductStatus } from '@endemigo/shared';
+import type { Product, Category } from '@/types';
 
-interface Product {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  imageUrl: string;
-  status: ProductStatus;
-  sellerId: string;
-  sellerName: string;
-  categoryId: string;
-  categoryName: string;
-  createdAt: string;
+interface ApiResponseEnvelope {
+  code: string;
+  message: string;
 }
 
 interface PaginatedProducts {
@@ -25,11 +16,30 @@ interface PaginatedProducts {
   totalPages: number;
 }
 
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  productCount?: number;
+type ProductListResponse = ApiResponseEnvelope & PaginatedProducts;
+type ProductResponse = ApiResponseEnvelope & Product;
+type CategoryListResponse = ApiResponseEnvelope & { categories: Category[] };
+
+function unwrapProductList(data: ProductListResponse): PaginatedProducts {
+  return {
+    items: data.items,
+    total: data.total,
+    page: data.page,
+    totalPages: data.totalPages,
+  };
+}
+
+function unwrapProducts(data: ProductListResponse | Product[]): Product[] {
+  return Array.isArray(data) ? data : data.items;
+}
+
+function unwrapProduct(data: ProductResponse): Product {
+  const { code: _code, message: _message, ...product } = data;
+  return product;
+}
+
+function unwrapCategories(data: Category[] | CategoryListResponse): Category[] {
+  return Array.isArray(data) ? data : data.categories;
 }
 
 /**
@@ -46,8 +56,8 @@ export function useProducts(page = 1) {
     queryKey: ['products', page],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getProducts(page);
-      const { data } = await api.get(`/products?page=${page}&limit=20`);
-      return data;
+      const { data } = await api.get<ProductListResponse>(`/products?page=${page}&limit=20`);
+      return unwrapProductList(data);
     },
   });
 }
@@ -57,8 +67,8 @@ export function useDiscountedProducts() {
     queryKey: ['products', 'discounted'],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getDiscountedProducts();
-      const { data } = await api.get(`/products?discounted=true&limit=10`);
-      return data.items || data;
+      const { data } = await api.get<ProductListResponse | Product[]>(`/products?discounted=true&limit=10`);
+      return unwrapProducts(data);
     },
   });
 }
@@ -68,8 +78,8 @@ export function useMostLikedProducts() {
     queryKey: ['products', 'most-liked'],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getMostLikedProducts();
-      const { data } = await api.get(`/products?sort=likes&limit=10`);
-      return data.items || data;
+      const { data } = await api.get<ProductListResponse | Product[]>(`/products?sort=likes&limit=10`);
+      return unwrapProducts(data);
     },
   });
 }
@@ -91,8 +101,8 @@ export function useProduct(id: string) {
     queryKey: ['product', id],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getProduct(id);
-      const { data } = await api.get(`/products/${id}`);
-      return data;
+      const { data } = await api.get<ProductResponse>(`/products/${id}`);
+      return unwrapProduct(data);
     },
     enabled: !!id,
   });
@@ -108,10 +118,24 @@ export function useCategories() {
     queryKey: ['categories'],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getCategories();
-      const { data } = await api.get('/categories');
-      return data;
+      const { data } = await api.get<Category[] | CategoryListResponse>(
+        '/categories',
+      );
+      return unwrapCategories(data);
     },
     staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useMyProducts(page = 1, enabled = true) {
+  return useQuery<PaginatedProducts>({
+    queryKey: ['products', 'my', page],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) return mockService.getMyProducts(page);
+      const { data } = await api.get<ProductListResponse>(`/products/my?page=${page}&limit=20`);
+      return unwrapProductList(data);
+    },
+    enabled,
   });
 }
 

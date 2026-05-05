@@ -72,7 +72,7 @@ export function GlobalModal() {
         <View style={styles.buttonContainer}>
           {options.onCancel && (
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} activeOpacity={0.8}>
-              <Text style={styles.cancelBtnText}>{options.cancelText || t('common.cancel') || 'İptal'}</Text>
+              <Text style={styles.cancelBtnText}>{options.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>
           )}
 
@@ -81,7 +81,7 @@ export function GlobalModal() {
             onPress={handleConfirm}
             activeOpacity={0.8}
           >
-            <Text style={styles.confirmBtnText}>{options.confirmText || t('common.ok') || 'Tamam'}</Text>
+            <Text style={styles.confirmBtnText}>{options.confirmText ?? t('common.ok')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

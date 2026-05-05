@@ -97,6 +97,15 @@ validated: 2026-04-27
 | Resolved by existing tests | 13 |
 | Escalated/manual-only | 2 |
 
+## Validation Audit 2026-04-29
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Automated rows covered | 13 |
+| Resolved by existing tests | 13 |
+| Escalated/manual-only | 2 |
+
 ---
 
 ## Validation Sign-Off

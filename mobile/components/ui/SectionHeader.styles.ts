@@ -22,8 +22,8 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   title: {
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
+    fontFamily: FontFamily.headline,
+    fontWeight: '400',
     fontSize: FontSize.subheading,
     color: Colors.onSurface,
   },

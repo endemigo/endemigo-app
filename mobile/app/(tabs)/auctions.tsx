@@ -3,10 +3,23 @@ import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, Refre
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getDefaultMobileExperienceConfig } from '@endemigo/shared';
 import { useAuctions } from '../../hooks/useAuctions';
+import { useMobileConfig } from '../../hooks/useMobileConfig';
+import type { Auction } from '../../hooks/useAuctions';
 import { AuctionStatus } from '@endemigo/shared';
 import { Colors } from '../../constants/theme';
+import { storage } from '../../lib/storage';
+import { useAuthStore } from '../../store/authStore';
+import { useRoleModeStore } from '../../store/roleModeStore';
 import { styles } from '../../styles/tabs/auctions.styles';
+import {
+  getAudienceScopedAuctionCardConfig,
+  resolveLocalizedText,
+  resolveMobileAudience,
+} from '../../utils/mobileConfig';
+import { HomeQuickTabBar } from '../../components/ui';
 
 function formatTimeLeft(ms: number, t: (k: string) => string) {
   if (ms <= 0) return t('auctions.ended');
@@ -20,9 +33,19 @@ function formatTimeLeft(ms: number, t: (k: string) => string) {
 
 export default function AuctionsScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data, isLoading, refetch, isRefetching } = useAuctions(1);
+  const { data: mobileConfigData } = useMobileConfig();
+  const user = useAuthStore((state) => state.user);
+  const activeMode = useRoleModeStore((state) => state.activeMode);
   const [now, setNow] = useState(Date.now());
+  const mobileConfig = mobileConfigData ?? getDefaultMobileExperienceConfig();
+  const locale = i18n.language.startsWith('en') ? 'en' : 'tr';
+  const audience = resolveMobileAudience(user, activeMode);
+  const auctionCardConfig = getAudienceScopedAuctionCardConfig(
+    mobileConfig.auctions.listCard,
+    audience,
+  );
 
   const statusConfig = {
     [AuctionStatus.DRAFT]: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
@@ -39,33 +62,44 @@ export default function AuctionsScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const launchImages = data?.items
+      ?.map((item: Auction) => item.productImage)
+      .filter((value: string): value is string => typeof value === 'string' && value.trim().length > 0);
+
+    if (!launchImages?.length) {
+      return;
+    }
+
+    storage.setLaunchSplashImages(launchImages).catch(() => {});
+  }, [data?.items]);
+
   if (isLoading) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.center} edges={['top']}>
         <ActivityIndicator size="large" color={Colors.auctionGreen} />
         <Text style={styles.loadingText}>{t('auctions.loading')}</Text>
-      </View>
+        <HomeQuickTabBar activeTab="auctions" />
+      </SafeAreaView>
     );
   }
 
   if (!data?.items?.length) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.center} edges={['top']}>
         <Ionicons name="hammer-outline" size={64} color={Colors.slate300} />
         <Text style={styles.emptyText}>{t('auctions.empty')}</Text>
         <Text style={styles.emptySubtext}>{t('auctions.emptySub')}</Text>
-      </View>
+        <HomeQuickTabBar activeTab="auctions" />
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('auctions.title')}</Text>
-        <TouchableOpacity>
-          <Text style={styles.headerAction}>{t('auctions.joinAll')}</Text>
-        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -95,10 +129,12 @@ export default function AuctionsScreen() {
                   source={{ uri: item.productImage || `https://placehold.co/100x100/F8F9FA/42b94b?text=${encodeURIComponent(t('tabs.auctions'))}` }}
                   style={styles.image}
                 />
-                {item.status === AuctionStatus.ACTIVE && (
+                {item.status === AuctionStatus.ACTIVE && auctionCardConfig.liveBadgeLabel && (
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>{t('auctions.live')}</Text>
+                    <Text style={styles.liveText}>
+                      {resolveLocalizedText(auctionCardConfig.liveBadgeLabel, locale, t('auctions.live'))}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -108,9 +144,11 @@ export default function AuctionsScreen() {
                     {item.productTitle}
                   </Text>
                 </View>
-                <Text style={styles.timer}>
-                  {t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
-                </Text>
+                {auctionCardConfig.showTimer ? (
+                  <Text style={styles.timer}>
+                    {t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
+                  </Text>
+                ) : null}
                 <View style={styles.priceRow}>
                   <View>
                     <Text style={styles.priceLabel}>{t('auctions.highestBid')}</Text>
@@ -119,20 +157,29 @@ export default function AuctionsScreen() {
                     </Text>
                   </View>
                   <TouchableOpacity style={styles.bidButton} activeOpacity={0.8}>
-                    <Text style={styles.bidButtonText}>{t('auctions.bid')}</Text>
+                    <Text style={styles.bidButtonText}>
+                      {resolveLocalizedText(auctionCardConfig.ctaLabel, locale, t('auctions.bid'))}
+                    </Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.metaRow}>
-                  <View style={[styles.statusBadge, { backgroundColor: st?.bg }]}>
-                    <Text style={[styles.statusText, { color: st?.color }]}>{st?.label}</Text>
+                {(auctionCardConfig.showStatusBadge || auctionCardConfig.showBidCount) ? (
+                  <View style={styles.metaRow}>
+                    {auctionCardConfig.showStatusBadge ? (
+                      <View style={[styles.statusBadge, { backgroundColor: st?.bg }]}>
+                        <Text style={[styles.statusText, { color: st?.color }]}>{st?.label}</Text>
+                      </View>
+                    ) : <View />}
+                    {auctionCardConfig.showBidCount ? (
+                      <Text style={styles.bidCount}>{t('auctions.bidCount', { count: item.bidCount })}</Text>
+                    ) : null}
                   </View>
-                  <Text style={styles.bidCount}>{t('auctions.bidCount', { count: item.bidCount })}</Text>
-                </View>
+                ) : null}
               </View>
             </TouchableOpacity>
           );
         }}
       />
-    </View>
+      <HomeQuickTabBar activeTab="auctions" />
+    </SafeAreaView>
   );
 }

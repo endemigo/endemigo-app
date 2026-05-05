@@ -59,6 +59,13 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  categoryImage: {
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.slate100,
+  },
   cardName: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.bodySemiBold,

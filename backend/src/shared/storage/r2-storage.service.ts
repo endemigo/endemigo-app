@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IStorageService } from './storage.interface';
+import { RC } from '../constants/response-codes';
 
 /**
  * R2StorageService — Cloudflare R2 (S3-compatible) implementation
@@ -29,14 +30,29 @@ export class R2StorageService implements IStorageService {
   }
 
   async upload(file: Express.Multer.File, subPath: string): Promise<string> {
+    if (subPath.includes('..') || subPath.includes('\0')) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz depolama yolu' });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const sharp = require('sharp');
 
     // Optimize with Sharp before upload
-    const optimized = await sharp(file.buffer)
-      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
+    let optimized: Buffer;
+    try {
+      const metadata = await sharp(file.buffer).metadata();
+      if (!metadata.format || !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel formatı' });
+      }
+
+      optimized = await sharp(file.buffer)
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer();
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
+    }
 
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
     const key = `${subPath}/${filename}`;

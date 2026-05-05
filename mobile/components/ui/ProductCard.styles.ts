@@ -22,6 +22,18 @@ export const styles = StyleSheet.create({
   squareBody: {
     padding: Spacing.sm,
   },
+  squareBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: `${Colors.secondary}16`,
+    borderRadius: BorderRadius.full,
+    color: Colors.secondary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.xs,
+    marginBottom: Spacing.xs,
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
   squareTitle: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.bodyMedium,
@@ -35,6 +47,30 @@ export const styles = StyleSheet.create({
     fontWeight: '900',
     color: Colors.primary,
   },
+  squareCtaHint: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.caption,
+    fontWeight: '700',
+  },
+  squareAskPriceBadge: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: `${Colors.primary}12`,
+    borderColor: `${Colors.primary}1A`,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  squareAskPriceText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
 
   // ─── Grid variant ───
   gridCard: {
@@ -44,6 +80,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.slate100,
     ...Shadows.sm,
+    minHeight: 268,
   },
   gridImageContainer: {
     height: 160,
@@ -55,6 +92,19 @@ export const styles = StyleSheet.create({
   },
   gridBody: {
     padding: Spacing.md,
+    minHeight: 108,
+  },
+  gridBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: `${Colors.secondary}16`,
+    borderRadius: BorderRadius.full,
+    color: Colors.secondary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.xs,
+    marginBottom: Spacing.xs,
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
   },
   gridTitle: {
     fontSize: FontSize.body,
@@ -63,12 +113,14 @@ export const styles = StyleSheet.create({
     color: Colors.onSurface,
     marginBottom: Spacing.xs,
     lineHeight: 20,
+    minHeight: 40,
   },
   gridCategory: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
     color: Colors.onSurfaceVariant,
     marginBottom: Spacing.sm,
+    minHeight: 16,
   },
   gridFooter: {
     flexDirection: 'row',
@@ -80,5 +132,27 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.headlineBlack,
     fontWeight: '900',
     color: Colors.primary,
+  },
+  gridCtaHint: {
+    color: Colors.secondary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.caption,
+    fontWeight: '700',
+  },
+  gridAskPriceButton: {
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    minHeight: 32,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  gridAskPriceText: {
+    color: Colors.white,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.caption,
+    fontWeight: '700',
   },
 });

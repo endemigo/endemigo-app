@@ -1,0 +1,153 @@
+name: Phase 10 Release Gates
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging
+  push:
+    branches:
+      - main
+      - staging
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_target:
+        description: 'Gate target'
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  staging_gate:
+    name: Staging release gate
+    if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      NODE_ENV: test
+      SENTRY_ENVIRONMENT: staging
+      SENTRY_DSN: ${{ secrets.STAGING_SENTRY_DSN }}
+      SENTRY_ALERT_WEBHOOK_URL: ${{ secrets.STAGING_SENTRY_ALERT_WEBHOOK_URL }}
+      VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
+      VITE_SENTRY_ENVIRONMENT: staging
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.STAGING_EXPO_PUBLIC_SENTRY_DSN }}
+      EXPO_PUBLIC_SENTRY_ENVIRONMENT: staging
+      EAS_TOKEN: ${{ secrets.STAGING_EAS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            admin/package-lock.json
+            mobile/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Install admin dependencies
+        run: npm ci --prefix admin
+
+      - name: Install mobile dependencies
+        run: npm ci --prefix mobile
+
+      - name: Backend Phase 10 gate
+        run: npm --prefix backend run phase10:backend-gate
+
+      - name: Admin Phase 10 gate
+        run: npm --prefix admin run phase10:admin-gate
+
+      - name: Mobile Phase 10 gate
+        run: npm --prefix mobile run phase10:mobile-gate
+
+      - name: Contract compatibility gate
+        run: npm --prefix backend run phase10:contracts
+
+      - name: OTA config check
+        run: npm --prefix mobile run ota:config:check
+
+      - name: Monitoring readiness
+        run: node scripts/phase10-monitoring-readiness.mjs
+
+      - name: Staging regression report
+        run: node scripts/phase10-staging-regression-report.mjs --dry-run
+
+      - name: Upload Phase 10 reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase10-staging-reports
+          path: .planning/reports/phase10
+          if-no-files-found: ignore
+
+  production_gate:
+    name: Production release gate
+    needs: staging_gate
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.release_target == 'production') || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NODE_ENV: production
+      SENTRY_ENVIRONMENT: production
+      SENTRY_DSN: ${{ secrets.PRODUCTION_SENTRY_DSN }}
+      SENTRY_ALERT_WEBHOOK_URL: ${{ secrets.PRODUCTION_SENTRY_ALERT_WEBHOOK_URL }}
+      VITE_SENTRY_DSN: ${{ secrets.PRODUCTION_VITE_SENTRY_DSN }}
+      VITE_SENTRY_ENVIRONMENT: production
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.PRODUCTION_EXPO_PUBLIC_SENTRY_DSN }}
+      EXPO_PUBLIC_SENTRY_ENVIRONMENT: production
+      EAS_TOKEN: ${{ secrets.PRODUCTION_EAS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            admin/package-lock.json
+            mobile/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Install admin dependencies
+        run: npm ci --prefix admin
+
+      - name: Install mobile dependencies
+        run: npm ci --prefix mobile
+
+      - name: Backend Phase 10 gate
+        run: npm --prefix backend run phase10:backend-gate
+
+      - name: Admin Phase 10 gate
+        run: npm --prefix admin run phase10:admin-gate
+
+      - name: Mobile Phase 10 gate
+        run: npm --prefix mobile run phase10:mobile-gate
+
+      - name: Contract compatibility gate
+        run: npm --prefix backend run phase10:contracts
+
+      - name: OTA config check
+        run: npm --prefix mobile run ota:config:check
+
+      - name: Monitoring readiness
+        run: node scripts/phase10-monitoring-readiness.mjs
+
+      - name: Production regression report
+        run: node scripts/phase10-staging-regression-report.mjs --dry-run
+
+      - name: Upload Phase 10 reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase10-production-reports
+          path: .planning/reports/phase10
+          if-no-files-found: ignore

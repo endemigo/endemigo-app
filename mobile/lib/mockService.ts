@@ -12,6 +12,7 @@
  *   - /auth/login, /auth/register, /auth/profile (authStore.ts)
  */
 import { AuctionStatus, ProductStatus } from '@endemigo/shared';
+import { resolveSellerBanner } from '../utils/sellerBanner';
 
 // ─── Helpers ────────────────────────────────────────────────────
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
@@ -22,18 +23,15 @@ const hours = (n: number) => n * 60 * mins(1);
 
 // ─── Categories ─────────────────────────────────────────────────
 export const MOCK_CATEGORIES = [
-  { id: 'cat-1', name: 'Gıda & Yöresel', slug: 'gida', productCount: 124 },
-  { id: 'cat-2', name: 'Zeytinyağı',     slug: 'zeytinyagi', productCount: 48 },
-  { id: 'cat-3', name: 'Takı & Aksesuar', slug: 'taki', productCount: 67 },
-  { id: 'cat-4', name: 'Giyim',          slug: 'giyim', productCount: 89 },
-  { id: 'cat-5', name: 'Arıcılık & Bal', slug: 'aricilik', productCount: 35 },
-  { id: 'cat-6', name: 'El Sanatları',   slug: 'el_sanatlari', productCount: 156 },
-  { id: 'cat-7', name: 'Mobilya',        slug: 'mobilya', productCount: 42 },
-  { id: 'cat-8', name: 'Bahçe & Tarım',  slug: 'bahce', productCount: 73 },
-  { id: 'cat-9', name: 'Organik Kozmetik', slug: 'kozmetik', productCount: 29 },
-  { id: 'cat-10', name: 'Bakır & Seramik', slug: 'seramik', productCount: 61 },
-  { id: 'cat-11', name: 'Kurutulmuş Gıda', slug: 'kurutulmus', productCount: 54 },
-  { id: 'cat-12', name: 'Diğer',          slug: 'diger', productCount: 112 },
+  { id: 'cat-1', name: 'Elektronik', slug: 'elektronik', productCount: 124, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/A%20laptop%20as%20a%20computer%20machine.jpg' },
+  { id: 'cat-2', name: 'Antika & Koleksiyon', slug: 'antika-koleksiyon', productCount: 48, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Antique%20furniture%20at%20Antixx%20Unique%20furniture.jpg' },
+  { id: 'cat-3', name: 'Sanat', slug: 'sanat', productCount: 67, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Nommo%20Art%20Gallery.jpg' },
+  { id: 'cat-4', name: 'Halı & Kilim', slug: 'hali-kilim', productCount: 89, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Handmade%20carpet%20making.jpg' },
+  { id: 'cat-5', name: 'Mücevher & Saat', slug: 'mucevher-saat', productCount: 35, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Handmade%20Gold%20Necklace.jpg' },
+  { id: 'cat-6', name: 'Mobilya & Dekor', slug: 'mobilya-dekor', productCount: 156, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Living%20room%20furniture%20(Unsplash).jpg' },
+  { id: 'cat-7', name: 'Kıyafet & Aksesuar', slug: 'kiyafet-aksesuar', productCount: 42, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Leather%20Handbags%20(4782040554).jpg' },
+  { id: 'cat-8', name: 'Spor & Outdoor', slug: 'spor-outdoor', productCount: 73, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Road%20cycling%20-%20riding%20a%20bike%20on%20the%20road.jpg' },
+  { id: 'cat-9', name: 'Yöresel Ürünler', slug: 'yoresel-urunler', productCount: 29, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/A%20souvenir%20shop.JPG' },
 ];
 
 // ─── Products ────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ export const MOCK_PRODUCTS = [
     description: 'Doğu Karadeniz\'in yüksek yaylalarında üretilen, hiçbir katkı maddesi içermeyen saf karakovan balı.',
     price: 850,
     imageUrl: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-2',
     sellerName: 'Karadeniz Arıcılık',
     categoryId: 'cat-5',
@@ -70,7 +68,7 @@ export const MOCK_PRODUCTS = [
     description: 'Siirt\'in tarihi bahçelerinden taze hasat antep fıstığı. Yüksek protein ve lezzet garantili.',
     price: 620,
     imageUrl: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-3',
     sellerName: 'Siirt Tarım Kooperatifi',
     categoryId: 'cat-1',
@@ -83,7 +81,7 @@ export const MOCK_PRODUCTS = [
     description: 'Anadolu motiflerini taşıyan, geleneksel yöntemlerle el ile dokunan kilim. Yün iplik kullanılmıştır.',
     price: 3200,
     imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-4',
     sellerName: 'Anadolu El Sanatları',
     categoryId: 'cat-6',
@@ -96,7 +94,7 @@ export const MOCK_PRODUCTS = [
     description: 'Güneşte kurutulmuş, katkısız Nevşehir kayısısı. Doğal tatlandırıcı olarak kullanıma uygundur.',
     price: 280,
     imageUrl: 'https://images.unsplash.com/photo-1593113616828-6f22bca04804?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-5',
     sellerName: 'Nevşehir Tarım',
     categoryId: 'cat-11',
@@ -109,7 +107,7 @@ export const MOCK_PRODUCTS = [
     description: 'Geleneksel Türk çay kültürünü yaşatacak, el işi bakır çay seti. Kalay kaplı, gıdaya uygun.',
     price: 1850,
     imageUrl: 'https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400&q=80',
-    status: 'active',
+    status: ProductStatus.ACTIVE,
     sellerId: 'seller-4',
     sellerName: 'Anadolu El Sanatları',
     categoryId: 'cat-10',
@@ -240,6 +238,14 @@ export const MOCK_USER = {
   isSeller: false,
 };
 
+export const MOCK_APPROVED_SELLER_USER = {
+  id: 'user-seller-approved',
+  email: 'a@a.com',
+  firstName: 'Ahmet',
+  lastName: 'Aydın',
+  isSeller: true,
+};
+
 export const MOCK_WALLET = {
   walletId: 'wallet-mock',
   balance: 15000,
@@ -282,9 +288,18 @@ export const MOCK_BLOGS = [
 export const mockService = {
 
   // Auth
-  async login(email: string, _password: string) {
+  async login(email: string, password: string) {
     await delay(600);
     if (!email.includes('@')) throw new Error('Geçersiz e-posta');
+    if (email === MOCK_APPROVED_SELLER_USER.email) {
+      if (password !== '123123') {
+        throw new Error('E-posta veya şifre hatalı');
+      }
+      return {
+        accessToken: 'mock-jwt-token-' + Date.now(),
+        user: MOCK_APPROVED_SELLER_USER,
+      };
+    }
     return {
       accessToken: 'mock-jwt-token-' + Date.now(),
       user: { ...MOCK_USER, email },
@@ -307,6 +322,13 @@ export const mockService = {
   // Products
   async getProducts(page = 1, limit = 20) {
     await delay(500);
+    const start = (page - 1) * limit;
+    const items = MOCK_PRODUCTS_ENRICHED.slice(start, start + limit);
+    return { items, total: MOCK_PRODUCTS_ENRICHED.length, page, totalPages: Math.ceil(MOCK_PRODUCTS_ENRICHED.length / limit) };
+  },
+
+  async getMyProducts(page = 1, limit = 20) {
+    await delay(350);
     const start = (page - 1) * limit;
     const items = MOCK_PRODUCTS_ENRICHED.slice(start, start + limit);
     return { items, total: MOCK_PRODUCTS_ENRICHED.length, page, totalPages: Math.ceil(MOCK_PRODUCTS_ENRICHED.length / limit) };
@@ -410,5 +432,40 @@ export const mockService = {
   async becomeSeller() {
     await delay(500);
     return { ...MOCK_USER, isSeller: true };
+  },
+
+  // Seller profile
+  async getSeller(sellerId: string) {
+    await delay(500);
+
+    const sellerProducts = MOCK_PRODUCTS_ENRICHED.filter((p) => p.sellerId === sellerId);
+
+    const sellerNames: Record<string, string> = {
+      'seller-1': 'Ege Zeytinlikleri',
+      'seller-2': 'Karadeniz Arıcılık',
+      'seller-3': 'Siirt Tarım Kooperatifi',
+      'seller-4': 'Anadolu El Sanatları',
+      'seller-5': 'Nevşehir Tarım',
+      'seller-6': 'Tarihi Eserler Koleksiyonu',
+      'seller-7': 'Istanbul Koleksiyon',
+    };
+
+    const profile: import('@/types').SellerProfile = {
+      id: sellerId,
+      name: sellerNames[sellerId] || '',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(sellerNames[sellerId] || 'E')}&background=0097D8&color=fff&size=256`,
+      banner: resolveSellerBanner(sellerId),
+      rating: 4.8,
+      reviewCount: sellerProducts.length * 12 + 8,
+      productCount: sellerProducts.length,
+      totalSales: sellerProducts.length * 34 + 12,
+      description:
+        'Üreticiden tüketiciye doğrudan ulaşım misyonuyla yola çıkan köklü bir Anadolu markası.',
+      location: 'Türkiye',
+      since: '2019',
+      trustBadges: ['verified', 'fast_shipping', 'original'],
+    };
+
+    return { profile, products: sellerProducts };
   },
 };

@@ -7,23 +7,20 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
-import { Wallet } from '../wallet/entities/wallet.entity';
-import { WalletHold } from '../wallet/entities/wallet-hold.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { BidStatus } from '../../shared/types/bid-status.enum';
-import { HoldStatus } from '../../shared/types/hold-status.enum';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
 import { OrderService } from '../order/order.service';
-import { NotificationEventType } from '@endemigo/shared';
+import { NotificationEventType, RC } from '@endemigo/shared';
 import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
@@ -52,7 +49,10 @@ export class AuctionService {
   async create(sellerId: string, dto: CreateAuctionDto) {
     const user = await this.userService.findById(sellerId);
     if (!user?.isSeller) {
-      throw new ForbiddenException('Sadece satıcılar müzayede oluşturabilir');
+      throw this.forbidden(
+        RC.NOT_SELLER,
+        'Sadece satıcılar müzayede oluşturabilir',
+      );
     }
 
     // BIZ-03: Product ownership check
@@ -60,10 +60,11 @@ export class AuctionService {
       where: { id: dto.productId },
     })) as any;
     if (!product) {
-      throw new NotFoundException('Ürün bulunamadı');
+      throw this.notFound(RC.PRODUCT_NOT_FOUND, 'Ürün bulunamadı');
     }
     if (product.sellerId !== sellerId) {
-      throw new ForbiddenException(
+      throw this.forbidden(
+        RC.NOT_PRODUCT_OWNER,
         'Sadece kendi ürünleriniz için müzayede oluşturabilirsiniz',
       );
     }
@@ -77,7 +78,8 @@ export class AuctionService {
       })
       .getOne();
     if (existingAuction) {
-      throw new BadRequestException(
+      throw this.badRequest(
+        RC.ACTIVE_AUCTION_EXISTS,
         'Bu ürün zaten aktif veya yayında bir müzayedede',
       );
     }
@@ -86,33 +88,52 @@ export class AuctionService {
     const endTime = new Date(dto.endTime);
 
     if (endTime <= startTime) {
-      throw new BadRequestException('Bitiş zamanı başlangıçtan sonra olmalı');
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Bitiş zamanı başlangıçtan sonra olmalı',
+      );
     }
 
-    // D-12: LOT numaralama
-    const lotNumber = await this.generateLotNumber();
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // D-18: DRAFT status — BullMQ jobs are NOT created yet
-    const auction = this.auctionRepo.create({
-      productId: dto.productId,
-      sellerId,
-      startPrice: dto.startPrice,
-      currentPrice: dto.startPrice,
-      minIncrement: dto.minIncrement || 1,
-      buyerPremiumRate: dto.buyerPremiumRate ?? 0.25,
-      auctionType: dto.auctionType || AuctionType.REALTIME,
-      antiSnipingEnabled: dto.antiSnipingEnabled ?? true,
-      extensionSeconds: dto.extensionSeconds ?? 60,
-      maxExtensions: dto.maxExtensions ?? 5,
-      culturalAssetRestricted: dto.culturalAssetRestricted ?? false,
-      status: AuctionStatus.DRAFT,
-      startTime,
-      endTime,
-      lotNumber,
-    });
+    try {
+      // D-12: LOT numaralama ve insert aynı transaction içinde kalmalı.
+      const lotNumber = await this.generateLotNumber(queryRunner.manager);
 
-    const saved = await this.auctionRepo.save(auction);
-    return this.findById(saved.id);
+      // D-18: DRAFT status — BullMQ jobs are NOT created yet
+      const auction = this.auctionRepo.create({
+        productId: dto.productId,
+        sellerId,
+        startPrice: dto.startPrice,
+        currentPrice: dto.startPrice,
+        minIncrement: dto.minIncrement || 1,
+        buyerPremiumRate: dto.buyerPremiumRate ?? 0.25,
+        auctionType: dto.auctionType || AuctionType.REALTIME,
+        antiSnipingEnabled: dto.antiSnipingEnabled ?? true,
+        extensionSeconds: dto.extensionSeconds ?? 60,
+        maxExtensions: dto.maxExtensions ?? 5,
+        culturalAssetRestricted: dto.culturalAssetRestricted ?? false,
+        status: AuctionStatus.DRAFT,
+        startTime,
+        endTime,
+        lotNumber,
+      });
+
+      const saved = await queryRunner.manager.save(Auction, auction);
+      await queryRunner.commitTransaction();
+      return {
+        code: RC.AUCTION_CREATED,
+        message: 'Auction created',
+        ...(await this.loadAuctionResponse(saved.id)),
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   // ─── Publish (D-18: DRAFT → PUBLISHED, schedule BullMQ) ──
@@ -121,18 +142,22 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
-      throw new ForbiddenException('Bu müzayede size ait değil');
+      throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
     if (auction.status !== AuctionStatus.DRAFT) {
-      throw new BadRequestException(
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
         'Sadece taslak müzayedeler yayınlanabilir',
       );
     }
 
     if (new Date(auction.startTime) <= new Date()) {
-      throw new BadRequestException('Başlangıç zamanı gelecekte olmalı');
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Başlangıç zamanı gelecekte olmalı',
+      );
     }
 
     auction.status = AuctionStatus.PUBLISHED;
@@ -157,7 +182,11 @@ export class AuctionService {
       },
     );
 
-    return this.findById(auctionId);
+    return {
+      code: RC.AUCTION_PUBLISHED,
+      message: 'Auction published',
+      ...(await this.loadAuctionResponse(auctionId)),
+    };
   }
 
   // ─── Update Draft ─────────────────────────────────────────
@@ -170,19 +199,23 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
-      throw new ForbiddenException('Bu müzayede size ait değil');
+      throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
     if (auction.status !== AuctionStatus.DRAFT) {
-      throw new BadRequestException(
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
         'Sadece taslak müzayedeler düzenlenebilir',
       );
     }
 
     // WR-05: Product cannot be changed after auction creation
     if ('productId' in dto) {
-      throw new BadRequestException('Müzayedenin ürünü değiştirilemez');
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Müzayedenin ürünü değiştirilemez',
+      );
     }
 
     if (dto.startTime) auction.startTime = new Date(dto.startTime);
@@ -203,7 +236,11 @@ export class AuctionService {
       auction.maxExtensions = dto.maxExtensions;
 
     await this.auctionRepo.save(auction);
-    return this.findById(auctionId);
+    return {
+      code: RC.AUCTION_UPDATED,
+      message: 'Auction updated',
+      ...(await this.loadAuctionResponse(auctionId)),
+    };
   }
 
   // ─── Cancel (D-08, BIZ-17) ────────────────────────────────
@@ -212,13 +249,14 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
-      throw new ForbiddenException('Bu müzayede size ait değil');
+      throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
 
     if (auction.bidCount > 0) {
-      throw new BadRequestException(
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
         'Teklif almış müzayede sadece admin tarafından iptal edilebilir',
       );
     }
@@ -230,7 +268,7 @@ export class AuctionService {
         AuctionStatus.ACTIVE,
       ].includes(auction.status)
     ) {
-      throw new BadRequestException('Bu müzayede iptal edilemez');
+      throw this.badRequest(RC.VALIDATION_ERROR, 'Bu müzayede iptal edilemez');
     }
 
     auction.status = AuctionStatus.CANCELLED;
@@ -251,7 +289,7 @@ export class AuctionService {
       reason: 'Satıcı tarafından iptal edildi',
     });
 
-    return { message: 'Müzayede iptal edildi', auctionId };
+    return { code: RC.AUCTION_CANCELLED, message: 'Auction cancelled', auctionId };
   }
 
   // ─── List ─────────────────────────────────────────────────
@@ -281,6 +319,8 @@ export class AuctionService {
       .getManyAndCount();
 
     return {
+      code: RC.AUCTION_LIST,
+      message: 'Auctions fetched',
       items: items.map((a) => this.toResponse(a)),
       total,
       page,
@@ -289,11 +329,19 @@ export class AuctionService {
   }
 
   async findById(id: string) {
+    return {
+      code: RC.AUCTION_FETCHED,
+      message: 'Auction fetched',
+      ...(await this.loadAuctionResponse(id)),
+    };
+  }
+
+  private async loadAuctionResponse(id: string) {
     const auction = await this.auctionRepo.findOne({
       where: { id },
       relations: ['product', 'seller', 'winner'],
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     return this.toResponse(auction);
   }
 
@@ -312,24 +360,32 @@ export class AuctionService {
         where: { id: auctionId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+      if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+
+      const bidder = await this.userService.findById(bidderId);
+      if (!bidder?.isActive) {
+        throw new ForbiddenException({
+          code: RC.ACCOUNT_DISABLED,
+          message: 'Kullanıcı bulunamadı veya devre dışı',
+        });
+      }
 
       // 2. Status check
       if (auction.status !== AuctionStatus.ACTIVE) {
-        throw new BadRequestException('Müzayede aktif değil');
+        throw this.badRequest(RC.AUCTION_NOT_ACTIVE, 'Müzayede aktif değil');
       }
 
       // 3. Time check (D-16: endTime sonrası kesin red)
       const now = new Date();
       if (now > auction.endTime) {
-        throw new BadRequestException('Müzayede sona erdi');
+        throw this.badRequest(RC.AUCTION_ENDED, 'Müzayede sona erdi');
       }
 
       // AUCT-18: Kültür varlığı kısıtlı müzayede — T.C. vatandaşı kontrolü
       if (auction.culturalAssetRestricted) {
-        const bidder = await this.userService.findById(bidderId);
-        if (!bidder?.nationality || bidder.nationality !== 'TR') {
-          throw new BadRequestException(
+        if (!bidder.nationality || bidder.nationality !== 'TR') {
+          throw this.badRequest(
+            RC.VALIDATION_ERROR,
             'Kültür varlığı müzayedelerine sadece T.C. vatandaşları teklif verebilir',
           );
         }
@@ -337,7 +393,8 @@ export class AuctionService {
 
       // 4. Self-bid check
       if (bidderId === auction.sellerId) {
-        throw new BadRequestException(
+        throw this.badRequest(
+          RC.CANNOT_BID_OWN,
           'Kendi müzayedenize teklif veremezsiniz',
         );
       }
@@ -347,7 +404,8 @@ export class AuctionService {
       const minIncrement = Number(auction.minIncrement);
       const minBid = currentPrice + minIncrement;
       if (dto.amount < minBid) {
-        throw new BadRequestException(
+        throw this.badRequest(
+          RC.BID_TOO_LOW,
           `Minimum teklif: ${minBid.toFixed(2)}₺`,
         );
       }
@@ -361,75 +419,27 @@ export class AuctionService {
         where: { auctionId, isWinningBid: true },
       });
 
-      // 8. Release previous hold for THIS bidder (inside transaction)
-      const existingHold = await queryRunner.manager.findOne(WalletHold, {
-        where: { auctionId, userId: bidderId, status: HoldStatus.HELD },
-      });
-      if (existingHold) {
-        existingHold.status = HoldStatus.RELEASED;
-        await queryRunner.manager.save(existingHold);
-        const existingWallet = await queryRunner.manager.findOne(Wallet, {
-          where: { userId: bidderId },
-        });
-        if (existingWallet) {
-          existingWallet.heldAmount = Math.max(
-            0,
-            Number(existingWallet.heldAmount) - Number(existingHold.amount),
-          );
-          await queryRunner.manager.save(existingWallet);
-        }
-      }
-
-      // 9. Check balance & create new hold (inside transaction)
-      const wallet = await queryRunner.manager.findOne(Wallet, {
-        where: { userId: bidderId },
-      });
-      if (!wallet) {
-        throw new BadRequestException('Cüzdan bulunamadı');
-      }
-      const available = Number(wallet.balance) - Number(wallet.heldAmount);
-      if (available < totalWithPremium) {
-        throw new BadRequestException(
-          `Yetersiz bakiye. Gerekli: ${totalWithPremium.toFixed(2)}₺, Kullanılabilir: ${available.toFixed(2)}₺`,
-        );
-      }
-
-      const hold = queryRunner.manager.create(WalletHold, {
-        walletId: wallet.id,
+      // 8-9. Wallet hold reservation uses WalletService so wallet row locks and
+      // ledger movements are part of the same bid transaction.
+      await this.walletService.releaseHold(
         auctionId,
-        userId: bidderId,
-        amount: totalWithPremium,
-        status: HoldStatus.HELD,
-      });
-      await queryRunner.manager.save(hold);
-      wallet.heldAmount = Number(wallet.heldAmount) + totalWithPremium;
-      await queryRunner.manager.save(wallet);
+        bidderId,
+        queryRunner.manager,
+      );
+      await this.walletService.createHold(
+        auctionId,
+        bidderId,
+        totalWithPremium,
+        queryRunner.manager,
+      );
 
       // 10. Release previous leader's hold when they are outbid by another user.
       if (previousLeadBid && previousLeadBid.bidderId !== bidderId) {
-        const previousLeaderHold = await queryRunner.manager.findOne(WalletHold, {
-          where: {
-            auctionId,
-            userId: previousLeadBid.bidderId,
-            status: HoldStatus.HELD,
-          },
-        });
-
-        if (previousLeaderHold) {
-          previousLeaderHold.status = HoldStatus.RELEASED;
-          await queryRunner.manager.save(previousLeaderHold);
-
-          const previousLeaderWallet = await queryRunner.manager.findOne(Wallet, {
-            where: { userId: previousLeadBid.bidderId },
-          });
-          if (previousLeaderWallet) {
-            previousLeaderWallet.heldAmount = Math.max(
-              0,
-              Number(previousLeaderWallet.heldAmount) - Number(previousLeaderHold.amount),
-            );
-            await queryRunner.manager.save(previousLeaderWallet);
-          }
-        }
+        await this.walletService.releaseHold(
+          auctionId,
+          previousLeadBid.bidderId,
+          queryRunner.manager,
+        );
       }
 
       // 11. Mark previous lead bid as OUTBID (BIZ-12)
@@ -539,6 +549,8 @@ export class AuctionService {
       }
 
       return {
+        code: RC.BID_ACCEPTED,
+        message: 'Bid accepted',
         bid: {
           id: bid.id,
           amount: Number(bid.amount),
@@ -667,6 +679,7 @@ export class AuctionService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+    let transactionCommitted = false;
 
     try {
       // WR-04: Lock auction row to prevent race with last-second bids
@@ -676,6 +689,7 @@ export class AuctionService {
       });
       if (!auction || auction.status !== AuctionStatus.ACTIVE) {
         await queryRunner.commitTransaction();
+        transactionCommitted = true;
         return;
       }
 
@@ -693,6 +707,7 @@ export class AuctionService {
         auction.status = AuctionStatus.FAILED;
         await queryRunner.manager.save(auction);
         await queryRunner.commitTransaction();
+        transactionCommitted = true;
 
         this.auctionGateway.emitAuctionEnded(auctionId, {
           finalPrice: Number(auction.startPrice),
@@ -734,65 +749,151 @@ export class AuctionService {
 
       await queryRunner.manager.save(auction);
       await queryRunner.commitTransaction();
+      transactionCommitted = true;
 
       // ─── Post-commit: Gateway events + wallet operations ───
       if (winningBid) {
-        // Capture winner's hold (D-04: mock — payout deferred to Phase 6)
-        await this.walletService.captureHold(auctionId, winningBid.bidderId);
-
-        // Release all other holds
-        await this.walletService.releaseAllHoldsForAuction(
-          auctionId,
-          winningBid.bidderId,
-        );
-
-        await this.orderService?.createFromAuction({
-          auctionId,
-          buyerId: winningBid.bidderId,
-          sellerId: auction.sellerId,
-          productId: auction.productId,
-          amount: Number(winningBid.amount),
-          currency: 'TRY',
-        });
-
-        const premiumAmount =
-          Number(winningBid.amount) * Number(auction.buyerPremiumRate);
-
-        this.auctionGateway.emitAuctionEnded(auctionId, {
-          finalPrice: Number(auction.currentPrice),
-          winnerId: auction.winnerId,
-          bidCount: auction.bidCount,
-        });
-
-        this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
-          finalPrice: Number(winningBid.amount),
-          premiumAmount,
-        });
-        await this.notificationService?.createFromEvent({
-          eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
-          userId: winningBid.bidderId,
-          eventType: NotificationEventType.AUCTION_WON,
-          title: 'Auction won',
-          body: 'You won the auction.',
-          relatedEntityType: 'auction',
-          relatedEntityId: auctionId,
-        });
-
-        this.auctionGateway.emitBidLost(auctionId, winningBid.bidderId, {
-          finalPrice: Number(auction.currentPrice),
-          holdReleased: true,
-        });
+        await this.runFinalizationSideEffects(auction, winningBid);
       }
 
       // WR-03: Clean up viewer count for ended auction
       this.auctionGateway.clearViewerCount(auctionId);
       return auction;
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (!transactionCommitted) {
+        await queryRunner.rollbackTransaction();
+      } else {
+        await this.scheduleFinalizationCompensation(auctionId, error);
+      }
       throw error;
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private async scheduleFinalizationCompensation(
+    auctionId: string,
+    error: unknown,
+  ): Promise<void> {
+    const message = error instanceof Error ? error.message : 'Unknown finalization error';
+    this.logger.error(
+      `Auction finalization side effect failed for ${auctionId}: ${message}`,
+      error instanceof Error ? error.stack : undefined,
+    );
+    await this.auctionQueue.add(
+      'auction-finalization-compensation',
+      { auctionId, errorMessage: message },
+      {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 10000 },
+        jobId: `auction-finalization-compensation-${auctionId}`,
+      },
+    );
+  }
+
+  async retryFinalizationSideEffects(auctionId: string) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
+    if (
+      !auction ||
+      auction.status !== AuctionStatus.ENDED ||
+      !auction.winnerId
+    ) {
+      return {
+        code: RC.AUCTION_FINALIZATION_SKIPPED,
+        message: 'Auction finalization retry skipped',
+      };
+    }
+
+    const winningBid = await this.bidRepo.findOne({
+      where: {
+        auctionId,
+        bidderId: auction.winnerId,
+        status: BidStatus.WON,
+      },
+      order: { amount: 'DESC' },
+    });
+
+    if (!winningBid) {
+      return {
+        code: RC.AUCTION_FINALIZATION_SKIPPED,
+        message: 'Winning bid not found',
+      };
+    }
+
+    await this.runFinalizationSideEffects(auction, winningBid);
+    return {
+      code: RC.AUCTION_FINALIZATION_RETRIED,
+      message: 'Auction finalization side effects retried',
+    };
+  }
+
+  private async runFinalizationSideEffects(
+    auction: Auction,
+    winningBid: Bid,
+  ): Promise<void> {
+    const auctionId = auction.id;
+    const capturedHold = await this.walletService.captureHold(
+      auctionId,
+      winningBid.bidderId,
+    );
+
+    await this.walletService.releaseAllHoldsForAuction(
+      auctionId,
+      winningBid.bidderId,
+    );
+
+    await this.orderService?.createFromAuction({
+      auctionId,
+      buyerId: winningBid.bidderId,
+      sellerId: auction.sellerId,
+      productId: auction.productId,
+      amount: Number(winningBid.amount),
+      currency: 'TRY',
+      paymentId: capturedHold?.id ?? null,
+    });
+
+    const premiumAmount =
+      Number(winningBid.amount) * Number(auction.buyerPremiumRate);
+
+    this.auctionGateway.emitAuctionEnded(auctionId, {
+      finalPrice: Number(auction.currentPrice),
+      winnerId: auction.winnerId,
+      bidCount: auction.bidCount,
+    });
+
+    this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
+      finalPrice: Number(winningBid.amount),
+      premiumAmount,
+    });
+    await this.notificationService?.createFromEvent({
+      eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
+      userId: winningBid.bidderId,
+      eventType: NotificationEventType.AUCTION_WON,
+      title: 'Auction won',
+      body: 'You won the auction.',
+      relatedEntityType: 'auction',
+      relatedEntityId: auctionId,
+    });
+  }
+
+  private badRequest(code: string, message: string): BadRequestException {
+    const exception = new BadRequestException({ code, message });
+    exception.message = message;
+    return exception;
+  }
+
+  private forbidden(code: string, message: string): ForbiddenException {
+    const exception = new ForbiddenException({ code, message });
+    exception.message = message;
+    return exception;
+  }
+
+  private notFound(code: string, message: string): NotFoundException {
+    const exception = new NotFoundException({ code, message });
+    exception.message = message;
+    return exception;
   }
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -805,17 +906,21 @@ export class AuctionService {
       order: { amount: 'DESC' },
     });
 
-    return bids.map((b) => ({
-      id: b.id,
-      amount: Number(b.amount),
-      premiumAmount: Number(b.premiumAmount),
-      status: b.status,
-      isWinningBid: b.isWinningBid,
-      bidderName: b.bidder
-        ? `${b.bidder.firstName || ''} ${b.bidder.lastName || ''}`.trim()
-        : 'Anonim',
-      createdAt: b.createdAt,
-    }));
+    return {
+      code: RC.AUCTION_BIDS_FETCHED,
+      message: 'Auction bids fetched',
+      bids: bids.map((b) => ({
+        id: b.id,
+        amount: Number(b.amount),
+        premiumAmount: Number(b.premiumAmount),
+        status: b.status,
+        isWinningBid: b.isWinningBid,
+        bidderName: b.bidder
+          ? `${b.bidder.firstName || ''} ${b.bidder.lastName || ''}`.trim()
+          : 'Anonim',
+        createdAt: b.createdAt,
+      })),
+    };
   }
 
   async activateAuction(auctionId: string) {
@@ -833,9 +938,11 @@ export class AuctionService {
       where: { id: auctionId },
       relations: ['product', 'winner'],
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
 
     return {
+      code: RC.AUCTION_RESULT_FETCHED,
+      message: 'Auction result fetched',
       id: auction.id,
       status: auction.status,
       finalPrice: Number(auction.currentPrice),
@@ -865,17 +972,19 @@ export class AuctionService {
 
   // ─── LOT Number Generation (D-12, AUCT-17) ───────────────
 
-  private async generateLotNumber(): Promise<string> {
+  private async generateLotNumber(
+    manager: EntityManager = this.auctionRepo.manager,
+  ): Promise<string> {
     const now = new Date();
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // CR-02: Use advisory lock to prevent duplicate LOT numbers under concurrency
-    await this.auctionRepo.manager.query(
+    // Transaction-scoped advisory lock protects the count + insert sequence.
+    await manager.query(
       `SELECT pg_advisory_xact_lock(hashtext('lot_number_gen'))`,
     );
 
-    const count = await this.auctionRepo
-      .createQueryBuilder('a')
+    const count = await manager
+      .createQueryBuilder(Auction, 'a')
       .where('a.lotNumber LIKE :prefix', { prefix: `LOT-${yearMonth}-%` })
       .getCount();
 
@@ -927,9 +1036,10 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw new NotFoundException('Müzayede bulunamadı');
+    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.status !== AuctionStatus.ENDED) {
-      throw new BadRequestException(
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
         'Sadece bitmiş müzayedeler tamamlanabilir',
       );
     }

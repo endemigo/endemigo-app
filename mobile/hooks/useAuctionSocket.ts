@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Alert, Vibration } from 'react-native';
+import { Vibration } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Socket } from 'socket.io-client';
 import { getAuctionSocket } from '../services/socket';
 import ENV from '../lib/config';
+import { useModalStore } from '../store/modalStore';
 
 interface AuctionSocketState {
   currentPrice: number;
@@ -19,6 +21,8 @@ interface AuctionSocketState {
 }
 
 export function useAuctionSocket(auctionId: string) {
+  const { t } = useTranslation();
+  const showModal = useModalStore((modalState) => modalState.showModal);
   const [state, setState] = useState<AuctionSocketState>({
     currentPrice: 0,
     bidCount: 0,
@@ -77,10 +81,13 @@ export function useAuctionSocket(auctionId: string) {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(200);
           setState((s) => ({ ...s, wasOutbid: true }));
-          Alert.alert(
-            '⚠️ Teklifiniz Geçildi!',
-            `Yeni teklif: ₺${data.newAmount?.toLocaleString('tr-TR')}`,
-          );
+          showModal({
+            title: t('auction.outbidTitle'),
+            message: t('auction.outbidMessage', {
+              amount: data.newAmount?.toLocaleString('tr-TR'),
+            }),
+            type: 'info',
+          });
         }
       });
 
@@ -110,7 +117,13 @@ export function useAuctionSocket(auctionId: string) {
       socket.on('auction:extended', (data: { auctionId: string; newEndTime: string; extensionNumber: number }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({ ...s, endTime: data.newEndTime }));
-          Alert.alert('⏱ Süre Uzatıldı!', `Uzatma #${data.extensionNumber}`);
+          showModal({
+            title: t('auction.extendedTitle'),
+            message: t('auction.extendedMessage', {
+              count: data.extensionNumber,
+            }),
+            type: 'info',
+          });
         }
       });
 
@@ -139,7 +152,11 @@ export function useAuctionSocket(auctionId: string) {
       socket.on('auction:cancelled', (data: { auctionId: string; reason: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({ ...s, auctionEnded: true }));
-          Alert.alert('Müzayede İptal', data.reason || 'Müzayede iptal edildi');
+          showModal({
+            title: t('auction.cancelledTitle'),
+            message: data.reason || t('auction.cancelledMessage'),
+            type: 'error',
+          });
         }
       });
     };
@@ -164,7 +181,7 @@ export function useAuctionSocket(auctionId: string) {
         socket.off('auction:cancelled');
       }
     };
-  }, [auctionId]);
+  }, [auctionId, showModal, t]);
 
   const clearOutbid = useCallback(() => {
     setState((s) => ({ ...s, wasOutbid: false }));

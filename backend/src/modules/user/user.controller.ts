@@ -8,6 +8,8 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -25,6 +27,7 @@ import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ReactivateAccountDto } from './dto/reactivate-account.dto';
+import { RC } from '../../shared/constants/response-codes';
 
 @ApiTags('Users')
 @Controller('users')
@@ -72,6 +75,26 @@ export class UserController {
   @ApiResponse({ status: 404, description: 'Satıcı profili bulunamadı' })
   async getSellerProfile(@CurrentUser('id') userId: string) {
     return this.userService.getSellerProfile(userId);
+  }
+
+  @Public()
+  @Get('sellers/:id')
+  @ApiOperation({ summary: 'Public satıcı profilini ve ürünlerini getir' })
+  @ApiResponse({ status: 200, description: 'Satıcı profili ve ürünleri' })
+  @ApiResponse({ status: 404, description: 'Satıcı bulunamadı' })
+  async getPublicSeller(@Param('id') id: string) {
+    const seller = await this.userService.getPublicSeller(id);
+    if (!seller) {
+      throw new NotFoundException({
+        code: RC.SELLER_NOT_FOUND,
+        message: 'Satıcı bulunamadı',
+      });
+    }
+    return {
+      code: RC.SELLER_FETCHED,
+      message: 'Satıcı getirildi',
+      ...seller,
+    };
   }
 
   // ==========================================

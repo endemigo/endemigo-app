@@ -90,13 +90,13 @@ export const Colors = {
 
 // ─── Typography ─────────────────────────────────────────────────
 export const FontFamily = {
-  headline: 'Outfit-Bold',
-  headlineBlack: 'Outfit-ExtraBold',
-  body: 'Inter-Regular',
-  bodyMedium: 'Inter-Medium',
-  bodySemiBold: 'Inter-SemiBold',
-  bodyBold: 'Inter-Bold',
-  label: 'Inter-Medium',
+  headline: 'Raleway-SemiBold',
+  headlineBlack: 'Oxygen-Bold',
+  body: 'OpenSans-Regular',
+  bodyMedium: 'Oxygen-Regular',
+  bodySemiBold: 'OpenSans-SemiBold',
+  bodyBold: 'Oxygen-Bold',
+  label: 'Raleway-SemiBold',
 } as const;
 
 export const FontSize = {
@@ -193,14 +193,18 @@ export const Shadows = {
 
 // ─── Fonts to load (used in _layout.tsx) ────────────────────────
 // Uses @expo-google-fonts packages
-export { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
-export { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+export { OpenSans_400Regular, OpenSans_600SemiBold } from '@expo-google-fonts/open-sans';
+export { Oxygen_300Light, Oxygen_400Regular, Oxygen_700Bold } from '@expo-google-fonts/oxygen';
+export { Raleway_400Regular, Raleway_600SemiBold } from '@expo-google-fonts/raleway';
+export { Ubuntu_300Light } from '@expo-google-fonts/ubuntu';
 
 export const FontAssets = {
-  'PlusJakartaSans-Bold': 'PlusJakartaSans_700Bold',
-  'PlusJakartaSans-ExtraBold': 'PlusJakartaSans_800ExtraBold',
-  'Inter-Regular': 'Inter_400Regular',
-  'Inter-Medium': 'Inter_500Medium',
-  'Inter-SemiBold': 'Inter_600SemiBold',
-  'Inter-Bold': 'Inter_700Bold',
+  'OpenSans-Regular': 'OpenSans_400Regular',
+  'OpenSans-SemiBold': 'OpenSans_600SemiBold',
+  'Oxygen-Light': 'Oxygen_300Light',
+  'Oxygen-Regular': 'Oxygen_400Regular',
+  'Oxygen-Bold': 'Oxygen_700Bold',
+  'Raleway-Regular': 'Raleway_400Regular',
+  'Raleway-SemiBold': 'Raleway_600SemiBold',
+  'Ubuntu-Light': 'Ubuntu_300Light',
 } as const;

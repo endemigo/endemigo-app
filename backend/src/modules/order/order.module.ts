@@ -6,6 +6,9 @@ import { CargoModule } from '../cargo/cargo.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { NotificationModule } from '../notification/notification.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { CampaignModule } from '../campaign/campaign.module';
+import { MembershipModule } from '../membership/membership.module';
+import { Product } from '../product/entities/product.entity';
 import { OrderAuditEvent } from './entities/order-audit-event.entity';
 import { Order } from './entities/order.entity';
 import { OrderController } from './order.controller';
@@ -14,7 +17,7 @@ import { OrderService } from './order.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderAuditEvent]),
+    TypeOrmModule.forFeature([Order, OrderAuditEvent, Product]),
     BullModule.registerQueue({
       name: 'order',
       defaultJobOptions: {
@@ -29,6 +32,8 @@ import { OrderService } from './order.service';
     NotificationModule,
     WalletModule,
     ConfigModule,
+    CampaignModule,
+    MembershipModule,
   ],
   controllers: [OrderController],
   providers: [OrderService, OrderProcessor],

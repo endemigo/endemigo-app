@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/tabs/edit-profile.styles';
 
@@ -49,11 +50,7 @@ export default function EditProfileScreen() {
       });
       router.back();
     } catch (err: unknown) {
-      let msg = t('common.genericError');
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { message?: string } } };
-        msg = axiosErr.response?.data?.message || msg;
-      }
+      const msg = resolveApiErrorMessage(err, t, 'common.genericError');
       showModal({ title: t('common.error'), message: msg, type: 'error' });
     } finally {
       setLoading(false);

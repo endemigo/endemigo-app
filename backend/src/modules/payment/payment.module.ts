@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LedgerModule } from '../ledger/ledger.module';
 import { NotificationModule } from '../notification/notification.module';
+import { OrderModule } from '../order/order.module';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { Payment } from './entities/payment.entity';
 import { PaymentController } from './payment.controller';
@@ -14,6 +15,7 @@ import { IyzicoProvider } from './providers/iyzico.provider';
     TypeOrmModule.forFeature([Payment, PaymentProviderEvent]),
     LedgerModule,
     NotificationModule,
+    OrderModule,
     ConfigModule,
   ],
   controllers: [PaymentController],

@@ -44,7 +44,7 @@ export class SellerProfile extends BaseEntity {
   @Column({
     type: 'enum',
     enum: SellerStatus,
-    default: SellerStatus.APPROVED,
+    default: SellerStatus.PENDING,
   })
   status: SellerStatus;
 

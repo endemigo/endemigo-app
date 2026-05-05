@@ -49,6 +49,15 @@ export class User extends BaseEntity {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ nullable: true })
+  bio: string;
+
+  @Column({ nullable: true })
+  location: string;
+
+  @Column({ nullable: true })
+  bannerUrl: string;
+
   @OneToOne(() => SellerProfile, (sp) => sp.user, { eager: false })
   sellerProfile: SellerProfile;
   // NOT: Admin tablosu Phase 11'de ayrı entity olarak oluşturulacak.

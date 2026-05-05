@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import api from '../../lib/api';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/tabs/settings.styles';
 
@@ -43,7 +44,7 @@ export default function SettingsScreen() {
   const loadConsents = async () => {
     try {
       const { data } = await api.get('/users/consents');
-      setConsents(data);
+      setConsents(data.consents ?? []);
     } catch (err) {
       // WR-08: Log failure instead of silent swallow — empty state could mislead user
       console.warn('Failed to load KVKK consents:', err);
@@ -60,11 +61,7 @@ export default function SettingsScreen() {
       });
       await loadConsents();
     } catch (err: unknown) {
-      let msg = t('common.genericError');
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { message?: string } } };
-        msg = axiosErr.response?.data?.message || msg;
-      }
+      const msg = resolveApiErrorMessage(err, t, 'common.genericError');
       showModal({
         title: t('common.error'),
         message: msg,
@@ -100,11 +97,7 @@ export default function SettingsScreen() {
       });
       await logout();
     } catch (err: unknown) {
-      let msg = t('common.genericError');
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { message?: string } } };
-        msg = axiosErr.response?.data?.message || msg;
-      }
+      const msg = resolveApiErrorMessage(err, t, 'common.genericError');
       showModal({
         title: t('common.error'),
         message: msg,

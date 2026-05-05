@@ -24,6 +24,10 @@ interface WalletHoldsResponse extends ApiResponseEnvelope {
 
 interface WalletHistoryApiResponse extends ApiResponseEnvelope {
   items: WalletHistoryItem[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  hasNextPage?: boolean;
 }
 
 interface PayoutRequestsResponse extends ApiResponseEnvelope {
@@ -42,11 +46,6 @@ const FILTER_TYPE_MAP: Record<WalletHistoryFilter, WalletTransactionType[]> = {
   refund: ['refund', 'payment_refund'],
   payout: ['payout', 'payout_reserve', 'payout_release'],
 };
-
-function matchesHistoryFilter(item: WalletHistoryItem, filter: WalletHistoryFilter) {
-  if (filter === 'all') return true;
-  return FILTER_TYPE_MAP[filter].includes(item.type);
-}
 
 export function useWalletBalance() {
   return useQuery<WalletSummary>({
@@ -82,18 +81,20 @@ export function useWalletHistory(filter: WalletHistoryFilter = 'all', page = 1) 
       if (ENV.USE_MOCK) {
         return { items: [], total: 0, page, limit: WALLET_HISTORY_PAGE_SIZE, hasNextPage: false };
       }
+      const requestedTypes = filter === 'all' ? [] : FILTER_TYPE_MAP[filter];
       const { data } = await api.get<WalletHistoryApiResponse>('/wallet/history', {
-        params: { limit: WALLET_HISTORY_PAGE_SIZE, type: filter === 'all' ? undefined : filter },
+        params: {
+          limit: WALLET_HISTORY_PAGE_SIZE,
+          page,
+          types: requestedTypes.length > 0 ? requestedTypes.join(',') : undefined,
+        },
       });
-      const filteredItems = data.items.filter((item) => matchesHistoryFilter(item, filter));
-      const start = (page - 1) * WALLET_HISTORY_PAGE_SIZE;
-      const items = filteredItems.slice(start, start + WALLET_HISTORY_PAGE_SIZE);
       return {
-        items,
-        total: filteredItems.length,
-        page,
-        limit: WALLET_HISTORY_PAGE_SIZE,
-        hasNextPage: start + WALLET_HISTORY_PAGE_SIZE < filteredItems.length,
+        items: data.items,
+        total: data.total ?? data.items.length,
+        page: data.page ?? page,
+        limit: data.limit ?? WALLET_HISTORY_PAGE_SIZE,
+        hasNextPage: data.hasNextPage ?? data.items.length === WALLET_HISTORY_PAGE_SIZE,
       };
     },
   });

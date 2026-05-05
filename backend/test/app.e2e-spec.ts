@@ -10,6 +10,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let sellerToken: string;
+  let sellerRefreshToken: string;
   let buyerToken: string;
   let productId: string;
   let auctionId: string;
@@ -30,7 +31,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
     dataSource = app.get(DataSource);
     const productService = app.get(ProductService);
-    const categories = await productService.seedCategories();
+    const { categories } = await productService.seedCategories();
     categoryId = categories[0]?.children?.[0]?.id || categories[0]?.id;
   }, 30000);
 
@@ -57,6 +58,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.body.accessToken).toBeDefined();
       sellerToken = res.body.accessToken;
+      sellerRefreshToken = res.body.refreshToken;
       await markEmailVerified(SELLER_EMAIL);
     });
 
@@ -79,6 +81,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.body.accessToken).toBeDefined();
       sellerToken = res.body.accessToken;
+      sellerRefreshToken = res.body.refreshToken;
     });
 
     it('should reject wrong password', async () => {
@@ -94,6 +97,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
         .set('Authorization', `Bearer ${sellerToken}`)
         .expect(200);
 
+      expect(res.body.code).toBe('PROFILE_FETCHED');
       expect(res.body.email).toBe(SELLER_EMAIL);
     });
 
@@ -101,6 +105,40 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
       await request(app.getHttpServer())
         .get('/auth/profile')
         .expect(401);
+    });
+
+    it('should refresh token and reject reused refresh token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: sellerRefreshToken })
+        .expect(200);
+
+      expect(res.body.code).toBe('TOKEN_REFRESHED');
+      sellerToken = res.body.accessToken;
+      sellerRefreshToken = res.body.refreshToken;
+
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: 'invalid-refresh-token' })
+        .expect(401);
+    });
+
+    it('should handle auth recovery endpoints with typed response codes', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/verify-email')
+        .send({ token: 'invalid-token' })
+        .expect(400);
+
+      const forgot = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: SELLER_EMAIL })
+        .expect(200);
+      expect(forgot.body.code).toBe('RESET_EMAIL_SENT');
+
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: 'invalid-token', newPassword: 'NewPass123!' })
+        .expect(400);
     });
   });
 
@@ -117,12 +155,6 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
 
       expect(res.body.isSeller).toBe(true);
       expect(res.body.sellerProfile).toBeDefined();
-
-      const login = await request(app.getHttpServer())
-        .post('/auth/login')
-        .send({ email: SELLER_EMAIL, password: PASSWORD })
-        .expect(200);
-      sellerToken = login.body.accessToken;
     });
 
     it('should reject already seller (409)', async () => {
@@ -529,9 +561,10 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
         .set('Authorization', `Bearer ${sellerToken}`)
         .expect(200);
 
-      expect(res.body.businessName).toBe('E2E Test Mağazası');
-      expect(res.body.status).toBe('APPROVED');
-      expect(res.body.agreementVersion).toBe('1.0.0');
+      expect(res.body.code).toBe('SELLER_PROFILE_FETCHED');
+      expect(res.body.sellerProfile.businessName).toBe('E2E Test Mağazası');
+      expect(res.body.sellerProfile.status).toBe('APPROVED');
+      expect(res.body.sellerProfile.agreementVersion).toBe('1.0.0');
     });
 
     it('should return 404 for buyer seller profile', async () => {
@@ -563,8 +596,17 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
         .set('Authorization', `Bearer ${sellerToken}`)
         .expect(200);
 
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.code).toBe('CONSENT_LIST');
+      expect(Array.isArray(res.body.consents)).toBe(true);
+      expect(res.body.consents.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should reject invalid consent enum', async () => {
+      await request(app.getHttpServer())
+        .post('/users/consents')
+        .set('Authorization', `Bearer ${sellerToken}`)
+        .send({ consentType: 'INVALID', isAccepted: true })
+        .expect(400);
     });
   });
 

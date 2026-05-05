@@ -14,9 +14,15 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SearchService } from './search.service';
-import { SearchProductsDto, SearchAuctionsDto } from './dto/search.dto';
+import {
+  FavoritesQueryDto,
+  SearchProductsDto,
+  SearchAuctionsDto,
+} from './dto/search.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RC } from '../../shared/constants/response-codes';
+import type { ResponseCode } from '../../shared/constants/response-codes';
 
 @ApiTags('Search')
 @Controller()
@@ -24,7 +30,7 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   private withResponseMeta<T extends Record<string, unknown>>(
-    code: string,
+    code: ResponseCode,
     message: string,
     data: T,
   ) {
@@ -38,7 +44,11 @@ export class SearchController {
   @ApiOperation({ summary: 'Ürün ara + filtrele + sırala' })
   async searchProducts(@Query() dto: SearchProductsDto) {
     const result = await this.searchService.searchProducts(dto);
-    return this.withResponseMeta('SEARCH_PRODUCTS_SUCCESS', 'Ürün arama sonuçları', result);
+    return this.withResponseMeta(
+      RC.SEARCH_PRODUCTS_SUCCESS,
+      'Ürün arama sonuçları',
+      result,
+    );
   }
 
   // Authenticated version — includes isFavorited
@@ -50,7 +60,11 @@ export class SearchController {
     @Query() dto: SearchProductsDto,
   ) {
     const result = await this.searchService.searchProducts(dto, userId);
-    return this.withResponseMeta('SEARCH_PRODUCTS_SUCCESS', 'Ürün arama sonuçları', result);
+    return this.withResponseMeta(
+      RC.SEARCH_PRODUCTS_SUCCESS,
+      'Ürün arama sonuçları',
+      result,
+    );
   }
 
   // ─── Auction Search ──────────────────────────────────────
@@ -60,7 +74,11 @@ export class SearchController {
   @ApiOperation({ summary: 'Müzayede ara + filtrele + sırala' })
   async searchAuctions(@Query() dto: SearchAuctionsDto) {
     const result = await this.searchService.searchAuctions(dto);
-    return this.withResponseMeta('SEARCH_AUCTIONS_SUCCESS', 'Müzayede arama sonuçları', result);
+    return this.withResponseMeta(
+      RC.SEARCH_AUCTIONS_SUCCESS,
+      'Müzayede arama sonuçları',
+      result,
+    );
   }
 
   // ─── Unified Search ──────────────────────────────────────
@@ -74,15 +92,23 @@ export class SearchController {
   async unifiedSearch(@Query('q') q: string) {
     // WR-04: Guard against empty q — would trigger full table scan with '%%'
     if (!q || !q.trim()) {
-      return this.withResponseMeta('SEARCH_UNIFIED_SUCCESS', 'Birleşik arama sonuçları', {
-        products: [],
-        auctions: [],
-        totalProducts: 0,
-        totalAuctions: 0,
-      });
+      return this.withResponseMeta(
+        RC.SEARCH_UNIFIED_SUCCESS,
+        'Birleşik arama sonuçları',
+        {
+          products: [],
+          auctions: [],
+          totalProducts: 0,
+          totalAuctions: 0,
+        },
+      );
     }
     const result = await this.searchService.unifiedSearch(q.trim());
-    return this.withResponseMeta('SEARCH_UNIFIED_SUCCESS', 'Birleşik arama sonuçları', result);
+    return this.withResponseMeta(
+      RC.SEARCH_UNIFIED_SUCCESS,
+      'Birleşik arama sonuçları',
+      result,
+    );
   }
 
   // ─── Favorites ───────────────────────────────────────────
@@ -104,11 +130,17 @@ export class SearchController {
   @ApiQuery({ name: 'limit', required: false })
   async getFavorites(
     @CurrentUser('id') userId: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query() dto: FavoritesQueryDto,
   ) {
-    // WR-03: Clamp pagination to prevent memory exhaustion
-    const result = await this.searchService.getFavorites(userId, Math.max(1, +page), Math.min(Math.max(1, +limit), 50));
-    return this.withResponseMeta('FAVORITES_LISTED', 'Favoriler listelendi', result);
+    const result = await this.searchService.getFavorites(
+      userId,
+      dto.page,
+      dto.limit,
+    );
+    return this.withResponseMeta(
+      RC.FAVORITES_LISTED,
+      'Favoriler listelendi',
+      result,
+    );
   }
 }

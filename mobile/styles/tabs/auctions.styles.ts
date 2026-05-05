@@ -40,7 +40,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.base,
+    paddingTop: 0,
     paddingBottom: Spacing.md,
   },
   headerTitle: {
@@ -60,7 +60,7 @@ export const styles = StyleSheet.create({
   // List
   listContent: {
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.xxl * 2,
+    paddingBottom: 132,
   },
 
   // Card

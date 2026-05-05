@@ -101,6 +101,24 @@ export class NotificationService {
     });
   }
 
+  async createAskPriceNotification(input: {
+    eventId: string;
+    userId: string;
+    title: string;
+    body: string;
+    conversationId: string;
+  }) {
+    return this.createFromEvent({
+      eventId: input.eventId,
+      userId: input.userId,
+      eventType: NotificationEventType.ASK_PRICE,
+      title: input.title,
+      body: input.body,
+      relatedEntityType: 'negotiation',
+      relatedEntityId: input.conversationId,
+    });
+  }
+
   async listForUser(userId: string) {
     const notifications = await this.notificationRepository.find({
       where: { userId },
@@ -108,9 +126,9 @@ export class NotificationService {
     });
 
     return {
-      code: RC.NOTIFICATION_CREATED,
+      code: RC.NOTIFICATION_FETCHED,
       message: 'Notifications fetched',
-      notifications: notifications.filter((notification) => notification.userId === userId),
+      notifications,
     };
   }
 
@@ -130,7 +148,7 @@ export class NotificationService {
     const saved = await this.notificationRepository.save(notification);
 
     return {
-      code: RC.NOTIFICATION_CREATED,
+      code: RC.NOTIFICATION_READ,
       message: 'Notification marked read',
       notification: saved,
     };
@@ -146,7 +164,10 @@ export class NotificationService {
     };
   }
 
-  async updatePreferences(userId: string, dto: UpdateNotificationPreferencesDto) {
+  async updatePreferences(
+    userId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ) {
     const preferences = await this.getOrCreatePreferences(userId);
     const nextChannels = {
       ...preferences.channels,
@@ -170,7 +191,9 @@ export class NotificationService {
   }
 
   async findForDelivery(notificationId: string) {
-    return this.notificationRepository.findOne({ where: { id: notificationId } });
+    return this.notificationRepository.findOne({
+      where: { id: notificationId },
+    });
   }
 
   async updateDeliveryStatus(
@@ -195,7 +218,9 @@ export class NotificationService {
   }
 
   private async getOrCreatePreferences(userId: string) {
-    const existing = await this.preferenceRepository.findOne({ where: { userId } });
+    const existing = await this.preferenceRepository.findOne({
+      where: { userId },
+    });
 
     if (existing) {
       existing.channels = this.withDefaultChannels(existing.channels);
@@ -213,12 +238,11 @@ export class NotificationService {
   private withDefaultChannels(
     channels: NotificationPreferenceChannels,
   ): NotificationPreferenceChannels {
-    return Object.values(NotificationEventType).reduce<NotificationPreferenceChannels>(
-      (acc, eventType) => {
-        acc[eventType] = channels[eventType] ?? DEFAULT_CHANNEL;
-        return acc;
-      },
-      {},
-    );
+    return Object.values(
+      NotificationEventType,
+    ).reduce<NotificationPreferenceChannels>((acc, eventType) => {
+      acc[eventType] = channels[eventType] ?? DEFAULT_CHANNEL;
+      return acc;
+    }, {});
   }
 }
