@@ -15,10 +15,19 @@ import { useTranslation } from 'react-i18next';
 
 import { SellerNotFoundError, useSeller } from '../../hooks/useSeller';
 import { Colors } from '../../constants/theme';
-import { styles } from './[id].styles';
+import { styles } from './_id.styles';
 import { ListingType, type Product } from '@/types';
 import { useCartStore } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';
+import { formatCurrency } from '../../utils/transactionFormatters';
+
+type IoniconName = keyof typeof Ionicons.glyphMap;
+
+const GEO_BADGE_LOGOS = {
+  PDO: require('../../assets/images/geo-indications/pdo.png'),
+  PGI: require('../../assets/images/geo-indications/pgi.png'),
+  TSG: require('../../assets/images/geo-indications/tsg.png'),
+} as const;
 
 /* ─── Stat Box ──────────────────────────────────────────────── */
 function StatBox({
@@ -41,14 +50,14 @@ function StarRating({ rating }: { rating: number }) {
   const fullStars = Math.floor(rating);
   const half = rating - fullStars >= 0.5;
   return (
-    <View style={{ flexDirection: 'row', gap: 2, marginBottom: 4 }}>
+    <View style={styles.ratingRow}>
       {Array.from({ length: 5 }).map((_, i) => {
-        const name = i < fullStars ? 'star' : i === fullStars && half ? 'star-half' : 'star-outline';
+        const name: IoniconName = i < fullStars ? 'star' : i === fullStars && half ? 'star-half' : 'star-outline';
         return (
-          <Ionicons key={i} name={name as any} size={14} color={Colors.accent} />
+          <Ionicons key={i} name={name} size={14} color={Colors.accent} />
         );
       })}
-      <Text style={{ fontSize: 12, color: Colors.slate500, marginLeft: 4, fontFamily: 'OpenSans-Regular' }}>
+      <Text style={styles.ratingValue}>
         {rating.toFixed(1)}
       </Text>
     </View>
@@ -71,17 +80,37 @@ function SellerProductCard({
   quickActionLabel: string;
   quickActionStyle: StyleProp<ViewStyle>;
 }) {
+  const hasGeoIndication = Boolean(product.geoIndicationCertNo || product.geoIndicationRegion);
+  const resolvedGeoTypes = product.geoIndicationTypes?.length
+    ? product.geoIndicationTypes
+    : product.geoIndicationType
+      ? [product.geoIndicationType]
+      : [];
+  const geoBadgeLogos = resolvedGeoTypes
+    .map((type) => GEO_BADGE_LOGOS[type])
+    .filter(Boolean)
+    .slice(0, 3);
+
   return (
     <View style={styles.productCard}>
       <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
-        <Image source={{ uri: product.imageUrl }} style={styles.productImage} resizeMode="cover" />
+        <View style={styles.productImageWrap}>
+          <Image source={{ uri: product.imageUrl }} style={styles.productImage} resizeMode="cover" />
+          {hasGeoIndication && geoBadgeLogos.length > 0 ? (
+            <View style={styles.geoBadgeLogosRow}>
+              {geoBadgeLogos.map((logo, index) => (
+                <Image key={`seller-geo-${product.id}-${index}`} source={logo} style={styles.geoBadgeLogo} resizeMode="contain" />
+              ))}
+            </View>
+          ) : null}
+        </View>
       </TouchableOpacity>
       <View style={styles.productContent}>
         <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
           <Text style={styles.productTitle} numberOfLines={2}>{product.title}</Text>
         </TouchableOpacity>
         <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>₺{Number(product.price ?? 0).toLocaleString('tr-TR')}</Text>
+          <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
           <TouchableOpacity
             style={[styles.quickActionButtonBase, quickActionStyle]}
             activeOpacity={0.85}
@@ -149,6 +178,9 @@ export default function SellerDetailScreen() {
   }
 
   const { profile, products } = data;
+  const normalizedRating = Number.isFinite(profile.rating) ? Number(profile.rating) : 0;
+  const normalizedReviewCount = Number.isFinite(profile.reviewCount) ? Number(profile.reviewCount) : 0;
+  const hasRatingAndReviews = normalizedRating > 0 && normalizedReviewCount > 0;
 
   return (
     <View style={styles.container}>
@@ -167,7 +199,11 @@ export default function SellerDetailScreen() {
           <Image source={{ uri: profile.avatar }} style={styles.avatar} resizeMode="cover" />
           <Text style={styles.sellerName}>{profile.name}</Text>
 
-          <StarRating rating={profile.rating} />
+          {hasRatingAndReviews ? (
+            <StarRating rating={normalizedRating} />
+          ) : (
+            <Text style={styles.noRatingReviewText}>{t('seller.noRatingAndReviews')}</Text>
+          )}
 
           {profile.description ? (
             <Text style={styles.sellerBio}>{profile.description}</Text>
@@ -191,8 +227,12 @@ export default function SellerDetailScreen() {
           {/* Stats */}
           <View style={styles.statsRow}>
             <StatBox value={String(profile.productCount)} label={t('seller.products')} />
-            <View style={styles.statDivider} />
-            <StatBox value={String(profile.reviewCount)} label={t('seller.reviews')} />
+            {hasRatingAndReviews ? (
+              <>
+                <View style={styles.statDivider} />
+                <StatBox value={String(normalizedReviewCount)} label={t('seller.reviews')} />
+              </>
+            ) : null}
             <View style={styles.statDivider} />
             <StatBox value={String(profile.totalSales)} label={t('seller.sales')} />
           </View>
@@ -200,7 +240,7 @@ export default function SellerDetailScreen() {
           {/* Trust Badges */}
           <View style={styles.trustRow}>
             {profile.trustBadges.map((badge) => {
-              const badgeMap: Record<string, { icon: string; text: string; color: string }> = {
+              const badgeMap: Record<string, { icon: IoniconName; text: string; color: string }> = {
                 verified: { icon: 'shield-checkmark', text: t('seller.verified'), color: Colors.secondary },
                 fast_shipping: { icon: 'flash', text: t('seller.fastShipping'), color: Colors.accent },
                 original: { icon: 'checkmark-circle', text: t('seller.original'), color: Colors.primary },
@@ -209,7 +249,7 @@ export default function SellerDetailScreen() {
               if (!b) return null;
               return (
                 <View key={badge} style={styles.trustBadge}>
-                  <Ionicons name={b.icon as any} size={14} color={b.color} />
+                  <Ionicons name={b.icon} size={14} color={b.color} />
                   <Text style={styles.trustText}>{b.text}</Text>
                 </View>
               );

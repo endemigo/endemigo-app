@@ -33,7 +33,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
-      router.replace('/home');
+      router.replace('/(tabs)/home');
     } catch (err: unknown) {
       const message = resolveApiErrorMessage(err, t, 'auth.loginError');
       showModal({ title: t('common.error'), message, type: 'error' });

@@ -20,10 +20,10 @@ export function HomeQuickTabBar({ activeTab }: HomeQuickTabBarProps) {
     key: HomeQuickTabKey;
     label: string;
     icon: keyof typeof Ionicons.glyphMap;
-    route: '/home' | '/(tabs)/explore' | '/(tabs)/favoriler' | '/buy-now' | '/(tabs)/auctions';
+    route: '/(tabs)/home' | '/(tabs)/explore' | '/(tabs)/favoriler' | '/buy-now' | '/(tabs)/auctions';
     color?: string;
   }> = [
-    { key: 'home', label: t('tabs.home'), icon: 'home-outline', route: '/home' },
+    { key: 'home', label: t('tabs.home'), icon: 'home-outline', route: '/(tabs)/home' },
     { key: 'search', label: t('tabs.search'), icon: 'search-outline', route: '/(tabs)/explore' },
     { key: 'favorites', label: t('tabs.favorites'), icon: 'heart-outline', route: '/(tabs)/favoriler' },
     { key: 'shopping', label: t('tabs.buyNow'), icon: 'bag-outline', route: '/buy-now' },
@@ -40,7 +40,10 @@ export function HomeQuickTabBar({ activeTab }: HomeQuickTabBarProps) {
             key={tab.key}
             style={styles.item}
             activeOpacity={0.8}
-            onPress={() => router.replace(tab.route)}
+            onPress={() => {
+              if (isActive) return;
+              router.replace(tab.route);
+            }}
           >
             <Ionicons name={tab.icon} size={20} color={iconColor} />
             <Text style={[styles.label, isActive ? styles.labelActive : null]}>{tab.label}</Text>

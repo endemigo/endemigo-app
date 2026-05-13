@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,15 +9,24 @@ import {
   Post,
   Query,
   Request,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AdminRole } from '@endemigo/shared';
+import { AdminRole, RC } from '@endemigo/shared';
 import { Public } from '../../common/decorators/public.decorator';
 import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { AdminActionDto } from './dto/admin-action.dto';
+import { AdminProductActionDto } from './dto/admin-product-action.dto';
+import { AdminDashboardQueryDto } from './dto/admin-dashboard-query.dto';
 import { AdminListQueryDto } from './dto/admin-list-query.dto';
+import { AdminUserRelatedQueryDto } from './dto/admin-user-related-query.dto';
+import { AdminVariantNumberListQueryDto } from './dto/admin-variant-number-list-query.dto';
+import { CreateAdminVariantNumberDto } from './dto/create-admin-variant-number.dto';
+import { UpdateAdminVariantNumberDto } from './dto/update-admin-variant-number.dto';
 import { AdminOperationsService } from './admin-operations.service';
 
 interface AdminOperationsRequest {
@@ -31,6 +41,7 @@ type AdminResource =
   | 'sellers'
   | 'products'
   | 'categories'
+  | 'brands'
   | 'auctions'
   | 'orders'
   | 'payments'
@@ -59,8 +70,8 @@ export class AdminOperationsController {
 
   @Get('dashboard/metrics')
   @ApiOperation({ summary: 'Admin dashboard metrikleri' })
-  async dashboardMetrics() {
-    return this.adminOperationsService.getDashboardMetrics();
+  async dashboardMetrics(@Query() query: AdminDashboardQueryDto) {
+    return this.adminOperationsService.getDashboardMetrics(query);
   }
 
   @Get('users')
@@ -73,6 +84,19 @@ export class AdminOperationsController {
     return this.adminOperationsService.detail('users', id);
   }
 
+  @Get('users/:id/related')
+  async userRelated(@Param('id') id: string, @Query() query: AdminUserRelatedQueryDto) {
+    return this.adminOperationsService.detailUserRelated(id, query);
+  }
+
+  @Post('users')
+  async createUser(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createUser(dto, request.adminUser);
+  }
+
   @Get('sellers')
   async sellers(@Query() query: AdminListQueryDto) {
     return this.adminOperationsService.list('sellers', query);
@@ -81,6 +105,15 @@ export class AdminOperationsController {
   @Get('sellers/:id')
   async seller(@Param('id') id: string) {
     return this.adminOperationsService.detail('sellers', id);
+  }
+
+  @Patch('sellers/:id')
+  async updateSeller(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateSeller(id, dto, request.adminUser);
   }
 
   @Get('products')
@@ -93,6 +126,78 @@ export class AdminOperationsController {
     return this.adminOperationsService.detail('products', id);
   }
 
+  @Get('variants/numbers')
+  async variantNumbers(@Query() query: AdminVariantNumberListQueryDto) {
+    return this.adminOperationsService.listVariantNumbers(query);
+  }
+
+  @Post('variants/numbers')
+  async createVariantNumber(@Body() dto: CreateAdminVariantNumberDto) {
+    return this.adminOperationsService.createVariantNumber(dto);
+  }
+
+  @Patch('variants/numbers/:id')
+  async updateVariantNumber(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminVariantNumberDto,
+  ) {
+    return this.adminOperationsService.updateVariantNumber(id, dto);
+  }
+
+  @Delete('variants/numbers/:id')
+  async deleteVariantNumber(@Param('id') id: string) {
+    return this.adminOperationsService.deleteVariantNumber(id);
+  }
+
+  @Post('products')
+  async createProduct(
+    @Body() dto: AdminProductActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createProduct(dto, request.adminUser);
+  }
+
+  @Patch('products/:id')
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() dto: AdminProductActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateProduct(id, dto, request.adminUser);
+  }
+
+  @Post('uploads/images')
+  @ApiOperation({ summary: 'Admin görsel yükleme (çoklu yükleme için tekil endpoint)' })
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (allowedMimes.includes(file.mimetype)) {
+        callback(null, true);
+        return;
+      }
+      callback(
+        new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
+        }),
+        false,
+      );
+    },
+  }))
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('kind') kind?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: RC.FILE_REQUIRED,
+        message: 'Görsel dosyası zorunludur',
+      });
+    }
+    return this.adminOperationsService.uploadAdminImage(file, kind);
+  }
+
   @Get('categories')
   async categories(@Query() query: AdminListQueryDto) {
     return this.adminOperationsService.list('categories', query);
@@ -101,6 +206,16 @@ export class AdminOperationsController {
   @Get('categories/:id')
   async category(@Param('id') id: string) {
     return this.adminOperationsService.detail('categories', id);
+  }
+
+  @Get('brands')
+  async brands(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('brands', query);
+  }
+
+  @Get('brands/:id')
+  async brand(@Param('id') id: string) {
+    return this.adminOperationsService.detail('brands', id);
   }
 
   @Get('auctions')
@@ -275,5 +390,31 @@ export class AdminOperationsController {
     @Request() request: AdminOperationsRequest,
   ) {
     return this.adminOperationsService.deleteCategory(id, dto, request.adminUser);
+  }
+
+  @Post('brands')
+  async createBrand(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createBrand(dto, request.adminUser);
+  }
+
+  @Patch('brands/:id')
+  async updateBrand(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateBrand(id, dto, request.adminUser);
+  }
+
+  @Delete('brands/:id')
+  async deleteBrand(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.deleteBrand(id, dto, request.adminUser);
   }
 }

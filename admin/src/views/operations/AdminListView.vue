@@ -6,6 +6,15 @@
         <p>{{ readOnly ? 'Salt okunur operasyon listesi' : 'Kontrollü yönetici işlemleri' }}</p>
       </div>
       <button
+        v-if="resource === 'users'"
+        class="button primary"
+        type="button"
+        @click="openAction(createMemberAction)"
+      >
+        <i class="pi pi-plus" aria-hidden="true" />
+        Yeni üye ekle
+      </button>
+      <button
         v-if="resource === 'categories'"
         class="button primary"
         type="button"
@@ -14,29 +23,58 @@
         <i class="pi pi-plus" aria-hidden="true" />
         Yeni kategori
       </button>
+      <button
+        v-if="resource === 'products'"
+        class="button primary"
+        type="button"
+        @click="goToProductCreate"
+      >
+        <i class="pi pi-plus" aria-hidden="true" />
+        Yeni ürün
+      </button>
+      <button
+        v-if="resource === 'brands'"
+        class="button primary"
+        type="button"
+        @click="openAction(createBrandAction)"
+      >
+        <i class="pi pi-plus" aria-hidden="true" />
+        Yeni marka
+      </button>
     </header>
 
     <AdminDataTable
       :columns="columns"
-      :rows="rows"
+      :rows="displayedRows"
       :loading="loading"
-      :pagination="pagination"
+      :pagination="displayedPagination"
       :filters="filters"
       :actions="rowActions"
       @page="setPage"
       @filter="setFilters"
       @action="openAction"
       @row-click="goToDetail"
-    />
+    >
+      <template #toolbar>
+        <div class="toolbar">
+          <button class="button ghost" type="button" @click="loadRows">
+            <i class="pi pi-refresh" aria-hidden="true" />
+            Yenile
+          </button>
+        </div>
+      </template>
+    </AdminDataTable>
 
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <AdminActionDrawer
+    <AdminDrawerForm
       :open="drawerOpen"
       :title="drawerTitle"
       :fields="drawerFields"
       :reason-required="true"
       :confirm-label="drawerConfirmLabel"
+      :presentation="drawerPresentation"
+      :page-size="drawerPageSize"
       @close="closeDrawer"
       @confirm="confirmAction"
     />
@@ -46,10 +84,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import AdminActionDrawer, {
+import AdminDrawerForm, {
   type DrawerConfirmPayload,
   type DrawerField,
-} from '../../components/AdminActionDrawer.vue';
+} from '../../components/AdminDrawerForm.vue';
 import AdminDataTable, {
   type AdminColumn,
   type AdminFilter,
@@ -59,12 +97,15 @@ import AdminDataTable, {
 import { adminApi, toApiMessage, type ApiListResponse } from '../../services/api';
 
 type ActionMethod = 'delete' | 'patch' | 'post';
+type MemberType = 'ADMIN' | 'SELLER' | 'SUPPLIER' | 'CUSTOMER';
 
 interface ActionConfig extends AdminTableAction {
   method: ActionMethod;
   path: (id: string | null) => string;
   fields?: (row: Record<string, unknown> | null) => DrawerField[];
   confirmLabel?: string;
+  presentation?: 'drawer' | 'modal';
+  pageSize?: number;
 }
 
 interface ResourceConfig {
@@ -112,6 +153,152 @@ const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
   { key: 'sortOrder', label: 'Sıralama', type: 'number', value: getString(row, 'sortOrder') },
 ];
 
+const brandFields = (row: Record<string, unknown> | null): DrawerField[] => [
+  { key: 'name', label: 'Marka adı', required: true, value: getString(row, 'name') },
+  { key: 'slug', label: 'SeoLink', value: getString(row, 'slug') },
+  {
+    key: 'isActive',
+    label: 'Durum',
+    type: 'select',
+    value: getString(row, 'isActive') || 'true',
+    options: [
+      { label: 'Aktif', value: 'true' },
+      { label: 'Pasif', value: 'false' },
+    ],
+  },
+];
+
+const memberTypeOptions: { label: string; value: MemberType }[] = [
+  { label: 'Admin', value: 'ADMIN' },
+  { label: 'Satıcı', value: 'SELLER' },
+  { label: 'Tedarikçi', value: 'SUPPLIER' },
+  { label: 'Müşteri', value: 'CUSTOMER' },
+];
+
+const memberFields = (row: Record<string, unknown> | null): DrawerField[] => [
+  { key: 'email', label: 'E-posta', required: true, value: getString(row, 'email') },
+  { key: 'password', label: 'Geçici şifre', required: true, value: '' },
+  { key: 'firstName', label: 'Ad', value: getString(row, 'firstName') },
+  { key: 'lastName', label: 'Soyad', value: getString(row, 'lastName') },
+  {
+    key: 'memberType',
+    label: 'Üye tipi',
+    type: 'select',
+    required: true,
+    value: (getString(row, 'memberType') as MemberType) || 'CUSTOMER',
+    options: memberTypeOptions,
+  },
+];
+
+const sellerStatusOptions = [
+  { label: 'Beklemede', value: 'PENDING' },
+  { label: 'Onaylandı', value: 'APPROVED' },
+  { label: 'Askıda', value: 'SUSPENDED' },
+  { label: 'Sonlandırıldı', value: 'TERMINATED' },
+];
+
+const sellerFields = (row: Record<string, unknown> | null): DrawerField[] => [
+  { key: 'businessName', label: 'Mağaza / İşletme Adı', required: true, value: getString(row, 'businessName') },
+  { key: 'phone', label: 'Telefon', value: getString(row, 'phone') },
+  { key: 'taxOffice', label: 'Vergi Dairesi', value: getString(row, 'taxOffice') },
+  { key: 'taxNumber', label: 'Vergi Numarası', value: getString(row, 'taxNumber') },
+  { key: 'commissionRate', label: 'Komisyon Oranı', type: 'number', value: getString(row, 'commissionRate') },
+  {
+    key: 'status',
+    label: 'Durum',
+    type: 'select',
+    value: getString(row, 'status') || 'PENDING',
+    options: sellerStatusOptions,
+  },
+];
+
+const productionSeasonOptions = [
+  { label: 'Her zaman', value: 'ALL_TIME' },
+  { label: 'İlkbahar', value: 'SPRING' },
+  { label: 'Yaz', value: 'SUMMER' },
+  { label: 'Sonbahar', value: 'AUTUMN' },
+  { label: 'Kış', value: 'WINTER' },
+];
+
+const statusOptions = [
+  { label: 'Taslak', value: 'DRAFT' },
+  { label: 'İnceleme', value: 'PENDING_REVIEW' },
+  { label: 'Aktif', value: 'ACTIVE' },
+  { label: 'Müzayedede', value: 'UNDER_AUCTION' },
+  { label: 'Satıldı', value: 'SOLD' },
+  { label: 'Stok Yok', value: 'OUT_OF_STOCK' },
+  { label: 'Arşiv', value: 'ARCHIVED' },
+  { label: 'Askıda', value: 'SUSPENDED' },
+];
+
+const yesNoOptions = [
+  { label: 'Evet', value: 'true' },
+  { label: 'Hayır', value: 'false' },
+];
+
+const productFields = (row: Record<string, unknown> | null): DrawerField[] => {
+  const extra = parseProductExtendedContent(getString(row, 'additionalCertificates'));
+  return [
+    { key: 'sellerId', label: 'Satıcı ID', required: true, value: getString(row, 'sellerId') },
+    { key: 'title', label: 'Ürün Adı', required: true, value: getString(row, 'title') },
+    { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
+    { key: 'price', label: 'Fiyat', type: 'number', required: true, value: getString(row, 'price') },
+    { key: 'stockQuantity', label: 'Stok', type: 'number', value: getString(row, 'stockQuantity') },
+    { key: 'sku', label: 'Ürün Kodu / SKU', value: getString(row, 'sku') },
+    { key: 'barcodeNo', label: 'GTIN / Barkod', value: getString(row, 'barcodeNo') },
+    { key: 'brand', label: 'Marka', value: getString(row, 'brand') },
+    { key: 'categoryId', label: 'Kategori ID', value: getString(row, 'categoryId') },
+    {
+      key: 'status',
+      label: 'Ürün Durumu',
+      type: 'select',
+      value: getString(row, 'status'),
+      options: statusOptions,
+    },
+    {
+      key: 'isEndemigoBrandCandidate',
+      label: 'Endemigo markasıyla satılsın mı?',
+      type: 'select',
+      value: toBooleanString(row?.isEndemigoBrandCandidate),
+      options: yesNoOptions,
+    },
+    { key: 'productContent', label: 'Ürün İçeriği', type: 'textarea', value: getString(row, 'productContent') },
+    { key: 'sellerNotes', label: 'Satıcı Notları', type: 'textarea', value: getString(row, 'sellerNotes') },
+    { key: 'geoIndicationCertNo', label: 'Coğrafi İşaret Sertifika No', value: getString(row, 'geoIndicationCertNo') },
+    { key: 'geoIndicationRegion', label: 'Coğrafi İşaret Bölgesi', value: getString(row, 'geoIndicationRegion') },
+    { key: 'geoIndicationReceivedAt', label: 'Coğrafi İşaret Tarihi', type: 'date', value: getString(row, 'geoIndicationReceivedAt') },
+    { key: 'originCountry', label: 'Menşei Ülke', value: getString(row, 'originCountry') || 'TR' },
+    { key: 'originRegion', label: 'Menşei Bölge', value: getString(row, 'originRegion') },
+    { key: 'productionProvince', label: 'Üretim İl', value: getString(row, 'productionProvince') },
+    { key: 'productionDistrict', label: 'Üretim İlçe', value: getString(row, 'productionDistrict') },
+    {
+      key: 'productionSeason',
+      label: 'Üretim Dönemi',
+      type: 'select',
+      value: getString(row, 'productionSeason') || 'ALL_TIME',
+      options: productionSeasonOptions,
+    },
+    { key: 'salesMonths', label: 'Satış Ayları (1,2,3...)', value: normalizeSalesMonths(row?.salesMonths) },
+    { key: 'wholesalePrice', label: 'Toptan Fiyat', type: 'number', value: getString(row, 'wholesalePrice') },
+    { key: 'retailPrice', label: 'Perakende Fiyat', type: 'number', value: getString(row, 'retailPrice') },
+    { key: 'askPriceMinAmount', label: 'Pazarlık Min Tutar', type: 'number', value: getString(row, 'askPriceMinAmount') },
+    {
+      key: 'askPriceEnabled',
+      label: 'Pazarlık aktif mi?',
+      type: 'select',
+      value: toBooleanString(row?.askPriceEnabled),
+      options: yesNoOptions,
+    },
+    { key: 'shippingProvince', label: 'Teslimat İl', value: getString(row, 'shippingProvince') },
+    { key: 'shippingDistrict', label: 'Teslimat İlçe', value: getString(row, 'shippingDistrict') },
+    { key: 'shippingAddress', label: 'Teslimat Adresi', type: 'textarea', value: getString(row, 'shippingAddress') },
+    { key: 'productImageUrls', label: 'Ürün Görselleri (satır satır URL)', type: 'textarea', value: listToMultiline(row?.images, 'url') || getString(row, 'imageUrl') },
+    { key: 'certificateNotes', label: 'Sertifika Notları', type: 'textarea', value: extra.notes },
+    { key: 'certificateImageUrls', label: 'Sertifika Görselleri (satır satır URL)', type: 'textarea', value: extra.certificateImageUrls.join('\n') },
+    { key: 'deliveryLocations', label: 'Teslimat Yerleri (satır satır)', type: 'textarea', value: extra.deliveryLocations.join('\n') },
+  ];
+};
+
 const createCategoryAction: ActionConfig = {
   key: 'createCategory',
   label: 'Oluştur',
@@ -123,13 +310,38 @@ const createCategoryAction: ActionConfig = {
   confirmLabel: 'Kategori oluştur',
 };
 
+const createBrandAction: ActionConfig = {
+  key: 'createBrand',
+  label: 'Oluştur',
+  icon: 'pi pi-plus',
+  tone: 'primary',
+  method: 'post',
+  path: () => '/admin/brands',
+  fields: brandFields,
+  confirmLabel: 'Marka oluştur',
+  presentation: 'modal',
+};
+
+const createMemberAction: ActionConfig = {
+  key: 'createMember',
+  label: 'Üye ekle',
+  icon: 'pi pi-user-plus',
+  tone: 'primary',
+  method: 'post',
+  path: () => '/admin/users',
+  fields: memberFields,
+  confirmLabel: 'Üye oluştur',
+  presentation: 'modal',
+};
+
 const resourceConfigs: Record<string, ResourceConfig> = {
   users: {
     detailBase: 'users',
     columns: [
+      { key: 'fullName', label: 'İsim', route: (row) => `/users/${String(row.id ?? '')}` },
       { key: 'email', label: 'E-posta' },
-      { key: 'role', label: 'Rol', format: 'status' },
-      { key: 'isActive', label: 'Aktif' },
+      { key: 'memberType', label: 'Üye Tipi', format: 'status' },
+      { key: 'isActive', label: 'Aktif', format: 'status' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
     actions: [
@@ -154,44 +366,70 @@ const resourceConfigs: Record<string, ResourceConfig> = {
   sellers: {
     detailBase: 'sellers',
     columns: [
-      { key: 'userId', label: 'Kullanıcı', format: 'id' },
+      { key: 'businessName', label: 'Kullanıcı', route: (row) => `/users/${String(row.userId ?? '')}` },
       { key: 'status', label: 'Durum', format: 'status' },
       { key: 'approvedAt', label: 'Onaylandı', format: 'date' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
     actions: [
       {
+        key: 'editSeller',
+        label: 'Düzenle',
+        icon: 'pi pi-pencil',
+        tone: 'primary',
+        iconOnly: true,
+        method: 'patch',
+        path: (id) => `/admin/sellers/${id}`,
+        fields: sellerFields,
+        confirmLabel: 'Satıcı güncelle',
+      },
+      {
         key: 'approve',
         label: 'Onayla',
         icon: 'pi pi-check',
         tone: 'primary',
+        iconOnly: true,
         method: 'patch',
         path: (id) => `/admin/sellers/${id}/approve`,
+        when: (row) => String(row.status ?? '').toUpperCase() === 'PENDING',
       },
       {
         key: 'reject',
         label: 'Reddet',
         icon: 'pi pi-times',
         tone: 'danger',
+        iconOnly: true,
         method: 'patch',
         path: (id) => `/admin/sellers/${id}/reject`,
+        when: (row) => String(row.status ?? '').toUpperCase() === 'PENDING',
       },
     ],
   },
   products: {
     detailBase: 'products',
     columns: [
-      { key: 'title', label: 'Başlık' },
+      { key: 'title', label: 'Başlık', route: (row) => `/products/${String(row.id ?? '')}` },
+      { key: 'price', label: 'Fiyat', format: 'money' },
       { key: 'status', label: 'Durum', format: 'status' },
-      { key: 'sellerId', label: 'Satıcı', format: 'id' },
+      { key: 'sellerName', label: 'Satıcı', route: (row) => `/sellers/${String(row.sellerId ?? '')}` },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
     actions: [
+      {
+        key: 'editProduct',
+        label: 'Düzenle',
+        icon: 'pi pi-pencil',
+        tone: 'primary',
+        iconOnly: true,
+        method: 'patch',
+        path: (id) => `/admin/products/${id}`,
+      },
       {
         key: 'remove',
         label: 'Kaldır',
         icon: 'pi pi-trash',
         tone: 'danger',
+        iconOnly: true,
         method: 'patch',
         path: (id) => `/admin/products/${id}/remove`,
       },
@@ -223,6 +461,35 @@ const resourceConfigs: Record<string, ResourceConfig> = {
         method: 'delete',
         path: (id) => `/admin/categories/${id}`,
         confirmLabel: 'Kategori devre dışı bırak',
+      },
+    ],
+  },
+  brands: {
+    detailBase: 'brands',
+    columns: [
+      { key: 'name', label: 'Marka adı' },
+      { key: 'slug', label: 'SeoLink' },
+      { key: 'isActive', label: 'Durum' },
+      { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
+    ],
+    actions: [
+      {
+        key: 'updateBrand',
+        label: 'Güncelle',
+        icon: 'pi pi-pencil',
+        method: 'patch',
+        path: (id) => `/admin/brands/${id}`,
+        fields: brandFields,
+        confirmLabel: 'Marka güncelle',
+      },
+      {
+        key: 'deleteBrand',
+        label: 'Devre dışı bırak',
+        icon: 'pi pi-trash',
+        tone: 'danger',
+        method: 'delete',
+        path: (id) => `/admin/brands/${id}`,
+        confirmLabel: 'Marka devre dışı bırak',
       },
     ],
   },
@@ -333,29 +600,167 @@ const endpoint = computed(() => props.endpoint ?? `/admin/${props.resource}`);
 const config = computed(() => resourceConfigs[props.resource] ?? fallbackConfig);
 const columns = computed(() => config.value.columns);
 const rowActions = computed(() => (props.readOnly ? [] : config.value.actions));
-const filters = computed<AdminFilter[]>(() => [
-  { key: 'search', label: 'Arama', type: 'search', value: activeFilters.value.search ?? '' },
-  {
-    key: 'status',
-    label: 'Durum',
-    type: 'select',
-    value: activeFilters.value.status ?? '',
-    options: [
-      { label: 'Bekleyen', value: 'PENDING' },
-      { label: 'Onaylandı', value: 'APPROVED' },
-      { label: 'Reddedildi', value: 'REJECTED' },
-      { label: 'Yönetici incelemesi', value: 'ADMIN_REVIEW' },
-      { label: 'Aktif', value: 'ACTIVE' },
-    ],
-  },
-]);
+const displayedRows = computed(() => {
+  if (props.resource !== 'users') return rows.value;
+  const memberType = activeFilters.value.memberType?.toUpperCase();
+  if (!memberType) return rows.value;
+  return rows.value.filter((row) => resolveMemberType(row) === memberType);
+});
+const displayedPagination = computed<AdminPagination>(() => {
+  if (props.resource !== 'users' || !activeFilters.value.memberType) return pagination.value;
+  return {
+    ...pagination.value,
+    total: displayedRows.value.length,
+  };
+});
+const filters = computed<AdminFilter[]>(() => {
+  if (props.resource === 'users') {
+    return [
+      { key: 'q', label: 'Arama', type: 'search', value: activeFilters.value.q ?? '' },
+      {
+        key: 'memberType',
+        label: 'Üye Tipi',
+        type: 'select',
+        value: activeFilters.value.memberType ?? '',
+        options: memberTypeOptions,
+      },
+    ];
+  }
+  return [
+    { key: 'q', label: 'Arama', type: 'search', value: activeFilters.value.q ?? '' },
+    {
+      key: 'status',
+      label: 'Durum',
+      type: 'select',
+      value: activeFilters.value.status ?? '',
+      options: [
+        { label: 'Bekleyen', value: 'PENDING' },
+        { label: 'Onaylandı', value: 'APPROVED' },
+        { label: 'Reddedildi', value: 'REJECTED' },
+        { label: 'Yönetici incelemesi', value: 'ADMIN_REVIEW' },
+        { label: 'Aktif', value: 'ACTIVE' },
+      ],
+    },
+  ];
+});
 const drawerTitle = computed(() => selectedAction.value?.label ?? 'Yönetici işlemi');
 const drawerFields = computed(() => selectedAction.value?.fields?.(selectedRow.value) ?? []);
 const drawerConfirmLabel = computed(() => selectedAction.value?.confirmLabel ?? 'Onayla');
+const drawerPresentation = computed(() => selectedAction.value?.presentation ?? 'drawer');
+const drawerPageSize = computed(() => selectedAction.value?.pageSize ?? 0);
 
 function getString(row: Record<string, unknown> | null, key: string): string {
   const value = row?.[key];
   return value === null || value === undefined ? '' : String(value);
+}
+
+function toBooleanString(value: unknown): string {
+  if (value === true || value === 'true') return 'true';
+  if (value === false || value === 'false') return 'false';
+  return 'false';
+}
+
+function listToMultiline(value: unknown, key: string): string {
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((item) => {
+      if (item && typeof item === 'object' && key in (item as Record<string, unknown>)) {
+        return String((item as Record<string, unknown>)[key] ?? '');
+      }
+      return '';
+    })
+    .filter((item) => item.length > 0)
+    .join('\n');
+}
+
+function normalizeSalesMonths(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item))
+    .join(',');
+}
+
+function parseProductExtendedContent(value: string): {
+  notes: string;
+  certificateImageUrls: string[];
+  deliveryLocations: string[];
+} {
+  if (!value) {
+    return { notes: '', certificateImageUrls: [], deliveryLocations: [] };
+  }
+  try {
+    const parsed = JSON.parse(value) as {
+      notes?: unknown;
+      certificateImageUrls?: unknown;
+      deliveryLocations?: unknown;
+    };
+    return {
+      notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      certificateImageUrls: Array.isArray(parsed.certificateImageUrls)
+        ? parsed.certificateImageUrls.map(String)
+        : [],
+      deliveryLocations: Array.isArray(parsed.deliveryLocations)
+        ? parsed.deliveryLocations.map(String)
+        : [],
+    };
+  } catch {
+    return { notes: value, certificateImageUrls: [], deliveryLocations: [] };
+  }
+}
+
+function resolveMemberType(row: Record<string, unknown>): MemberType {
+  const role = String(row.role ?? row.memberType ?? '').trim().toUpperCase();
+  if (role.includes('ADMIN')) return 'ADMIN';
+  if (role.includes('SUPPLIER')) return 'SUPPLIER';
+  if (role.includes('SELLER') || row.isSeller === true) {
+    return 'SELLER';
+  }
+  if (role.includes('VENDOR')) {
+    return 'SUPPLIER';
+  }
+  return 'CUSTOMER';
+}
+
+function normalizeMemberRow(row: Record<string, unknown>): Record<string, unknown> {
+  const memberType = resolveMemberType(row);
+  const firstName = getString(row, 'firstName');
+  const lastName = getString(row, 'lastName');
+  const fullName = `${firstName} ${lastName}`.trim() || getString(row, 'email');
+  return {
+    ...row,
+    memberType,
+    fullName,
+  };
+}
+
+function normalizeProductRow(row: Record<string, unknown>): Record<string, unknown> {
+  const sellerValue = row.seller;
+  const seller =
+    sellerValue && typeof sellerValue === 'object'
+      ? (sellerValue as Record<string, unknown>)
+      : null;
+  const firstName = seller?.firstName ? String(seller.firstName) : '';
+  const lastName = seller?.lastName ? String(seller.lastName) : '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  const fallbackName = row.sellerName ? String(row.sellerName) : '';
+  const sellerName = fullName || fallbackName || getString(row, 'sellerId');
+  return {
+    ...row,
+    sellerName,
+  };
+}
+
+function buildListQueryParams(filtersValue: Record<string, string>): Record<string, string | number> {
+  const params: Record<string, string | number> = {
+    page: pagination.value.page,
+    limit: pagination.value.limit,
+  };
+  if (filtersValue.q) params.q = filtersValue.q;
+  if (filtersValue.status) params.status = filtersValue.status;
+  if (filtersValue.from) params.from = filtersValue.from;
+  if (filtersValue.to) params.to = filtersValue.to;
+  return params;
 }
 
 function getRowId(row: Record<string, unknown> | null): string | null {
@@ -374,8 +779,18 @@ function setFilters(filtersValue: Record<string, string>) {
   void loadRows();
 }
 
+async function goToProductCreate() {
+  await router.push('/products/new');
+}
+
 function openAction(action: AdminTableAction, row?: Record<string, unknown>) {
   const actionConfig = action as ActionConfig;
+  if (actionConfig.key === 'editProduct') {
+    const id = getRowId(row ?? null);
+    if (!id) return;
+    void router.push(`/products/${id}/edit`);
+    return;
+  }
   selectedAction.value = actionConfig;
   selectedRow.value = row ?? null;
   drawerOpen.value = true;
@@ -391,7 +806,7 @@ async function confirmAction(payload: DrawerConfirmPayload) {
   if (!selectedAction.value) return;
 
   const id = getRowId(selectedRow.value);
-  const body: Record<string, string> = { reason: payload.reason, ...payload.values };
+  const body: Record<string, unknown> = { reason: payload.reason, metadata: payload.values };
 
   try {
     if (selectedAction.value.method === 'delete') {
@@ -421,13 +836,15 @@ async function loadRows() {
 
   try {
     const response = await adminApi.get<ApiListResponse>(endpoint.value, {
-      params: {
-        page: pagination.value.page,
-        limit: pagination.value.limit,
-        ...activeFilters.value,
-      },
+      params: buildListQueryParams(activeFilters.value),
     });
-    rows.value = Array.isArray(response.data.items) ? response.data.items : [];
+    const loadedRows = Array.isArray(response.data.items) ? response.data.items : [];
+    rows.value =
+      props.resource === 'users'
+        ? loadedRows.map((row) => normalizeMemberRow(row))
+        : props.resource === 'products'
+          ? loadedRows.map((row) => normalizeProductRow(row))
+          : loadedRows;
     pagination.value = response.data.pagination ?? pagination.value;
   } catch (loadError) {
     error.value = toApiMessage(loadError);

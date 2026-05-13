@@ -19,4 +19,22 @@ export interface AdminDashboardMetricsDto {
   errors: {
     recentCount: number;
   };
+  analysis: {
+    period: 'day' | 'week' | 'month' | 'custom';
+    from: string;
+    to: string;
+    days: number;
+    comparison: {
+      ordersDeltaPercent: number;
+      grossMerchandiseValueDeltaPercent: number;
+      newUsersDeltaPercent: number;
+      newSellersDeltaPercent: number;
+      failedPaymentsDeltaPercent: number;
+    };
+  };
+  trends: {
+    orders: Array<{ label: string; value: number }>;
+    users: Array<{ label: string; value: number }>;
+    failedPayments: Array<{ label: string; value: number }>;
+  };
 }

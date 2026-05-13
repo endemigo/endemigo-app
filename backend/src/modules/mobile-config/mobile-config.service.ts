@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   AdminAuditAction,
@@ -18,6 +18,7 @@ import { MobileConfigDocument } from './entities/mobile-config-document.entity';
 interface DraftActorInput {
   actorAdminId: string;
   actorRoles: AdminRole[];
+  version: number;
   draft: MobileExperienceConfig;
   reason: string;
 }
@@ -25,11 +26,14 @@ interface DraftActorInput {
 interface PublishActorInput {
   actorAdminId: string;
   actorRoles: AdminRole[];
+  version: number;
   reason: string;
 }
 
 @Injectable()
 export class MobileConfigService {
+  private versionColumnEnsured = false;
+
   constructor(
     @InjectRepository(MobileConfigDocument)
     private readonly mobileConfigRepo: Repository<MobileConfigDocument>,
@@ -55,12 +59,16 @@ export class MobileConfigService {
       ?? this.mobileConfigRepo.create({
         draft: previousDraft,
         published: null,
+        version: 1,
         updatedByAdminId: null,
         publishedByAdminId: null,
         publishedAt: null,
       });
 
+    this.assertVersionMatch(Number(entity.version ?? 1), input.version);
+
     entity.draft = input.draft;
+    entity.version = Number(entity.version ?? 1) + 1;
     entity.updatedByAdminId = input.actorAdminId;
     const saved = await this.mobileConfigRepo.save(entity);
 
@@ -73,6 +81,7 @@ export class MobileConfigService {
       reason: input.reason,
       before: { draft: previousDraft },
       after: { draft: saved.draft },
+      metadata: { version: saved.version },
     });
 
     return {
@@ -89,14 +98,17 @@ export class MobileConfigService {
       ?? this.mobileConfigRepo.create({
         draft: getDefaultMobileExperienceConfig(),
         published: null,
+        version: 1,
         updatedByAdminId: null,
         publishedByAdminId: null,
         publishedAt: null,
       });
 
+    this.assertVersionMatch(Number(entity.version ?? 1), input.version);
     this.assertValidDraft(entity.draft);
     const previousPublished = entity.published;
     entity.published = entity.draft;
+    entity.version = Number(entity.version ?? 1) + 1;
     entity.publishedAt = new Date();
     entity.publishedByAdminId = input.actorAdminId;
     const saved = await this.mobileConfigRepo.save(entity);
@@ -110,6 +122,7 @@ export class MobileConfigService {
       reason: input.reason,
       before: { published: previousPublished },
       after: { published: saved.published },
+      metadata: { version: saved.version },
     });
 
     return {
@@ -148,6 +161,7 @@ export class MobileConfigService {
     return this.mobileConfigRepo.create({
       draft: getDefaultMobileExperienceConfig(),
       published: null,
+      version: 1,
       updatedByAdminId: null,
       publishedByAdminId: null,
       publishedAt: null,
@@ -155,12 +169,23 @@ export class MobileConfigService {
   }
 
   private async findLatestDocument(): Promise<MobileConfigDocument | null> {
-    const documents = await this.mobileConfigRepo.find({
-      order: { createdAt: 'DESC' },
-      take: 1,
-    });
-
-    return documents[0] ?? null;
+    try {
+      const documents = await this.mobileConfigRepo.find({
+        order: { createdAt: 'DESC' },
+        take: 1,
+      });
+      return documents[0] ?? null;
+    } catch (error) {
+      if (this.isMissingVersionColumnError(error)) {
+        await this.ensureVersionColumn();
+        const documents = await this.mobileConfigRepo.find({
+          order: { createdAt: 'DESC' },
+          take: 1,
+        });
+        return documents[0] ?? null;
+      }
+      throw error;
+    }
   }
 
   private assertValidDraft(draft: unknown): asserts draft is MobileExperienceConfig {
@@ -180,11 +205,36 @@ export class MobileConfigService {
   ): MobileExperienceDocumentResponse {
     return {
       status,
+      version: document.version ?? 1,
       draft: sanitizeMobileExperienceConfig(document.draft),
       published: document.published ? sanitizeMobileExperienceConfig(document.published) : null,
       publishedAt: document.publishedAt?.toISOString() ?? null,
       updatedByAdminId: document.updatedByAdminId ?? null,
       publishedByAdminId: document.publishedByAdminId ?? null,
     };
+  }
+
+  private assertVersionMatch(currentVersion: number, incomingVersion: number) {
+    if (currentVersion !== incomingVersion) {
+      throw new ConflictException({
+        code: RC.MOBILE_CONFIG_VERSION_CONFLICT,
+        message: 'Taslak baska bir yonetici tarafindan guncellenmis',
+        currentVersion,
+      });
+    }
+  }
+
+  private isMissingVersionColumnError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    const message = error.message.toLowerCase();
+    return message.includes('column') && message.includes('version') && message.includes('does not exist');
+  }
+
+  private async ensureVersionColumn() {
+    if (this.versionColumnEnsured) return;
+    await this.mobileConfigRepo.query(
+      'ALTER TABLE mobile_config_documents ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1',
+    );
+    this.versionColumnEnsured = true;
   }
 }

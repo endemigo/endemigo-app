@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { FontFamily } from '../../constants/theme';
+import { Colors, FontFamily } from '../../constants/theme';
 
 export const countdownStyles = StyleSheet.create({
   container: {
@@ -7,15 +7,15 @@ export const countdownStyles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: Colors.inverseSurface,
   },
   urgent: {
-    backgroundColor: '#e63946',
+    backgroundColor: Colors.error,
   },
   label: {
     fontSize: 12,
     fontFamily: FontFamily.bodyMedium,
-    color: '#888',
+    color: Colors.slate500,
     marginBottom: 4,
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -24,11 +24,11 @@ export const countdownStyles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '700',
     fontFamily: FontFamily.bodyBold,
-    color: '#fff',
+    color: Colors.white,
     fontVariant: ['tabular-nums'],
     letterSpacing: 2,
   },
   urgentText: {
-    color: '#fff',
+    color: Colors.white,
   },
 });

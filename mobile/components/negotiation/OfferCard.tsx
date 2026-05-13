@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { NegotiationOfferStatus, type NegotiationOffer } from '../../types';
+import { formatCurrency } from '../../utils/transactionFormatters';
 import { styles } from './OfferCard.styles';
 
 interface OfferCardProps {
@@ -37,7 +38,7 @@ export function OfferCard({
       </View>
 
       <Text style={styles.amount}>
-        ₺{Number(offer.amount).toLocaleString('tr-TR')}
+        {formatCurrency(offer.amount)}
       </Text>
       <Text style={styles.meta}>
         {t('negotiation.offer.quantity', { count: offer.quantity })}

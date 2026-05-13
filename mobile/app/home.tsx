@@ -1,5 +1,11 @@
 import { Product, Blog } from '@/types';
-import { getDefaultMobileExperienceConfig, type MobileAudience } from '@endemigo/shared';
+import {
+  getDefaultMobileExperienceConfig,
+  MOBILE_HOME_SURFACE_SLOT_IDS,
+  MobileSurfaceKey,
+  type MobileAudience,
+  type MobileHomeSurfaceSlotId,
+} from '@endemigo/shared';
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, TextInput, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,10 +27,20 @@ import {
   sortBlocksByOrder,
 } from '../utils/mobileConfig';
 import { getProductImageUri } from '../utils/productImages';
+import { formatCurrency } from '../utils/transactionFormatters';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
+  elektronik: { icon: 'desktop-outline', color: Colors.primary },
+  antika_koleksiyon: { icon: 'library-outline', color: Colors.secondary },
+  sanat: { icon: 'color-palette-outline', color: Colors.accent },
+  hali_kilim: { icon: 'grid-outline', color: Colors.tertiaryContainer },
+  mucevher_saat: { icon: 'diamond-outline', color: Colors.accent },
+  mobilya_dekor: { icon: 'bed-outline', color: Colors.surfaceTint },
+  kiyafet_aksesuar: { icon: 'shirt-outline', color: Colors.tertiary },
+  spor_outdoor: { icon: 'bicycle-outline', color: Colors.auctionGreen },
+  yoresel_urunler: { icon: 'leaf-outline', color: Colors.primary },
   gida: { icon: 'restaurant-outline', color: Colors.primary },
   zeytinyagi: { icon: 'leaf-outline', color: Colors.secondary },
   taki: { icon: 'diamond-outline', color: Colors.accent },
@@ -109,59 +125,64 @@ const DISCOUNT_MOCK_IMAGES = [
   'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=700&q=80',
   'https://images.unsplash.com/photo-1514996937319-344454492b37?w=700&q=80',
 ] as const;
-const HERO_BACKGROUNDS = [Colors.primary, Colors.auctionGreen, Colors.accent] as const;
+const HERO_BACKGROUNDS = [Colors.primary, Colors.primaryContainer, Colors.secondary] as const;
+const GEO_BADGE_LOGOS = {
+  PDO: require('../assets/images/geo-indications/pdo.png'),
+  PGI: require('../assets/images/geo-indications/pgi.png'),
+  TSG: require('../assets/images/geo-indications/tsg.png'),
+} as const;
 const TILE_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; route: string }> = {
   'home-tile-buy-now': { icon: 'bag-handle', color: Colors.primary, route: '/buy-now' },
   'home-tile-auction': { icon: 'hammer', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
 };
 // Banner slides — sourced from mock service contract (campaigns endpoint).
 // When backend is ready, replace with useCampaigns() hook.
-const BANNERS = [
+const createFallbackHeroBanners = (t: (key: string) => string) => [
   {
     id: 'b1',
-    badge: 'YENİ KOLEKSİYON',
-    title: 'Anadolu\'nun\nBereketli Topraklarından',
-    subtitle: 'Coğrafi işaretli ürünler kapınıza gelsin',
+    badge: t('home.fallbackBanner1Badge'),
+    title: t('home.fallbackBanner1Title'),
+    subtitle: t('home.fallbackBanner1Subtitle'),
     bg: Colors.primary,
     image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
   },
   {
     id: 'b2',
-    badge: 'MÜZAYEDELİ SATIŞ',
-    title: 'Canlı Müzayedeler\nBaşladı!',
-    subtitle: 'Nadir parçalar için şimdi teklif ver',
+    badge: t('home.fallbackBanner2Badge'),
+    title: t('home.fallbackBanner2Title'),
+    subtitle: t('home.fallbackBanner2Subtitle'),
     bg: Colors.auctionGreen,
     image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80',
   },
   {
     id: 'b3',
-    badge: 'FIRSATLAR',
-    title: 'El Yapımı\nÜrünler',
-    subtitle: 'Ustasından doğrudan, hakiki lezzetler',
+    badge: t('home.fallbackBanner3Badge'),
+    title: t('home.fallbackBanner3Title'),
+    subtitle: t('home.fallbackBanner3Subtitle'),
     bg: Colors.accent,
     image: 'https://images.unsplash.com/photo-1452195100486-9cc805987862?w=800&q=80',
   },
 ];
 
 // Row 2 — Kampanyalar (backend: campaigns?type=promo)
-const EDITORIAL_ROW_2 = [
+const createFallbackPromoBanners = (t: (key: string) => string) => [
   {
     id: 'ed-3',
-    label: 'Kampanya',
-    title: 'Karakovan Balı\'nda\n%20 İndirim',
-    subtitle: 'Sınırlı stok, kaçırma!',
-    cta: 'Hemen Al',
-    bg: '#7C3F00',
+    label: t('home.fallbackPromoLabel'),
+    title: t('home.fallbackPromo1Title'),
+    subtitle: t('home.fallbackPromo1Subtitle'),
+    cta: t('home.buyNow'),
+    bg: Colors.tertiaryContainer,
     accent: Colors.auctionGreen,
     image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=800&q=80',
   },
   {
     id: 'ed-4',
-    label: 'Kampanya',
-    title: 'Siirt Fıstığı\'nda\n%15 İndirim',
-    subtitle: 'Haftaya kadar geçerli, perşembeye kadar!',
-    cta: 'Hemen Al',
-    bg: '#1A4731',
+    label: t('home.fallbackPromoLabel'),
+    title: t('home.fallbackPromo2Title'),
+    subtitle: t('home.fallbackPromo2Subtitle'),
+    cta: t('home.buyNow'),
+    bg: Colors.secondaryContainer,
     accent: Colors.accent,
     image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=800&q=80',
   },
@@ -179,6 +200,7 @@ export default function HomeScreen() {
   const user = useAuthStore((state) => state.user);
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [categoryImageErrors, setCategoryImageErrors] = React.useState<Record<string, boolean>>({});
   const mobileConfig = mobileConfigData ?? getDefaultMobileExperienceConfig();
   const mobileLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const audience = resolveMobileAudience(user, activeMode);
@@ -195,7 +217,7 @@ export default function HomeScreen() {
       categoryId: 'discount',
       categoryName: t('home.discountedProducts'),
       title: t('home.mockListingTitle'),
-      sellerName: 'Endemigo',
+      sellerName: t('home.brandName'),
       price: 0,
       imageUrl: mockImage,
       thumbnail: mockImage,
@@ -225,7 +247,7 @@ export default function HomeScreen() {
     );
 
     if (!visible.length) {
-      return BANNERS;
+      return createFallbackHeroBanners(t);
     }
 
     return visible.map((banner, index) => ({
@@ -236,7 +258,7 @@ export default function HomeScreen() {
       bg: HERO_BACKGROUNDS[index % HERO_BACKGROUNDS.length],
       image: banner.imageUrl,
     }));
-  }, [audience, mobileConfig, mobileLocale]);
+  }, [audience, mobileConfig, mobileLocale, t]);
 
   const heroBannerRoutes = React.useMemo(
     () =>
@@ -269,7 +291,7 @@ export default function HomeScreen() {
     );
 
     if (!visible.length) {
-      return EDITORIAL_ROW_2;
+      return createFallbackPromoBanners(t);
     }
 
     return visible.map((banner, index) => ({
@@ -278,7 +300,7 @@ export default function HomeScreen() {
       title: resolveLocalizedText(banner.title, mobileLocale, ''),
       subtitle: resolveLocalizedText(banner.subtitle, mobileLocale, ''),
       cta: resolveLocalizedText(banner.cta?.label, mobileLocale, t('home.explore')),
-      bg: index % 2 === 0 ? '#7C3F00' : '#1A4731',
+      bg: index % 2 === 0 ? Colors.tertiaryContainer : Colors.secondaryContainer,
       accent: index % 2 === 0 ? Colors.auctionGreen : Colors.accent,
       image: banner.imageUrl,
     }));
@@ -311,148 +333,154 @@ export default function HomeScreen() {
   const blogSection = homeSectionMap.get('blog');
   const trustSection = homeSectionMap.get('trust-hub');
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
-      </SafeAreaView>
+  const homeSurfaceSlots = React.useMemo(
+    () =>
+      sortBlocksByOrder(
+        mobileConfig.otherSurfaces.filter((slot) => slot.surface === MobileSurfaceKey.HOME),
+      ),
+    [mobileConfig.otherSurfaces],
+  );
+
+  const homeSurfaceSlotMap = React.useMemo(
+    () => new Map(homeSurfaceSlots.map((slot) => [slot.id, slot])),
+    [homeSurfaceSlots],
+  );
+
+  const orderedHomeModules = React.useMemo(() => {
+    const configuredModuleIds = homeSurfaceSlots
+      .map((slot) => slot.id)
+      .filter((id): id is MobileHomeSurfaceSlotId =>
+        (MOBILE_HOME_SURFACE_SLOT_IDS as readonly string[]).includes(id),
+      );
+    const missingDefaultModuleIds = MOBILE_HOME_SURFACE_SLOT_IDS.filter(
+      (id) => !configuredModuleIds.includes(id),
     );
+    return [...configuredModuleIds, ...missingDefaultModuleIds];
+  }, [homeSurfaceSlots]);
+
+  function isHomeModuleVisible(moduleId: MobileHomeSurfaceSlotId): boolean {
+    const slot = homeSurfaceSlotMap.get(moduleId);
+    if (!slot) {
+      return true;
+    }
+    return slot.enabled && isAudienceVisible(slot.audiences, audience);
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            tintColor={Colors.primary}
-          />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* ─── Search Bar ─── */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchRow}>
-            <View style={styles.searchBar}>
-              {!searchQuery ? (
-                <View pointerEvents="none" style={styles.searchLogoOverlay}>
-                  <Image
-                    source={require('../assets/images/endemigo-logo.png')}
-                    style={styles.searchLogoPlaceholder}
-                    resizeMode="contain"
-                  />
-                </View>
-              ) : null}
-              <TextInput
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            <View style={styles.searchActions}>
-              <TouchableOpacity
-                style={[styles.searchActionButton, styles.profileActionButton]}
-                activeOpacity={0.85}
-                onPress={() => router.push('/(tabs)/profile')}
-                accessibilityRole="button"
-                accessibilityLabel={t('tabs.profile')}
-              >
-                <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.searchActionButton, styles.notificationActionButton]}
-                activeOpacity={0.85}
-                onPress={() => router.push('/(tabs)/notifications')}
-                accessibilityRole="button"
-                accessibilityLabel={t('tabs.notifications')}
-              >
-                <Ionicons name="notifications-outline" size={19} color={Colors.primary} />
-              </TouchableOpacity>
+  function renderHomeModule(moduleId: MobileHomeSurfaceSlotId): React.ReactNode {
+    if (!isHomeModuleVisible(moduleId)) {
+      return null;
+    }
+
+    switch (moduleId) {
+      case 'home-search-bar':
+        return (
+          <View key={moduleId} style={styles.searchSection}>
+            <View style={styles.searchRow}>
+              <View style={styles.searchBar}>
+                {!searchQuery ? (
+                  <View pointerEvents="none" style={styles.searchLogoOverlay}>
+                    <Image
+                      source={require('../assets/images/endemigo-logo.png')}
+                      style={styles.searchLogoPlaceholder}
+                      resizeMode="contain"
+                    />
+                  </View>
+                ) : null}
+                <TextInput
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
+              <View style={styles.searchActions}>
+                <TouchableOpacity
+                  style={[styles.searchActionButton, styles.profileActionButton]}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/(tabs)/profile')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tabs.profile')}
+                >
+                  <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.searchActionButton, styles.notificationActionButton]}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/(tabs)/notifications')}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tabs.notifications')}
+                >
+                  <Ionicons name="notifications-outline" size={19} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        );
+      case 'home-hero-banners':
+        return (
+          <BannerCarousel
+            key={moduleId}
+            slides={heroBanners}
+            onSlidePress={(slide) => router.push((heroBannerRoutes[slide.id] ?? '/(tabs)/categories') as never)}
+          />
+        );
+      case 'home-entry-tiles':
+        return (
+          <View key={moduleId} style={styles.tilesSection}>
+            {entryTiles.map((tile) => {
+              const meta = TILE_META[tile.id] ?? {
+                icon: 'bag-handle' as const,
+                color: Colors.primary,
+                route: tile.cta.route,
+              };
+              const isAuctionTile = meta.icon === 'hammer';
 
-        {/* ─── Banner Carousel ─── */}
-        <BannerCarousel
-          slides={heroBanners}
-          onSlidePress={(slide) => router.push((heroBannerRoutes[slide.id] ?? '/(tabs)/categories') as never)}
-        />
-
-        {/* ─── Shopping vs Auction Tiles ─── */}
-        <View style={styles.tilesSection}>
-          {entryTiles.map((tile) => {
-            const meta = TILE_META[tile.id] ?? {
-              icon: 'bag-handle' as const,
-              color: Colors.primary,
-              route: tile.cta.route,
-            };
-
-            return (
-              <TouchableOpacity
-                key={tile.id}
-                style={[styles.tile, meta.icon === 'hammer' ? styles.auctionTile : styles.shopTile]}
-                activeOpacity={0.8}
-                onPress={() => router.push((tile.cta.route || meta.route) as never)}
-              >
-                <View style={[styles.tileIcon, { backgroundColor: meta.color }]}>
-                  <Ionicons name={meta.icon} size={28} color={Colors.white} />
-                </View>
-                <Text style={[styles.tileTitle, { color: meta.color }]}>
-                  {resolveLocalizedText(tile.title, mobileLocale, t('home.buyNow'))}
-                </Text>
-                <Text style={[styles.tileSubtitle, { color: `${meta.color}99` }]}>
-                  {resolveLocalizedText(tile.subtitle, mobileLocale, t('home.buyNowSub'))}
-                </Text>
+              return (
                 <TouchableOpacity
-                  style={[styles.tileButton, { backgroundColor: meta.color }]}
+                  key={tile.id}
+                  style={[styles.tile, isAuctionTile ? styles.auctionTile : styles.shopTile]}
                   activeOpacity={0.8}
                   onPress={() => router.push((tile.cta.route || meta.route) as never)}
                 >
-                  <Text style={styles.tileButtonText}>
-                    {resolveLocalizedText(tile.cta.label, mobileLocale, t('home.explore'))}
+                  <View style={[styles.tileIcon, { backgroundColor: meta.color }]}>
+                    <Ionicons name={meta.icon} size={28} color={Colors.white} />
+                  </View>
+                  <Text style={styles.tileTitle}>
+                    {resolveLocalizedText(tile.title, mobileLocale, t('home.buyNow'))}
                   </Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {recentlyViewedSection?.enabled && (
-          <>
-            <SectionHeader title={resolveLocalizedText(recentlyViewedSection.title, mobileLocale, t('home.recentlyViewed'))} />
-            <View style={styles.recentGrid}>
-              {recentProducts.map((item: Product, index) => {
-                const imageUri = getProductImageUri(item, RECENT_MOCK_IMAGES[index % RECENT_MOCK_IMAGES.length]);
-                return (
+                  <Text style={styles.tileSubtitle}>
+                    {resolveLocalizedText(tile.subtitle, mobileLocale, t('home.buyNowSub'))}
+                  </Text>
                   <TouchableOpacity
-                    key={item.id}
-                    style={styles.recentCard}
-                    activeOpacity={0.85}
-                    onPress={() => router.push(`/product/${item.id}`)}
+                    style={[styles.tileButton, isAuctionTile ? styles.tileButtonAuction : null]}
+                    activeOpacity={0.8}
+                    onPress={() => router.push((tile.cta.route || meta.route) as never)}
                   >
-                    <Image source={{ uri: imageUri }} style={styles.recentImage} resizeMode="cover" />
-                    <View style={styles.recentBody}>
-                      <Text style={styles.recentTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.recentPrice}>₺{Number(item.price).toLocaleString('tr-TR')}</Text>
-                    </View>
+                    <Text style={styles.tileButtonText}>
+                      {resolveLocalizedText(tile.cta.label, mobileLocale, t('home.explore'))}
+                    </Text>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {listingsSection?.enabled && (
-          <>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      case 'home-listings':
+        return listingsSection?.enabled ? (
+          <React.Fragment key={moduleId}>
             <SectionHeader title={resolveLocalizedText(listingsSection.title, mobileLocale, t('home.listings'))} />
             <View style={styles.listingGrid}>
               {listingSlots.map((item, index) => {
                 const imageUri = getProductImageUri(item, RECENT_MOCK_IMAGES[(index + 1) % RECENT_MOCK_IMAGES.length]);
+                const hasGeoIndication = Boolean(item?.geoIndicationCertNo || item?.geoIndicationRegion);
+                const resolvedGeoTypes = item?.geoIndicationTypes?.length
+                  ? item.geoIndicationTypes
+                  : item?.geoIndicationType
+                    ? [item.geoIndicationType]
+                    : [];
+                const geoBadgeLogos = resolvedGeoTypes
+                  .map((type) => GEO_BADGE_LOGOS[type])
+                  .filter(Boolean)
+                  .slice(0, 3);
                 return (
                   <TouchableOpacity
                     key={item?.id || `mock-listing-${index}`}
@@ -466,13 +494,34 @@ export default function HomeScreen() {
                       router.push('/(tabs)/categories');
                     }}
                   >
-                    <Image source={{ uri: imageUri }} style={styles.listingImage} resizeMode="cover" />
+                    <View style={styles.listingImageContainer}>
+                      <Image source={{ uri: imageUri }} style={styles.listingImage} resizeMode="cover" />
+                      {hasGeoIndication ? (
+                        geoBadgeLogos.length > 0 ? (
+                          <View style={styles.listingGeoBadgeLogosRow}>
+                            {geoBadgeLogos.map((logo, badgeIndex) => (
+                              <Image
+                                key={`listing-geo-${item?.id || index}-${badgeIndex}`}
+                                source={logo}
+                                style={styles.listingGeoBadgeLogo}
+                                resizeMode="contain"
+                              />
+                            ))}
+                          </View>
+                        ) : (
+                          <View style={styles.listingGeoBadge}>
+                            <Ionicons name="ribbon" size={10} color={Colors.white} />
+                            <Text style={styles.listingGeoBadgeText}>{t('product.geoIndicationBadge')}</Text>
+                          </View>
+                        )
+                      ) : null}
+                    </View>
                     <View style={styles.listingBody}>
                       <Text style={styles.listingTitle} numberOfLines={2}>
                         {item?.title || t('home.mockListingTitle')}
                       </Text>
                       <Text style={styles.listingPrice}>
-                        {item ? `₺${Number(item.price).toLocaleString('tr-TR')}` : t('home.mockListingPrice')}
+                        {item ? formatCurrency(item.price) : t('home.mockListingPrice')}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -507,10 +556,11 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
             ))}
-          </>
-        )}
-        {categoriesSection?.enabled && (
-          <>
+          </React.Fragment>
+        ) : null;
+      case 'home-categories':
+        return categoriesSection?.enabled ? (
+          <React.Fragment key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(categoriesSection.title, mobileLocale, t('tabs.categories'))}
               seeAllLabel={resolveLocalizedText(categoriesSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
@@ -523,6 +573,7 @@ export default function HomeScreen() {
             >
               {(categories || []).map((cat) => {
                 const { icon, color } = getCategoryIcon(cat.slug);
+                const hasImage = Boolean(cat.imageUrl) && !categoryImageErrors[cat.id];
                 return (
                   <TouchableOpacity
                     key={cat.id}
@@ -535,9 +586,18 @@ export default function HomeScreen() {
                       })
                     }
                   >
-                    <View style={styles.categoryIcon}>
-                      <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
-                    </View>
+                    {hasImage ? (
+                      <Image
+                        source={{ uri: cat.imageUrl ?? undefined }}
+                        style={styles.categoryImage}
+                        resizeMode="cover"
+                        onError={() => setCategoryImageErrors((prev) => ({ ...prev, [cat.id]: true }))}
+                      />
+                    ) : (
+                      <View style={styles.categoryIcon}>
+                        <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
+                      </View>
+                    )}
                     <Text style={styles.categoryName}>{cat.name}</Text>
                   </TouchableOpacity>
                 );
@@ -545,7 +605,7 @@ export default function HomeScreen() {
             </ScrollView>
             {(categories || []).map((cat) => {
               const catProducts = (data?.items || []).filter(
-                (p: Product) => p.categoryId === cat.id || p.categoryName === cat.name
+                (p: Product) => p.categoryId === cat.id || p.categoryName === cat.name,
               );
               if (!catProducts.length) return null;
               const slugKey = cat.slug?.toLowerCase().replace(/[- ]/g, '_');
@@ -559,7 +619,7 @@ export default function HomeScreen() {
                   categoryId: cat.id,
                   categoryName: cat.name,
                   title: `${cat.name} ${t('home.mockListingTitle')}`,
-                  sellerName: 'Endemigo',
+                  sellerName: t('home.brandName'),
                   price: 0,
                   imageUrl: mockImage,
                   thumbnail: mockImage,
@@ -597,12 +657,69 @@ export default function HomeScreen() {
                 </View>
               );
             })}
-          </>
-        )}
-
-        {/* ─── İndirimdeki Ürünler (2x2) ─── */}
-        {discountedSection?.enabled && discountedSlots.length > 0 && (
-          <View>
+          </React.Fragment>
+        ) : null;
+      case 'home-recently-viewed':
+        return recentlyViewedSection?.enabled ? (
+          <React.Fragment key={moduleId}>
+            <SectionHeader title={resolveLocalizedText(recentlyViewedSection.title, mobileLocale, t('home.recentlyViewed'))} />
+            <View style={styles.recentGrid}>
+              {recentProducts.map((item: Product, index) => {
+                const imageUri = getProductImageUri(item, RECENT_MOCK_IMAGES[index % RECENT_MOCK_IMAGES.length]);
+                const hasGeoIndication = Boolean(item.geoIndicationCertNo || item.geoIndicationRegion);
+                const resolvedGeoTypes = item.geoIndicationTypes?.length
+                  ? item.geoIndicationTypes
+                  : item.geoIndicationType
+                    ? [item.geoIndicationType]
+                    : [];
+                const geoBadgeLogos = resolvedGeoTypes
+                  .map((type) => GEO_BADGE_LOGOS[type])
+                  .filter(Boolean)
+                  .slice(0, 3);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.recentCard}
+                    activeOpacity={0.85}
+                    onPress={() => router.push(`/product/${item.id}`)}
+                  >
+                    <View style={styles.recentImageContainer}>
+                      <Image source={{ uri: imageUri }} style={styles.recentImage} resizeMode="cover" />
+                      {hasGeoIndication ? (
+                        geoBadgeLogos.length > 0 ? (
+                          <View style={styles.recentGeoBadgeLogosRow}>
+                            {geoBadgeLogos.map((logo, badgeIndex) => (
+                              <Image
+                                key={`recent-geo-${item.id}-${badgeIndex}`}
+                                source={logo}
+                                style={styles.recentGeoBadgeLogo}
+                                resizeMode="contain"
+                              />
+                            ))}
+                          </View>
+                        ) : (
+                          <View style={styles.recentGeoBadge}>
+                            <Ionicons name="ribbon" size={10} color={Colors.white} />
+                            <Text style={styles.recentGeoBadgeText}>{t('product.geoIndicationBadge')}</Text>
+                          </View>
+                        )
+                      ) : null}
+                    </View>
+                    <View style={styles.recentBody}>
+                      <Text style={styles.recentTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.recentPrice}>{formatCurrency(item.price)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </React.Fragment>
+        ) : null;
+      case 'home-discounted-products':
+        return discountedSection?.enabled && discountedSlots.length > 0 ? (
+          <View key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(discountedSection.title, mobileLocale, t('home.discountedProducts'))}
               accentColor={Colors.error}
@@ -626,11 +743,10 @@ export default function HomeScreen() {
               <Ionicons name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* ─── En Çok Beğenilenler (1x2 Scrollable) ─── */}
-        {mostLikedSection?.enabled && mostLikedProducts && mostLikedProducts.length > 0 && (
-          <View>
+        ) : null;
+      case 'home-most-liked-products':
+        return mostLikedSection?.enabled && mostLikedProducts && mostLikedProducts.length > 0 ? (
+          <View key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(mostLikedSection.title, mobileLocale, t('home.mostLikedProducts'))}
               accentColor={Colors.secondary}
@@ -652,46 +768,46 @@ export default function HomeScreen() {
               <Ionicons name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* ─── Trust Bar ─── */}
-        <View style={styles.trustBar}>
-          <View style={styles.trustItem}>
-            <View style={[styles.trustIcon, { backgroundColor: `${Colors.secondary}1A` }]}>
-              <Ionicons name="flash" size={18} color={Colors.secondary} />
+        ) : null;
+      case 'home-trust-bar':
+        return (
+          <View key={moduleId} style={styles.trustBar}>
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIcon, { backgroundColor: `${Colors.secondary}1A` }]}>
+                <Ionicons name="flash" size={18} color={Colors.secondary} />
+              </View>
+              <View>
+                <Text style={styles.trustTitle}>{t('home.trustFast')}</Text>
+                <Text style={styles.trustSubtitle}>{t('home.trustFastSub')}</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.trustTitle}>{t('home.trustFast')}</Text>
-              <Text style={styles.trustSubtitle}>{t('home.trustFastSub')}</Text>
+            <View style={styles.trustDivider} />
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIcon, { backgroundColor: `${Colors.primary}1A` }]}>
+                <Ionicons name="shield-checkmark" size={18} color={Colors.primary} />
+              </View>
+              <View>
+                <Text style={styles.trustTitle}>{t('home.trustOriginal')}</Text>
+                <Text style={styles.trustSubtitle}>{t('home.trustOriginalSub')}</Text>
+              </View>
+            </View>
+            <View style={styles.trustDivider} />
+            <View style={styles.trustItem}>
+              <View style={[styles.trustIcon, { backgroundColor: `${Colors.accent}1A` }]}>
+                <Ionicons name="heart" size={18} color={Colors.accent} />
+              </View>
+              <View>
+                <Text style={styles.trustTitle}>{t('home.trustFair')}</Text>
+                <Text style={styles.trustSubtitle}>{t('home.trustFairSub')}</Text>
+              </View>
             </View>
           </View>
-          <View style={styles.trustDivider} />
-          <View style={styles.trustItem}>
-            <View style={[styles.trustIcon, { backgroundColor: `${Colors.primary}1A` }]}>
-              <Ionicons name="shield-checkmark" size={18} color={Colors.primary} />
-            </View>
-            <View>
-              <Text style={styles.trustTitle}>{t('home.trustOriginal')}</Text>
-              <Text style={styles.trustSubtitle}>{t('home.trustOriginalSub')}</Text>
-            </View>
-          </View>
-          <View style={styles.trustDivider} />
-          <View style={styles.trustItem}>
-            <View style={[styles.trustIcon, { backgroundColor: `${Colors.accent}1A` }]}>
-              <Ionicons name="heart" size={18} color={Colors.accent} />
-            </View>
-            <View>
-              <Text style={styles.trustTitle}>{t('home.trustFair')}</Text>
-              <Text style={styles.trustSubtitle}>{t('home.trustFairSub')}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ─── Kampanyalar ─── */}
-        {campaignsSection?.enabled && (
-          <>
+        );
+      case 'home-campaigns':
+        return campaignsSection?.enabled ? (
+          <React.Fragment key={moduleId}>
             <SectionHeader
-              title={resolveLocalizedText(campaignsSection.title, mobileLocale, 'Guncel Kampanyalar')}
+              title={resolveLocalizedText(campaignsSection.title, mobileLocale, t('home.currentCampaigns'))}
               accentColor={Colors.accent}
               seeAllLabel={resolveLocalizedText(campaignsSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               style={styles.sectionMarginExtra}
@@ -700,12 +816,11 @@ export default function HomeScreen() {
               banners={promoBanners}
               onPress={(banner) => router.push((promoRoutes[banner.id] ?? '/buy-now') as never)}
             />
-          </>
-        )}
-
-        {/* ─── Blog Bölümü ─── */}
-        {blogSection?.enabled && blogs && blogs.length > 0 && (
-          <View style={styles.sectionMargin}>
+          </React.Fragment>
+        ) : null;
+      case 'home-blog':
+        return blogSection?.enabled && blogs && blogs.length > 0 ? (
+          <View key={moduleId} style={styles.sectionMargin}>
             <SectionHeader
               title={resolveLocalizedText(blogSection.title, mobileLocale, t('home.blog'))}
               accentColor={Colors.primary}
@@ -733,11 +848,10 @@ export default function HomeScreen() {
               <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* ─── Güven Bloğu ─── */}
-        {trustSection?.enabled && trustBlock && (
-          <>
+        ) : null;
+      case 'home-trust-hub':
+        return trustSection?.enabled && trustBlock ? (
+          <React.Fragment key={moduleId}>
             <View style={styles.sectionMargin}>
               <View style={styles.trustHubCard}>
                 <Text style={styles.trustHubTitle}>
@@ -766,7 +880,6 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -781,13 +894,45 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </>
-        )}
+          </React.Fragment>
+        ) : null;
+      case 'home-quick-tab-bar':
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={Colors.primary}
+          />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
+        {orderedHomeModules.map((moduleId) => renderHomeModule(moduleId))}
 
         {/* Bottom spacing for tab bar */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      <HomeQuickTabBar activeTab="home" />
+      {isHomeModuleVisible('home-quick-tab-bar') ? (
+        <HomeQuickTabBar activeTab="home" />
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -7,6 +7,27 @@ export class ProductImageResponseDto {
   @ApiProperty() isPrimary: boolean;
 }
 
+export class ProductVariantOptionResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() label: string;
+  @ApiProperty() kind: string;
+  @ApiPropertyOptional() swatchHex?: string | null;
+  @ApiPropertyOptional() imageUrl?: string | null;
+  @ApiPropertyOptional() inStock?: boolean;
+  @ApiPropertyOptional() stockQuantity?: number | null;
+}
+
+export class ProductVariantSkuResponseDto {
+  @ApiProperty() id: string;
+  @ApiPropertyOptional() colorVariantNumberId?: string | null;
+  @ApiPropertyOptional() sizeVariantNumberId?: string | null;
+  @ApiPropertyOptional() skuCode?: string | null;
+  @ApiPropertyOptional() stockQuantity?: number;
+  @ApiPropertyOptional() priceOverride?: number | null;
+  @ApiPropertyOptional() imageUrl?: string | null;
+  @ApiPropertyOptional() isActive?: boolean;
+}
+
 export class ProductItemResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() title: string;
@@ -18,6 +39,18 @@ export class ProductItemResponseDto {
   @ApiProperty() sellerId: string;
   @ApiPropertyOptional() categoryId: string;
   @ApiPropertyOptional() categoryName: string;
+  @ApiPropertyOptional() geoIndicationType?: string;
+  @ApiPropertyOptional({ type: [String] }) geoIndicationTypes?: string[];
+  @ApiPropertyOptional() geoIndicationCertNo?: string;
+  @ApiPropertyOptional() geoIndicationRegion?: string;
+  @ApiPropertyOptional() deliveryTemplateDomestic?: string;
+  @ApiPropertyOptional() deliveryTemplateInternational?: string;
+  @ApiPropertyOptional() desiDomestic?: string;
+  @ApiPropertyOptional() desiInternational?: string;
+  @ApiPropertyOptional({ type: [String] }) featureBadges?: string[];
+  @ApiPropertyOptional({ type: [String] }) geoBadgeSelections?: string[];
+  @ApiPropertyOptional({ type: [ProductVariantOptionResponseDto] }) variantOptions?: ProductVariantOptionResponseDto[];
+  @ApiPropertyOptional({ type: [ProductVariantSkuResponseDto] }) variantSkus?: ProductVariantSkuResponseDto[];
   @ApiProperty() createdAt: Date;
 }
 

@@ -1,7 +1,10 @@
 import { Stack } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily } from '../../constants/theme';
 
 export default function AuthLayout() {
+  const { t } = useTranslation();
+
   return (
     <Stack
       screenOptions={{
@@ -17,7 +20,7 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="register" options={{ title: 'Kayıt Ol' }} />
+      <Stack.Screen name="register" options={{ title: t('auth.registerTitle') }} />
     </Stack>
   );
 }

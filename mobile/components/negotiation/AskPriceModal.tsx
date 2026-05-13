@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { detectNegotiationPolicyViolation } from '../../hooks/useNegotiations';
 import type { Product, StartNegotiationInput } from '../../types';
+import { formatAmount } from '../../utils/transactionFormatters';
 import { styles } from './AskPriceModal.styles';
 
 interface AskPriceModalProps {
@@ -82,7 +83,7 @@ export function AskPriceModal({
           {minimumAmount > 0 ? (
             <Text style={styles.minimumText}>
               {t('negotiation.askPrice.minimum', {
-                amount: Number(minimumAmount).toLocaleString('tr-TR'),
+                amount: formatAmount(minimumAmount),
               })}
             </Text>
           ) : null}

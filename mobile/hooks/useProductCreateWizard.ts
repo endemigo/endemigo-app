@@ -1,11 +1,31 @@
 import { useState } from 'react';
 import {
+  MOBILE_LISTING_CREATE_OPTIONAL_FIELDS,
+  type MobileListingCreateOptionalField,
+} from '@endemigo/shared';
+import {
   PRODUCT_CREATE_AUCTION_TYPES,
   PRODUCT_CREATE_CONDITIONS,
   PRODUCT_CREATE_LISTING_TYPES,
   type ProductCreateWizardState,
   type ProductCreateWizardStep,
 } from '../types/productCreate.ts';
+import { parsePriceInput } from '../utils/priceInputMask.ts';
+
+export interface ListingFieldVisibilityOptions {
+  optionalFields?: MobileListingCreateOptionalField[];
+}
+
+function isOptionalFieldVisible(
+  field: MobileListingCreateOptionalField,
+  options?: ListingFieldVisibilityOptions,
+): boolean {
+  const selectedFields = options?.optionalFields;
+  if (!Array.isArray(selectedFields)) {
+    return true;
+  }
+  return selectedFields.includes(field);
+}
 
 export function createInitialProductCreateState(): ProductCreateWizardState {
   return {
@@ -33,6 +53,28 @@ export function createInitialProductCreateState(): ProductCreateWizardState {
     sku: '',
     geoIndicationCertNo: '',
     geoIndicationRegion: '',
+    geoIndicationReceivedAt: '',
+    barcodeNo: '',
+    productContent: '',
+    sellerNotes: '',
+    brand: '',
+    isEndemigoBrandCandidate: false,
+    productionProvince: '',
+    productionDistrict: '',
+    productionSeasons: [],
+    salesMonths: [],
+    wholesalePrice: '',
+    retailPrice: '',
+    shippingProvince: '',
+    shippingDistrict: '',
+    shippingAddress: '',
+    deliveryTemplateDomestic: '',
+    deliveryTemplateInternational: '',
+    desiDomestic: '',
+    desiInternational: '',
+    featureBadges: [],
+    geoBadgeSelections: [],
+    additionalCertificates: '',
     weight: '',
     dimensionWidth: '',
     dimensionHeight: '',
@@ -41,7 +83,8 @@ export function createInitialProductCreateState(): ProductCreateWizardState {
 }
 
 function isPositiveNumber(value: string): boolean {
-  return Number(value.replace(',', '.')) > 0;
+  const parsed = parsePriceInput(value);
+  return Boolean(parsed && parsed > 0);
 }
 
 function isNonNegativeInteger(value: string): boolean {
@@ -53,32 +96,25 @@ export function canContinueProductCreateStep(
   step: ProductCreateWizardStep,
   state: ProductCreateWizardState,
   imageCount: number,
+  visibilityOptions?: ListingFieldVisibilityOptions,
 ): boolean {
   if (step === 1) {
-    return state.title.trim().length >= 3 && state.categoryId.length > 0;
+    const hasBasics = state.title.trim().length >= 3 && state.categoryId.length > 0;
+    const hasPricing = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
+      ? isPositiveNumber(state.auctionStartPrice)
+      : isPositiveNumber(state.directSalePrice) && (!state.askPriceEnabled || isPositiveNumber(state.askPriceMinAmount));
+    const hasDetails = state.description.trim().length >= 3 && isNonNegativeInteger(state.stockQuantity);
+    return hasBasics && hasPricing && hasDetails;
   }
 
-  if (step === 2) {
-    if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
-      return isPositiveNumber(state.auctionStartPrice);
-    }
+  if (step === 2 || step === 3 || step === 4) {
+    return true;
+  }
 
-    if (!isPositiveNumber(state.directSalePrice)) {
-      return false;
-    }
-
-    if (!state.askPriceEnabled) {
+  if (step === 5) {
+    if (!isOptionalFieldVisible('images', visibilityOptions)) {
       return true;
     }
-
-    return isPositiveNumber(state.askPriceMinAmount);
-  }
-
-  if (step === 3) {
-    return state.description.trim().length >= 10 && isNonNegativeInteger(state.stockQuantity);
-  }
-
-  if (step === 4) {
     return imageCount > 0;
   }
 
@@ -93,13 +129,19 @@ export function canContinueProductCreateStep(
 export function isProductCreateReadyToSubmit(
   state: ProductCreateWizardState,
   imageCount: number,
+  visibilityOptions?: ListingFieldVisibilityOptions,
 ): boolean {
+  const normalizedVisibilityOptions = {
+    optionalFields: visibilityOptions?.optionalFields ?? [...MOBILE_LISTING_CREATE_OPTIONAL_FIELDS],
+  };
+
   return (
-    canContinueProductCreateStep(1, state, imageCount)
-    && canContinueProductCreateStep(2, state, imageCount)
-    && canContinueProductCreateStep(3, state, imageCount)
-    && canContinueProductCreateStep(4, state, imageCount)
-    && canContinueProductCreateStep(5, state, imageCount)
+    canContinueProductCreateStep(1, state, imageCount, normalizedVisibilityOptions)
+    && canContinueProductCreateStep(2, state, imageCount, normalizedVisibilityOptions)
+    && canContinueProductCreateStep(3, state, imageCount, normalizedVisibilityOptions)
+    && canContinueProductCreateStep(4, state, imageCount, normalizedVisibilityOptions)
+    && canContinueProductCreateStep(5, state, imageCount, normalizedVisibilityOptions)
+    && canContinueProductCreateStep(6, state, imageCount, normalizedVisibilityOptions)
   );
 }
 

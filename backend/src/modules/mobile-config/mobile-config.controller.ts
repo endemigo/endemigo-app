@@ -53,6 +53,7 @@ export class MobileConfigController {
     return this.mobileConfigService.updateDraft({
       actorAdminId: request.adminUser.id,
       actorRoles: request.adminUser.roles,
+      version: body.version,
       draft: body.draft as unknown as MobileExperienceConfig,
       reason: body.reason,
     });
@@ -76,6 +77,7 @@ export class MobileConfigController {
     return this.mobileConfigService.publish({
       actorAdminId: request.adminUser.id,
       actorRoles: request.adminUser.roles,
+      version: body.version,
       reason: body.reason,
     });
   }

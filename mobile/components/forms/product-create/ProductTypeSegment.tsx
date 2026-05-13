@@ -19,10 +19,20 @@ export function ProductTypeSegment({ value, onChange }: ProductTypeSegmentProps)
     <View style={styles.container}>
       <TouchableOpacity
         activeOpacity={0.85}
-        style={[styles.option, value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionActive]}
+        style={[
+          styles.option,
+          value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionActive,
+          value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionActiveDirectSale,
+        ]}
         onPress={() => onChange(PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE)}
       >
-        <Text style={[styles.optionLabel, value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionLabelActive]}>
+        <Text
+          style={[
+            styles.optionLabel,
+            value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionLabelActive,
+            value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && styles.optionLabelActiveDirectSale,
+          ]}
+        >
           {t('listing.directSale')}
         </Text>
         <Text style={styles.optionHint}>{t('listing.directSaleHint')}</Text>
@@ -30,10 +40,20 @@ export function ProductTypeSegment({ value, onChange }: ProductTypeSegmentProps)
 
       <TouchableOpacity
         activeOpacity={0.85}
-        style={[styles.option, value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionActive]}
+        style={[
+          styles.option,
+          value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionActive,
+          value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionActiveAuction,
+        ]}
         onPress={() => onChange(PRODUCT_CREATE_LISTING_TYPES.AUCTION)}
       >
-        <Text style={[styles.optionLabel, value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionLabelActive]}>
+        <Text
+          style={[
+            styles.optionLabel,
+            value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionLabelActive,
+            value === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.optionLabelActiveAuction,
+          ]}
+        >
           {t('listing.auction')}
         </Text>
         <Text style={styles.optionHint}>{t('listing.auctionHint')}</Text>

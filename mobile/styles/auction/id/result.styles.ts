@@ -34,6 +34,15 @@ export const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: Spacing.lg,
   },
+  iconCircleWinner: {
+    backgroundColor: `${Colors.secondary}1A`,
+  },
+  iconCircleEnded: {
+    backgroundColor: `${Colors.auctionGreen}1A`,
+  },
+  iconCircleEmpty: {
+    backgroundColor: Colors.slate100,
+  },
   title: {
     color: Colors.onSurface,
     fontSize: FontSize.heading,
@@ -74,7 +83,7 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
   premiumVal: {
-    color: '#F59E0B',
+    color: Colors.accent,
     fontSize: FontSize.body,
     fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',

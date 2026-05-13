@@ -2,13 +2,14 @@
   <section class="mobile-config-view">
     <header class="page-header mobile-header">
       <div>
-        <h1>Mobil Uygulama</h1>
+        <h1>{{ pageTitle }}</h1>
         <p class="muted">
-          Home ekranini telefon preview uzerinden duzenle. Ilk fazda hedef high-fidelity parity.
+          {{ pageSubtitle }}
         </p>
       </div>
       <div class="toolbar mobile-toolbar">
         <span class="status-pill">mobile-config</span>
+        <span class="status-pill ghost">v{{ documentVersion }}</span>
         <span class="status-pill ghost">{{ draft ? 'Draft hazir' : 'Draft yukleniyor' }}</span>
         <button class="button" type="button" @click="loadDraft">
           <i class="pi pi-refresh" aria-hidden="true" />
@@ -18,7 +19,7 @@
           <i class="pi pi-save" aria-hidden="true" />
           Taslagi Kaydet
         </button>
-        <button class="button primary" type="button" :disabled="loading || !draft" @click="openReason('publish')">
+        <button class="button primary" type="button" :disabled="loading || !draft || !canPublish" @click="openReason('publish')">
           <i class="pi pi-send" aria-hidden="true" />
           Yayinla
         </button>
@@ -29,8 +30,8 @@
       <aside class="panel navigator-panel">
         <div class="panel-header">
           <div>
-            <strong>Home Navigator</strong>
-            <div class="muted">Hero, entryTiles, section ve trust bloklari</div>
+            <strong>Mobile Navigator</strong>
+            <div class="muted">Home + card templates + other surfaces</div>
           </div>
         </div>
         <div class="panel-body navigator-body">
@@ -53,6 +54,7 @@
             <button class="button" type="button" @click="addHeroBanner">Hero Ekle</button>
             <button class="button" type="button" @click="addEntryTile">Kart Ekle</button>
             <button class="button" type="button" @click="addHomeSection">Section Ekle</button>
+            <button class="button" type="button" @click="addSurfaceSlot">Surface Ekle</button>
           </div>
 
           <section
@@ -87,9 +89,9 @@
           </section>
 
           <div class="navigator-note">
-            <strong>Ilk Faz</strong>
+            <strong>Yonetim Notu</strong>
             <p class="muted">
-              Preview sadece Home icin birebir yaklastiriliyor. Diger yuzeyler sonraki fazda bu akisa alinacak.
+              Anasayfa bolumleri, Product/Auction card ve diger surface alanlari bu panelden yonetilir.
             </p>
           </div>
         </div>
@@ -250,6 +252,52 @@
                   <strong>{{ textOf(previewTrustBlock.title, 'Guven Merkezi') }}</strong>
                   <p>{{ textOf(previewTrustBlock.subtitle, 'Guven aciklamasi') }}</p>
                 </button>
+
+                <button
+                  class="preview-card-template"
+                  :class="{ selected: isSelected('product-card', 'product-card') }"
+                  type="button"
+                  @click="selectTarget('product-card', 'product-card')"
+                >
+                  <div class="preview-card-template-head">
+                    <span class="preview-badge subtle">{{ textOf(draft.cards.productCard.badge, 'Product') }}</span>
+                    <span>{{ draft.cards.productCard.showPrice ? 'Fiyat Acik' : 'Fiyat Kapali' }}</span>
+                  </div>
+                  <strong>{{ selectedLocale === 'tr' ? 'Urun Karti' : 'Product Card' }}</strong>
+                  <p>{{ textOf(draft.cards.productCard.ctaLabel, 'Incele') }}</p>
+                </button>
+
+                <button
+                  class="preview-card-template"
+                  :class="{ selected: isSelected('auction-card', 'auction-card') }"
+                  type="button"
+                  @click="selectTarget('auction-card', 'auction-card')"
+                >
+                  <div class="preview-card-template-head">
+                    <span class="preview-badge subtle">{{ textOf(draft.auctions.listCard.liveBadgeLabel, 'Live') }}</span>
+                    <span>{{ draft.auctions.listCard.showTimer ? 'Sayaç Acik' : 'Sayaç Kapali' }}</span>
+                  </div>
+                  <strong>{{ selectedLocale === 'tr' ? 'Muzayede Karti' : 'Auction Card' }}</strong>
+                  <p>{{ textOf(draft.auctions.listCard.ctaLabel, 'Teklif Ver') }}</p>
+                </button>
+
+                <div v-if="previewOtherSurfaces.length" class="preview-surface-stack">
+                  <button
+                    v-for="surface in previewOtherSurfaces"
+                    :key="surface.id"
+                    class="preview-surface-card"
+                    :class="{ selected: isSelected('surface', surface.id) }"
+                    type="button"
+                    @click="selectTarget('surface', surface.id)"
+                  >
+                    <div class="preview-card-template-head">
+                      <span class="preview-badge subtle">{{ surface.surface }}</span>
+                      <span>#{{ surface.order }}</span>
+                    </div>
+                    <strong>{{ textOf(surface.title, surface.id) }}</strong>
+                    <p>{{ textOf(surface.subtitle, 'Surface aciklamasi') }}</p>
+                  </button>
+                </div>
               </div>
 
               <div class="preview-tabbar">
@@ -294,6 +342,16 @@
           </p>
 
           <div v-if="activeDrawerTab === 'content'" class="drawer-form">
+            <div v-if="validationIssues.length" class="validation-box">
+              <strong>Alan Bazli Hatalar</strong>
+              <ul>
+                <li v-for="issue in validationIssues" :key="`${issue.path}-${issue.code}`">
+                  <span>{{ issue.path }}</span>
+                  <p>{{ issue.message }}</p>
+                </li>
+              </ul>
+            </div>
+
             <template v-if="selectedHeroBanner">
               <LocalizedField label="Badge TR" v-model="selectedHeroBanner.badge.tr" />
               <LocalizedField label="Badge EN" v-model="selectedHeroBanner.badge.en" />
@@ -368,50 +426,151 @@
                 <input v-model.trim="selectedTrustBlock.cta.route" class="input" type="text" />
               </label>
             </template>
+
+            <template v-else-if="selectedProductCard">
+              <LocalizedField label="Badge TR" v-model="selectedProductCard.badge.tr" />
+              <LocalizedField label="Badge EN" v-model="selectedProductCard.badge.en" />
+              <LocalizedField label="CTA TR" v-model="selectedProductCard.ctaLabel.tr" />
+              <LocalizedField label="CTA EN" v-model="selectedProductCard.ctaLabel.en" />
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedProductCard.showCategory" type="checkbox" />
+                <span>Kategori gorunsun</span>
+              </label>
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedProductCard.showPrice" type="checkbox" />
+                <span>Fiyat gorunsun</span>
+              </label>
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedProductCard.showAskPriceBadge" type="checkbox" />
+                <span>Fiyat sor badge gorunsun</span>
+              </label>
+            </template>
+
+            <template v-else-if="selectedAuctionListCard">
+              <LocalizedField label="Live Badge TR" v-model="selectedAuctionListCard.liveBadgeLabel.tr" />
+              <LocalizedField label="Live Badge EN" v-model="selectedAuctionListCard.liveBadgeLabel.en" />
+              <LocalizedField label="CTA TR" v-model="selectedAuctionListCard.ctaLabel.tr" />
+              <LocalizedField label="CTA EN" v-model="selectedAuctionListCard.ctaLabel.en" />
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedAuctionListCard.showBidCount" type="checkbox" />
+                <span>Teklif sayisi gorunsun</span>
+              </label>
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedAuctionListCard.showStatusBadge" type="checkbox" />
+                <span>Status badge gorunsun</span>
+              </label>
+              <label class="checkbox-pill full-width">
+                <input v-model="selectedAuctionListCard.showTimer" type="checkbox" />
+                <span>Sure sayaci gorunsun</span>
+              </label>
+            </template>
+
+            <template v-else-if="selectedListingCreateConfig">
+              <div class="drawer-note">
+                Bu alandaki secimler mobilde Ilan Ver adimlarinda kullaniciya gosterilecek opsiyonel kalemleri belirler.
+              </div>
+              <section
+                v-for="group in LISTING_CREATE_FIELD_GROUPS"
+                :key="`listing-field-group-${group.id}`"
+                class="listing-field-group"
+              >
+                <header class="listing-field-group-header">
+                  <strong>{{ group.title }}</strong>
+                  <span>{{ group.options.filter((option) => selectedListingCreateConfig.optionalFields.includes(option.key)).length }}/{{ group.options.length }}</span>
+                </header>
+                <label
+                  v-for="option in group.options"
+                  :key="`listing-field-${option.key}`"
+                  class="checkbox-pill full-width"
+                >
+                  <input
+                    :checked="selectedListingCreateConfig.optionalFields.includes(option.key)"
+                    type="checkbox"
+                    @change="toggleListingCreateField(option.key)"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+              </section>
+            </template>
+
+            <template v-else-if="selectedSurfaceSlot">
+              <LocalizedField label="Baslik TR" v-model="selectedSurfaceSlot.title.tr" />
+              <LocalizedField label="Baslik EN" v-model="selectedSurfaceSlot.title.en" />
+              <LocalizedField label="Alt Metin TR" v-model="selectedSurfaceSlot.subtitle.tr" />
+              <LocalizedField label="Alt Metin EN" v-model="selectedSurfaceSlot.subtitle.en" />
+              <LocalizedField label="CTA TR" v-model="selectedSurfaceSlot.cta.label.tr" />
+              <LocalizedField label="CTA EN" v-model="selectedSurfaceSlot.cta.label.en" />
+              <label class="field">
+                <span>CTA Route</span>
+                <input v-model.trim="selectedSurfaceSlot.cta.route" class="input" type="text" />
+              </label>
+              <label class="field">
+                <span>Surface Key</span>
+                <select v-model="selectedSurfaceSlot.surface" class="select">
+                  <option v-for="surface in SURFACE_OPTIONS" :key="surface" :value="surface">
+                    {{ surface }}
+                  </option>
+                </select>
+              </label>
+            </template>
           </div>
 
           <div v-else-if="activeDrawerTab === 'visibility'" class="drawer-form">
-            <label class="checkbox-pill full-width">
-              <input :checked="selectedBlockEnabled" type="checkbox" @change="toggleSelectedEnabled" />
-              <span>{{ selectedBlockEnabled ? 'Blok gorunur' : 'Blok gizli' }}</span>
-            </label>
-
-            <div class="audience-stack">
-              <span class="audience-label">Audience</span>
-              <label
-                v-for="option in audienceOptions"
-                :key="`drawer-${option.value}`"
-                class="checkbox-pill full-width"
-              >
-                <input
-                  :checked="selectedBlockAudiences.includes(option.value)"
-                  type="checkbox"
-                  @change="toggleSelectedAudience(option.value)"
-                />
-                <span>{{ option.label }}</span>
+            <template v-if="selectedTargetSupportsVisibility">
+              <label class="checkbox-pill full-width">
+                <input :checked="selectedBlockEnabled" type="checkbox" @change="toggleSelectedEnabled" />
+                <span>{{ selectedBlockEnabled ? 'Blok gorunur' : 'Blok gizli' }}</span>
               </label>
+
+              <div class="audience-stack">
+                <span class="audience-label">Audience</span>
+                <label
+                  v-for="option in audienceOptions"
+                  :key="`drawer-${option.value}`"
+                  class="checkbox-pill full-width"
+                >
+                  <input
+                    :checked="selectedBlockAudiences.includes(option.value)"
+                    type="checkbox"
+                    @change="toggleSelectedAudience(option.value)"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+            </template>
+            <div v-else class="drawer-note">
+              Card template ayarlari globaldir. Audience/visibility filtresi uygulanmaz.
             </div>
           </div>
 
           <div v-else class="drawer-form">
-            <label class="field">
-              <span>Sira</span>
-              <input v-model.number="selectedBlockOrderModel" class="input" type="number" min="1" />
-            </label>
+            <template v-if="selectedTargetSupportsOrder">
+              <label class="field">
+                <span>Sira</span>
+                <input v-model.number="selectedBlockOrderModel" class="input" type="number" min="1" />
+              </label>
 
-            <div class="drawer-action-row">
-              <button class="button" type="button" @click="moveSelectedBlock(-1)">Yukari Al</button>
-              <button class="button" type="button" @click="moveSelectedBlock(1)">Asagi Al</button>
+              <div class="drawer-action-row">
+                <button class="button" type="button" @click="moveSelectedBlock(-1)">Yukari Al</button>
+                <button class="button" type="button" @click="moveSelectedBlock(1)">Asagi Al</button>
+              </div>
+            </template>
+            <div v-else class="drawer-note">
+              Card template ayarlari tekil oldugu icin siralama yoktur.
             </div>
 
             <button
-              v-if="selectedTarget?.kind !== 'section'"
+              v-if="selectedTargetSupportsDelete"
               class="button danger full-width"
               type="button"
+              :disabled="selectedTarget?.kind === 'section' && draft.home.sections.length <= 1"
               @click="deleteSelectedBlock"
             >
               Bloku Sil
             </button>
+            <p v-if="selectedTarget?.kind === 'section' && draft.home.sections.length <= 1" class="muted">
+              Son section silinemez, en az 1 section kalmali.
+            </p>
           </div>
         </div>
 
@@ -439,6 +598,51 @@
       </aside>
     </div>
 
+    <section v-if="draft" class="panel insights-panel">
+      <div class="panel-header">
+        <div>
+          <strong>Publish Insights</strong>
+          <div class="muted">Checklist, draft/published diff ve audit ozeti</div>
+        </div>
+      </div>
+      <div class="panel-body insights-grid">
+        <article class="insight-card">
+          <h3>Pre-publish Checklist</h3>
+          <ul class="insight-list">
+            <li v-for="item in prePublishChecklist" :key="item.key" :class="{ pass: item.passed, fail: !item.passed }">
+              <span>{{ item.passed ? 'PASS' : 'BLOCK' }}</span>
+              <p>{{ item.label }}</p>
+            </li>
+          </ul>
+        </article>
+
+        <article class="insight-card">
+          <h3>Draft vs Published Diff</h3>
+          <ul v-if="diffEntries.length" class="diff-list">
+            <li v-for="entry in diffEntries" :key="entry.path">
+              <strong>{{ entry.path }}</strong>
+              <p>{{ entry.before }} -> {{ entry.after }}</p>
+            </li>
+          </ul>
+          <p v-else class="muted">Draft ile published su an ayni.</p>
+        </article>
+
+        <article class="insight-card">
+          <h3>Audit Ozet</h3>
+          <ul v-if="auditSummary.length" class="audit-list">
+            <li v-for="item in auditSummary" :key="item.id">
+              <strong>{{ item.action }}</strong>
+              <p>Admin: {{ item.actorAdminId }} | v{{ item.metadata?.version ?? documentVersion }}</p>
+              <p>Tarih: {{ new Date(item.createdAt).toLocaleString('tr-TR') }}</p>
+              <p>Target: {{ item.targetId }}</p>
+              <p>{{ item.reason || 'Gerekce girilmedi' }}</p>
+            </li>
+          </ul>
+          <p v-else class="muted">Audit kaydi bulunamadi.</p>
+        </article>
+      </div>
+    </section>
+
     <p v-if="error" class="error-text">{{ error }}</p>
 
     <AdminActionDrawer
@@ -453,7 +657,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import axios from 'axios';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import AdminActionDrawer, { type DrawerConfirmPayload } from '../../components/AdminActionDrawer.vue';
 import LocalizedField from '../../components/LocalizedField.vue';
 import { adminApi, toApiMessage } from '../../services/api';
@@ -512,19 +718,106 @@ interface TrustBlock extends AudienceBlock {
 }
 
 interface ProductCardConfig {
+  surface?: string;
   badge: LocalizedText;
   ctaLabel: LocalizedText;
   showCategory: boolean;
   showPrice: boolean;
   showAskPriceBadge: boolean;
+  audienceOverrides?: Record<string, Partial<{
+    badge: LocalizedText;
+    ctaLabel: LocalizedText;
+    showPrice: boolean;
+    showAskPriceBadge: boolean;
+  }>>;
 }
 
 interface AuctionListCardConfig {
+  surface?: string;
   ctaLabel: LocalizedText;
   liveBadgeLabel: LocalizedText;
   showBidCount: boolean;
   showStatusBadge: boolean;
   showTimer: boolean;
+  audienceOverrides?: Record<string, Partial<{
+    ctaLabel: LocalizedText;
+    liveBadgeLabel: LocalizedText;
+    showBidCount: boolean;
+    showStatusBadge: boolean;
+    showTimer: boolean;
+  }>>;
+}
+
+const LISTING_CREATE_FIELD_GROUPS = [
+  {
+    id: 'basic',
+    title: 'Temel Bilgiler',
+    options: [
+      { key: 'originRegion', label: 'Mensei il' },
+    ],
+  },
+  {
+    id: 'shipping',
+    title: 'Kargo ve Teslimat',
+    options: [
+      { key: 'originCountry', label: 'Mensei ulke' },
+      { key: 'shippingProvince', label: 'Kargo teslim ili' },
+      { key: 'shippingDistrict', label: 'Kargo teslim ilcesi' },
+      { key: 'shippingAddress', label: 'Kargo teslim adresi' },
+      { key: 'deliveryTemplateDomestic', label: 'Teslimat sablonu (yurtici)' },
+      { key: 'deliveryTemplateInternational', label: 'Teslimat sablonu (yurtdisi)' },
+      { key: 'desiDomestic', label: 'Desi (yurtici)' },
+      { key: 'desiInternational', label: 'Desi (yurtdisi)' },
+      { key: 'wholesalePrice', label: 'Toptan fiyat' },
+      { key: 'retailPrice', label: 'Perakende fiyat' },
+    ],
+  },
+  {
+    id: 'production',
+    title: 'Uretim ve Koken',
+    options: [
+      { key: 'productionProvince', label: 'Uretim ili' },
+      { key: 'productionDistrict', label: 'Uretim ilcesi' },
+      { key: 'productionSeasons', label: 'Uretim sezonu' },
+      { key: 'salesMonths', label: 'Satis aylari' },
+    ],
+  },
+  {
+    id: 'trust',
+    title: 'Kesif ve Guven',
+    options: [
+      { key: 'sellerNotes', label: 'Satici notlari' },
+      { key: 'brand', label: 'Marka' },
+      { key: 'isEndemigoBrandCandidate', label: 'Endemigo marka adayi' },
+      { key: 'productContent', label: 'Urun icerigi' },
+      { key: 'barcodeNo', label: 'Barkod no' },
+      { key: 'geoIndicationReceivedAt', label: 'Cografi isaret alinma tarihi' },
+      { key: 'geoIndicationCertNo', label: 'Cografi isaret belge no' },
+      { key: 'geoIndicationRegion', label: 'Cografi isaret bolgesi' },
+      { key: 'additionalCertificates', label: 'Ek sertifikalar' },
+      { key: 'featureBadges', label: 'Ozellik rozetleri' },
+      { key: 'geoBadgeSelections', label: 'Cografi rozet secimleri' },
+    ],
+  },
+  {
+    id: 'media',
+    title: 'Urun Olcu ve Medya',
+    options: [
+      { key: 'sku', label: 'SKU' },
+      { key: 'weight', label: 'Agirlik' },
+      { key: 'dimensionWidth', label: 'Genislik' },
+      { key: 'dimensionHeight', label: 'Yukseklik' },
+      { key: 'dimensionDepth', label: 'Derinlik' },
+      { key: 'images', label: 'Urun gorselleri' },
+    ],
+  },
+] as const;
+
+const LISTING_CREATE_FIELD_OPTIONS = LISTING_CREATE_FIELD_GROUPS.flatMap((group) => group.options);
+type ListingCreateOptionalField = (typeof LISTING_CREATE_FIELD_OPTIONS)[number]['key'];
+
+interface MobileListingCreateConfig {
+  optionalFields: ListingCreateOptionalField[];
 }
 
 interface SurfaceSlot extends AudienceBlock {
@@ -549,6 +842,7 @@ interface MobileConfigDraft {
   auctions: {
     listCard: AuctionListCardConfig;
   };
+  listingCreate: MobileListingCreateConfig;
   otherSurfaces: SurfaceSlot[];
   preview: {
     defaultAudience: string;
@@ -557,10 +851,30 @@ interface MobileConfigDraft {
 }
 
 interface MobileConfigDocument {
+  version: number;
   draft: MobileConfigDraft;
+  published?: MobileConfigDraft | null;
   publishedAt: string | null;
   updatedByAdminId: string | null;
   publishedByAdminId: string | null;
+}
+
+interface ValidationIssue {
+  path: string;
+  code: string;
+  message: string;
+}
+
+interface AuditLogItem {
+  id: string;
+  action: string;
+  targetId: string;
+  reason: string | null;
+  actorAdminId: string;
+  createdAt: string;
+  metadata?: {
+    version?: number;
+  };
 }
 
 interface NavigatorItem {
@@ -582,7 +896,16 @@ type PendingAction = 'save' | 'publish' | null;
 type PreviewLocale = 'tr' | 'en';
 type DevicePreset = 'iphone' | 'android';
 type DrawerTab = 'content' | 'visibility' | 'order';
-type EditorTargetKind = 'hero' | 'entry' | 'section' | 'promo' | 'trust';
+type EditorTargetKind =
+  | 'hero'
+  | 'entry'
+  | 'section'
+  | 'promo'
+  | 'trust'
+  | 'product-card'
+  | 'auction-card'
+  | 'listing-fields'
+  | 'surface';
 
 interface EditorTarget {
   kind: EditorTargetKind;
@@ -602,6 +925,20 @@ const selectedTarget = ref<EditorTarget | null>(null);
 const activeDrawerTab = ref<DrawerTab>('content');
 const reasonDrawerOpen = ref(false);
 const pendingAction = ref<PendingAction>(null);
+const route = useRoute();
+const documentVersion = ref(1);
+const baselineSnapshot = ref('');
+const publishedDraft = ref<MobileConfigDraft | null>(null);
+const validationIssues = ref<ValidationIssue[]>([]);
+const auditSummary = ref<AuditLogItem[]>([]);
+
+const isContentManagementRoute = computed(() => route.name === 'content-management');
+const pageTitle = computed(() => (isContentManagementRoute.value ? 'İçerik Yönetimi' : 'Mobil Uygulama'));
+const pageSubtitle = computed(() =>
+  isContentManagementRoute.value
+    ? 'Mobil uygulamadaki içerikleri buradan yönet, kaydet ve yayınla.'
+    : 'Home ekranini telefon preview uzerinden duzenle. Ilk fazda hedef high-fidelity parity.',
+);
 
 const audienceOptions = [
   { label: 'Guest', value: 'GUEST' },
@@ -637,6 +974,42 @@ const PREVIEW_SECTION_SLOTS: Record<string, string[]> = {
   'trust-hub': ['Onay', 'Orijin', 'Guven'],
 };
 
+const SURFACE_OPTIONS = [
+  'HOME',
+  'LISTING_CREATE',
+  'BUY_NOW',
+  'PRODUCT_DETAIL',
+  'PROFILE',
+  'SETTINGS',
+  'HOME_QUICK_TAB_BAR',
+];
+
+const DEFAULT_HOME_SURFACE_SLOTS = [
+  { id: 'home-search-bar', order: 1, title: 'Arama Barı' },
+  { id: 'home-hero-banners', order: 2, title: 'Hero Banner' },
+  { id: 'home-entry-tiles', order: 3, title: 'Giriş Kartları' },
+  { id: 'home-listings', order: 4, title: 'İlanlar Alanı' },
+  { id: 'home-categories', order: 5, title: 'Kategoriler' },
+  { id: 'home-recently-viewed', order: 6, title: 'Son Gezdiklerim' },
+  { id: 'home-discounted-products', order: 7, title: 'İndirimli Ürünler' },
+  { id: 'home-most-liked-products', order: 8, title: 'En Çok Beğenilenler' },
+  { id: 'home-trust-bar', order: 9, title: 'Güven Barı' },
+  { id: 'home-campaigns', order: 10, title: 'Kampanyalar' },
+  { id: 'home-blog', order: 11, title: 'Blog' },
+  { id: 'home-trust-hub', order: 12, title: 'Güven Merkezi' },
+  { id: 'home-quick-tab-bar', order: 13, title: 'Hızlı Sekme Çubuğu' },
+] as const;
+
+const LISTING_CREATE_FIELD_KEY_SET = new Set<string>(
+  LISTING_CREATE_FIELD_OPTIONS.map((option) => option.key),
+);
+
+const CHECKLIST_REQUIRED_PATHS = [
+  { key: 'required-fields', label: 'Zorunlu metin alanlari dolu olmali' },
+  { key: 'route-format', label: 'Route alanlari / ile baslamali ve gecerli formatta olmali' },
+  { key: 'audience', label: 'Tum bloklarda en az bir audience secili olmali' },
+];
+
 function localizedText(tr = '', en = ''): LocalizedText {
   return { tr, en };
 }
@@ -658,6 +1031,15 @@ function ensureLocalizedText(value?: Partial<LocalizedText>): LocalizedText {
 
 function normalizeDraft(value: MobileConfigDraft): MobileConfigDraft {
   const normalized = cloneDraft(value);
+  const selectedListingFields = Array.isArray(normalized.listingCreate?.optionalFields)
+    ? normalized.listingCreate.optionalFields.filter((field): field is ListingCreateOptionalField =>
+      LISTING_CREATE_FIELD_KEY_SET.has(field))
+    : [];
+  normalized.listingCreate = {
+    optionalFields: selectedListingFields.length > 0
+      ? [...new Set(selectedListingFields)]
+      : LISTING_CREATE_FIELD_OPTIONS.map((option) => option.key),
+  };
 
   normalized.home.heroBanners = normalized.home.heroBanners.map((banner) => ({
     ...banner,
@@ -713,12 +1095,32 @@ function normalizeDraft(value: MobileConfigDraft): MobileConfigDraft {
     ...normalized.cards.productCard,
     badge: ensureLocalizedText(normalized.cards.productCard.badge),
     ctaLabel: ensureLocalizedText(normalized.cards.productCard.ctaLabel),
+    audienceOverrides: Object.fromEntries(
+      Object.entries(normalized.cards.productCard.audienceOverrides ?? {}).map(([audience, override]) => [
+        audience,
+        {
+          ...override,
+          badge: ensureLocalizedText(override?.badge),
+          ctaLabel: ensureLocalizedText(override?.ctaLabel),
+        },
+      ]),
+    ),
   };
 
   normalized.auctions.listCard = {
     ...normalized.auctions.listCard,
     ctaLabel: ensureLocalizedText(normalized.auctions.listCard.ctaLabel),
     liveBadgeLabel: ensureLocalizedText(normalized.auctions.listCard.liveBadgeLabel),
+    audienceOverrides: Object.fromEntries(
+      Object.entries(normalized.auctions.listCard.audienceOverrides ?? {}).map(([audience, override]) => [
+        audience,
+        {
+          ...override,
+          ctaLabel: ensureLocalizedText(override?.ctaLabel),
+          liveBadgeLabel: ensureLocalizedText(override?.liveBadgeLabel),
+        },
+      ]),
+    ),
   };
 
   normalized.otherSurfaces = normalized.otherSurfaces.map((surface) => ({
@@ -730,6 +1132,27 @@ function normalizeDraft(value: MobileConfigDraft): MobileConfigDraft {
       label: ensureLocalizedText(surface.cta?.label),
     },
   }));
+
+  const existingSurfaceIds = new Set(normalized.otherSurfaces.map((surface) => surface.id));
+  const missingHomeSurfaceSlots = DEFAULT_HOME_SURFACE_SLOTS
+    .filter((surface) => !existingSurfaceIds.has(surface.id))
+    .map((surface) => ({
+      id: surface.id,
+      type: 'SURFACE_SLOT',
+      surface: 'HOME',
+      enabled: true,
+      order: surface.order,
+      audiences: ['GUEST', 'BUYER', 'SELLER'],
+      title: ensureLocalizedText({ tr: surface.title, en: surface.title }),
+      subtitle: ensureLocalizedText(),
+      cta: {
+        route: '/home',
+        label: ensureLocalizedText(),
+      },
+    }));
+  if (missingHomeSurfaceSlots.length > 0) {
+    normalized.otherSurfaces = [...normalized.otherSurfaces, ...missingHomeSurfaceSlots];
+  }
 
   return normalized;
 }
@@ -787,25 +1210,7 @@ function isSelected(kind: EditorTargetKind, id: string): boolean {
 
 function selectFirstBlock() {
   if (!draft.value) return;
-  const firstHero = sortByOrder(draft.value.home.heroBanners)[0];
-  if (firstHero) {
-    selectTarget('hero', firstHero.id);
-    return;
-  }
-
-  const firstEntry = sortByOrder(draft.value.home.entryTiles)[0];
-  if (firstEntry) {
-    selectTarget('entry', firstEntry.id);
-    return;
-  }
-
-  const firstSection = sortByOrder(draft.value.home.sections)[0];
-  if (firstSection) {
-    selectTarget('section', firstSection.id);
-    return;
-  }
-
-  selectedTarget.value = null;
+  selectTarget('product-card', 'product-card');
 }
 
 function entryTileIcon(id: string): string {
@@ -823,6 +1228,70 @@ function previewSectionDescription(id: string): string {
 
 function previewSectionSlots(id: string): string[] {
   return PREVIEW_SECTION_SLOTS[id] ?? ['Kart', 'Kart', 'Kart'];
+}
+
+function isMobileRoutePattern(value: string): boolean {
+  return /^\/[A-Za-z0-9\-_/()[\]]*$/.test(value);
+}
+
+function uniqueByPath(items: ValidationIssue[]): ValidationIssue[] {
+  const map = new Map<string, ValidationIssue>();
+  items.forEach((item) => {
+    if (!map.has(item.path)) {
+      map.set(item.path, item);
+    }
+  });
+  return [...map.values()];
+}
+
+function parseValidationIssues(input: unknown): ValidationIssue[] {
+  if (!Array.isArray(input)) return [];
+  const issues = input
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const candidate = item as Record<string, unknown>;
+      const path = String(candidate.path ?? '').trim();
+      if (!path) return null;
+      return {
+        path,
+        code: String(candidate.code ?? 'VALIDATION_ERROR'),
+        message: String(candidate.message ?? 'Alan dogrulamasi basarisiz'),
+      } as ValidationIssue;
+    })
+    .filter((item): item is ValidationIssue => Boolean(item));
+  return uniqueByPath(issues);
+}
+
+function flattenDiff(current: unknown, baseline: unknown, path = ''): Array<{ path: string; before: string; after: string }> {
+  if (JSON.stringify(current) === JSON.stringify(baseline)) {
+    return [];
+  }
+
+  if (
+    current === null
+    || baseline === null
+    || typeof current !== 'object'
+    || typeof baseline !== 'object'
+    || Array.isArray(current)
+    || Array.isArray(baseline)
+  ) {
+    return [
+      {
+        path: path || 'root',
+        before: JSON.stringify(baseline),
+        after: JSON.stringify(current),
+      },
+    ];
+  }
+
+  const keys = Array.from(
+    new Set([...Object.keys(current as Record<string, unknown>), ...Object.keys(baseline as Record<string, unknown>)]),
+  );
+  return keys.flatMap((key) => flattenDiff(
+    (current as Record<string, unknown>)[key],
+    (baseline as Record<string, unknown>)[key],
+    path ? `${path}.${key}` : key,
+  ));
 }
 
 const selectedHeroBanner = computed(() => {
@@ -850,18 +1319,39 @@ const selectedTrustBlock = computed(() => {
   return draft.value.home.trustBlocks.find((item) => item.id === selectedTarget.value?.id) ?? null;
 });
 
+const selectedProductCard = computed(() => {
+  if (!draft.value || selectedTarget.value?.kind !== 'product-card') return null;
+  return draft.value.cards.productCard;
+});
+
+const selectedAuctionListCard = computed(() => {
+  if (!draft.value || selectedTarget.value?.kind !== 'auction-card') return null;
+  return draft.value.auctions.listCard;
+});
+
+const selectedListingCreateConfig = computed(() => {
+  if (!draft.value || selectedTarget.value?.kind !== 'listing-fields') return null;
+  return draft.value.listingCreate;
+});
+
+const selectedSurfaceSlot = computed(() => {
+  if (!draft.value || selectedTarget.value?.kind !== 'surface') return null;
+  return draft.value.otherSurfaces.find((item) => item.id === selectedTarget.value?.id) ?? null;
+});
+
 const selectedBlock = computed(() => {
   return (
     selectedHeroBanner.value ??
     selectedEntryTile.value ??
     selectedHomeSection.value ??
     selectedPromoBanner.value ??
-    selectedTrustBlock.value
+    selectedTrustBlock.value ??
+    selectedSurfaceSlot.value
   );
 });
 
 const selectedBlockTitle = computed(() => {
-  if (!selectedBlock.value || !selectedTarget.value) {
+  if (!selectedTarget.value) {
     return 'Blok Secimi';
   }
 
@@ -876,6 +1366,14 @@ const selectedBlockTitle = computed(() => {
       return textOf(selectedPromoBanner.value?.title, selectedPromoBanner.value?.id ?? 'Promo');
     case 'trust':
       return textOf(selectedTrustBlock.value?.title, selectedTrustBlock.value?.id ?? 'Trust');
+    case 'product-card':
+      return 'Product Card';
+    case 'auction-card':
+      return 'Auction List Card';
+    case 'listing-fields':
+      return 'Ilan Verme Alanlari';
+    case 'surface':
+      return textOf(selectedSurfaceSlot.value?.title, selectedSurfaceSlot.value?.id ?? 'Surface');
     default:
       return 'Blok Secimi';
   }
@@ -892,12 +1390,25 @@ const selectedBlockDescription = computed(() => {
     section: 'Section baslik, see all ve siralama ayarlari',
     promo: 'Kampanya karti metin ve CTA ayarlari',
     trust: 'Guven modulu metin ve aksiyon ayarlari',
+    'product-card': 'Product kart etiketi, buton ve gorunum ayarlari',
+    'auction-card': 'Auction list card metin ve gorunum ayarlari',
+    'listing-fields': 'Ilan verme adimlarinda sorulacak opsiyonel alanlari sec',
+    surface: 'Diger ekran slotu metin, audience ve route ayarlari',
   };
 
   return descriptions[selectedTarget.value.kind];
 });
 
-const selectedBlockEnabled = computed(() => selectedBlock.value?.enabled ?? false);
+const selectedBlockEnabled = computed(() => {
+  if (
+    selectedTarget.value?.kind === 'product-card'
+    || selectedTarget.value?.kind === 'auction-card'
+    || selectedTarget.value?.kind === 'listing-fields'
+  ) {
+    return true;
+  }
+  return selectedBlock.value?.enabled ?? false;
+});
 
 const selectedBlockVisibleForAudience = computed(() =>
   selectedBlock.value ? matchesAudience(selectedBlock.value.audiences) && selectedBlock.value.enabled : true,
@@ -913,10 +1424,61 @@ const selectedBlockOrderModel = computed({
   },
 });
 
+const selectedTargetSupportsVisibility = computed(
+  () =>
+    selectedTarget.value?.kind !== 'product-card'
+    && selectedTarget.value?.kind !== 'auction-card'
+    && selectedTarget.value?.kind !== 'listing-fields',
+);
+
+const selectedTargetSupportsOrder = computed(
+  () =>
+    selectedTarget.value?.kind !== 'product-card'
+    && selectedTarget.value?.kind !== 'auction-card'
+    && selectedTarget.value?.kind !== 'listing-fields',
+);
+
+const selectedTargetSupportsDelete = computed(
+  () =>
+    selectedTarget.value?.kind !== 'product-card'
+    && selectedTarget.value?.kind !== 'auction-card'
+    && selectedTarget.value?.kind !== 'listing-fields',
+);
+
 const navigatorGroups = computed<NavigatorGroup[]>(() => {
   if (!draft.value) return [];
 
   return [
+    {
+      id: 'templates',
+      title: 'Card Templates',
+      items: [
+        {
+          id: 'product-card',
+          kind: 'product-card',
+          label: textOf(draft.value.cards.productCard.ctaLabel, 'Product Card'),
+          subtitle: textOf(draft.value.cards.productCard.badge, 'PRODUCT_CARD'),
+          order: 1,
+          enabled: true,
+        },
+        {
+          id: 'auction-card',
+          kind: 'auction-card',
+          label: textOf(draft.value.auctions.listCard.ctaLabel, 'Auction List Card'),
+          subtitle: textOf(draft.value.auctions.listCard.liveBadgeLabel, 'AUCTIONS_LIST'),
+          order: 2,
+          enabled: true,
+        },
+        {
+          id: 'listing-fields',
+          kind: 'listing-fields',
+          label: 'Ilan Verme Alanlari',
+          subtitle: `${draft.value.listingCreate.optionalFields.length} alan secili`,
+          order: 3,
+          enabled: true,
+        },
+      ],
+    },
     {
       id: 'heroes',
       title: 'Hero Banners',
@@ -977,6 +1539,30 @@ const navigatorGroups = computed<NavigatorGroup[]>(() => {
         enabled: item.enabled,
       })),
     },
+    {
+      id: 'home-surfaces',
+      title: 'Anasayfa Bolumleri',
+      items: sortByOrder(draft.value.otherSurfaces.filter((item) => item.surface === 'HOME')).map((item) => ({
+        id: item.id,
+        kind: 'surface',
+        label: textOf(item.title, item.id),
+        subtitle: item.surface,
+        order: item.order,
+        enabled: item.enabled,
+      })),
+    },
+    {
+      id: 'surfaces',
+      title: 'Other Surfaces',
+      items: sortByOrder(draft.value.otherSurfaces.filter((item) => item.surface !== 'HOME')).map((item) => ({
+        id: item.id,
+        kind: 'surface',
+        label: textOf(item.title, item.id),
+        subtitle: item.surface,
+        order: item.order,
+        enabled: item.enabled,
+      })),
+    },
   ].filter((group) => group.items.length > 0);
 });
 
@@ -1011,11 +1597,92 @@ const previewTrustBlock = computed(
     ) ?? null,
 );
 
+const previewOtherSurfaces = computed(() =>
+  sortByOrder(draft.value?.otherSurfaces ?? []).filter(
+    (item) => item.enabled && matchesAudience(item.audiences),
+  ),
+);
+
+const diffEntries = computed(() => {
+  if (!draft.value || !publishedDraft.value) return [];
+  return flattenDiff(draft.value, publishedDraft.value).slice(0, 60);
+});
+
+const prePublishChecklist = computed(() => {
+  if (!draft.value) {
+    return CHECKLIST_REQUIRED_PATHS.map((entry) => ({ ...entry, passed: false }));
+  }
+
+  const routes: string[] = [];
+  draft.value.home.heroBanners.forEach((item) => {
+    if (item.cta?.route) routes.push(item.cta.route);
+  });
+  draft.value.home.entryTiles.forEach((item) => {
+    if (item.cta?.route) routes.push(item.cta.route);
+  });
+  draft.value.home.sections.forEach((item) => {
+    if (item.route) routes.push(item.route);
+  });
+  draft.value.home.promoBanners.forEach((item) => {
+    if (item.cta?.route) routes.push(item.cta.route);
+  });
+  draft.value.home.trustBlocks.forEach((item) => {
+    if (item.cta?.route) routes.push(item.cta.route);
+  });
+  draft.value.otherSurfaces.forEach((item) => {
+    if (item.cta?.route) routes.push(item.cta.route);
+  });
+
+  const allAudienceBlocks = [
+    ...draft.value.home.heroBanners,
+    ...draft.value.home.entryTiles,
+    ...draft.value.home.sections,
+    ...draft.value.home.promoBanners,
+    ...draft.value.home.trustBlocks,
+    ...draft.value.otherSurfaces,
+  ];
+
+  const requiredLocalizedFields = [
+    ...draft.value.home.heroBanners.map((item) => item.title),
+    ...draft.value.home.entryTiles.map((item) => item.title),
+    ...draft.value.home.sections.map((item) => item.title),
+    ...draft.value.home.promoBanners.map((item) => item.title),
+    ...draft.value.home.trustBlocks.map((item) => item.title),
+    ...draft.value.otherSurfaces.map((item) => item.title),
+    draft.value.cards.productCard.ctaLabel,
+    draft.value.auctions.listCard.ctaLabel,
+  ];
+
+  return [
+    {
+      key: CHECKLIST_REQUIRED_PATHS[0].key,
+      label: CHECKLIST_REQUIRED_PATHS[0].label,
+      passed: requiredLocalizedFields.every((item) => textOf(item, '').trim().length > 0),
+    },
+    {
+      key: CHECKLIST_REQUIRED_PATHS[1].key,
+      label: CHECKLIST_REQUIRED_PATHS[1].label,
+      passed: routes.every((routeValue) => isMobileRoutePattern(routeValue)),
+    },
+    {
+      key: CHECKLIST_REQUIRED_PATHS[2].key,
+      label: CHECKLIST_REQUIRED_PATHS[2].label,
+      passed: allAudienceBlocks.every((item) => Array.isArray(item.audiences) && item.audiences.length > 0),
+    },
+  ];
+});
+
+const canPublish = computed(() => prePublishChecklist.value.every((item) => item.passed));
+
 const publishedAtLabel = computed(() =>
   publishedAt.value ? new Date(publishedAt.value).toLocaleString('tr-TR') : '-',
 );
 const updatedByLabel = computed(() => updatedByAdminId.value ?? '-');
 const publishedByLabel = computed(() => publishedByAdminId.value ?? '-');
+const hasUnsavedChanges = computed(() => {
+  if (!draft.value) return false;
+  return JSON.stringify(draft.value) !== baselineSnapshot.value;
+});
 
 function toggleSelectedEnabled() {
   if (!selectedBlock.value) return;
@@ -1025,6 +1692,17 @@ function toggleSelectedEnabled() {
 function toggleSelectedAudience(audience: string) {
   if (!selectedBlock.value) return;
   toggleAudience(selectedBlock.value.audiences, audience);
+}
+
+function toggleListingCreateField(field: ListingCreateOptionalField) {
+  if (!draft.value) return;
+  const currentFields = draft.value.listingCreate.optionalFields;
+  const index = currentFields.indexOf(field);
+  if (index >= 0) {
+    currentFields.splice(index, 1);
+    return;
+  }
+  currentFields.push(field);
 }
 
 function collectionForKind(kind: EditorTargetKind) {
@@ -1040,13 +1718,15 @@ function collectionForKind(kind: EditorTargetKind) {
       return draft.value.home.promoBanners;
     case 'trust':
       return draft.value.home.trustBlocks;
+    case 'surface':
+      return draft.value.otherSurfaces;
     default:
       return [];
   }
 }
 
 function moveSelectedBlock(delta: number) {
-  if (!selectedTarget.value) return;
+  if (!selectedTarget.value || !selectedTargetSupportsOrder.value) return;
   const collection = collectionForKind(selectedTarget.value.kind);
   const currentIndex = collection.findIndex((item) => item.id === selectedTarget.value?.id);
   if (currentIndex < 0) return;
@@ -1054,7 +1734,11 @@ function moveSelectedBlock(delta: number) {
 }
 
 function deleteSelectedBlock() {
-  if (!selectedTarget.value || selectedTarget.value.kind === 'section') return;
+  if (!selectedTarget.value || !selectedTargetSupportsDelete.value) return;
+  if (selectedTarget.value.kind === 'section' && (draft.value?.home.sections.length ?? 0) <= 1) {
+    error.value = 'En az 1 section kalmali. Son section silinemez.';
+    return;
+  }
   const collection = collectionForKind(selectedTarget.value.kind);
   const currentIndex = collection.findIndex((item) => item.id === selectedTarget.value?.id);
   if (currentIndex < 0) return;
@@ -1127,9 +1811,16 @@ function addSurfaceSlot() {
     cta: ctaConfig('/home'),
     surface: 'BUY_NOW',
   });
+
+  const latest = draft.value?.otherSurfaces.at(-1);
+  if (latest) selectTarget('surface', latest.id);
 }
 
 function openReason(action: Exclude<PendingAction, null>) {
+  if (action === 'publish' && !canPublish.value) {
+    error.value = 'Pre-publish checklist tamamlanmadan yayinlama yapilamaz.';
+    return;
+  }
   pendingAction.value = action;
   reasonDrawerOpen.value = true;
 }
@@ -1137,6 +1828,25 @@ function openReason(action: Exclude<PendingAction, null>) {
 function closeReasonDrawer() {
   reasonDrawerOpen.value = false;
   pendingAction.value = null;
+}
+
+async function loadAuditSummary() {
+  try {
+    const [draftLogs, publishLogs] = await Promise.all([
+      adminApi.get<{ items?: AuditLogItem[] }>('/admin/audit-logs', {
+        params: { targetType: 'SETTING', targetId: 'MOBILE_CONFIG_DRAFT', limit: 5 },
+      }),
+      adminApi.get<{ items?: AuditLogItem[] }>('/admin/audit-logs', {
+        params: { targetType: 'SETTING', targetId: 'MOBILE_CONFIG_PUBLISHED', limit: 5 },
+      }),
+    ]);
+
+    auditSummary.value = [...(draftLogs.data.items ?? []), ...(publishLogs.data.items ?? [])]
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+      .slice(0, 8);
+  } catch {
+    auditSummary.value = [];
+  }
 }
 
 async function loadDraft() {
@@ -1148,6 +1858,10 @@ async function loadDraft() {
     const document = response.data.document;
     const normalizedDraft = normalizeDraft(document.draft);
     draft.value = normalizedDraft;
+    publishedDraft.value = document.published ? normalizeDraft(document.published) : null;
+    documentVersion.value = Math.max(Number(document.version ?? 1), 1);
+    baselineSnapshot.value = JSON.stringify(normalizedDraft);
+    validationIssues.value = [];
     selectedLocale.value = normalizedDraft.preview.defaultLocale;
     selectedAudience.value = normalizedDraft.preview.defaultAudience;
     publishedAt.value = document.publishedAt;
@@ -1159,6 +1873,7 @@ async function loadDraft() {
     } else if (!selectedBlock.value) {
       selectFirstBlock();
     }
+    await loadAuditSummary();
   } catch (loadError) {
     error.value = toApiMessage(loadError);
   } finally {
@@ -1174,23 +1889,65 @@ async function submitReasonedAction(payload: DrawerConfirmPayload) {
   try {
     if (pendingAction.value === 'save') {
       await adminApi.patch('/admin/mobile-config/draft', {
+        version: documentVersion.value,
         draft: draft.value,
         reason: payload.reason,
       });
     } else {
       await adminApi.post('/admin/mobile-config/publish', {
+        version: documentVersion.value,
         reason: payload.reason,
       });
     }
 
+    validationIssues.value = [];
     closeReasonDrawer();
     await loadDraft();
   } catch (actionError) {
+    if (axios.isAxiosError<{ code?: string; message?: string; currentVersion?: number; errors?: unknown }>(actionError)) {
+      const code = actionError.response?.data?.code;
+      if (code === 'MOBILE_CONFIG_VERSION_CONFLICT') {
+        const serverVersion = Number(actionError.response?.data?.currentVersion ?? documentVersion.value);
+        documentVersion.value = Number.isFinite(serverVersion) ? serverVersion : documentVersion.value;
+        error.value = 'Bu taslak baska bir yonetici tarafindan guncellenmis. Lutfen Yenile ile son surumu al.';
+        return;
+      }
+      if (code === 'VALIDATION_ERROR') {
+        const issues = parseValidationIssues(actionError.response?.data?.errors);
+        validationIssues.value = issues;
+        error.value = issues.length
+          ? `Dogrulama hatasi: ${issues[0].message}`
+          : toApiMessage(actionError);
+        return;
+      }
+    }
     error.value = toApiMessage(actionError);
   }
 }
 
-onMounted(loadDraft);
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (!hasUnsavedChanges.value) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (!hasUnsavedChanges.value) {
+    next();
+    return;
+  }
+  const shouldLeave = window.confirm('Kaydedilmemis degisiklikler var. Sayfadan cikmak istiyor musun?');
+  next(shouldLeave);
+});
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  void loadDraft();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+});
 </script>
 
 <style scoped>
@@ -1660,6 +2417,37 @@ onMounted(loadDraft);
   background: linear-gradient(135deg, #eff6ff 0%, #ecfeff 100%);
 }
 
+.preview-card-template,
+.preview-surface-card {
+  border-radius: 20px;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.preview-card-template.selected,
+.preview-surface-card.selected {
+  border-color: #2563eb;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.14);
+}
+
+.preview-card-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.preview-surface-stack {
+  display: grid;
+  gap: 10px;
+}
+
 .preview-tabbar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1726,6 +2514,37 @@ onMounted(loadDraft);
   letter-spacing: 0.08em;
 }
 
+.listing-field-group {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.listing-field-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.listing-field-group-header strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.listing-field-group-header span {
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .empty-drawer {
   align-content: center;
   gap: 8px;
@@ -1756,6 +2575,106 @@ onMounted(loadDraft);
   color: #0f172a;
 }
 
+.validation-box {
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fef2f2;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.validation-box ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.validation-box span {
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.validation-box p {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 12px;
+}
+
+.insights-panel {
+  margin-top: 4px;
+}
+
+.insights-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-card {
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: #f8fbff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.insight-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.insight-list,
+.diff-list,
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.insight-list li,
+.diff-list li,
+.audit-list li {
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.insight-list li span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.insight-list li.pass span {
+  color: #15803d;
+}
+
+.insight-list li.fail span {
+  color: #b91c1c;
+}
+
+.insight-list li p,
+.diff-list li p,
+.audit-list li p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.diff-list li strong,
+.audit-list li strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
 @media (max-width: 1380px) {
   .editor-layout {
     grid-template-columns: 240px minmax(0, 1fr) 320px;
@@ -1776,6 +2695,10 @@ onMounted(loadDraft);
   .preview-toolbar,
   .mobile-toolbar {
     justify-content: flex-start;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

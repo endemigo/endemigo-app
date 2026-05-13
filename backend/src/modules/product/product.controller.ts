@@ -167,15 +167,18 @@ export class ProductController {
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'likes', 'popular'] })
+  @ApiQuery({ name: 'brand', required: false, example: 'Endemigo' })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
+    @Query('brand') brand?: string,
   ) {
     return this.productService.findAll(
       parsePositiveIntQuery(page, 'page', 1),
       parsePositiveIntQuery(limit, 'limit', 20, 100),
       sort,
+      brand,
     );
   }
 

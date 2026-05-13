@@ -5,10 +5,10 @@ import test from 'node:test';
 
 const MOBILE_DIR = path.join(process.cwd(), 'mobile');
 
-test('launch splash stays visible for 5 seconds', () => {
+test('launch splash stays visible for 1 second', () => {
   const layoutSource = readFileSync(path.join(MOBILE_DIR, 'app/_layout.tsx'), 'utf8');
 
-  assert.match(layoutSource, /setTimeout\(\(\) => \{\s*setShowLaunchSplash\(false\);\s*\}, 5000\)/);
+  assert.match(layoutSource, /setTimeout\(\(\) => \{\s*setShowLaunchSplash\(false\);\s*\}, 1000\)/);
 });
 
 test('floating cart stays hidden while launch splash is visible', () => {

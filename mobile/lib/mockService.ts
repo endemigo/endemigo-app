@@ -13,6 +13,7 @@
  */
 import { AuctionStatus, ProductStatus } from '@endemigo/shared';
 import { resolveSellerBanner } from '../utils/sellerBanner';
+import type { ProductCreateImageDraft } from '../types/productCreate';
 
 // ─── Helpers ────────────────────────────────────────────────────
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
@@ -21,17 +22,25 @@ const now = Date.now();
 const mins = (n: number) => n * 60 * 1000;
 const hours = (n: number) => n * 60 * mins(1);
 
+interface MockBid {
+  id: string;
+  amount: number;
+  premiumAmount: number;
+  bidderName: string;
+  createdAt: string;
+}
+
 // ─── Categories ─────────────────────────────────────────────────
 export const MOCK_CATEGORIES = [
-  { id: 'cat-1', name: 'Elektronik', slug: 'elektronik', productCount: 124, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/A%20laptop%20as%20a%20computer%20machine.jpg' },
-  { id: 'cat-2', name: 'Antika & Koleksiyon', slug: 'antika-koleksiyon', productCount: 48, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Antique%20furniture%20at%20Antixx%20Unique%20furniture.jpg' },
-  { id: 'cat-3', name: 'Sanat', slug: 'sanat', productCount: 67, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Nommo%20Art%20Gallery.jpg' },
-  { id: 'cat-4', name: 'Halı & Kilim', slug: 'hali-kilim', productCount: 89, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Handmade%20carpet%20making.jpg' },
-  { id: 'cat-5', name: 'Mücevher & Saat', slug: 'mucevher-saat', productCount: 35, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Handmade%20Gold%20Necklace.jpg' },
-  { id: 'cat-6', name: 'Mobilya & Dekor', slug: 'mobilya-dekor', productCount: 156, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Living%20room%20furniture%20(Unsplash).jpg' },
-  { id: 'cat-7', name: 'Kıyafet & Aksesuar', slug: 'kiyafet-aksesuar', productCount: 42, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Leather%20Handbags%20(4782040554).jpg' },
-  { id: 'cat-8', name: 'Spor & Outdoor', slug: 'spor-outdoor', productCount: 73, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Road%20cycling%20-%20riding%20a%20bike%20on%20the%20road.jpg' },
-  { id: 'cat-9', name: 'Yöresel Ürünler', slug: 'yoresel-urunler', productCount: 29, imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/A%20souvenir%20shop.JPG' },
+  { id: 'cat-1', name: 'Elektronik', slug: 'elektronik', productCount: 124, imageUrl: 'https://images.unsplash.com/photo-1517336714739-489689fd1ca8?w=600&q=80' },
+  { id: 'cat-2', name: 'Antika & Koleksiyon', slug: 'antika-koleksiyon', productCount: 48, imageUrl: 'https://images.unsplash.com/photo-1462212210333-335063b67695?w=600&q=80' },
+  { id: 'cat-3', name: 'Sanat', slug: 'sanat', productCount: 67, imageUrl: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=600&q=80' },
+  { id: 'cat-4', name: 'Halı & Kilim', slug: 'hali-kilim', productCount: 89, imageUrl: 'https://images.unsplash.com/photo-1600166898405-da9535204843?w=600&q=80' },
+  { id: 'cat-5', name: 'Mücevher & Saat', slug: 'mucevher-saat', productCount: 35, imageUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600&q=80' },
+  { id: 'cat-6', name: 'Mobilya & Dekor', slug: 'mobilya-dekor', productCount: 156, imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&q=80' },
+  { id: 'cat-7', name: 'Kıyafet & Aksesuar', slug: 'kiyafet-aksesuar', productCount: 42, imageUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&q=80' },
+  { id: 'cat-8', name: 'Spor & Outdoor', slug: 'spor-outdoor', productCount: 73, imageUrl: 'https://images.unsplash.com/photo-1530137073520-13c9f3078f2d?w=600&q=80' },
+  { id: 'cat-9', name: 'Yöresel Ürünler', slug: 'yoresel-urunler', productCount: 29, imageUrl: 'https://images.unsplash.com/photo-1506617564039-2f3b650b7010?w=600&q=80' },
 ];
 
 // ─── Products ────────────────────────────────────────────────────
@@ -47,6 +56,8 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Ege Zeytinlikleri',
     categoryId: 'cat-2',
     categoryName: 'Zeytinyağı',
+    geoIndicationCertNo: 'TR-CI-2026-001',
+    geoIndicationRegion: 'Ayvalık',
     createdAt: new Date(now - hours(24)).toISOString(),
   },
   {
@@ -73,6 +84,7 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Siirt Tarım Kooperatifi',
     categoryId: 'cat-1',
     categoryName: 'Gıda & Yöresel',
+    geoIndicationRegion: 'Siirt',
     createdAt: new Date(now - hours(6)).toISOString(),
   },
   {
@@ -131,6 +143,10 @@ export const MOCK_PRODUCTS_ENRICHED = MOCK_PRODUCTS.map((p) => {
   const price = meta.discountRate > 0 ? Math.round(originalPrice * (1 - meta.discountRate / 100)) : p.price;
   return { ...p, price, originalPrice, discountRate: meta.discountRate, likeCount: meta.likeCount };
 });
+
+function resolveCategoryName(categoryId: string) {
+  return MOCK_CATEGORIES.find((category) => category.id === categoryId)?.name ?? categoryId;
+}
 
 
 // ─── Auctions ────────────────────────────────────────────────────
@@ -210,7 +226,7 @@ export const MOCK_AUCTIONS = [
 ];
 
 // ─── Bids ────────────────────────────────────────────────────────
-export const MOCK_BIDS: Record<string, any[]> = {
+export const MOCK_BIDS: Record<string, MockBid[]> = {
   'auc-1': [
     { id: 'bid-1', amount: 3750, premiumAmount: 375, bidderName: 'A. Yılmaz', createdAt: new Date(now - mins(5)).toISOString() },
     { id: 'bid-2', amount: 3650, premiumAmount: 365, bidderName: 'M. Kaya',   createdAt: new Date(now - mins(12)).toISOString() },
@@ -352,6 +368,90 @@ export const mockService = {
     return product;
   },
 
+  async createProduct(payload: {
+    title: string;
+    description?: string;
+    price: number;
+    categoryId: string;
+    stockQuantity: number;
+    listingType: string;
+    condition: string;
+    askPriceEnabled?: boolean;
+    askPriceMinAmount?: number;
+    geoIndicationCertNo?: string;
+    geoIndicationRegion?: string;
+  }) {
+    await delay(250);
+    const createdProduct = {
+      id: `prod-mock-${Date.now()}`,
+      title: payload.title,
+      description: payload.description ?? '',
+      price: payload.price,
+      originalPrice: payload.price,
+      discountRate: 0,
+      likeCount: 0,
+      imageUrl: '',
+      thumbnail: '',
+      images: [],
+      status: ProductStatus.DRAFT,
+      sellerId: 'seller-mock',
+      sellerName: 'Siz',
+      categoryId: payload.categoryId,
+      categoryName: resolveCategoryName(payload.categoryId),
+      listingType: payload.listingType as never,
+      condition: payload.condition as never,
+      askPriceEnabled: payload.askPriceEnabled ?? false,
+      askPriceMinAmount: payload.askPriceMinAmount ?? null,
+      geoIndicationCertNo: payload.geoIndicationCertNo ?? null,
+      geoIndicationRegion: payload.geoIndicationRegion ?? null,
+      createdAt: new Date().toISOString(),
+      stockQuantity: payload.stockQuantity,
+    } as (typeof MOCK_PRODUCTS_ENRICHED)[number];
+
+    MOCK_PRODUCTS_ENRICHED.unshift(createdProduct);
+    return {
+      id: createdProduct.id,
+      code: 'PRODUCT_CREATED',
+      message: 'Mock product created.',
+    };
+  },
+
+  async uploadProductImage(productId: string, image: ProductCreateImageDraft) {
+    await delay(120);
+    const product = MOCK_PRODUCTS_ENRICHED.find((item) => item.id === productId) as
+      | ((typeof MOCK_PRODUCTS_ENRICHED)[number] & { images?: Array<{ id: string; url: string; sortOrder: number; isPrimary: boolean }>; thumbnail?: string })
+      | undefined;
+    if (!product) {
+      throw new Error('Ürün bulunamadı');
+    }
+
+    const nextImage = {
+      id: `${productId}-image-${Date.now()}`,
+      url: image.uri,
+      sortOrder: product.images?.length ?? 0,
+      isPrimary: (product.images?.length ?? 0) === 0,
+    };
+
+    product.images = [...(product.images ?? []), nextImage];
+    product.imageUrl = product.imageUrl ?? image.uri;
+    product.thumbnail = product.thumbnail ?? image.uri;
+  },
+
+  async publishProduct(productId: string) {
+    await delay(120);
+    const product = MOCK_PRODUCTS_ENRICHED.find((item) => item.id === productId);
+    if (!product) {
+      throw new Error('Ürün bulunamadı');
+    }
+
+    product.status = ProductStatus.ACTIVE;
+    return {
+      id: productId,
+      code: 'PRODUCT_PUBLISHED',
+      message: 'Mock product published.',
+    };
+  },
+
   // Categories
   async getCategories() {
     await delay(300);
@@ -379,6 +479,63 @@ export const mockService = {
     return {
       ...auction,
       timeLeftMs: Math.max(0, new Date(auction.endTime).getTime() - Date.now()),
+    };
+  },
+
+  async createAuction(payload: {
+    productId: string;
+    startPrice: number;
+    minIncrement: number;
+    startTime: string;
+    endTime: string;
+  }) {
+    await delay(220);
+    const product = MOCK_PRODUCTS_ENRICHED.find((item) => item.id === payload.productId) as
+      | ((typeof MOCK_PRODUCTS_ENRICHED)[number] & { thumbnail?: string })
+      | undefined;
+    if (!product) {
+      throw new Error('Ürün bulunamadı');
+    }
+
+    const createdAuction = {
+      id: `auc-mock-${Date.now()}`,
+      productId: product.id,
+      productTitle: product.title,
+      productImage: product.imageUrl ?? product.thumbnail ?? '',
+      sellerId: product.sellerId ?? 'seller-mock',
+      sellerName: product.sellerName,
+      startPrice: payload.startPrice,
+      currentPrice: payload.startPrice,
+      minIncrement: payload.minIncrement,
+      buyerPremiumRate: 0.1,
+      status: AuctionStatus.PUBLISHED,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      timeLeftMs: Math.max(0, new Date(payload.endTime).getTime() - Date.now()),
+      winnerId: null,
+      bidCount: 0,
+    };
+
+    MOCK_AUCTIONS.unshift(createdAuction);
+    return {
+      id: createdAuction.id,
+      code: 'AUCTION_CREATED',
+      message: 'Mock auction created.',
+    };
+  },
+
+  async publishAuction(auctionId: string) {
+    await delay(120);
+    const auction = MOCK_AUCTIONS.find((item) => item.id === auctionId);
+    if (!auction) {
+      throw new Error('Müzayede bulunamadı');
+    }
+
+    auction.status = AuctionStatus.PUBLISHED;
+    return {
+      id: auctionId,
+      code: 'AUCTION_PUBLISHED',
+      message: 'Mock auction published.',
     };
   },
 

@@ -85,7 +85,6 @@ export function LaunchSplash({ images }: LaunchSplashProps) {
       <View style={styles.dimmer} />
 
       <View style={styles.overlay}>
-        <View style={styles.halo} />
         <View style={styles.contentCard}>
           <Image
             source={require('../../assets/images/endemigo-logo.png')}

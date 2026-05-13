@@ -39,7 +39,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(email.trim().toLowerCase(), password, firstName.trim(), lastName.trim());
-      router.replace('/home');
+      router.replace('/(tabs)/home');
     } catch (err: unknown) {
       const message = resolveApiErrorMessage(err, t, 'auth.registerError');
       showModal({ title: t('common.error'), message, type: 'error' });

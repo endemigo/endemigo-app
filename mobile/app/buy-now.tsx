@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useMobileConfig } from '../hooks/useMobileConfig';
 import { useAuthStore } from '../store/authStore';
+import { useModalStore } from '../store/modalStore';
 import { useRoleModeStore } from '../store/roleModeStore';
 import { styles } from '../styles/buy-now.styles';
 import {
@@ -17,6 +18,7 @@ export default function BuyNowScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const { data: mobileConfigData } = useMobileConfig();
+  const showModal = useModalStore((state) => state.showModal);
   const user = useAuthStore((state) => state.user);
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const mobileConfig = mobileConfigData ?? getDefaultMobileExperienceConfig();
@@ -25,6 +27,20 @@ export default function BuyNowScreen() {
   const buyNowSurface = mobileConfig.otherSurfaces.find(
     (surface) => surface.surface === 'BUY_NOW' && surface.enabled && surface.audiences.includes(audience),
   );
+  const newProductsRoute = (buyNowSurface?.cta?.route || '/(tabs)/home') as never;
+  const usedProductsRoute = '/(tabs)/explore' as never;
+
+  const handleStartOrder = () => {
+    showModal({
+      title: t('buyNow.orderTypeTitle'),
+      message: t('buyNow.orderTypeMessage'),
+      type: 'info',
+      confirmText: t('buyNow.newProducts'),
+      cancelText: t('buyNow.usedProducts'),
+      onConfirm: () => router.push(newProductsRoute),
+      onCancel: () => router.push(usedProductsRoute),
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -38,10 +54,10 @@ export default function BuyNowScreen() {
         <TouchableOpacity
           style={styles.button}
           activeOpacity={0.85}
-          onPress={() => router.push((buyNowSurface?.cta?.route || '/home') as never)}
+          onPress={handleStartOrder}
         >
           <Text style={styles.buttonText}>
-            {resolveLocalizedText(buyNowSurface?.cta?.label, locale, t('home.explore'))}
+            {resolveLocalizedText(buyNowSurface?.cta?.label, locale, t('buyNow.orderNow'))}
           </Text>
         </TouchableOpacity>
       </View>

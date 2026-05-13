@@ -10,6 +10,9 @@ export class MobileConfigDocument extends BaseEntity {
   @Column({ type: 'jsonb', nullable: true })
   published: MobileExperienceConfig | null;
 
+  @Column({ type: 'int', default: 1 })
+  version: number;
+
   @Column({ type: 'uuid', nullable: true })
   updatedByAdminId: string | null;
 

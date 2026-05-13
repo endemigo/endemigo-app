@@ -1,29 +1,7 @@
 <template>
   <section class="panel">
     <div class="panel-header">
-      <div class="toolbar">
-        <label v-for="filter in filters" :key="filter.key" class="field">
-          <span>{{ filter.label }}</span>
-          <input
-            v-if="filter.type !== 'select'"
-            v-model="localFilters[filter.key]"
-            class="input"
-            :type="filter.type ?? 'text'"
-            @change="emitFilter"
-          />
-          <select
-            v-else
-            v-model="localFilters[filter.key]"
-            class="select"
-            @change="emitFilter"
-          >
-            <option value="">Tümü</option>
-            <option v-for="option in filter.options ?? []" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-      </div>
+      <AdminFilterBar :filters="filters" @filter="emitFilter" />
       <slot name="toolbar" />
     </div>
 
@@ -46,9 +24,15 @@
           </tr>
           <tr v-for="row in rows" v-else :key="rowKey(row)" @click="selectRow(row)">
             <td v-for="column in columns" :key="column.key">
-              <span v-if="column.format === 'status'" class="badge" :class="statusClass(row[column.key])">
+              <StatusBadge v-if="column.format === 'status'" :value="row[column.key]" />
+              <button
+                v-else-if="column.route"
+                class="table-cell-link"
+                type="button"
+                @click.stop="goToRoute(column, row)"
+              >
                 {{ formatCell(row[column.key], column) }}
-              </span>
+              </button>
               <span v-else :title="cellTitle(row[column.key], column)">
                 {{ formatCell(row[column.key], column) }}
               </span>
@@ -56,16 +40,17 @@
             <td v-if="actions.length > 0" @click.stop>
               <div class="toolbar">
                 <button
-                  v-for="action in actions"
+                  v-for="action in visibleActions(row)"
                   :key="action.key"
                   class="button"
-                  :class="action.tone"
+                  :class="[action.tone, { 'icon-only': action.iconOnly }]"
                   type="button"
                   :title="action.label"
+                  :aria-label="action.label"
                   @click="handleAction(action, row)"
                 >
                   <i :class="action.icon ?? 'pi pi-play'" aria-hidden="true" />
-                  <span>{{ action.label }}</span>
+                  <span v-if="!action.iconOnly" class="table-action-label">{{ action.label }}</span>
                 </button>
               </div>
             </td>
@@ -98,13 +83,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import AdminFilterBar from './AdminFilterBar.vue';
+import StatusBadge from './StatusBadge.vue';
 
 export interface AdminColumn {
   key: string;
   label: string;
   width?: string;
   format?: 'date' | 'money' | 'status' | 'text' | 'id';
+  route?: (row: Record<string, unknown>) => string;
 }
 
 export interface AdminFilterOption {
@@ -125,6 +114,8 @@ export interface AdminTableAction {
   label: string;
   icon?: string;
   tone?: 'primary' | 'danger' | 'ghost';
+  iconOnly?: boolean;
+  when?: (row: Record<string, unknown>) => boolean;
 }
 
 export interface AdminPagination {
@@ -160,18 +151,7 @@ const emit = defineEmits<{
   (event: 'action', action: AdminTableAction, row: Record<string, unknown>): void;
   (event: 'rowClick', row: Record<string, unknown>): void;
 }>();
-
-const localFilters = reactive<Record<string, string>>({});
-
-watch(
-  () => props.filters,
-  (filters) => {
-    filters.forEach((filter) => {
-      localFilters[filter.key] = filter.value ?? localFilters[filter.key] ?? '';
-    });
-  },
-  { immediate: true },
-);
+const router = useRouter();
 
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(props.pagination.total / props.pagination.limit)),
@@ -189,17 +169,28 @@ function changePage(delta: number) {
   emit('page', nextPage);
 }
 
-function emitFilter() {
-  const cleanFilters = Object.fromEntries(
-    Object.entries(localFilters).filter(([, value]) => value.trim().length > 0),
-  );
-  props.onFilter?.(cleanFilters);
-  emit('filter', cleanFilters);
+function emitFilter(filters: Record<string, string>) {
+  props.onFilter?.(filters);
+  emit('filter', filters);
 }
 
 function handleAction(action: AdminTableAction, row: Record<string, unknown>) {
   props.onAction?.(action, row);
   emit('action', action, row);
+}
+
+function visibleActions(row: Record<string, unknown>): AdminTableAction[] {
+  return props.actions.filter((action) => {
+    if (!action.when) return true;
+    return action.when(row);
+  });
+}
+
+async function goToRoute(column: AdminColumn, row: Record<string, unknown>) {
+  if (!column.route) return;
+  const target = column.route(row);
+  if (!target) return;
+  await router.push(target);
 }
 
 function selectRow(row: Record<string, unknown>) {
@@ -243,10 +234,4 @@ function compactId(value: string): string {
   return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
 
-function statusClass(value: unknown): string {
-  const status = String(value ?? '').toLowerCase();
-  if (status.includes('reject') || status.includes('fail') || status.includes('cancel')) return 'danger';
-  if (status.includes('pending') || status.includes('review')) return 'warning';
-  return '';
-}
 </script>

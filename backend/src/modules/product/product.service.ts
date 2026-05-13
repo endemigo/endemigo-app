@@ -7,12 +7,14 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
+import { VariantNumber } from './entities/variant-number.entity';
+import { ProductVariantSku } from './entities/product-variant-sku.entity';
 import { Favorite } from '../search/entities/favorite.entity';
-import { CreateProductDto } from './dto/create-product.dto';
+import { CreateProductDto, ProductVariantSkuInputDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
@@ -20,7 +22,7 @@ import { ListingType } from '../../shared/types/listing-type.enum';
 import { RC } from '../../shared/constants/response-codes';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
 import type { IStorageService } from '../../shared/storage/storage.interface';
-import { AdPlacementType } from '@endemigo/shared';
+import { AdPlacementType, VariantOptionKind } from '@endemigo/shared';
 import { AdsService } from '../ads/ads.service';
 import { TrustService } from '../trust/trust.service';
 import { MembershipService } from '../membership/membership.service';
@@ -335,6 +337,10 @@ export class ProductService {
     private readonly imageRepo: Repository<ProductImage>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(VariantNumber)
+    private readonly variantNumberRepo: Repository<VariantNumber>,
+    @InjectRepository(ProductVariantSku)
+    private readonly productVariantSkuRepo: Repository<ProductVariantSku>,
     @InjectRepository(Favorite)
     private readonly favoriteRepo: Repository<Favorite>,
     private readonly userService: UserService,
@@ -362,14 +368,23 @@ export class ProductService {
     }
     this.validateAskPriceCompatibility(dto.listingType, dto.askPriceEnabled);
     await this.validateLeafCategorySelection(dto.categoryId);
-    const createData = this.stripClientImageUrl(dto);
+    const { variantSkus, ...createData } = this.stripClientImageUrl(dto);
+    const normalizedGeoTypes =
+      createData.geoIndicationTypes && createData.geoIndicationTypes.length > 0
+        ? createData.geoIndicationTypes
+        : createData.geoIndicationType
+          ? [createData.geoIndicationType]
+          : [];
 
     const product = this.productRepo.create({
       ...createData,
+      geoIndicationTypes: normalizedGeoTypes,
+      geoIndicationType: normalizedGeoTypes[0] ?? createData.geoIndicationType ?? null,
       sellerId,
       status: ProductStatus.DRAFT,
     });
     const saved = await this.productRepo.save(product);
+    await this.syncProductVariantSkus(saved.id, variantSkus);
     const full = await this.findProductResponse(saved.id);
 
     return { code: RC.PRODUCT_CREATED, message: 'Ürün oluşturuldu', ...full };
@@ -404,12 +419,37 @@ export class ProductService {
       categoryId,
       stockQuantity,
       sku,
+      barcodeNo,
+      productContent,
+      sellerNotes,
+      brand,
+      isEndemigoBrandCandidate,
       geoIndicationCertNo,
       geoIndicationRegion,
+      geoIndicationReceivedAt,
+      geoIndicationType,
+      geoIndicationTypes,
       originCountry,
       originRegion,
+      productionProvince,
+      productionDistrict,
+      productionSeason,
+      productionSeasons,
+      salesMonths,
       condition,
       listingType,
+      wholesalePrice,
+      retailPrice,
+      shippingProvince,
+      shippingDistrict,
+      shippingAddress,
+      deliveryTemplateDomestic,
+      deliveryTemplateInternational,
+      desiDomestic,
+      desiInternational,
+      featureBadges,
+      geoBadgeSelections,
+      additionalCertificates,
       dimensionWidth,
       dimensionHeight,
       dimensionDepth,
@@ -417,6 +457,7 @@ export class ProductService {
       status,
       askPriceEnabled,
       askPriceMinAmount,
+      variantSkus,
     } = dto;
     this.validateAskPriceCompatibility(
       listingType ?? product.listingType,
@@ -433,12 +474,37 @@ export class ProductService {
         categoryId,
         stockQuantity,
         sku,
+        barcodeNo,
+        productContent,
+        sellerNotes,
+        brand,
+        isEndemigoBrandCandidate,
         geoIndicationCertNo,
         geoIndicationRegion,
+        geoIndicationReceivedAt,
+        geoIndicationType,
+        geoIndicationTypes,
         originCountry,
         originRegion,
+        productionProvince,
+        productionDistrict,
+        productionSeason,
+        productionSeasons,
+        salesMonths,
         condition,
         listingType,
+        wholesalePrice,
+        retailPrice,
+        shippingProvince,
+        shippingDistrict,
+        shippingAddress,
+        deliveryTemplateDomestic,
+        deliveryTemplateInternational,
+        desiDomestic,
+        desiInternational,
+        featureBadges,
+        geoBadgeSelections,
+        additionalCertificates,
         dimensionWidth,
         dimensionHeight,
         dimensionDepth,
@@ -448,6 +514,11 @@ export class ProductService {
         askPriceMinAmount,
       }).filter(([, v]) => v !== undefined),
     );
+    const nextGeoTypes = geoIndicationTypes ?? (geoIndicationType ? [geoIndicationType] : undefined);
+    if (nextGeoTypes !== undefined) {
+      safeUpdate.geoIndicationTypes = nextGeoTypes;
+      safeUpdate.geoIndicationType = nextGeoTypes[0] ?? null;
+    }
     Object.assign(product, safeUpdate);
 
     // K5: DRAFT→ACTIVE status geçiş guard'ı — yayınlama kalite kontrolü
@@ -469,6 +540,7 @@ export class ProductService {
     }
 
     await this.productRepo.save(product);
+    await this.syncProductVariantSkus(productId, variantSkus);
 
     const full = await this.findProductResponse(productId);
     return { code: RC.PRODUCT_UPDATED, message: 'Ürün güncellendi', ...full };
@@ -611,13 +683,18 @@ export class ProductService {
   // List — Public
   // ==========================================
 
-  async findAll(page = 1, limit = 20, sort?: string) {
+  async findAll(page = 1, limit = 20, sort?: string, brand?: string) {
     const qb = this.productRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.category', 'category')
       .leftJoinAndSelect('p.seller', 'seller')
       .leftJoinAndSelect('p.images', 'images')
       .where('p.status = :status', { status: ProductStatus.ACTIVE });
+
+    const normalizedBrand = brand?.trim();
+    if (normalizedBrand) {
+      qb.andWhere('LOWER(p.brand) = LOWER(:brand)', { brand: normalizedBrand });
+    }
 
     if (sort === 'likes' || sort === 'popular') {
       qb.orderBy('p.favoriteCount', 'DESC').addOrderBy('p.createdAt', 'DESC');
@@ -705,7 +782,14 @@ export class ProductService {
   ) {
     const product = await this.productRepo.findOne({
       where: status ? { id, status } : { id },
-      relations: ['category', 'seller', 'images'],
+      relations: [
+        'category',
+        'seller',
+        'images',
+        'variantSkus',
+        'variantSkus.colorVariantNumber',
+        'variantSkus.sizeVariantNumber',
+      ],
     });
     if (!product)
       throw new NotFoundException({
@@ -817,6 +901,10 @@ export class ProductService {
   ) {
     const hideAskPriceAmounts =
       product.askPriceEnabled && !revealAskPriceAmounts;
+    const activeVariantSkus = (product.variantSkus ?? [])
+      .filter((item) => item.isActive !== false)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const variantOptions = this.buildVariantOptionsFromSkus(activeVariantSkus);
     return {
       id: product.id,
       title: product.title,
@@ -840,10 +928,23 @@ export class ProductService {
       // Phase 3 fields
       stockQuantity: product.stockQuantity,
       sku: product.sku,
+      barcodeNo: product.barcodeNo,
+      productContent: product.productContent,
+      sellerNotes: product.sellerNotes,
+      brand: product.brand,
+      isEndemigoBrandCandidate: product.isEndemigoBrandCandidate,
       geoIndicationCertNo: product.geoIndicationCertNo,
       geoIndicationRegion: product.geoIndicationRegion,
+      geoIndicationReceivedAt: product.geoIndicationReceivedAt,
+      geoIndicationType: product.geoIndicationType,
+      geoIndicationTypes: product.geoIndicationTypes || [],
       originCountry: product.originCountry,
       originRegion: product.originRegion,
+      productionProvince: product.productionProvince,
+      productionDistrict: product.productionDistrict,
+      productionSeason: product.productionSeason,
+      productionSeasons: product.productionSeasons || [],
+      salesMonths: product.salesMonths || [],
       condition: product.condition,
       listingType: product.listingType,
       listingMode: product.askPriceEnabled ? 'ASK_PRICE' : product.listingType,
@@ -853,6 +954,41 @@ export class ProductService {
         product.askPriceMinAmount && !hideAskPriceAmounts
           ? Number(product.askPriceMinAmount)
           : null,
+      wholesalePrice: product.wholesalePrice ? Number(product.wholesalePrice) : null,
+      retailPrice: product.retailPrice ? Number(product.retailPrice) : null,
+      shippingProvince: product.shippingProvince,
+      shippingDistrict: product.shippingDistrict,
+      shippingAddress: product.shippingAddress,
+      additionalCertificates: product.additionalCertificates,
+      variantOptions,
+      variantSkus: activeVariantSkus.map((item) => ({
+        id: item.id,
+        colorVariantNumberId: item.colorVariantNumberId,
+        sizeVariantNumberId: item.sizeVariantNumberId,
+        colorVariant: item.colorVariantNumber
+          ? {
+              id: item.colorVariantNumber.id,
+              kind: item.colorVariantNumber.kind,
+              nameTr: item.colorVariantNumber.nameTr,
+              nameEn: item.colorVariantNumber.nameEn,
+              swatchHex: item.colorVariantNumber.swatchHex,
+            }
+          : null,
+        sizeVariant: item.sizeVariantNumber
+          ? {
+              id: item.sizeVariantNumber.id,
+              kind: item.sizeVariantNumber.kind,
+              nameTr: item.sizeVariantNumber.nameTr,
+              nameEn: item.sizeVariantNumber.nameEn,
+              swatchHex: item.sizeVariantNumber.swatchHex,
+            }
+          : null,
+        skuCode: item.skuCode,
+        stockQuantity: item.stockQuantity,
+        priceOverride: item.priceOverride ? Number(item.priceOverride) : null,
+        imageUrl: item.imageUrl,
+        isActive: item.isActive,
+      })),
       isAskPriceCompatible: this.isAskPriceCompatible(product),
       dimensionWidth: product.dimensionWidth
         ? Number(product.dimensionWidth)
@@ -933,6 +1069,130 @@ export class ProductService {
         return rightBoost - leftBoost || left.index - right.index;
       })
       .map(({ item }) => item);
+  }
+
+  private buildVariantOptionsFromSkus(skus: ProductVariantSku[]) {
+    const optionMap = new Map<
+      string,
+      {
+        id: string;
+        label: string;
+        kind: VariantOptionKind;
+        swatchHex: string | null;
+        imageUrl: string | null;
+        inStock: boolean;
+        stockQuantity: number;
+      }
+    >();
+
+    skus.forEach((sku) => {
+      const stock = Number(sku.stockQuantity ?? 0);
+      const variants = [
+        { variant: sku.colorVariantNumber, fallbackKind: VariantOptionKind.COLOR as VariantOptionKind },
+        { variant: sku.sizeVariantNumber, fallbackKind: VariantOptionKind.SIZE as VariantOptionKind },
+      ];
+      variants.forEach(({ variant, fallbackKind }) => {
+        if (!variant?.id) return;
+        const existing = optionMap.get(variant.id);
+        const nextStock = (existing?.stockQuantity ?? 0) + Math.max(0, stock);
+        optionMap.set(variant.id, {
+          id: variant.id,
+          label: variant.nameTr || variant.nameEn,
+          kind: variant.kind ?? fallbackKind,
+          swatchHex: variant.swatchHex ?? null,
+          imageUrl: existing?.imageUrl ?? sku.imageUrl ?? null,
+          inStock: (existing?.inStock ?? false) || stock > 0,
+          stockQuantity: nextStock,
+        });
+      });
+    });
+
+    return [...optionMap.values()].sort((left, right) => {
+      if (left.kind === right.kind) return left.label.localeCompare(right.label, 'tr');
+      if (left.kind === VariantOptionKind.COLOR) return -1;
+      if (right.kind === VariantOptionKind.COLOR) return 1;
+      return left.label.localeCompare(right.label, 'tr');
+    });
+  }
+
+  private async syncProductVariantSkus(
+    productId: string,
+    variantSkus?: ProductVariantSkuInputDto[],
+  ) {
+    if (variantSkus === undefined) return;
+
+    if (variantSkus.length === 0) {
+      await this.productVariantSkuRepo.delete({ productId });
+      return;
+    }
+
+    const variantIds = [...new Set(
+      variantSkus.flatMap((item) => [
+        item.colorVariantNumberId,
+        item.sizeVariantNumberId,
+      ].filter((id): id is string => Boolean(id))),
+    )];
+    const variants = variantIds.length > 0
+      ? await this.variantNumberRepo.find({ where: { id: In(variantIds) } })
+      : [];
+    const variantMap = new Map(variants.map((item) => [item.id, item]));
+
+    const normalized = variantSkus.map((item, index) => {
+      const colorVariantNumberId = item.colorVariantNumberId ?? null;
+      const sizeVariantNumberId = item.sizeVariantNumberId ?? null;
+      if (!colorVariantNumberId && !sizeVariantNumberId) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Varyant kombinasyonunda en az bir seçenek zorunludur',
+        });
+      }
+      if (colorVariantNumberId) {
+        const colorVariant = variantMap.get(colorVariantNumberId);
+        if (!colorVariant || colorVariant.kind !== VariantOptionKind.COLOR) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Geçersiz renk varyantı',
+          });
+        }
+      }
+      if (sizeVariantNumberId) {
+        const sizeVariant = variantMap.get(sizeVariantNumberId);
+        if (!sizeVariant || sizeVariant.kind === VariantOptionKind.COLOR) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Geçersiz beden/numara varyantı',
+          });
+        }
+      }
+      return {
+        productId,
+        colorVariantNumberId,
+        sizeVariantNumberId,
+        skuCode: item.skuCode?.trim() || null,
+        stockQuantity: Math.max(0, item.stockQuantity ?? 0),
+        priceOverride: item.priceOverride ?? null,
+        imageUrl: item.imageUrl?.trim() || null,
+        isActive: item.isActive ?? true,
+        sortOrder: item.sortOrder ?? index,
+      };
+    });
+
+    const duplicateGuard = new Set<string>();
+    normalized.forEach((item) => {
+      const key = `${item.colorVariantNumberId ?? '_'}:${item.sizeVariantNumberId ?? '_'}`;
+      if (duplicateGuard.has(key)) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Aynı varyant kombinasyonu birden fazla kez gönderildi',
+        });
+      }
+      duplicateGuard.add(key);
+    });
+
+    await this.productVariantSkuRepo.delete({ productId });
+    await this.productVariantSkuRepo.save(
+      normalized.map((item) => this.productVariantSkuRepo.create(item)),
+    );
   }
 
   isAskPriceCompatible(

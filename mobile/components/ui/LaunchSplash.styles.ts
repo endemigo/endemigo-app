@@ -65,13 +65,6 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
   },
-  halo: {
-    position: 'absolute',
-    width: SCREEN_WIDTH * 0.68,
-    height: SCREEN_WIDTH * 0.68,
-    borderRadius: SCREEN_WIDTH,
-    backgroundColor: `${Colors.primary}33`,
-  },
   contentCard: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,

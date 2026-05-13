@@ -20,7 +20,7 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
           size={18}
           weight="medium"
           color={Colors.onSurfaceVariant}
-          style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+          style={[styles.icon, isOpen ? styles.iconOpen : styles.iconClosed]}
         />
 
         <ThemedText type="defaultSemiBold">{title}</ThemedText>
@@ -35,6 +35,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+  },
+  icon: {
+    transform: [{ rotate: '0deg' }],
+  },
+  iconClosed: {
+    transform: [{ rotate: '0deg' }],
+  },
+  iconOpen: {
+    transform: [{ rotate: '90deg' }],
   },
   content: {
     marginTop: Spacing.xs,

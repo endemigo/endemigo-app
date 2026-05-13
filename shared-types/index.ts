@@ -11,6 +11,7 @@ export {
   AuctionType,
   ProductStatus,
   ProductCondition,
+  ProductProductionSeason,
   ListingType,
   BidStatus,
   HoldStatus,
@@ -51,6 +52,9 @@ export {
   MobileBlockType,
   MobileConfigStatus,
   MobileSurfaceKey,
+  GeoIndicationType,
+  VariantNumberStatus,
+  VariantOptionKind,
 } from './enums';
 
 // Constants
@@ -87,6 +91,8 @@ export {
   getDefaultMobileExperienceConfig,
   isMobileExperienceConfig,
   isMobileRoute,
+  MOBILE_HOME_SURFACE_SLOT_IDS,
+  MOBILE_LISTING_CREATE_OPTIONAL_FIELDS,
   resolveLocalizedText,
   sanitizeMobileExperienceConfig,
   validateMobileExperienceConfig,
@@ -105,7 +111,10 @@ export type {
   MobileExperienceDocumentResponse,
   MobileHeroBannerConfig,
   MobileHomeConfig,
+  MobileHomeSurfaceSlotId,
   MobileHomeSectionConfig,
+  MobileListingCreateConfig,
+  MobileListingCreateOptionalField,
   MobileLocale,
   MobilePreviewConfig,
   MobileProductCardAudienceOverride,
@@ -114,3 +123,9 @@ export type {
   MobileSurfaceSlotConfig,
   MobileTrustBlockConfig,
 } from './mobile-config';
+
+export {
+  normalizeMoneyScale,
+  parseTrMoneyInput,
+  parseUnknownMoney,
+} from './utils';

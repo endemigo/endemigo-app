@@ -26,7 +26,18 @@ export const PRODUCT_CREATE_AUCTION_TYPES = {
 export type ProductCreateAuctionType =
   (typeof PRODUCT_CREATE_AUCTION_TYPES)[keyof typeof PRODUCT_CREATE_AUCTION_TYPES];
 
-export type ProductCreateWizardStep = 1 | 2 | 3 | 4 | 5;
+export const PRODUCT_CREATE_PRODUCTION_SEASONS = {
+  ALL_TIME: 'ALL_TIME',
+  SPRING: 'SPRING',
+  SUMMER: 'SUMMER',
+  AUTUMN: 'AUTUMN',
+  WINTER: 'WINTER',
+} as const;
+
+export type ProductCreateProductionSeason =
+  (typeof PRODUCT_CREATE_PRODUCTION_SEASONS)[keyof typeof PRODUCT_CREATE_PRODUCTION_SEASONS];
+
+export type ProductCreateWizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface ProductCreateImageDraft {
   id: string;
@@ -63,6 +74,28 @@ export interface ProductCreateWizardState {
   sku: string;
   geoIndicationCertNo: string;
   geoIndicationRegion: string;
+  geoIndicationReceivedAt: string;
+  barcodeNo: string;
+  productContent: string;
+  sellerNotes: string;
+  brand: string;
+  isEndemigoBrandCandidate: boolean;
+  productionProvince: string;
+  productionDistrict: string;
+  productionSeasons: ProductCreateProductionSeason[];
+  salesMonths: number[];
+  wholesalePrice: string;
+  retailPrice: string;
+  shippingProvince: string;
+  shippingDistrict: string;
+  shippingAddress: string;
+  deliveryTemplateDomestic: string;
+  deliveryTemplateInternational: string;
+  desiDomestic: string;
+  desiInternational: string;
+  featureBadges: string[];
+  geoBadgeSelections: string[];
+  additionalCertificates: string;
   weight: string;
   dimensionWidth: string;
   dimensionHeight: string;

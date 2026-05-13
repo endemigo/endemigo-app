@@ -17,7 +17,9 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.slate400,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: styles.tabBar,
+        tabBarItemStyle: styles.tabBarItem,
         tabBarLabelStyle: styles.tabBarLabel,
         headerStyle: styles.header,
         headerTintColor: Colors.onSurface,
@@ -150,32 +152,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="categories/[id]" options={{ href: null }} />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          href: null,
-          title: t('tabs.cart'),
-          tabBarStyle: { display: 'none' },
-          headerStyle: styles.headerOnBackground,
-          headerTitle: t('tabs.cart'),
-          headerLeft: () => (
-            <TouchableOpacity
-              style={styles.headerIconButton}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace('/(tabs)/home');
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-back" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => null,
-        }}
-      />
       <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="membership" options={{ href: null }} />
       <Tabs.Screen name="seller-ads" options={{ href: null }} />

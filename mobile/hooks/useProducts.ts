@@ -84,6 +84,37 @@ export function useMostLikedProducts() {
   });
 }
 
+export function useProductsByBrand(brand: string, page = 1) {
+  return useQuery<PaginatedProducts>({
+    queryKey: ['products', 'brand', brand, page],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) {
+        const mockData = await mockService.getProducts(page);
+        const normalizedBrand = brand.trim().toLowerCase();
+        return {
+          ...mockData,
+          items: mockData.items.filter((item) => {
+            const itemRecord = item as Record<string, unknown>;
+            const itemBrand = typeof itemRecord.brand === 'string'
+              ? itemRecord.brand.trim().toLowerCase()
+              : '';
+            return itemBrand === normalizedBrand;
+          }),
+        };
+      }
+
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '20',
+        brand,
+      });
+      const { data } = await api.get<ProductListResponse>(`/products?${params.toString()}`);
+      return unwrapProductList(data);
+    },
+    enabled: brand.trim().length > 0,
+  });
+}
+
 export function useBlogs() {
   return useQuery({
     queryKey: ['blogs'],

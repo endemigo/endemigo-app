@@ -6,16 +6,20 @@ import {
   AuctionStatus,
   ProductStatus,
   ProductCondition,
+  ProductProductionSeason,
   ListingType,
   BidStatus,
+  GeoIndicationType,
 } from '@endemigo/shared';
 
 export {
   AuctionStatus,
   ProductStatus,
   ProductCondition,
+  ProductProductionSeason,
   ListingType,
   BidStatus,
+  GeoIndicationType,
 };
 
 // ==========================================
@@ -50,6 +54,48 @@ export interface ProductImage {
   isPrimary: boolean;
 }
 
+export interface ProductReview {
+  id?: string;
+  rating: number;
+  comment: string;
+  createdAt?: string;
+}
+
+export interface ProductVariantOption {
+  id: string;
+  label: string;
+  kind: 'COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION';
+  swatchHex?: string | null;
+  imageUrl?: string | null;
+  inStock?: boolean;
+  stockQuantity?: number | null;
+}
+
+export interface ProductVariantSku {
+  id: string;
+  colorVariantNumberId?: string | null;
+  sizeVariantNumberId?: string | null;
+  colorVariant?: {
+    id: string;
+    kind?: 'COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION';
+    nameTr?: string | null;
+    nameEn?: string | null;
+    swatchHex?: string | null;
+  } | null;
+  sizeVariant?: {
+    id: string;
+    kind?: 'COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION';
+    nameTr?: string | null;
+    nameEn?: string | null;
+    swatchHex?: string | null;
+  } | null;
+  skuCode?: string | null;
+  stockQuantity?: number;
+  priceOverride?: number | null;
+  imageUrl?: string | null;
+  isActive?: boolean;
+}
+
 export interface Product {
   id: string;
   categoryId: string;
@@ -68,6 +114,48 @@ export interface Product {
   status?: ProductStatus;
   askPriceEnabled?: boolean;
   askPriceMinAmount?: number | null;
+  geoIndicationType?: GeoIndicationType | null;
+  geoIndicationTypes?: GeoIndicationType[];
+  geoIndicationCertNo?: string | null;
+  geoIndicationRegion?: string | null;
+  geoIndicationReceivedAt?: string | null;
+  originCountry?: string | null;
+  originRegion?: string | null;
+  barcodeNo?: string | null;
+  productContent?: string | null;
+  sellerNotes?: string | null;
+  brand?: string | null;
+  isEndemigoBrandCandidate?: boolean;
+  productionProvince?: string | null;
+  productionDistrict?: string | null;
+  productionSeason?: ProductProductionSeason;
+  productionSeasons?: ProductProductionSeason[];
+  salesMonths?: number[];
+  wholesalePrice?: number | null;
+  retailPrice?: number | null;
+  shippingProvince?: string | null;
+  shippingDistrict?: string | null;
+  shippingAddress?: string | null;
+  deliveryTemplateDomestic?: string | null;
+  deliveryTemplateInternational?: string | null;
+  desiDomestic?: string | null;
+  desiInternational?: string | null;
+  additionalCertificates?: string | null;
+  featureBadges?: string[];
+  geoBadgeSelections?: string[];
+  sku?: string | null;
+  weight?: number | null;
+  dimensionWidth?: number | null;
+  dimensionHeight?: number | null;
+  dimensionDepth?: number | null;
+  variantOptions?: ProductVariantOption[];
+  variantSkus?: ProductVariantSku[];
+  trustBadge?: string | { level?: string; labelKey?: string } | null;
+  trustBadges?: string[];
+  rating?: number | null;
+  reviewCount?: number | null;
+  latestReviewComment?: string | null;
+  reviews?: ProductReview[];
   createdAt?: string;
 }
 

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   AdminAuditAction,
   AdminRole,
+  MOBILE_LISTING_CREATE_OPTIONAL_FIELDS,
   MobileAudience,
   MobileBlockType,
   MobileConfigStatus,
@@ -86,6 +87,9 @@ function createDraft(): MobileExperienceConfig {
         showTimer: true,
       },
     },
+    listingCreate: {
+      optionalFields: [...MOBILE_LISTING_CREATE_OPTIONAL_FIELDS],
+    },
     otherSurfaces: [],
     preview: {
       defaultAudience: MobileAudience.BUYER,
@@ -129,8 +133,8 @@ describe('MobileConfigService', () => {
   });
 
   it('rejects invalid draft payloads', async () => {
-    await expect(
-      service.updateDraft({
+    try {
+      await service.updateDraft({
         actorAdminId: 'admin-1',
         actorRoles: [AdminRole.OPERATIONS],
         draft: {
@@ -148,9 +152,24 @@ describe('MobileConfigService', () => {
             ],
           },
         },
+        version: 1,
         reason: 'invalid payload should fail',
-      }),
-    ).rejects.toThrow(BadRequestException);
+      });
+      throw new Error('expected BadRequestException');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      const response = (error as BadRequestException).getResponse() as {
+        code: string;
+        errors: Array<{ path: string; code: string; message: string }>;
+      };
+      expect(response.code).toBe(RC.VALIDATION_ERROR);
+      expect(response.errors[0]).toEqual(
+        expect.objectContaining({
+          path: 'home.heroBanners[0].cta.route',
+          code: 'INVALID_ROUTE_FORMAT',
+        }),
+      );
+    }
   });
 
   it('updates the singleton draft and records an audit entry', async () => {
@@ -160,6 +179,7 @@ describe('MobileConfigService', () => {
       actorAdminId: 'admin-2',
       actorRoles: [AdminRole.OPERATIONS],
       draft,
+      version: 1,
       reason: 'homepage cta refresh',
     });
 
@@ -167,6 +187,7 @@ describe('MobileConfigService', () => {
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         draft,
+        version: 2,
         updatedByAdminId: 'admin-2',
       }),
     );
@@ -184,6 +205,7 @@ describe('MobileConfigService', () => {
       id: 'mobile-config-1',
       draft: createDraft(),
       published: null,
+      version: 2,
       updatedByAdminId: 'admin-2',
       publishedByAdminId: null,
       publishedAt: null,
@@ -193,6 +215,7 @@ describe('MobileConfigService', () => {
     const result = await service.publish({
       actorAdminId: 'admin-3',
       actorRoles: [AdminRole.SUPER_ADMIN],
+      version: 2,
       reason: 'release approved',
     });
 
@@ -200,6 +223,7 @@ describe('MobileConfigService', () => {
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         published: createDraft(),
+        version: 3,
         publishedByAdminId: 'admin-3',
       }),
     );
@@ -209,5 +233,29 @@ describe('MobileConfigService', () => {
         targetId: 'MOBILE_CONFIG_PUBLISHED',
       }),
     );
+  });
+
+  it('throws conflict when draft version is stale', async () => {
+    repo.find.mockResolvedValue([
+      {
+        id: 'mobile-config-1',
+        draft: createDraft(),
+        published: null,
+        version: 4,
+        updatedByAdminId: 'admin-2',
+        publishedByAdminId: null,
+        publishedAt: null,
+      },
+    ]);
+
+    await expect(
+      service.updateDraft({
+        actorAdminId: 'admin-5',
+        actorRoles: [AdminRole.OPERATIONS],
+        draft: createDraft(),
+        version: 3,
+        reason: 'stale update',
+      }),
+    ).rejects.toThrow('Taslak baska bir yonetici tarafindan guncellenmis');
   });
 });

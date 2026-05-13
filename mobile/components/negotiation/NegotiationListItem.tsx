@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { Negotiation } from '../../types';
 import { Colors } from '../../constants/theme';
+import { formatAmount } from '../../utils/transactionFormatters';
 import { NegotiationStatusBadge } from './NegotiationStatusBadge';
 import { styles } from './NegotiationListItem.styles';
 
@@ -18,7 +19,7 @@ export function NegotiationListItem({ negotiation, onPress }: NegotiationListIte
   const { t } = useTranslation();
   const latestText = negotiation.latestOffer
     ? t('negotiation.list.latestOffer', {
-      amount: Number(negotiation.latestOffer.amount).toLocaleString('tr-TR'),
+      amount: formatAmount(negotiation.latestOffer.amount),
     })
     : negotiation.latestMessage?.body ?? t('negotiation.list.noMessage');
 

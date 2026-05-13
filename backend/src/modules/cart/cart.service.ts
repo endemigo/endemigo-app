@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AdminRole } from '@endemigo/shared';
 import { Product } from '../product/entities/product.entity';
+import { VariantNumber } from '../product/entities/variant-number.entity';
+import { ProductVariantSku } from '../product/entities/product-variant-sku.entity';
 import { User } from '../user/entities/user.entity';
 import { RC } from '../../shared/constants/response-codes';
 import { CartItem } from './entities/cart-item.entity';
@@ -22,6 +24,10 @@ export class CartService {
     private readonly cartRepo: Repository<CartItem>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(VariantNumber)
+    private readonly variantNumberRepo: Repository<VariantNumber>,
+    @InjectRepository(ProductVariantSku)
+    private readonly productVariantSkuRepo: Repository<ProductVariantSku>,
   ) {}
 
   async getMyCart(userId: string) {
@@ -39,12 +45,44 @@ export class CartService {
     if (!product) {
       throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
     }
+    let variantNumberId = dto.variantId ?? null;
+    let productVariantSkuId = dto.productVariantSkuId ?? null;
 
-    let item = await this.cartRepo.findOne({ where: { userId, productId: dto.productId } });
+    if (productVariantSkuId) {
+      const sku = await this.productVariantSkuRepo.findOne({
+        where: { id: productVariantSkuId },
+      });
+      if (!sku || sku.productId !== dto.productId || sku.isActive === false) {
+        throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Varyant kombinasyonu bulunamadı' });
+      }
+      variantNumberId = sku.sizeVariantNumberId ?? sku.colorVariantNumberId ?? variantNumberId;
+    }
+
+    if (variantNumberId) {
+      const variant = await this.variantNumberRepo.findOne({ where: { id: variantNumberId } });
+      if (!variant) {
+        throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Varyant bulunamadı' });
+      }
+    }
+
+    let item = await this.cartRepo.findOne({
+      where: {
+        userId,
+        productId: dto.productId,
+        productVariantSkuId: productVariantSkuId ?? IsNull(),
+        variantNumberId: variantNumberId ?? IsNull(),
+      },
+    });
     if (item) {
       item.quantity = Math.min(99, item.quantity + quantity);
     } else {
-      item = this.cartRepo.create({ userId, productId: dto.productId, quantity });
+      item = this.cartRepo.create({
+        userId,
+        productId: dto.productId,
+        productVariantSkuId,
+        variantNumberId,
+        quantity,
+      });
     }
     await this.cartRepo.save(item);
 
@@ -171,6 +209,8 @@ export class CartService {
     const qb = this.cartRepo
       .createQueryBuilder('ci')
       .leftJoinAndSelect('ci.product', 'product')
+      .leftJoinAndSelect('ci.variantNumber', 'variantNumber')
+      .leftJoinAndSelect('ci.productVariantSku', 'productVariantSku')
       .leftJoinAndSelect('ci.user', 'user')
       .orderBy('ci.createdAt', 'DESC')
       .skip((page - 1) * limit)
@@ -191,6 +231,10 @@ export class CartService {
         userId: item.userId,
         email: item.user?.email,
         productId: item.productId,
+        productVariantSkuId: item.productVariantSkuId,
+        variantId: item.variantNumberId,
+        variantLabel: item.variantNumber?.nameTr ?? null,
+        skuCode: item.productVariantSku?.skuCode ?? null,
         productTitle: item.product?.title,
         quantity: item.quantity,
         price: item.product?.price,
@@ -209,7 +253,7 @@ export class CartService {
   private async getUserCartItems(userId: string) {
     return this.cartRepo.find({
       where: { userId },
-      relations: ['product'],
+      relations: ['product', 'variantNumber', 'productVariantSku'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -221,6 +265,25 @@ export class CartService {
       items: items.map((item) => ({
         id: item.id,
         productId: item.productId,
+        productVariantSkuId: item.productVariantSkuId,
+        variantId: item.variantNumberId,
+        variant: item.variantNumber
+          ? {
+              id: item.variantNumber.id,
+              kind: item.variantNumber.kind,
+              nameTr: item.variantNumber.nameTr,
+              nameEn: item.variantNumber.nameEn,
+              swatchHex: item.variantNumber.swatchHex,
+            }
+          : null,
+        productVariantSku: item.productVariantSku
+          ? {
+              id: item.productVariantSku.id,
+              colorVariantNumberId: item.productVariantSku.colorVariantNumberId,
+              sizeVariantNumberId: item.productVariantSku.sizeVariantNumberId,
+              skuCode: item.productVariantSku.skuCode,
+            }
+          : null,
         quantity: item.quantity,
         addedAt: item.createdAt,
         updatedAt: item.updatedAt,

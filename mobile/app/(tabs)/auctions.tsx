@@ -19,6 +19,7 @@ import {
   resolveLocalizedText,
   resolveMobileAudience,
 } from '../../utils/mobileConfig';
+import { formatCurrency } from '../../utils/transactionFormatters';
 import { HomeQuickTabBar } from '../../components/ui';
 
 function formatTimeLeft(ms: number, t: (k: string) => string) {
@@ -116,7 +117,11 @@ export default function AuctionsScreen() {
         renderItem={({ item }) => {
           const endMs = new Date(item.endTime).getTime();
           const timeLeft = Math.max(0, endMs - now);
-          const st = statusConfig[item.status as keyof typeof statusConfig];
+          const hasEndedByTime = timeLeft <= 0;
+          const canBid = item.status === AuctionStatus.ACTIVE && !hasEndedByTime;
+          const st = hasEndedByTime
+            ? statusConfig[AuctionStatus.ENDED]
+            : statusConfig[item.status as keyof typeof statusConfig];
 
           return (
             <TouchableOpacity
@@ -129,7 +134,7 @@ export default function AuctionsScreen() {
                   source={{ uri: item.productImage || `https://placehold.co/100x100/F8F9FA/42b94b?text=${encodeURIComponent(t('tabs.auctions'))}` }}
                   style={styles.image}
                 />
-                {item.status === AuctionStatus.ACTIVE && auctionCardConfig.liveBadgeLabel && (
+                {canBid && auctionCardConfig.liveBadgeLabel && (
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
                     <Text style={styles.liveText}>
@@ -153,14 +158,16 @@ export default function AuctionsScreen() {
                   <View>
                     <Text style={styles.priceLabel}>{t('auctions.highestBid')}</Text>
                     <Text style={styles.price}>
-                      ₺{Number(item.currentPrice).toLocaleString('tr-TR')}
+                      {formatCurrency(item.currentPrice)}
                     </Text>
                   </View>
-                  <TouchableOpacity style={styles.bidButton} activeOpacity={0.8}>
-                    <Text style={styles.bidButtonText}>
-                      {resolveLocalizedText(auctionCardConfig.ctaLabel, locale, t('auctions.bid'))}
-                    </Text>
-                  </TouchableOpacity>
+                  {canBid ? (
+                    <TouchableOpacity style={styles.bidButton} activeOpacity={0.8}>
+                      <Text style={styles.bidButtonText}>
+                        {resolveLocalizedText(auctionCardConfig.ctaLabel, locale, t('auctions.bid'))}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 {(auctionCardConfig.showStatusBadge || auctionCardConfig.showBidCount) ? (
                   <View style={styles.metaRow}>

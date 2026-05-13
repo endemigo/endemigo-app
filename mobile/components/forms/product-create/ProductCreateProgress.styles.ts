@@ -21,6 +21,9 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     fontSize: FontSize.caption,
   },
+  stepCounterAuction: {
+    color: Colors.secondary,
+  },
   trackRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
@@ -33,5 +36,8 @@ export const styles = StyleSheet.create({
   },
   trackItemActive: {
     backgroundColor: Colors.primary,
+  },
+  trackItemActiveAuction: {
+    backgroundColor: Colors.secondary,
   },
 });

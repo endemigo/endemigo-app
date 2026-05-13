@@ -2,18 +2,43 @@ import {
   PRODUCT_CREATE_LISTING_TYPES,
   type ProductCreateWizardState,
 } from '../types/productCreate.ts';
+import { normalizeMoneyScale } from '../../shared-types/utils/money.ts';
+import { parsePriceInput } from './priceInputMask.ts';
 
 interface ProductCreatePayload {
   title: string;
   description?: string;
   price: number;
+  retailPrice?: number;
+  wholesalePrice?: number;
   categoryId: string;
   stockQuantity: number;
   sku?: string;
+  barcodeNo?: string;
+  productContent?: string;
+  sellerNotes?: string;
+  brand?: string;
+  isEndemigoBrandCandidate?: boolean;
   geoIndicationCertNo?: string;
   geoIndicationRegion?: string;
+  geoIndicationReceivedAt?: string;
   originCountry: string;
   originRegion?: string;
+  productionProvince?: string;
+  productionDistrict?: string;
+  productionSeason?: ProductCreateWizardState['productionSeasons'][number];
+  productionSeasons?: ProductCreateWizardState['productionSeasons'];
+  salesMonths?: number[];
+  shippingProvince?: string;
+  shippingDistrict?: string;
+  shippingAddress?: string;
+  deliveryTemplateDomestic?: string;
+  deliveryTemplateInternational?: string;
+  desiDomestic?: string;
+  desiInternational?: string;
+  featureBadges?: string[];
+  geoBadgeSelections?: string[];
+  additionalCertificates?: string;
   condition: ProductCreateWizardState['condition'];
   listingType: ProductCreateWizardState['listingType'];
   askPriceEnabled?: boolean;
@@ -37,11 +62,7 @@ interface AuctionCreatePayload {
 }
 
 function parseOptionalNumber(value: string): number | undefined {
-  const normalizedValue = value.replace(',', '.').trim();
-  if (!normalizedValue) return undefined;
-
-  const parsed = Number(normalizedValue);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return parsePriceInput(value);
 }
 
 export function buildProductCreatePayload(
@@ -50,23 +71,50 @@ export function buildProductCreatePayload(
   const priceSource = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
     ? state.auctionStartPrice
     : state.directSalePrice;
+  const parsedPrice = normalizeMoneyScale(parsePriceInput(priceSource) ?? 0);
+  const parsedRetailPrice = parseOptionalNumber(state.retailPrice);
+  const parsedWholesalePrice = parseOptionalNumber(state.wholesalePrice);
+  const parsedAskPriceMinAmount = parseOptionalNumber(state.askPriceMinAmount);
 
   return {
     title: state.title.trim(),
     description: state.description.trim() || undefined,
-    price: Number(priceSource.replace(',', '.')),
+    price: parsedPrice,
+    retailPrice: parsedRetailPrice !== undefined ? normalizeMoneyScale(parsedRetailPrice) : parsedPrice,
+    wholesalePrice: parsedWholesalePrice !== undefined ? normalizeMoneyScale(parsedWholesalePrice) : undefined,
     categoryId: state.categoryId,
     stockQuantity: Number(state.stockQuantity || '0'),
     sku: state.sku.trim() || undefined,
+    barcodeNo: state.barcodeNo.trim() || undefined,
+    productContent: state.productContent.trim() || undefined,
+    sellerNotes: state.sellerNotes.trim() || undefined,
+    brand: state.brand.trim() || undefined,
+    isEndemigoBrandCandidate: state.isEndemigoBrandCandidate,
     geoIndicationCertNo: state.geoIndicationCertNo.trim() || undefined,
     geoIndicationRegion: state.geoIndicationRegion.trim() || undefined,
+    geoIndicationReceivedAt: state.geoIndicationReceivedAt.trim() || undefined,
     originCountry: state.originCountry.trim() || 'TR',
     originRegion: state.originRegion.trim() || undefined,
+    productionProvince: state.productionProvince.trim() || undefined,
+    productionDistrict: state.productionDistrict.trim() || undefined,
+    productionSeasons: state.productionSeasons,
+    productionSeason: state.productionSeasons[0],
+    salesMonths: state.salesMonths,
+    shippingProvince: state.shippingProvince.trim() || undefined,
+    shippingDistrict: state.shippingDistrict.trim() || undefined,
+    shippingAddress: state.shippingAddress.trim() || undefined,
+    deliveryTemplateDomestic: state.deliveryTemplateDomestic.trim() || undefined,
+    deliveryTemplateInternational: state.deliveryTemplateInternational.trim() || undefined,
+    desiDomestic: state.desiDomestic.trim() || undefined,
+    desiInternational: state.desiInternational.trim() || undefined,
+    featureBadges: state.featureBadges.length > 0 ? state.featureBadges : undefined,
+    geoBadgeSelections: state.geoBadgeSelections.length > 0 ? state.geoBadgeSelections : undefined,
+    additionalCertificates: state.additionalCertificates.trim() || undefined,
     condition: state.condition,
     listingType: state.listingType,
     askPriceEnabled: state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE ? state.askPriceEnabled : false,
     askPriceMinAmount: state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && state.askPriceEnabled
-      ? parseOptionalNumber(state.askPriceMinAmount)
+      ? (parsedAskPriceMinAmount !== undefined ? normalizeMoneyScale(parsedAskPriceMinAmount) : undefined)
       : undefined,
     weight: parseOptionalNumber(state.weight),
     dimensionWidth: parseOptionalNumber(state.dimensionWidth),
@@ -81,8 +129,8 @@ export function buildAuctionCreatePayload(
 ): AuctionCreatePayload {
   return {
     productId,
-    startPrice: Number(state.auctionStartPrice.replace(',', '.')),
-    minIncrement: Number(state.auctionMinIncrement.replace(',', '.')),
+    startPrice: normalizeMoneyScale(parsePriceInput(state.auctionStartPrice) ?? 0),
+    minIncrement: normalizeMoneyScale(parsePriceInput(state.auctionMinIncrement) ?? 0),
     startTime: state.auctionStartTime,
     endTime: state.auctionEndTime,
     auctionType: state.auctionType,

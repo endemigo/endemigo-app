@@ -5,6 +5,7 @@ import { Socket } from 'socket.io-client';
 import { getAuctionSocket } from '../services/socket';
 import ENV from '../lib/config';
 import { useModalStore } from '../store/modalStore';
+import { formatAmount } from '../utils/transactionFormatters';
 
 interface AuctionSocketState {
   currentPrice: number;
@@ -84,7 +85,7 @@ export function useAuctionSocket(auctionId: string) {
           showModal({
             title: t('auction.outbidTitle'),
             message: t('auction.outbidMessage', {
-              amount: data.newAmount?.toLocaleString('tr-TR'),
+              amount: formatAmount(data.newAmount),
             }),
             type: 'info',
           });

@@ -21,7 +21,7 @@
           <p v-if="queue.latest.length === 0" class="muted">Bekleyen kayıt yok.</p>
           <ul v-else class="timeline">
             <li v-for="item in queue.latest" :key="recordKey(item)" class="timeline-item">
-              <strong>{{ recordKey(item) }}</strong>
+              <strong>{{ recordLabel(queue.key, item) }}</strong>
               <p class="muted">{{ formatDate(item.createdAt) }}</p>
             </li>
           </ul>
@@ -80,6 +80,23 @@ const queueItems = computed(() => [
 function recordKey(record: Record<string, unknown>): string {
   const id = record.id ?? record.userId ?? record.email ?? 'record';
   return String(id);
+}
+
+function recordLabel(queueKey: string, record: Record<string, unknown>): string {
+  if (queueKey === 'sellerApprovals') {
+    const businessName = record.businessName;
+    if (typeof businessName === 'string' && businessName.trim().length > 0) {
+      return businessName;
+    }
+    const name = [record.firstName, record.lastName]
+      .filter((part) => typeof part === 'string' && String(part).trim().length > 0)
+      .map((part) => String(part).trim())
+      .join(' ');
+    if (name.length > 0) {
+      return name;
+    }
+  }
+  return recordKey(record);
 }
 
 function formatDate(value: unknown): string {

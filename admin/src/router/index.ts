@@ -13,19 +13,22 @@ import TrustView from '../views/trust/TrustView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ReportsView from '../views/reports/ReportsView.vue';
 import MobileConfigView from '../views/mobile/MobileConfigView.vue';
+import FeatureGapView from '../views/FeatureGapView.vue';
+import ProductFormView from '../views/products/ProductFormView.vue';
+import VariantNumbersView from '../views/variants/VariantNumbersView.vue';
 
 const operationRoutes: RouteRecordRaw[] = [
   {
     path: 'users',
     name: 'users',
     component: AdminListView,
-    props: { resource: 'users', title: 'Kullanıcılar' },
+    props: { resource: 'users', title: 'Üyeler' },
   },
   {
     path: 'users/:id',
     name: 'users-detail',
     component: AdminDetailView,
-    props: (route) => ({ resource: 'users', id: String(route.params.id), title: 'Kullanıcı Detayı' }),
+    props: (route) => ({ resource: 'users', id: String(route.params.id), title: 'Üye Detayı' }),
   },
   {
     path: 'sellers',
@@ -46,6 +49,18 @@ const operationRoutes: RouteRecordRaw[] = [
     props: { resource: 'products', title: 'Ürünler' },
   },
   {
+    path: 'products/new',
+    name: 'products-create',
+    component: ProductFormView,
+    props: { mode: 'create' },
+  },
+  {
+    path: 'products/:id/edit',
+    name: 'products-edit',
+    component: ProductFormView,
+    props: (route) => ({ mode: 'edit', id: String(route.params.id) }),
+  },
+  {
     path: 'products/:id',
     name: 'products-detail',
     component: AdminDetailView,
@@ -56,10 +71,31 @@ const operationRoutes: RouteRecordRaw[] = [
     }),
   },
   {
+    path: 'variants/numbers',
+    name: 'variant-numbers',
+    component: VariantNumbersView,
+  },
+  {
     path: 'categories',
     name: 'categories',
     component: AdminListView,
     props: { resource: 'categories', title: 'Kategoriler' },
+  },
+  {
+    path: 'brands',
+    name: 'brands',
+    component: AdminListView,
+    props: { resource: 'brands', title: 'Markalar' },
+  },
+  {
+    path: 'brands/:id',
+    name: 'brands-detail',
+    component: AdminDetailView,
+    props: (route) => ({
+      resource: 'brands',
+      id: String(route.params.id),
+      title: 'Marka Detayı',
+    }),
   },
   {
     path: 'categories/:id',
@@ -191,6 +227,11 @@ const routes: RouteRecordRaw[] = [
         component: MobileConfigView,
       },
       {
+        path: 'content-management',
+        name: 'content-management',
+        component: MobileConfigView,
+      },
+      {
         path: 'audit',
         name: 'audit',
         component: AdminListView,
@@ -200,6 +241,11 @@ const routes: RouteRecordRaw[] = [
         path: 'reports',
         name: 'reports',
         component: ReportsView,
+      },
+      {
+        path: 'feature-gap',
+        name: 'feature-gap',
+        component: FeatureGapView,
       },
     ],
   },

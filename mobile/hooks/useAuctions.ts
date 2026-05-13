@@ -7,10 +7,10 @@ import { AuctionStatus } from '@endemigo/shared';
 interface Auction {
   id: string;
   productId: string;
-  productTitle: string;
-  productImage: string;
+  productTitle: string | null;
+  productImage: string | null;
   sellerId: string;
-  sellerName: string;
+  sellerName: string | null;
   startPrice: number;
   currentPrice: number;
   minIncrement: number;
@@ -29,6 +29,7 @@ interface Auction {
   maxExtensions?: number;
   currentExtensions?: number;
   culturalAssetRestricted?: boolean;
+  createdAt?: string;
 }
 
 interface BidEntry {

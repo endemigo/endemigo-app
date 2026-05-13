@@ -36,7 +36,7 @@ export const styles = StyleSheet.create({
   },
   bannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: `${Colors.black}59`,
   },
   backButton: {
     position: 'absolute',
@@ -45,7 +45,7 @@ export const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: `${Colors.white}EB`,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.sm,
@@ -86,6 +86,23 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: Spacing.base,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    gap: 2,
+    marginBottom: 4,
+  },
+  ratingValue: {
+    fontSize: FontSize.caption,
+    color: Colors.slate500,
+    marginLeft: 4,
+    fontFamily: FontFamily.body,
+  },
+  noRatingReviewText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate500,
+    marginBottom: Spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
@@ -201,6 +218,20 @@ export const styles = StyleSheet.create({
     width: '100%',
     height: 160,
     backgroundColor: Colors.surfaceContainerLow,
+  },
+  productImageWrap: {
+    position: 'relative',
+  },
+  geoBadgeLogosRow: {
+    position: 'absolute',
+    top: Spacing.sm,
+    left: Spacing.sm,
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  geoBadgeLogo: {
+    width: 28,
+    height: 28,
   },
   productContent: {
     padding: Spacing.base,

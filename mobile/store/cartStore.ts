@@ -6,6 +6,8 @@ import { useAuthStore } from './authStore';
 export interface CartItem {
   id: string;
   productId: string;
+  productVariantSkuId?: string | null;
+  variantId?: string | null;
   title: string;
   price: number;
   imageUrl?: string;
@@ -15,6 +17,8 @@ export interface CartItem {
 
 interface AddCartPayload {
   productId: string;
+  productVariantSkuId?: string | null;
+  variantId?: string | null;
   title: string;
   price: number;
   imageUrl?: string;
@@ -36,6 +40,8 @@ interface CartApiResponse {
     items?: Array<{
       id: string;
       productId: string;
+      productVariantSkuId?: string | null;
+      variantId?: string | null;
       quantity: number;
       addedAt?: string;
       product?: {
@@ -73,6 +79,8 @@ function mapApiItemsToStore(data: CartApiResponse): CartItem[] {
   return items.map((item) => ({
     id: item.id,
     productId: item.productId,
+    productVariantSkuId: item.productVariantSkuId ?? null,
+    variantId: item.variantId ?? null,
     quantity: item.quantity,
     addedAt: item.addedAt,
     title: item.product?.title ?? '',
@@ -106,6 +114,8 @@ export const useCartStore = create<CartState>((set) => ({
     for (const item of guestItems) {
       await api.post<CartApiResponse>('/cart/items', {
         productId: item.productId,
+        productVariantSkuId: item.productVariantSkuId ?? undefined,
+        variantId: item.variantId ?? undefined,
         quantity: item.quantity,
       });
     }
@@ -117,20 +127,33 @@ export const useCartStore = create<CartState>((set) => ({
   addItem: async (payload) => {
     if (!useAuthStore.getState().isLoggedIn) {
       const items = await getGuestCartItems();
-      const existing = items.find((item) => item.productId === payload.productId);
+      const existing = items.find(
+        (item) =>
+          item.productId === payload.productId
+          && (item.productVariantSkuId ?? null) === (payload.productVariantSkuId ?? null)
+          && (item.variantId ?? null) === (payload.variantId ?? null),
+      );
       let nextItems: CartItem[];
       if (existing) {
         nextItems = items.map((item) =>
           item.productId === payload.productId
+            && (item.productVariantSkuId ?? null) === (payload.productVariantSkuId ?? null)
+            && (item.variantId ?? null) === (payload.variantId ?? null)
             ? { ...item, quantity: Math.min(99, item.quantity + 1) }
             : item,
         );
       } else {
+        const guestSuffix = payload.productVariantSkuId ?? payload.variantId;
+        const guestItemId = guestSuffix
+          ? `${payload.productId}:${guestSuffix}`
+          : payload.productId;
         nextItems = [
           ...items,
           {
-            id: payload.productId,
+            id: guestItemId,
             productId: payload.productId,
+            productVariantSkuId: payload.productVariantSkuId ?? null,
+            variantId: payload.variantId ?? null,
             title: payload.title,
             price: payload.price,
             imageUrl: payload.imageUrl,
@@ -145,6 +168,8 @@ export const useCartStore = create<CartState>((set) => ({
     }
     const { data } = await api.post<CartApiResponse>('/cart/items', {
       productId: payload.productId,
+      productVariantSkuId: payload.productVariantSkuId,
+      variantId: payload.variantId,
       quantity: 1,
     });
     set({ items: mapApiItemsToStore(data) });

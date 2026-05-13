@@ -27,6 +27,19 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  heroLeftGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  heroBackButton: {
+    width: 42,
+    height: 42,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   heroTitle: {
     color: Colors.white,
     fontSize: FontSize.subheading,

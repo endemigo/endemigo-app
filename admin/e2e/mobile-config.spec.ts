@@ -111,6 +111,42 @@ function createDraft() {
         showTimer: true,
       },
     },
+    listingCreate: {
+      optionalFields: [
+        'originRegion',
+        'originCountry',
+        'shippingProvince',
+        'shippingDistrict',
+        'shippingAddress',
+        'deliveryTemplateDomestic',
+        'deliveryTemplateInternational',
+        'desiDomestic',
+        'desiInternational',
+        'wholesalePrice',
+        'retailPrice',
+        'sellerNotes',
+        'brand',
+        'isEndemigoBrandCandidate',
+        'productionProvince',
+        'productionDistrict',
+        'productContent',
+        'barcodeNo',
+        'geoIndicationReceivedAt',
+        'geoIndicationCertNo',
+        'geoIndicationRegion',
+        'additionalCertificates',
+        'featureBadges',
+        'geoBadgeSelections',
+        'sku',
+        'weight',
+        'dimensionWidth',
+        'dimensionHeight',
+        'dimensionDepth',
+        'productionSeasons',
+        'salesMonths',
+        'images',
+      ],
+    },
     otherSurfaces: [
       {
         id: 'buy-now-surface',
@@ -230,7 +266,7 @@ test('mobile config screen supports draft editing, preview and publish flow', as
   const drawerPanel = page.locator('.drawer-panel');
 
   await expect(page.getByRole('heading', { name: 'Mobil Uygulama' })).toBeVisible();
-  await expect(page.getByText('Home Navigator')).toBeVisible();
+  await expect(page.getByText('Mobile Navigator')).toBeVisible();
   await expect(page.getByText('Home Preview')).toBeVisible();
   await expect(navigatorPanel.getByRole('button', { name: /Hemen Al Firsatlari/i })).toBeVisible();
   await expect(previewPanel.getByText('Hemen Al Firsatlari')).toBeVisible();

@@ -7,7 +7,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     marginBottom: Spacing.md,
   },
   titleRow: {
@@ -16,14 +16,14 @@ export const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   accentBar: {
-    width: 4,
-    height: 18,
-    borderRadius: 2,
+    width: 3,
+    height: 24,
+    borderRadius: 1.5,
     backgroundColor: Colors.primary,
   },
   title: {
-    fontFamily: FontFamily.headline,
-    fontWeight: '400',
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
     fontSize: FontSize.subheading,
     color: Colors.onSurface,
   },
@@ -32,5 +32,6 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
     color: Colors.primary,
+    letterSpacing: 0.3,
   },
 });

@@ -22,6 +22,12 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${Colors.primary}40`,
   },
+  optionActiveDirectSale: {
+    borderColor: `${Colors.primary}40`,
+  },
+  optionActiveAuction: {
+    borderColor: `${Colors.secondary}40`,
+  },
   optionLabel: {
     color: Colors.onSurfaceVariant,
     fontFamily: FontFamily.bodySemiBold,
@@ -30,6 +36,12 @@ export const styles = StyleSheet.create({
   },
   optionLabelActive: {
     color: Colors.primary,
+  },
+  optionLabelActiveDirectSale: {
+    color: Colors.primary,
+  },
+  optionLabelActiveAuction: {
+    color: Colors.secondary,
   },
   optionHint: {
     color: Colors.slate500,
