@@ -5,21 +5,35 @@ import {
   UnauthorizedException,
   BadRequestException,
   Optional,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, In, LessThanOrEqual, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { AuctionStatus, OrderStatus } from '@endemigo/shared';
+import {
+  AddressType,
+  AuctionStatus,
+  NegotiationStatus,
+  OrderStatus,
+  PayoutRequestStatus,
+} from '@endemigo/shared';
 import { User } from './entities/user.entity';
+import { Address } from './entities/address.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { TrustService } from '../trust/trust.service';
 import { Product } from '../product/entities/product.entity';
+import { Order } from '../order/entities/order.entity';
+import { Notification } from '../notification/entities/notification.entity';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { Wallet } from '../wallet/entities/wallet.entity';
+import { PayoutRequest } from '../wallet/entities/payout-request.entity';
 import { ProductStatus } from '../../shared/types/product-status.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
+import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 import { RC } from '../../shared/constants/response-codes';
 import { resolveSellerBanner } from './utils/seller-banner.util';
 
@@ -32,11 +46,23 @@ export class UserService {
     private readonly sellerProfileRepo: Repository<SellerProfile>,
     @InjectRepository(KvkkConsent)
     private readonly kvkkConsentRepo: Repository<KvkkConsent>,
+    @InjectRepository(Address)
+    private readonly addressRepo: Repository<Address>,
     // WR-01: RefreshToken repo for session revocation on account deletion
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepo: Repository<RefreshToken>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+    @InjectRepository(Conversation)
+    private readonly conversationRepo: Repository<Conversation>,
+    @InjectRepository(Wallet)
+    private readonly walletRepo: Repository<Wallet>,
+    @InjectRepository(PayoutRequest)
+    private readonly payoutRequestRepo: Repository<PayoutRequest>,
     @Optional()
     private readonly trustService?: TrustService,
   ) {}
@@ -104,6 +130,282 @@ export class UserService {
       nationality: user.nationality,
       isSeller: user.isSeller,
       isVerified: user.isVerified,
+    };
+  }
+
+  async listAddresses(userId: string, type?: AddressType) {
+    const user = await this.findUserOrThrow(userId);
+    this.assertSenderAddressAccess(user, type);
+
+    const addresses = await this.addressRepo.find({
+      where: type ? { userId, type } : { userId },
+      order: { isDefault: 'DESC', createdAt: 'DESC' },
+    });
+
+    return {
+      code: RC.ADDRESS_LIST_FETCHED,
+      message: 'Adresler getirildi',
+      addresses,
+    };
+  }
+
+  async createAddress(userId: string, dto: CreateAddressDto) {
+    const user = await this.findUserOrThrow(userId);
+    this.assertSenderAddressAccess(user, dto.type);
+
+    return this.addressRepo.manager.transaction(async (manager) => {
+      if (dto.isDefault) {
+        await manager.update(
+          Address,
+          { userId, type: dto.type, isDefault: true },
+          { isDefault: false },
+        );
+      }
+
+      const existingCount = await manager.count(Address, {
+        where: { userId, type: dto.type },
+      });
+
+      const address = manager.create(Address, {
+        userId,
+        type: dto.type,
+        title: dto.title.trim(),
+        fullName: dto.fullName.trim(),
+        phone: dto.phone.trim(),
+        city: dto.city.trim(),
+        district: dto.district.trim(),
+        neighborhood: dto.neighborhood?.trim() || null,
+        addressLine: dto.addressLine.trim(),
+        postalCode: dto.postalCode?.trim() || null,
+        country: dto.country?.trim() || 'TR',
+        isDefault: dto.isDefault ?? existingCount === 0,
+      } as Partial<Address>);
+      const saved = await manager.save(Address, address);
+
+      if (saved.isDefault) {
+        await manager.update(
+          Address,
+          { userId, type: saved.type, isDefault: true },
+          { isDefault: false },
+        );
+        saved.isDefault = true;
+        await manager.update(Address, { id: saved.id }, { isDefault: true });
+      }
+
+      return {
+        code: RC.ADDRESS_CREATED,
+        message: 'Adres oluşturuldu',
+        address: saved,
+      };
+    });
+  }
+
+  async updateAddress(userId: string, addressId: string, dto: UpdateAddressDto) {
+    const user = await this.findUserOrThrow(userId);
+    const address = await this.findAddressOrThrow(userId, addressId);
+    const targetType = dto.type ?? address.type;
+    this.assertSenderAddressAccess(user, targetType);
+
+    return this.addressRepo.manager.transaction(async (manager) => {
+      if (dto.isDefault || (dto.type && dto.type !== address.type && address.isDefault)) {
+        await manager.update(
+          Address,
+          { userId, type: targetType, isDefault: true },
+          { isDefault: false },
+        );
+      }
+
+      if (dto.type !== undefined) address.type = dto.type;
+      if (dto.title !== undefined) address.title = dto.title.trim();
+      if (dto.fullName !== undefined) address.fullName = dto.fullName.trim();
+      if (dto.phone !== undefined) address.phone = dto.phone.trim();
+      if (dto.city !== undefined) address.city = dto.city.trim();
+      if (dto.district !== undefined) address.district = dto.district.trim();
+      if (dto.neighborhood !== undefined) address.neighborhood = dto.neighborhood.trim() || null;
+      if (dto.addressLine !== undefined) address.addressLine = dto.addressLine.trim();
+      if (dto.postalCode !== undefined) address.postalCode = dto.postalCode.trim() || null;
+      if (dto.country !== undefined) address.country = dto.country.trim() || 'TR';
+      if (dto.isDefault !== undefined) address.isDefault = dto.isDefault;
+
+      const saved = await manager.save(Address, address);
+
+      if (saved.isDefault) {
+        await manager.update(
+          Address,
+          { userId, type: saved.type, isDefault: true },
+          { isDefault: false },
+        );
+        await manager.update(Address, { id: saved.id }, { isDefault: true });
+        saved.isDefault = true;
+      }
+
+      return {
+        code: RC.ADDRESS_UPDATED,
+        message: 'Adres güncellendi',
+        address: saved,
+      };
+    });
+  }
+
+  async setDefaultAddress(userId: string, addressId: string) {
+    const address = await this.findAddressOrThrow(userId, addressId);
+
+    await this.addressRepo.manager.transaction(async (manager) => {
+      await manager.update(
+        Address,
+        { userId, type: address.type, isDefault: true },
+        { isDefault: false },
+      );
+      await manager.update(Address, { id: address.id }, { isDefault: true });
+    });
+
+    return {
+      code: RC.ADDRESS_DEFAULT_SET,
+      message: 'Varsayılan adres güncellendi',
+    };
+  }
+
+  async deleteAddress(userId: string, addressId: string) {
+    const address = await this.findAddressOrThrow(userId, addressId);
+
+    await this.addressRepo.softDelete(address.id);
+
+    if (address.isDefault) {
+      const replacement = await this.addressRepo.findOne({
+        where: { userId, type: address.type },
+        order: { createdAt: 'DESC' },
+      });
+      if (replacement) {
+        replacement.isDefault = true;
+        await this.addressRepo.save(replacement);
+      }
+    }
+
+    return {
+      code: RC.ADDRESS_DELETED,
+      message: 'Adres silindi',
+    };
+  }
+
+  async getSellerDashboardSummary(sellerId: string) {
+    const user = await this.findUserOrThrow(sellerId);
+    if (!user.isSeller) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Satıcı hesabı gereklidir',
+      });
+    }
+
+    const [
+      sellerProfile,
+      newOrders,
+      preparingShipment,
+      inTransit,
+      delivered,
+      draftProducts,
+      reviewProducts,
+      activeProducts,
+      outOfStockProducts,
+      suspendedProducts,
+      soldProducts,
+      lowStockProducts,
+      unreadNotifications,
+      openNegotiations,
+      wallet,
+      payoutRequests,
+      senderAddressCount,
+    ] = await Promise.all([
+      this.sellerProfileRepo.findOne({ where: { userId: sellerId } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.ESCROW_HELD } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.PREPARING_SHIPMENT } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.IN_TRANSIT } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.DELIVERED } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.DRAFT } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.PENDING_REVIEW } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.ACTIVE } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.OUT_OF_STOCK } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.SUSPENDED } }),
+      this.productRepo.count({ where: { sellerId, status: ProductStatus.SOLD } }),
+      this.productRepo.count({
+        where: {
+          sellerId,
+          status: ProductStatus.ACTIVE,
+          stockQuantity: LessThanOrEqual(3),
+        },
+      }),
+      this.notificationRepo.count({ where: { userId: sellerId, readAt: IsNull() } }),
+      this.conversationRepo.count({
+        where: { sellerId, status: NegotiationStatus.OPEN },
+      }),
+      this.walletRepo.findOne({ where: { userId: sellerId } }),
+      this.payoutRequestRepo.find({ where: { sellerId } }),
+      this.addressRepo.count({ where: { userId: sellerId, type: AddressType.SENDER } }),
+    ]);
+
+    const pendingPayoutAmount = payoutRequests
+      .filter((item) =>
+        [PayoutRequestStatus.REQUESTED, PayoutRequestStatus.ADMIN_REVIEW].includes(item.status),
+      )
+      .reduce((sum, item) => sum + Number(item.amount), 0);
+    const processingPayoutAmount = payoutRequests
+      .filter((item) => item.status === PayoutRequestStatus.APPROVED)
+      .reduce((sum, item) => sum + Number(item.amount), 0);
+    const paidPayoutAmount = payoutRequests
+      .filter((item) => item.status === PayoutRequestStatus.PAID)
+      .reduce((sum, item) => sum + Number(item.amount), 0);
+
+    return {
+      code: RC.SELLER_DASHBOARD_FETCHED,
+      message: 'Satıcı dashboard özeti getirildi',
+      summary: {
+        seller: {
+          id: user.id,
+          businessName: sellerProfile?.businessName ?? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
+          status: sellerProfile?.status ?? SellerStatus.PENDING,
+        },
+        orders: {
+          newOrders,
+          preparingShipment,
+          inTransit,
+          delivered,
+        },
+        products: {
+          draftProducts,
+          reviewProducts,
+          activeProducts,
+          outOfStockProducts,
+          suspendedProducts,
+          soldProducts,
+          lowStockProducts,
+        },
+        wallet: {
+          balance: Number(wallet?.balance ?? 0),
+          held: Number(wallet?.heldAmount ?? 0),
+          available: Number(wallet?.balance ?? 0) - Number(wallet?.heldAmount ?? 0),
+        },
+        payouts: {
+          pendingAmount: pendingPayoutAmount,
+          processingAmount: processingPayoutAmount,
+          paidAmount: paidPayoutAmount,
+          pendingCount: payoutRequests.filter((item) =>
+            [PayoutRequestStatus.REQUESTED, PayoutRequestStatus.ADMIN_REVIEW].includes(item.status),
+          ).length,
+        },
+        inbox: {
+          unreadNotifications,
+          openNegotiations,
+        },
+        addresses: {
+          senderAddressCount,
+        },
+        operations: {
+          requiresActionCount:
+            newOrders +
+            preparingShipment +
+            lowStockProducts +
+            unreadNotifications,
+        },
+      },
     };
   }
 
@@ -256,6 +558,42 @@ export class UserService {
         createdAt: p.createdAt,
       })),
     };
+  }
+
+  private async findUserOrThrow(userId: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: RC.USER_NOT_FOUND,
+        message: 'Kullanıcı bulunamadı',
+      });
+    }
+    return user;
+  }
+
+  private async findAddressOrThrow(userId: string, addressId: string) {
+    const address = await this.addressRepo.findOne({
+      where: { id: addressId, userId },
+    });
+    if (!address) {
+      throw new NotFoundException({
+        code: RC.ADDRESS_NOT_FOUND,
+        message: 'Adres bulunamadı',
+      });
+    }
+    return address;
+  }
+
+  private assertSenderAddressAccess(
+    user: User,
+    type?: AddressType,
+  ) {
+    if (type === AddressType.SENDER && !user.isSeller) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Gönderici adresi için satıcı hesabı gerekir',
+      });
+    }
   }
 
   // ==========================================

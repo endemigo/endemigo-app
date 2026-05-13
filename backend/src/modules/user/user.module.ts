@@ -11,10 +11,27 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { SellerController } from './seller.controller';
 import { DevSellerSeedService } from './dev-seller-seed.service';
+import { Order } from '../order/entities/order.entity';
+import { Notification } from '../notification/entities/notification.entity';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { Wallet } from '../wallet/entities/wallet.entity';
+import { PayoutRequest } from '../wallet/entities/payout-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, SellerProfile, KvkkConsent, Address, RefreshToken, Product]),
+    TypeOrmModule.forFeature([
+      User,
+      SellerProfile,
+      KvkkConsent,
+      Address,
+      RefreshToken,
+      Product,
+      Order,
+      Notification,
+      Conversation,
+      Wallet,
+      PayoutRequest,
+    ]),
     TrustModule,
   ],
   controllers: [UserController, SellerController],

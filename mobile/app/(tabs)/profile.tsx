@@ -33,38 +33,91 @@ export default function ProfileScreen() {
     syncRoleModeFromUser(user);
   }, [syncRoleModeFromUser, user]);
 
-  const menuItems = useMemo<ProfileMenuItemConfig[]>(() => [
+  const commonItems = useMemo<ProfileMenuItemConfig[]>(() => [
     {
-      key: activeMode === 'seller' ? 'seller-orders' : 'orders',
-      labelKey: activeMode === 'seller' ? 'profileMenu.sellerOrders' : 'profileMenu.orders',
+      key: 'wallet',
+      labelKey: 'profileMenu.wallet',
+      icon: 'wallet-outline',
+      route: '/(tabs)/wallet',
+      order: 1,
+      tone: 'secondary',
+    },
+    {
+      key: 'addresses',
+      labelKey: 'profileMenu.addresses',
+      icon: 'location-outline',
+      route: '/(tabs)/addresses',
+      order: 2,
+      tone: 'primary',
+    },
+    {
+      key: 'notifications',
+      labelKey: 'profileMenu.notifications',
+      icon: 'notifications-outline',
+      route: '/(tabs)/notifications',
+      order: 3,
+      tone: 'accent',
+    },
+    {
+      key: 'settings',
+      labelKey: 'profileMenu.settings',
+      icon: 'settings-outline',
+      route: '/(tabs)/settings',
+      order: 4,
+      tone: 'neutral',
+    },
+  ], []);
+
+  const buyerItems = useMemo<ProfileMenuItemConfig[]>(() => [
+    {
+      key: 'orders',
+      labelKey: 'profileMenu.orders',
       icon: 'receipt-outline',
       route: '/(tabs)/orders',
       order: 1,
       tone: 'primary',
     },
     {
-      key: 'seller-operations',
-      labelKey: 'profileMenu.sellerOperations',
-      icon: 'cube-outline',
-      route: '/(tabs)/orders',
-      sellerOnly: true,
-      order: 2,
-      tone: 'accent',
-    },
-    {
-      key: 'wallet',
-      labelKey: 'profileMenu.wallet',
-      icon: 'wallet-outline',
-      route: '/(tabs)/wallet',
-      order: activeMode === 'seller' ? 3 : 2,
-      tone: 'secondary',
-    },
-    {
       key: 'messages',
       labelKey: 'profileMenu.messages',
       icon: 'chatbubble-ellipses-outline',
       route: '/(tabs)/messages',
-      order: activeMode === 'seller' ? 4 : 3,
+      order: 2,
+      tone: 'primary',
+    },
+  ], []);
+
+  const sellerItems = useMemo<ProfileMenuItemConfig[]>(() => [
+    {
+      key: 'seller-dashboard',
+      labelKey: 'profileMenu.sellerDashboard',
+      icon: 'speedometer-outline',
+      route: '/(tabs)/seller-dashboard',
+      order: 1,
+      tone: 'primary',
+    },
+    {
+      key: 'seller-orders',
+      labelKey: 'profileMenu.sellerOrders',
+      icon: 'receipt-outline',
+      route: '/(tabs)/orders',
+      order: 2,
+      tone: 'secondary',
+    },
+    {
+      key: 'seller-operations',
+      labelKey: 'profileMenu.sellerOperations',
+      icon: 'cube-outline',
+      route: '/(tabs)/orders',
+      order: 3,
+      tone: 'accent',
+    },
+    {
+      key: 'sender-addresses',
+      labelKey: 'profileMenu.senderAddresses',
+      icon: 'business-outline',
+      route: '/(tabs)/addresses?type=SENDER',
+      order: 4,
       tone: 'primary',
     },
     {
@@ -72,7 +125,6 @@ export default function ProfileScreen() {
       labelKey: 'profileMenu.membership',
       icon: 'ribbon-outline',
       route: '/(tabs)/membership',
-      sellerOnly: true,
       order: 5,
       tone: 'primary',
     },
@@ -81,7 +133,6 @@ export default function ProfileScreen() {
       labelKey: 'profileMenu.sellerAds',
       icon: 'megaphone-outline',
       route: '/(tabs)/seller-ads',
-      sellerOnly: true,
       order: 6,
       tone: 'accent',
     },
@@ -90,27 +141,10 @@ export default function ProfileScreen() {
       labelKey: 'profileMenu.sellerCampaigns',
       icon: 'pricetags-outline',
       route: '/(tabs)/seller-campaigns',
-      sellerOnly: true,
       order: 7,
       tone: 'secondary',
     },
-    {
-      key: 'notifications',
-      labelKey: 'profileMenu.notifications',
-      icon: 'notifications-outline',
-      route: '/(tabs)/notifications',
-      order: activeMode === 'seller' ? 8 : 4,
-      tone: 'accent',
-    },
-    {
-      key: 'settings',
-      labelKey: 'profileMenu.settings',
-      icon: 'settings-outline',
-      route: '/(tabs)/settings',
-      order: activeMode === 'seller' ? 9 : 5,
-      tone: 'neutral',
-    },
-  ], [activeMode]);
+  ], []);
 
   const handleLogout = async () => {
     resetRoleMode();
@@ -185,9 +219,27 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      <Text style={styles.sectionTitle}>{t('profile.commonSectionTitle')}</Text>
+      <Text style={styles.sectionSubtitle}>{t('profile.commonSectionSubtitle')}</Text>
       <ProfileMenuSection
         activeMode={activeMode}
-        items={menuItems}
+        items={commonItems}
+        onNavigate={(route) => router.push(route as never)}
+      />
+
+      <Text style={styles.sectionTitle}>
+        {activeMode === 'seller'
+          ? t('profile.sellerSectionTitle')
+          : t('profile.buyerSectionTitle')}
+      </Text>
+      <Text style={styles.sectionSubtitle}>
+        {activeMode === 'seller'
+          ? t('profile.sellerSectionSubtitle')
+          : t('profile.buyerSectionSubtitle')}
+      </Text>
+      <ProfileMenuSection
+        activeMode={activeMode}
+        items={activeMode === 'seller' ? sellerItems : buyerItems}
         onNavigate={(route) => router.push(route as never)}
       />
 

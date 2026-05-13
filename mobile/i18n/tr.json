@@ -9,6 +9,7 @@
     "errorOccurredMessage": "Uygulama beklenmeyen bir sorunla karşılaştı.",
     "success": "Başarılı",
     "save": "Kaydet",
+    "confirm": "Onayla",
     "goBack": "Geri Dön",
     "genericError": "Bir hata oluştu, lütfen tekrar deneyin.",
     "cancel": "İptal",
@@ -265,7 +266,13 @@
     "sellerModeUnavailable": "Satıcı modu için satıcı hesabı gerekir",
     "buyerMenuTitle": "Alıcı işlemleri",
     "sellerMenuTitle": "Satıcı işlemleri",
-    "paketim": "Paketim"
+    "paketim": "Paketim",
+    "commonSectionTitle": "Hesap",
+    "commonSectionSubtitle": "Her iki modda da kullandığınız alanlar.",
+    "buyerSectionTitle": "Alıcı alanı",
+    "buyerSectionSubtitle": "Sipariş ve iletişim akışınız burada.",
+    "sellerSectionTitle": "Satıcı alanı",
+    "sellerSectionSubtitle": "Operasyon, vitrin ve gelir yönetimi burada."
   },
   "seller": {
     "becomeSellerTitle": "Satıcı Hesabı Aç",
@@ -813,7 +820,13 @@
     "filterPreparing": "Hazırlık",
     "filterInTransit": "Kargoda",
     "filterDelivered": "Teslim",
-    "filterCompleted": "Tamamlanan"
+    "filterCompleted": "Tamamlanan",
+    "sellerActionsTitle": "Sipariş operasyonu",
+    "sellerActionsBody": "Bir sonraki operasyon adımını buradan ilerletebilirsiniz.",
+    "sellerActionsConfirm": "Sipariş durumunu {{status}} olarak güncellemek istiyor musunuz?",
+    "sellerAdvancePreparing": "Hazırlanmaya al",
+    "sellerAdvanceTransit": "Kargoya ver",
+    "sellerAdvanceDelivered": "Teslim edildi işaretle"
   },
   "cargo": {
     "title": "Kargo",
@@ -864,6 +877,7 @@
   "profileMenu": {
     "orders": "Siparişler",
     "wallet": "Cüzdan",
+    "addresses": "Adreslerim",
     "notifications": "Bildirimler",
     "membership": "Paketim",
     "paketim": "Paketim",
@@ -872,7 +886,85 @@
     "messages": "Mesajlarım",
     "settings": "Ayarlar",
     "sellerOrders": "Satış siparişleri",
-    "sellerOperations": "Sipariş operasyonları"
+    "sellerOperations": "Sipariş operasyonları",
+    "sellerDashboard": "Satıcı dashboard",
+    "senderAddresses": "Gönderici adresleri"
+  },
+  "addresses": {
+    "title": "Adreslerim",
+    "subtitle": "Teslimat, fatura ve satıcı gönderim adreslerinizi buradan yönetin.",
+    "loadError": "Adresler yüklenemedi",
+    "addAction": "Yeni adres ekle",
+    "createTitle": "Yeni adres",
+    "editTitle": "Adresi düzenle",
+    "emptyTitle": "Adres bulunamadı",
+    "emptyBody": "Bu kategori için henüz kayıtlı adresiniz yok.",
+    "defaultBadge": "Varsayılan",
+    "makeDefault": "Varsayılan yap",
+    "editAction": "Düzenle",
+    "deleteAction": "Sil",
+    "deleteTitle": "Adres silinsin mi?",
+    "deleteMessage": "{{title}} adresini silmek üzeresiniz.",
+    "deleteConfirm": "Adresi sil",
+    "types": {
+      "SHIPPING": "Teslimat",
+      "BILLING": "Fatura",
+      "SENDER": "Gönderici"
+    },
+    "fields": {
+      "title": "Adres başlığı",
+      "fullName": "Ad soyad",
+      "phone": "Telefon",
+      "city": "İl",
+      "district": "İlçe",
+      "neighborhood": "Mahalle",
+      "addressLine": "Açık adres",
+      "postalCode": "Posta kodu",
+      "country": "Ülke",
+      "isDefault": "Bu adresi varsayılan yap"
+    }
+  },
+  "sellerDashboard": {
+    "eyebrow": "SELLER COCKPIT",
+    "accessDeniedTitle": "Satıcı modu gerekli",
+    "accessDeniedBody": "Bu ekran yalnızca satıcı hesabı olan kullanıcılar için açık.",
+    "storeStatus": "Mağaza durumu: {{status}}",
+    "availableBalance": "Çekilebilir bakiye",
+    "pendingPayout": "Bekleyen ödeme",
+    "sections": {
+      "operations": "Bugün özeti",
+      "products": "Ürün sağlığı",
+      "finance": "Finans ve iletişim",
+      "quickActions": "Hızlı aksiyonlar"
+    },
+    "cards": {
+      "newOrders": "Yeni sipariş",
+      "preparing": "Hazırlanacak",
+      "inTransit": "Yoldaki sipariş",
+      "unread": "Okunmamış bildirim",
+      "activeProducts": "Yayındaki ürün",
+      "draftProducts": "Taslak ürün",
+      "reviewProducts": "İncelemede",
+      "lowStock": "Stok alarmı",
+      "heldBalance": "Blokedeki bakiye",
+      "processingPayout": "İşlenen payout",
+      "openNegotiations": "Açık pazarlık",
+      "senderAddresses": "Gönderici adresi"
+    },
+    "quickActions": {
+      "orders": "Siparişler",
+      "wallet": "Bakiye",
+      "campaigns": "Kampanyalar",
+      "ads": "Reklamlar",
+      "messages": "Mesajlar",
+      "senderAddresses": "Gönderici"
+    },
+    "storeStatuses": {
+      "PENDING": "İncelemede",
+      "APPROVED": "Aktif",
+      "SUSPENDED": "Askıda",
+      "TERMINATED": "Kapatıldı"
+    }
   },
   "paketim": {
     "title": "Paketim",

@@ -10,6 +10,8 @@ import {
   HttpStatus,
   Param,
   NotFoundException,
+  ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -22,12 +24,15 @@ import type { Request } from 'express';
 import { UserService } from './user.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
 import { CreateKvkkConsentDto } from './dto/kvkk-consent.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ReactivateAccountDto } from './dto/reactivate-account.dto';
+import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 import { RC } from '../../shared/constants/response-codes';
+import { AddressType } from '@endemigo/shared';
 
 @ApiTags('Users')
 @Controller('users')
@@ -47,6 +52,71 @@ export class UserController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.userService.updateProfile(userId, dto);
+  }
+
+  @Get('addresses')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanici adreslerini listele' })
+  @ApiResponse({ status: 200, description: 'Adres listesi' })
+  async listAddresses(
+    @CurrentUser('id') userId: string,
+    @Query('type') type?: AddressType,
+  ) {
+    return this.userService.listAddresses(userId, type);
+  }
+
+  @Post('addresses')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanici adresi ekle' })
+  @ApiResponse({ status: 201, description: 'Adres olusturuldu' })
+  async createAddress(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateAddressDto,
+  ) {
+    return this.userService.createAddress(userId, dto);
+  }
+
+  @Patch('addresses/:addressId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanici adresini guncelle' })
+  @ApiResponse({ status: 200, description: 'Adres guncellendi' })
+  async updateAddress(
+    @CurrentUser('id') userId: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+    @Body() dto: UpdateAddressDto,
+  ) {
+    return this.userService.updateAddress(userId, addressId, dto);
+  }
+
+  @Patch('addresses/:addressId/default')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Varsayilan adresi degistir' })
+  @ApiResponse({ status: 200, description: 'Varsayilan adres guncellendi' })
+  async setDefaultAddress(
+    @CurrentUser('id') userId: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+  ) {
+    return this.userService.setDefaultAddress(userId, addressId);
+  }
+
+  @Delete('addresses/:addressId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanici adresini sil' })
+  @ApiResponse({ status: 200, description: 'Adres silindi' })
+  async deleteAddress(
+    @CurrentUser('id') userId: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+  ) {
+    return this.userService.deleteAddress(userId, addressId);
+  }
+
+  @Get('seller-dashboard')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Satıcı dashboard ozeti' })
+  @ApiResponse({ status: 200, description: 'Dashboard ozeti' })
+  async getSellerDashboard(@CurrentUser('id') sellerId: string) {
+    return this.userService.getSellerDashboardSummary(sellerId);
   }
 
   // ==========================================

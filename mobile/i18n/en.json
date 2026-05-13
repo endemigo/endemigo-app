@@ -9,6 +9,7 @@
     "errorOccurredMessage": "The app encountered an unexpected problem.",
     "success": "Success",
     "save": "Save",
+    "confirm": "Confirm",
     "goBack": "Go Back",
     "genericError": "Something went wrong. Please try again.",
     "cancel": "Cancel",
@@ -265,7 +266,13 @@
     "sellerModeUnavailable": "Seller mode requires a seller account",
     "buyerMenuTitle": "Buyer actions",
     "sellerMenuTitle": "Seller actions",
-    "paketim": "My Package"
+    "paketim": "My Package",
+    "commonSectionTitle": "Account",
+    "commonSectionSubtitle": "Areas you use in both modes.",
+    "buyerSectionTitle": "Buyer area",
+    "buyerSectionSubtitle": "Your order and communication flow lives here.",
+    "sellerSectionTitle": "Seller area",
+    "sellerSectionSubtitle": "Operations, storefront, and revenue tools live here."
   },
   "seller": {
     "becomeSellerTitle": "Open Seller Account",
@@ -813,7 +820,13 @@
     "filterPreparing": "Preparing",
     "filterInTransit": "In cargo",
     "filterDelivered": "Delivered",
-    "filterCompleted": "Completed"
+    "filterCompleted": "Completed",
+    "sellerActionsTitle": "Order operations",
+    "sellerActionsBody": "Advance the next fulfillment step from here.",
+    "sellerActionsConfirm": "Do you want to update this order to {{status}}?",
+    "sellerAdvancePreparing": "Start preparing",
+    "sellerAdvanceTransit": "Mark shipped",
+    "sellerAdvanceDelivered": "Mark delivered"
   },
   "cargo": {
     "title": "Cargo",
@@ -864,6 +877,7 @@
   "profileMenu": {
     "orders": "Orders",
     "wallet": "Wallet",
+    "addresses": "My Addresses",
     "notifications": "Notifications",
     "membership": "My Package",
     "paketim": "My Package",
@@ -872,7 +886,85 @@
     "messages": "Messages",
     "settings": "Settings",
     "sellerOrders": "Sales orders",
-    "sellerOperations": "Order operations"
+    "sellerOperations": "Order operations",
+    "sellerDashboard": "Seller dashboard",
+    "senderAddresses": "Sender addresses"
+  },
+  "addresses": {
+    "title": "My Addresses",
+    "subtitle": "Manage your delivery, billing, and seller sender addresses here.",
+    "loadError": "Addresses could not be loaded",
+    "addAction": "Add new address",
+    "createTitle": "New address",
+    "editTitle": "Edit address",
+    "emptyTitle": "No address found",
+    "emptyBody": "You do not have a saved address for this category yet.",
+    "defaultBadge": "Default",
+    "makeDefault": "Make default",
+    "editAction": "Edit",
+    "deleteAction": "Delete",
+    "deleteTitle": "Delete address?",
+    "deleteMessage": "You are about to delete the {{title}} address.",
+    "deleteConfirm": "Delete address",
+    "types": {
+      "SHIPPING": "Shipping",
+      "BILLING": "Billing",
+      "SENDER": "Sender"
+    },
+    "fields": {
+      "title": "Address title",
+      "fullName": "Full name",
+      "phone": "Phone",
+      "city": "City",
+      "district": "District",
+      "neighborhood": "Neighborhood",
+      "addressLine": "Address line",
+      "postalCode": "Postal code",
+      "country": "Country",
+      "isDefault": "Use as default address"
+    }
+  },
+  "sellerDashboard": {
+    "eyebrow": "SELLER COCKPIT",
+    "accessDeniedTitle": "Seller mode required",
+    "accessDeniedBody": "This screen is only available for users with a seller account.",
+    "storeStatus": "Store status: {{status}}",
+    "availableBalance": "Available balance",
+    "pendingPayout": "Pending payout",
+    "sections": {
+      "operations": "Today summary",
+      "products": "Product health",
+      "finance": "Finance and inbox",
+      "quickActions": "Quick actions"
+    },
+    "cards": {
+      "newOrders": "New orders",
+      "preparing": "To prepare",
+      "inTransit": "In transit",
+      "unread": "Unread notifications",
+      "activeProducts": "Active products",
+      "draftProducts": "Draft products",
+      "reviewProducts": "Under review",
+      "lowStock": "Low stock",
+      "heldBalance": "Held balance",
+      "processingPayout": "Processing payout",
+      "openNegotiations": "Open negotiations",
+      "senderAddresses": "Sender addresses"
+    },
+    "quickActions": {
+      "orders": "Orders",
+      "wallet": "Balance",
+      "campaigns": "Campaigns",
+      "ads": "Ads",
+      "messages": "Messages",
+      "senderAddresses": "Sender"
+    },
+    "storeStatuses": {
+      "PENDING": "Under review",
+      "APPROVED": "Active",
+      "SUSPENDED": "Suspended",
+      "TERMINATED": "Closed"
+    }
   },
   "paketim": {
     "title": "My Package",

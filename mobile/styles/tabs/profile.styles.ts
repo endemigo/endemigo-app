@@ -153,6 +153,19 @@ export const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     fontStyle: 'italic',
   },
+  sectionTitle: {
+    color: Colors.onSurface,
+    fontSize: FontSize.subheading,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  sectionSubtitle: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.body,
+    marginBottom: Spacing.md,
+  },
 
   // Menu
   menuCard: {

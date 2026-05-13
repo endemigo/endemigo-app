@@ -156,6 +156,8 @@ export default function TabLayout() {
       <Tabs.Screen name="membership" options={{ href: null }} />
       <Tabs.Screen name="seller-ads" options={{ href: null }} />
       <Tabs.Screen name="seller-campaigns" options={{ href: null }} />
+      <Tabs.Screen name="addresses" options={{ href: null }} />
+      <Tabs.Screen name="seller-dashboard" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );

@@ -2,16 +2,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserService } from './user.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
+import { Address } from './entities/address.entity';
 import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
 import { KvkkConsent, ConsentType } from './entities/kvkk-consent.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { Product } from '../product/entities/product.entity';
+import { Order } from '../order/entities/order.entity';
+import { Notification } from '../notification/entities/notification.entity';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { Wallet } from '../wallet/entities/wallet.entity';
+import { PayoutRequest } from '../wallet/entities/payout-request.entity';
 import {
   ConflictException,
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { AddressType, NegotiationStatus, OrderStatus, PayoutRequestStatus } from '@endemigo/shared';
 import * as bcrypt from 'bcrypt';
 import { RC } from '../../shared/constants/response-codes';
 
@@ -20,8 +27,14 @@ describe('UserService', () => {
   let userRepo: any;
   let sellerProfileRepo: any;
   let kvkkConsentRepo: any;
+  let addressRepo: any;
   let refreshTokenRepo: any;
   let productRepo: any;
+  let orderRepo: any;
+  let notificationRepo: any;
+  let conversationRepo: any;
+  let walletRepo: any;
+  let payoutRequestRepo: any;
   let publicSellerQb: any;
 
   const mockUser = {
@@ -83,12 +96,57 @@ describe('UserService', () => {
       save: jest.fn((entity) => Promise.resolve(entity)),
     };
 
+    addressRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      create: jest.fn((data) => ({ id: 'address-1', ...data })),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+      softDelete: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(undefined),
+      manager: {
+        transaction: jest.fn(async (cb) => {
+          const manager = {
+            count: jest.fn().mockResolvedValue(0),
+            create: jest.fn((EntityClass: unknown, data: Record<string, unknown>) => ({
+              id: 'address-1',
+              ...data,
+            })),
+            save: jest.fn(async (_EntityClass: unknown, entity: Record<string, unknown>) => entity),
+            update: jest.fn().mockResolvedValue(undefined),
+          };
+          return cb(manager);
+        }),
+      },
+    };
+
     refreshTokenRepo = {
       delete: jest.fn().mockResolvedValue(undefined),
       update: jest.fn().mockResolvedValue(undefined),
     };
 
     productRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    orderRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    notificationRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    conversationRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    walletRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    payoutRequestRepo = {
       find: jest.fn().mockResolvedValue([]),
     };
 
@@ -98,8 +156,14 @@ describe('UserService', () => {
         { provide: getRepositoryToken(User), useValue: userRepo },
         { provide: getRepositoryToken(SellerProfile), useValue: sellerProfileRepo },
         { provide: getRepositoryToken(KvkkConsent), useValue: kvkkConsentRepo },
+        { provide: getRepositoryToken(Address), useValue: addressRepo },
         { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
         { provide: getRepositoryToken(Product), useValue: productRepo },
+        { provide: getRepositoryToken(Order), useValue: orderRepo },
+        { provide: getRepositoryToken(Notification), useValue: notificationRepo },
+        { provide: getRepositoryToken(Conversation), useValue: conversationRepo },
+        { provide: getRepositoryToken(Wallet), useValue: walletRepo },
+        { provide: getRepositoryToken(PayoutRequest), useValue: payoutRequestRepo },
       ],
     }).compile();
 
@@ -209,6 +273,97 @@ describe('UserService', () => {
       sellerProfileRepo.findOne.mockResolvedValue(null);
 
       await expect(service.getSellerProfile('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('addresses', () => {
+    it('should list user addresses by type', async () => {
+      userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: true });
+      addressRepo.find.mockResolvedValue([
+        { id: 'address-1', type: AddressType.SHIPPING, title: 'Home' },
+      ]);
+
+      const result = await service.listAddresses('user-1', AddressType.SHIPPING);
+
+      expect(result.code).toBe(RC.ADDRESS_LIST_FETCHED);
+      expect(result.addresses).toHaveLength(1);
+      expect(addressRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'user-1', type: AddressType.SHIPPING } }),
+      );
+    });
+
+    it('should create sender address for seller', async () => {
+      userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: true });
+
+      const result = await service.createAddress('user-1', {
+        type: AddressType.SENDER,
+        title: 'Warehouse',
+        fullName: 'Test User',
+        phone: '+905551234567',
+        city: 'Istanbul',
+        district: 'Kadikoy',
+        addressLine: 'Example address line',
+        isDefault: true,
+      });
+
+      expect(result.code).toBe(RC.ADDRESS_CREATED);
+      expect(result.address.type).toBe(AddressType.SENDER);
+    });
+
+    it('should reject sender address creation for non-seller', async () => {
+      userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: false });
+
+      await expect(
+        service.createAddress('user-1', {
+          type: AddressType.SENDER,
+          title: 'Warehouse',
+          fullName: 'Test User',
+          phone: '+905551234567',
+          city: 'Istanbul',
+          district: 'Kadikoy',
+          addressLine: 'Example address line',
+        }),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('getSellerDashboardSummary', () => {
+    it('should aggregate seller dashboard metrics', async () => {
+      userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: true });
+      sellerProfileRepo.findOne.mockResolvedValue({
+        businessName: 'Test Store',
+        status: SellerStatus.APPROVED,
+      });
+      orderRepo.count
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(3)
+        .mockResolvedValueOnce(4);
+      productRepo.count
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(6)
+        .mockResolvedValueOnce(7)
+        .mockResolvedValueOnce(8)
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(3);
+      notificationRepo.count.mockResolvedValue(9);
+      conversationRepo.count.mockResolvedValue(4);
+      walletRepo.findOne.mockResolvedValue({ balance: 1500, heldAmount: 500 });
+      payoutRequestRepo.find.mockResolvedValue([
+        { amount: 100, status: PayoutRequestStatus.REQUESTED },
+        { amount: 200, status: PayoutRequestStatus.APPROVED },
+        { amount: 300, status: PayoutRequestStatus.PAID },
+      ]);
+      addressRepo.count.mockResolvedValue(2);
+
+      const result = await service.getSellerDashboardSummary('user-1');
+
+      expect(result.code).toBe(RC.SELLER_DASHBOARD_FETCHED);
+      expect(result.summary.orders.newOrders).toBe(2);
+      expect(result.summary.wallet.available).toBe(1000);
+      expect(result.summary.payouts.pendingAmount).toBe(100);
+      expect(result.summary.addresses.senderAddressCount).toBe(2);
     });
   });
 

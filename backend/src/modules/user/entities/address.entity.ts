@@ -31,13 +31,13 @@ export class Address extends BaseEntity {
   district: string;
 
   @Column({ nullable: true })
-  neighborhood: string;
+  neighborhood: string | null;
 
   @Column({ type: 'text' })
   addressLine: string;
 
   @Column({ nullable: true })
-  postalCode: string;
+  postalCode: string | null;
 
   @Column({ default: 'TR' })
   country: string;

@@ -3,28 +3,60 @@ import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, 
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { OrderStatus } from '@endemigo/shared';
 import { Colors } from '../../../constants/theme';
 import {
   useOrderCargo,
   useOrderConfirmDelivery,
   useOrderDetail,
+  useSellerOrderTransition,
 } from '../../../hooks/useOrders';
 import { CargoSummaryCard } from '../../../components/ui/orders/CargoSummaryCard';
 import { DeliveryConfirmActions } from '../../../components/ui/orders/DeliveryConfirmActions';
 import { OrderStatusTimeline } from '../../../components/ui/orders/OrderStatusTimeline';
+import { SellerOrderActions } from '../../../components/ui/orders/SellerOrderActions';
 import { formatCurrency } from '../../../utils/transactionFormatters';
+import { useModalStore } from '../../../store/modalStore';
+import { useRoleModeStore } from '../../../store/roleModeStore';
+import { resolveApiErrorMessage } from '../../../utils/apiError';
 import { styles } from '../../../styles/tabs/orders/[orderId].styles';
 
 export default function OrderDetailScreen() {
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ orderId: string }>();
   const orderId = params.orderId;
+  const activeMode = useRoleModeStore((state) => state.activeMode);
+  const { showModal } = useModalStore();
   const order = useOrderDetail(orderId);
   const cargo = useOrderCargo(orderId);
   const confirmDelivery = useOrderConfirmDelivery(orderId);
+  const sellerTransition = useSellerOrderTransition(orderId);
 
   const handleRefresh = async () => {
     await Promise.all([order.refetch(), cargo.refetch()]);
+  };
+
+  const handleSellerAdvance = (status: OrderStatus) => {
+    showModal({
+      title: t('orders.sellerActionsTitle'),
+      message: t('orders.sellerActionsConfirm', {
+        status: t(`orderStatuses.${status}`),
+      }),
+      type: 'info',
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onConfirm: async () => {
+        try {
+          await sellerTransition.mutateAsync(status);
+        } catch (error: unknown) {
+          showModal({
+            title: t('common.error'),
+            message: resolveApiErrorMessage(error, t, 'common.genericError'),
+            type: 'error',
+          });
+        }
+      },
+    });
   };
 
   if (order.isLoading || cargo.isLoading) {
@@ -96,6 +128,13 @@ export default function OrderDetailScreen() {
         isSubmitting={confirmDelivery.isPending}
         onConfirm={confirmDelivery.mutateAsync}
       />
+      {activeMode === 'seller' && (
+        <SellerOrderActions
+          status={order.data.status}
+          isSubmitting={sellerTransition.isPending}
+          onAdvance={handleSellerAdvance}
+        />
+      )}
     </ScrollView>
   );
 }

@@ -406,6 +406,59 @@ describe('OrderService', () => {
     expect(orders.get('order-1')?.status).toBe(OrderStatus.IN_TRANSIT);
   });
 
+  it('allows seller to advance order status and sync cargo', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.PREPARING_SHIPMENT,
+          escrowStatus: EscrowStatus.HELD,
+        }),
+      ],
+    ]);
+    const orderRepository = createOrderRepository(orders);
+    const cargoService = {
+      getShipmentForOrder: jest.fn(() =>
+        Promise.resolve({
+          code: RC.CARGO_TRACKING_FETCHED,
+          message: 'Cargo shipment fetched',
+          shipment: { id: 'shipment-1', status: CargoStatus.PREPARING },
+        }),
+      ),
+      createShipmentForOrder: jest.fn(),
+      transitionShipment: jest.fn(() =>
+        Promise.resolve({
+          code: RC.CARGO_STATUS_TRANSITIONED,
+          message: 'Cargo status transitioned',
+          shipment: { id: 'shipment-1', status: CargoStatus.IN_TRANSIT },
+        }),
+      ),
+    } as unknown as CargoService;
+
+    const service = new OrderService(
+      orderRepository,
+      createAuditRepository(),
+      undefined,
+      cargoService,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    const result = await service.transitionSellerOrder(
+      'order-1',
+      'seller-1',
+      OrderStatus.IN_TRANSIT,
+    );
+
+    expect(result.code).toBe(RC.ORDER_TRANSITIONED);
+    expect(result.order?.status).toBe(OrderStatus.IN_TRANSIT);
+    expect(cargoService.transitionShipment).toHaveBeenCalledWith(
+      'shipment-1',
+      CargoStatus.IN_TRANSIT,
+    );
+  });
+
   it('throws not found when transitioning a missing order', async () => {
     const service = new OrderService(
       createOrderRepository(new Map()),

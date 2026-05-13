@@ -61,6 +61,10 @@ interface ConfirmDeliveryResponse extends ApiResponseEnvelope {
   order?: RawOrder;
 }
 
+interface TransitionSellerOrderResponse extends ApiResponseEnvelope {
+  order?: RawOrder;
+}
+
 function getOrderEndpoint(activeMode: RoleMode) {
   return activeMode === 'buyer' ? '/orders/buyer' : '/orders/seller';
 }
@@ -188,6 +192,30 @@ export function useOrderConfirmDelivery(orderId?: string) {
       }
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
+    },
+  });
+}
+
+export function useSellerOrderTransition(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<TransitionSellerOrderResponse, Error, OrderStatus>({
+    mutationFn: async (status) => {
+      if (!orderId) {
+        throw new Error('Order id is required');
+      }
+      const { data } = await api.patch<TransitionSellerOrderResponse>(
+        `/orders/${orderId}/seller-status`,
+        { status },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      if (orderId) {
+        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.detail(orderId) });
+        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.cargo(orderId) });
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 }

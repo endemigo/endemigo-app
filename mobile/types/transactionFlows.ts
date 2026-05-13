@@ -1,4 +1,5 @@
 import {
+  AddressType,
   CargoProvider,
   CargoStatus,
   NotificationEventType,
@@ -33,6 +34,38 @@ export interface WalletSummary {
   balance: number;
   held: number;
   available: number;
+}
+
+export interface AddressItem {
+  id: string;
+  userId: string;
+  type: AddressType;
+  title: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  neighborhood: string | null;
+  addressLine: string;
+  postalCode: string | null;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddressPayload {
+  type: AddressType;
+  title: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  neighborhood?: string;
+  addressLine: string;
+  postalCode?: string;
+  country?: string;
+  isDefault?: boolean;
 }
 
 export interface WalletHoldItem {
@@ -155,6 +188,50 @@ export interface OrderDetail {
   updatedAt: string;
 }
 
+export interface SellerDashboardSummary {
+  seller: {
+    id: string;
+    businessName: string;
+    status: string;
+  };
+  orders: {
+    newOrders: number;
+    preparingShipment: number;
+    inTransit: number;
+    delivered: number;
+  };
+  products: {
+    draftProducts: number;
+    reviewProducts: number;
+    activeProducts: number;
+    outOfStockProducts: number;
+    suspendedProducts: number;
+    soldProducts: number;
+    lowStockProducts: number;
+  };
+  wallet: {
+    balance: number;
+    held: number;
+    available: number;
+  };
+  payouts: {
+    pendingAmount: number;
+    processingAmount: number;
+    paidAmount: number;
+    pendingCount: number;
+  };
+  inbox: {
+    unreadNotifications: number;
+    openNegotiations: number;
+  };
+  addresses: {
+    senderAddressCount: number;
+  };
+  operations: {
+    requiresActionCount: number;
+  };
+}
+
 export interface NotificationItem {
   id: string;
   eventType: NotificationEventType;
@@ -198,6 +275,14 @@ export const ORDER_QUERY_KEYS = {
   list: (mode: RoleMode, status: OrderStatus | 'all' = 'all') => ['orders', mode, status] as const,
   detail: (orderId: string) => ['order', orderId] as const,
   cargo: (orderId: string) => ['order-cargo', orderId] as const,
+};
+
+export const ADDRESS_QUERY_KEYS = {
+  list: (type?: AddressType) => ['addresses', type ?? 'all'] as const,
+};
+
+export const SELLER_DASHBOARD_QUERY_KEYS = {
+  summary: ['seller-dashboard'] as const,
 };
 
 export const NOTIFICATION_QUERY_KEYS = {

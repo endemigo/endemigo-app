@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { TransitionSellerOrderDto } from './dto/transition-seller-order.dto';
 import { OrderService } from './order.service';
 
 @ApiTags('Orders')
@@ -34,5 +35,16 @@ export class OrderController {
   @ApiOperation({ summary: 'Confirm order delivery' })
   confirmDelivery(@CurrentUser('id') buyerId: string, @Param('id') id: string) {
     return this.orderService.confirmDelivery(id, buyerId);
+  }
+
+  @Patch(':id/seller-status')
+  @Roles('seller')
+  @ApiOperation({ summary: 'Advance seller order status' })
+  transitionSellerOrder(
+    @CurrentUser('id') sellerId: string,
+    @Param('id') id: string,
+    @Body() dto: TransitionSellerOrderDto,
+  ) {
+    return this.orderService.transitionSellerOrder(id, sellerId, dto.status);
   }
 }

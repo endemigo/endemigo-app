@@ -478,6 +478,52 @@ export class OrderService {
     return this.cargoService?.createShipmentForOrder(orderId);
   }
 
+  async transitionSellerOrder(
+    orderId: string,
+    sellerId: string,
+    nextStatus: OrderStatus,
+  ) {
+    const order = await this.orderRepository?.findOne({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
+    }
+
+    if (order.sellerId !== sellerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Only the seller can update this order',
+      });
+    }
+
+    const sellerManagedStatuses = [
+      OrderStatus.PREPARING_SHIPMENT,
+      OrderStatus.IN_TRANSIT,
+      OrderStatus.DELIVERED,
+    ];
+
+    if (!sellerManagedStatuses.includes(nextStatus)) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Order transition is not allowed',
+      });
+    }
+
+    await this.syncCargoForSellerStatus(order.id, nextStatus);
+
+    return this.transitionOrder(
+      order.id,
+      nextStatus,
+      sellerId,
+      'seller_status_update',
+    );
+  }
+
   async getBuyerOrders(buyerId: string) {
     const orders = await this.orderRepository?.find({
       where: { buyerId },
@@ -798,6 +844,59 @@ export class OrderService {
 
   private getAutoConfirmHours(): number {
     return this.configService?.get<number>('ESCROW_AUTO_CONFIRM_HOURS') ?? 72;
+  }
+
+  private async syncCargoForSellerStatus(
+    orderId: string,
+    nextStatus: OrderStatus,
+  ) {
+    if (!this.cargoService) {
+      return;
+    }
+
+    const shipmentResponse = await this.cargoService.getShipmentForOrder(orderId);
+    let shipment = shipmentResponse?.shipment ?? null;
+
+    if (!shipment) {
+      const created = await this.cargoService.createShipmentForOrder(orderId);
+      shipment = created?.shipment ?? null;
+    }
+
+    if (!shipment) {
+      return;
+    }
+
+    const targetStatus =
+      nextStatus === OrderStatus.PREPARING_SHIPMENT
+        ? CargoStatus.PREPARING
+        : nextStatus === OrderStatus.IN_TRANSIT
+          ? CargoStatus.IN_TRANSIT
+          : CargoStatus.DELIVERED;
+
+    const pathByCurrent: Record<CargoStatus, CargoStatus[]> = {
+      [CargoStatus.PREPARING]: [CargoStatus.IN_TRANSIT, CargoStatus.DELIVERED],
+      [CargoStatus.IN_TRANSIT]: [CargoStatus.DELIVERED],
+      [CargoStatus.DELIVERED]: [],
+      [CargoStatus.FAILED]: [],
+      [CargoStatus.CANCELLED]: [],
+    };
+
+    if (shipment.status === targetStatus) {
+      return;
+    }
+
+    for (const status of pathByCurrent[shipment.status] ?? []) {
+      const result = await this.cargoService.transitionShipment(shipment.id, status);
+      if ('shipment' in result && result.shipment) {
+        shipment = result.shipment;
+      } else {
+        shipment = { ...shipment, status };
+      }
+
+      if (status === targetStatus) {
+        break;
+      }
+    }
   }
 
   private async advanceOrderToDelivered(
