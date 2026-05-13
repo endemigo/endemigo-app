@@ -125,17 +125,22 @@ export class PaymentService {
   async handleIyzicoWebhook(payload: IyzicoWebhookDto, signature?: string) {
     const eventKey = payload.eventKey;
 
-    if (this.providerEventRepository && this.iyzicoProvider) {
-      const signatureValid = this.iyzicoProvider.assertSignatureV3(
-        payload,
-        signature,
-      );
-      if (!signatureValid) {
-        return {
-          code: RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID,
-          message: 'Payment webhook signature is invalid',
-        };
-      }
+    if (!this.iyzicoProvider) {
+      return {
+        code: RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID,
+        message: 'Payment webhook signature verifier is unavailable',
+      };
+    }
+
+    const signatureValid = this.iyzicoProvider.assertSignatureV3(
+      payload,
+      signature,
+    );
+    if (!signatureValid) {
+      return {
+        code: RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID,
+        message: 'Payment webhook signature is invalid',
+      };
     }
 
     const duplicate = await this.findDuplicateProviderEvent(eventKey);

@@ -127,17 +127,35 @@ describe('PaymentService', () => {
   });
 
   it('returns PAYMENT_WEBHOOK_DUPLICATE for duplicate webhook replay', async () => {
-    const service = new PaymentService();
+    const iyzicoProvider = {
+      assertSignatureV3: jest.fn(() => true),
+      retrieveCheckout: jest.fn(() => Promise.resolve(undefined)),
+    } as unknown as IyzicoProvider;
+    const service = new PaymentService(
+      undefined,
+      undefined,
+      iyzicoProvider,
+    );
 
     const firstResult = await service.handleIyzicoWebhook({
       eventKey: 'iyzico-event-1',
-    });
+    }, 'valid-signature');
     const secondResult = await service.handleIyzicoWebhook({
       eventKey: 'iyzico-event-1',
-    });
+    }, 'valid-signature');
 
     expect(firstResult.code).toBe(RC.PAYMENT_WEBHOOK_PROCESSED);
     expect(secondResult.code).toBe(RC.PAYMENT_WEBHOOK_DUPLICATE);
+  });
+
+  it('returns signature invalid when verifier provider is unavailable', async () => {
+    const service = new PaymentService();
+
+    const result = await service.handleIyzicoWebhook({
+      eventKey: 'iyzico-event-2',
+    }, 'signature');
+
+    expect(result.code).toBe(RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID);
   });
 
   it('throws not found instead of success for a missing refund payment', async () => {

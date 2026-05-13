@@ -4,6 +4,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
+import { VariantNumber } from './entities/variant-number.entity';
+import { ProductVariantSku } from './entities/product-variant-sku.entity';
 import { Favorite } from '../search/entities/favorite.entity';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
@@ -23,6 +25,8 @@ describe('ProductService', () => {
   let productRepo: any;
   let imageRepo: any;
   let categoryRepo: any;
+  let variantNumberRepo: any;
+  let productVariantSkuRepo: any;
   let favoriteRepo: any;
   let userService: any;
   let storageService: any;
@@ -113,6 +117,17 @@ describe('ProductService', () => {
       save: jest.fn((entity) => Promise.resolve({ id: 'cat-1', ...entity })),
     };
 
+    variantNumberRepo = {
+      findBy: jest.fn().mockResolvedValue([]),
+    };
+
+    productVariantSkuRepo = {
+      create: jest.fn((data) => data),
+      save: jest.fn().mockResolvedValue([]),
+      find: jest.fn().mockResolvedValue([]),
+      softDelete: jest.fn().mockResolvedValue(undefined),
+    };
+
     favoriteRepo = {
       findOne: jest.fn(),
     };
@@ -134,6 +149,8 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(Product), useValue: productRepo },
         { provide: getRepositoryToken(ProductImage), useValue: imageRepo },
         { provide: getRepositoryToken(Category), useValue: categoryRepo },
+        { provide: getRepositoryToken(VariantNumber), useValue: variantNumberRepo },
+        { provide: getRepositoryToken(ProductVariantSku), useValue: productVariantSkuRepo },
         { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
         { provide: UserService, useValue: userService },
         { provide: STORAGE_SERVICE, useValue: storageService },

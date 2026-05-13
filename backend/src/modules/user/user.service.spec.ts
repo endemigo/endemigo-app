@@ -22,6 +22,7 @@ describe('UserService', () => {
   let kvkkConsentRepo: any;
   let refreshTokenRepo: any;
   let productRepo: any;
+  let publicSellerQb: any;
 
   const mockUser = {
     id: 'user-1',
@@ -39,8 +40,16 @@ describe('UserService', () => {
   beforeEach(async () => {
     mockUser.passwordHash = await bcrypt.hash('Test1234!', 12);
 
+    publicSellerQb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
+
     userRepo = {
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(publicSellerQb),
       create: jest.fn((data) => ({ ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       softDelete: jest.fn().mockResolvedValue(undefined),
@@ -334,7 +343,7 @@ describe('UserService', () => {
   // ==========================================
   describe('getPublicSeller', () => {
     it('should return public seller profile with products', async () => {
-      userRepo.findOne.mockResolvedValue({
+      publicSellerQb.getOne.mockResolvedValue({
         ...mockUser,
         firstName: 'Ege',
         lastName: 'Zeytinlikleri',
@@ -373,7 +382,7 @@ describe('UserService', () => {
     });
 
     it('should fallback to firstName+lastName when no businessName', async () => {
-      userRepo.findOne.mockResolvedValue({
+      publicSellerQb.getOne.mockResolvedValue({
         ...mockUser,
         firstName: 'Ahmet',
         lastName: 'Yilmaz',
@@ -395,7 +404,7 @@ describe('UserService', () => {
     });
 
     it('should return null for non-existent user', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      publicSellerQb.getOne.mockResolvedValue(null);
 
       const result = await service.getPublicSeller('nonexistent');
       expect(result).toBeNull();

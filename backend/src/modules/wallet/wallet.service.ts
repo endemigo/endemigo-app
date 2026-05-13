@@ -60,7 +60,7 @@ export class WalletService {
     if (!wallet) {
       wallet = this.walletRepo.create({
         userId,
-        balance: 10000,
+        balance: 0,
         heldAmount: 0,
       });
       wallet = await this.walletRepo.save(wallet);
@@ -346,14 +346,16 @@ export class WalletService {
     auctionId: string,
     exceptUserId?: string,
   ): Promise<void> {
-    const holds = await this.holdRepo.find({
-      where: { auctionId, status: HoldStatus.HELD },
-    });
+    await this.withTransaction(async (manager) => {
+      const holds = await manager.find(WalletHold, {
+        where: { auctionId, status: HoldStatus.HELD },
+      });
 
-    for (const hold of holds) {
-      if (hold.userId === exceptUserId) continue;
-      await this.releaseHold(auctionId, hold.userId);
-    }
+      for (const hold of holds) {
+        if (hold.userId === exceptUserId) continue;
+        await this.releaseHold(auctionId, hold.userId, manager);
+      }
+    });
   }
 
   private async reviewPayoutRequest(
@@ -447,7 +449,7 @@ export class WalletService {
     if (!wallet) {
       wallet = manager.create(Wallet, {
         userId,
-        balance: 10000,
+        balance: 0,
         heldAmount: 0,
       });
       wallet = await manager.save(Wallet, wallet);

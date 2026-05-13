@@ -31,3 +31,61 @@ export function getAdminMonitoringConfig(
 }
 
 export const adminMonitoringConfig = getAdminMonitoringConfig();
+
+type AdminSentryModule = {
+  init: (options: {
+    app: unknown;
+    dsn?: string;
+    environment?: string;
+    release?: string;
+  }) => void;
+};
+
+const dynamicImport = new Function(
+  'moduleName',
+  'return import(moduleName)',
+) as (moduleName: string) => Promise<unknown>;
+
+let monitoringInitialized = false;
+
+function resolveSentryModule(candidate: unknown): AdminSentryModule | null {
+  if (typeof candidate !== 'object' || candidate === null) {
+    return null;
+  }
+  const value = candidate as {
+    init?: unknown;
+    default?: { init?: unknown };
+  };
+  if (typeof value.init === 'function') {
+    return { init: value.init as AdminSentryModule['init'] };
+  }
+  if (value.default && typeof value.default.init === 'function') {
+    return { init: value.default.init as AdminSentryModule['init'] };
+  }
+  return null;
+}
+
+export async function initAdminMonitoring(app: unknown) {
+  if (monitoringInitialized || !adminMonitoringConfig.enabled) {
+    return;
+  }
+
+  try {
+    const moduleCandidate = await dynamicImport('@sentry/vue');
+    const sentry = resolveSentryModule(moduleCandidate);
+    if (!sentry) {
+      return;
+    }
+
+    sentry.init({
+      app,
+      dsn: adminMonitoringConfig.dsn,
+      environment: adminMonitoringConfig.environment,
+      release: adminMonitoringConfig.release,
+    });
+
+    monitoringInitialized = true;
+  } catch {
+    // Sentry package is optional in local/dev installs.
+  }
+}

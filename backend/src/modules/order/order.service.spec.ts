@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CargoStatus,
   EscrowStatus,
@@ -404,5 +404,16 @@ describe('OrderService', () => {
     await service.autoConfirmDelivery('order-1');
 
     expect(orders.get('order-1')?.status).toBe(OrderStatus.IN_TRANSIT);
+  });
+
+  it('throws not found when transitioning a missing order', async () => {
+    const service = new OrderService(
+      createOrderRepository(new Map()),
+      createAuditRepository(),
+    );
+
+    await expect(
+      service.transitionOrder('missing-order', OrderStatus.COMPLETED),
+    ).rejects.toThrow(NotFoundException);
   });
 });

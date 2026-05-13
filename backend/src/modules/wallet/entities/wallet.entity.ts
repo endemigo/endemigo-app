@@ -11,7 +11,7 @@ export class Wallet extends BaseEntity {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 10000.0 })
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   balance: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })

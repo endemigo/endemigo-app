@@ -8,11 +8,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient } from '../lib/queryClient';
 import { storage } from '../lib/storage';
+import { initMobileMonitoring } from '../lib/monitoring';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { Colors } from '../constants/theme';
 import { GlobalModal, GlobalToast } from '../components/ui';
-import { ErrorBoundary } from '../components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { styles } from '../styles/_layout.styles';
 import { Ionicons } from '@expo/vector-icons';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
@@ -121,6 +122,10 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    void initMobileMonitoring();
+  }, []);
+
+  useEffect(() => {
     let isActive = true;
 
     storage.getLaunchSplashImages()
@@ -147,7 +152,7 @@ export default function RootLayout() {
 
     const timer = setTimeout(() => {
       setShowLaunchSplash(false);
-    }, 5000);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
@@ -215,12 +220,22 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                  name="cart"
+                  options={{
+                    headerShown: false,
+                  }}
+                />
               </Stack>
               {shouldShowFloatingCart ? (
                 <TouchableOpacity
                   style={styles.globalFloatingCartButton}
                   activeOpacity={0.9}
-                  onPress={() => router.push('/(tabs)/cart')}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/cart',
+                    })
+                  }
                 >
                   <Animated.View style={shakeStyle}>
                     <Ionicons name="cart" size={18} color={Colors.white} />

@@ -6,9 +6,11 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { buildCorsOptions, getAllowedCorsOrigins } from './common/http/cors.util';
+import { initBackendMonitoring } from './common/monitoring/sentry-bootstrap';
 import { RedisIoAdapter } from './shared/websocket/redis-io.adapter';
 
 async function bootstrap() {
+  await initBackendMonitoring();
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
   const configService = app.get(ConfigService);

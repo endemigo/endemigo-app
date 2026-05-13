@@ -6,6 +6,7 @@ import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import App from './App.vue';
 import router from './router';
+import { initAdminMonitoring } from './services/monitoring';
 
 const app = createApp(App);
 
@@ -14,5 +15,7 @@ app.use(PrimeVue, {
   ripple: true,
 });
 app.use(router);
+
+void initAdminMonitoring(app);
 
 app.mount('#app');

@@ -1,6 +1,20 @@
 # Endemigo Proje Durum Raporu
 
-Guncelleme tarihi: 26 Nisan 2026
+Guncelleme tarihi: 13 Mayis 2026
+
+## Hızlı Durum (13 Mayis 2026)
+
+- Backend unit test: `37/37 suite`, `280/280 test` gecti.
+- P0 kritikleri tamamlandi:
+  - Yeni wallet default bakiyesi `0` yapildi (service + entity + migration).
+  - Payment webhook signature dogrulamasi zorunlu hale getirildi.
+  - Order transition'da bulunamayan order artik `ORDER_NOT_FOUND` donuyor.
+  - `releaseAllHoldsForAuction` tek transaction kapsaminda calisiyor.
+- P1 test kapsaminda acik kalan service/processor spec bosluklari kapatildi.
+- P2 icin backend/admin/mobile tarafinda opsiyonel Sentry init akisi eklendi
+  (paket kuruluysa init edilir, kurulu degilse uygulama bozulmaz).
+
+> Not: Asagidaki faz ozeti tarihsel rapordur; bu ust blok guncel snapshot'tur.
 
 Bu dosya, mevcut `main` branch uzerindeki proje durumunu, tamamlanan isleri, test sonuclarini ve siradaki urun fazlarini ozetler.
 

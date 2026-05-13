@@ -1,6 +1,19 @@
 # Endemigo Kod Analiz Raporu
 
-> Güncelleme tarihi: 28 Nisan 2026
+> Güncelleme tarihi: 13 Mayis 2026
+
+## 13 Mayis 2026 Notu (Durum Guncellemesi)
+
+Bu dosya 28 Nisan snapshot'i uzerinden yazilmisti. Asagidaki kritik maddeler
+guncel kodda kapatildi:
+
+- Wallet default bakiye `10000` degil, `0` oldu.
+- Payment webhook signature kontrolu zorunlu oldu.
+- Order transition'da bulunamayan order icin basarili donus kaldirildi.
+- `releaseAllHoldsForAuction` tek transaction kapsaminda calisacak sekilde guncellendi.
+- `useAuctionSocket` tarafinda `Alert.alert` kullanimi kaldirildi (custom modal).
+
+Bu nedenle bu dokumandaki bazi satirlar tarihsel referans olarak kalmistir.
 
 ---
 

@@ -236,19 +236,20 @@ export class OrderService {
     const order = await this.orderRepository?.findOne({
       where: { id: orderId },
     });
+
+    if (!order || !this.orderRepository) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
+    }
+
     const currentStatus = order?.status ?? OrderStatus.CREATED;
 
     if (!ALLOWED_ORDER_TRANSITIONS[currentStatus].includes(normalizedStatus)) {
       return {
         code: RC.ORDER_INVALID_TRANSITION,
         message: 'Order transition is not allowed',
-      };
-    }
-
-    if (!order || !this.orderRepository) {
-      return {
-        code: RC.ORDER_TRANSITIONED,
-        message: 'Order transitioned',
       };
     }
 

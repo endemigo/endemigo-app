@@ -91,7 +91,7 @@ describe('NegotiationService', () => {
       quantity: 1,
       status: OfferStatus.PENDING,
       expiryHours: 48,
-      expiresAt: new Date('2026-04-30T10:00:00.000Z'),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: now,
       updatedAt: now,
       conversation: conversation({ status: NegotiationStatus.OFFER_PENDING }),

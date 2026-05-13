@@ -136,6 +136,20 @@ describe('WalletService', () => {
     service = module.get<WalletService>(WalletService);
   });
 
+  it('creates new wallets with zero default balance', async () => {
+    walletRepo.findOne.mockResolvedValueOnce(null);
+
+    await service.getOrCreateWallet('user-new');
+
+    expect(walletRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-new',
+        balance: 0,
+        heldAmount: 0,
+      }),
+    );
+  });
+
   it('returns balance, held, and available summary fields', async () => {
     walletRepo.findOne.mockResolvedValue({ ...wallet, heldAmount: 3000 });
 
@@ -233,6 +247,26 @@ describe('WalletService', () => {
       manager,
     );
     expect(result?.status).toBe('RELEASED');
+    expect(queryRunner.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('releases auction holds in a single transaction scope', async () => {
+    manager.find.mockResolvedValueOnce([
+      { userId: 'user-1' } as WalletHold,
+      { userId: 'user-2' } as WalletHold,
+    ]);
+    const releaseHoldSpy = jest
+      .spyOn(service, 'releaseHold')
+      .mockResolvedValue(null);
+
+    await service.releaseAllHoldsForAuction('auction-1', 'user-2');
+
+    expect(releaseHoldSpy).toHaveBeenCalledTimes(1);
+    expect(releaseHoldSpy).toHaveBeenCalledWith(
+      'auction-1',
+      'user-1',
+      manager,
+    );
     expect(queryRunner.commitTransaction).toHaveBeenCalled();
   });
 
