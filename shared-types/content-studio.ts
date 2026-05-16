@@ -9,10 +9,6 @@ export const CONTENT_STUDIO_COLLECTION_KEYS = [
   'popups',
   'polls',
   'newsletters',
-  'supportInbox',
-  'contactInbox',
-  'adminMessageCenter',
-  'financeConfigs',
 ] as const;
 
 export const CONTENT_STUDIO_ITEM_STATUSES = [
@@ -63,10 +59,6 @@ export interface ContentStudioCollections {
   popups: ContentStudioItem[];
   polls: ContentStudioItem[];
   newsletters: ContentStudioItem[];
-  supportInbox: ContentStudioItem[];
-  contactInbox: ContentStudioItem[];
-  adminMessageCenter: ContentStudioItem[];
-  financeConfigs: ContentStudioItem[];
 }
 
 export interface ContentStudioDocument {
@@ -247,58 +239,6 @@ export function getDefaultContentStudioDocument(): ContentStudioDocument {
           metadata: {
             segment: 'buyers',
             subject: 'Haftanin one cikan secileri',
-          },
-        }),
-      ],
-      supportInbox: [
-        createCollectionItem({
-          id: 'support-priority-rules',
-          title: 'Destek Oncelik Kurallari',
-          subtitle: 'Queue tanimi',
-          body: 'Odeme, teslimat ve guven ihbarlari yuksek oncelik kurali ile sira alir.',
-          excerpt: 'Support inbox priority rules.',
-          slug: 'support-priority-rules',
-          category: 'Support',
-          route: '/support/priority-rules',
-        }),
-      ],
-      contactInbox: [
-        createCollectionItem({
-          id: 'contact-default-routing',
-          title: 'Iletisim Yonu',
-          subtitle: 'Inbound contact routing',
-          body: 'Genel iletisim formlari operasyon ve destek kuyruklarina konuya gore dagitilir.',
-          excerpt: 'Inbound contact routing rules.',
-          slug: 'contact-default-routing',
-          category: 'Contact',
-          route: '/contact/default-routing',
-        }),
-      ],
-      adminMessageCenter: [
-        createCollectionItem({
-          id: 'message-center-template-order',
-          title: 'Siparis Bilgi Mesaji',
-          subtitle: 'Admin message template',
-          body: 'Yonetici tarafindan kullaniciya gonderilen siparis bilgilendirme sablonu.',
-          excerpt: 'Admin outbound message template.',
-          slug: 'order-template',
-          category: 'Messaging',
-          route: '/admin-message/order-template',
-        }),
-      ],
-      financeConfigs: [
-        createCollectionItem({
-          id: 'finance-default-bank',
-          title: 'Varsayilan Tahsilat Bankasi',
-          subtitle: 'Finans konfigurasyonu',
-          body: 'Odeme talepleri ve transfer bildirimlerinde kullanilan varsayilan banka profili.',
-          excerpt: 'Default bank configuration.',
-          slug: 'default-bank',
-          category: 'Finance',
-          route: '/finance/default-bank',
-          metadata: {
-            iban: 'TR00 0000 0000 0000 0000 0000 00',
-            currency: 'TRY',
           },
         }),
       ],

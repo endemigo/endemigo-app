@@ -158,11 +158,7 @@ type CollectionKey =
   | 'banners'
   | 'popups'
   | 'polls'
-  | 'newsletters'
-  | 'supportInbox'
-  | 'contactInbox'
-  | 'adminMessageCenter'
-  | 'financeConfigs';
+  | 'newsletters';
 
 type ItemStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -217,10 +213,6 @@ const collectionDefinitions: CollectionDefinition[] = [
   { key: 'popups', label: 'Popuplar' },
   { key: 'polls', label: 'Anketler' },
   { key: 'newsletters', label: 'Bültenler' },
-  { key: 'supportInbox', label: 'Destek Inbox' },
-  { key: 'contactInbox', label: 'İletişim Inbox' },
-  { key: 'adminMessageCenter', label: 'Mesaj Merkezi' },
-  { key: 'financeConfigs', label: 'Finans Config' },
 ];
 
 const loading = ref(false);

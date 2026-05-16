@@ -2,7 +2,6 @@ import { ConflictException } from '@nestjs/common';
 import {
   AdminAuditAction,
   AdminRole,
-  AdminSettingKey,
   RC,
   getDefaultContentStudioDocument,
 } from '@endemigo/shared';
@@ -11,7 +10,7 @@ import { ContentStudioService } from './content-studio.service';
 
 describe('ContentStudioService', () => {
   let repo: {
-    findOne: jest.Mock;
+    find: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
   };
@@ -22,8 +21,8 @@ describe('ContentStudioService', () => {
 
   beforeEach(() => {
     repo = {
-      findOne: jest.fn().mockResolvedValue(null),
-      create: jest.fn((value) => ({ id: 'setting-content-1', ...value })),
+      find: jest.fn().mockResolvedValue([]),
+      create: jest.fn((value) => ({ id: 'content-doc-1', ...value })),
       save: jest.fn(async (value) => value),
     };
     adminAuditService = {
@@ -58,26 +57,27 @@ describe('ContentStudioService', () => {
     expect(result.code).toBe(RC.CONTENT_STUDIO_UPDATED);
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: AdminSettingKey.CONTENT_STUDIO,
+        updatedByAdminId: 'admin-1',
       }),
     );
     expect(adminAuditService.recordAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: AdminAuditAction.SETTING_UPDATED,
-        targetId: 'CONTENT_STUDIO',
+        targetId: 'CONTENT_STUDIO_DOCUMENT',
       }),
     );
   });
 
   it('throws conflict when the incoming version is stale', async () => {
-    repo.findOne.mockResolvedValue({
-      id: 'setting-content-1',
-      key: AdminSettingKey.CONTENT_STUDIO,
-      value: {
+    repo.find.mockResolvedValue([
+      {
+      id: 'content-doc-1',
+      document: {
         ...getDefaultContentStudioDocument(),
         version: 3,
       },
-    });
+      },
+    ]);
 
     await expect(
       service.updateDocument({
@@ -107,11 +107,12 @@ describe('ContentStudioService', () => {
       route: '/blog/taslak',
       updatedAt: '2026-05-15T00:00:00.000Z',
     });
-    repo.findOne.mockResolvedValue({
-      id: 'setting-content-1',
-      key: AdminSettingKey.CONTENT_STUDIO,
-      value: document,
-    });
+    repo.find.mockResolvedValue([
+      {
+        id: 'content-doc-1',
+        document,
+      },
+    ]);
 
     const result = await service.getPublicBlogs();
 

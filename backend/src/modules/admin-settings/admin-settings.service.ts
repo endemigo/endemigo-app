@@ -6,7 +6,6 @@ import {
   AdminRole,
   AdminSettingKey,
   RC,
-  getDefaultContentStudioDocument,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AdminSetting } from './entities/admin-setting.entity';
@@ -18,6 +17,17 @@ export interface UpdateAdminSettingInput {
   value: Record<string, unknown>;
   reason: string;
 }
+
+const MANAGED_SETTING_KEYS = [
+  AdminSettingKey.COMMISSION_DEFAULT_RATE,
+  AdminSettingKey.ESCROW_AUTO_CONFIRM_HOURS,
+  AdminSettingKey.CARGO_MOCK_ENABLED,
+  AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES,
+  AdminSettingKey.AD_SPONSORED_DENSITY,
+  AdminSettingKey.TRUST_GRACE_DAYS,
+] as const satisfies readonly AdminSettingKey[];
+type ManagedAdminSettingKey = (typeof MANAGED_SETTING_KEYS)[number];
+const MANAGED_SETTING_KEY_SET = new Set<AdminSettingKey>(MANAGED_SETTING_KEYS);
 
 @Injectable()
 export class AdminSettingsService {
@@ -31,11 +41,12 @@ export class AdminSettingsService {
     const items = await this.settingRepo.find({
       order: { key: 'ASC' },
     });
+    const filtered = items.filter((item) => MANAGED_SETTING_KEY_SET.has(item.key));
 
     return {
       code: RC.SUCCESS,
       message: 'Admin ayarları getirildi',
-      items: await this.withDefaults(items),
+      items: await this.withDefaults(filtered),
     };
   }
 
@@ -86,7 +97,17 @@ export class AdminSettingsService {
     };
   }
 
-  private assertCanUpdate(key: AdminSettingKey, actorRoles: AdminRole[]) {
+  private assertCanUpdate(
+    key: AdminSettingKey,
+    actorRoles: AdminRole[],
+  ): asserts key is ManagedAdminSettingKey {
+    if (!MANAGED_SETTING_KEY_SET.has(key)) {
+      throw new ForbiddenException({
+        code: RC.ADMIN_FORBIDDEN,
+        message: 'Bu ayar artik admin settings uzerinden guncellenmiyor',
+      });
+    }
+
     if (
       key === AdminSettingKey.COMMISSION_DEFAULT_RATE &&
       !actorRoles.includes(AdminRole.SUPER_ADMIN) &&
@@ -101,7 +122,7 @@ export class AdminSettingsService {
 
   private async withDefaults(existing: AdminSetting[]) {
     const byKey = new Map(existing.map((setting) => [setting.key, setting]));
-    return Object.values(AdminSettingKey).map((key) => {
+    return MANAGED_SETTING_KEYS.map((key) => {
       const setting = byKey.get(key);
       return (
         setting ??
@@ -115,21 +136,20 @@ export class AdminSettingsService {
     });
   }
 
-  private getDefaultValue(key: AdminSettingKey): Record<string, unknown> {
-    const defaults: Record<AdminSettingKey, Record<string, unknown>> = {
+  private getDefaultValue(key: ManagedAdminSettingKey): Record<string, unknown> {
+    const defaults: Record<ManagedAdminSettingKey, Record<string, unknown>> = {
       [AdminSettingKey.COMMISSION_DEFAULT_RATE]: { rate: 0.1 },
       [AdminSettingKey.ESCROW_AUTO_CONFIRM_HOURS]: { hours: 72 },
       [AdminSettingKey.CARGO_MOCK_ENABLED]: { enabled: true },
       [AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES]: {},
       [AdminSettingKey.AD_SPONSORED_DENSITY]: { maxSponsoredPerPage: 3 },
       [AdminSettingKey.TRUST_GRACE_DAYS]: { days: 7 },
-      [AdminSettingKey.CONTENT_STUDIO]: getDefaultContentStudioDocument() as unknown as Record<string, unknown>,
     };
     return defaults[key];
   }
 
-  private getDefaultDescription(key: AdminSettingKey): string {
-    const descriptions: Record<AdminSettingKey, string> = {
+  private getDefaultDescription(key: ManagedAdminSettingKey): string {
+    const descriptions: Record<ManagedAdminSettingKey, string> = {
       [AdminSettingKey.COMMISSION_DEFAULT_RATE]: 'Varsayılan komisyon oranı',
       [AdminSettingKey.ESCROW_AUTO_CONFIRM_HOURS]:
         'Teslimat sonrası otomatik escrow onay süresi',
@@ -139,8 +159,6 @@ export class AdminSettingsService {
       [AdminSettingKey.AD_SPONSORED_DENSITY]:
         'Sponsorlu içerik yoğunluk ayarı',
       [AdminSettingKey.TRUST_GRACE_DAYS]: 'Trust kısıtlamaları için grace süresi',
-      [AdminSettingKey.CONTENT_STUDIO]:
-        'İçerik stüdyosu dokümanı: blog, banner, popup, bülten ve operasyon koleksiyonları',
     };
     return descriptions[key];
   }

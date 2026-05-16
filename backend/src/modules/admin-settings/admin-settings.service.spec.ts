@@ -33,12 +33,33 @@ describe('AdminSettingsService', () => {
 
   it('lists defaults when settings table is empty', async () => {
     const result = await service.list();
+    const managedKeys = Object.values(AdminSettingKey).filter(
+      (key) => key !== AdminSettingKey.CONTENT_STUDIO,
+    );
 
     expect(result.code).toBe(RC.SUCCESS);
-    expect(result.items.length).toBe(Object.values(AdminSettingKey).length);
+    expect(result.items.length).toBe(managedKeys.length);
+    expect(result.items.map((item) => item.key)).toEqual(
+      expect.arrayContaining(managedKeys),
+    );
+    expect(result.items.map((item) => item.key)).not.toContain(
+      AdminSettingKey.CONTENT_STUDIO,
+    );
     expect(repo.create).toHaveBeenCalledWith(
       expect.objectContaining({ key: AdminSettingKey.AD_SPONSORED_DENSITY }),
     );
+  });
+
+  it('rejects content studio setting updates on admin settings endpoint', async () => {
+    await expect(
+      service.update({
+        actorAdminId: 'admin-1',
+        actorRoles: [AdminRole.OPERATIONS],
+        key: AdminSettingKey.CONTENT_STUDIO,
+        value: {},
+        reason: 'should use content studio endpoint',
+      }),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('throws when non-finance roles update commission settings', async () => {

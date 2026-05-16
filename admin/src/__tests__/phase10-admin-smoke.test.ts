@@ -43,7 +43,7 @@ test('admin product form stays aligned with typed product contract', () => {
 });
 
 test('content studio and newsletter surfaces expose real collection management anchors', () => {
-  for (const anchor of ['admin/content-studio', 'collectionDefinitions', 'blogs', 'banners', 'supportInbox', 'financeConfigs']) {
+  for (const anchor of ['admin/content-studio', 'collectionDefinitions', 'blogs', 'banners', 'popups', 'newsletters']) {
     assert.match(contentStudioSource, new RegExp(anchor));
   }
 

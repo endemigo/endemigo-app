@@ -3,14 +3,14 @@
     <header class="page-header">
       <div>
         <h1>İçerik Yönetimi</h1>
-        <p>Blog, banner, popup, destek inbox ve finans config koleksiyonlarını tek akışta yönet.</p>
+        <p>Blog, banner, popup ve benzeri içerik koleksiyonlarını tek akışta yönet.</p>
       </div>
       <div class="toolbar">
         <span class="badge">admin/content-studio</span>
         <span class="badge ghost">blogs</span>
         <span class="badge ghost">banners</span>
-        <span class="badge ghost">supportInbox</span>
-        <span class="badge ghost">financeConfigs</span>
+        <span class="badge ghost">popups</span>
+        <span class="badge ghost">newsletters</span>
       </div>
     </header>
 
@@ -25,8 +25,8 @@ import ContentStudioWorkbench from '../../components/content/ContentStudioWorkbe
 const collectionDefinitions = [
   'blogs',
   'banners',
-  'supportInbox',
-  'financeConfigs',
+  'popups',
+  'newsletters',
 ];
 const adminContentStudioEndpoint = '/admin/content-studio';
 

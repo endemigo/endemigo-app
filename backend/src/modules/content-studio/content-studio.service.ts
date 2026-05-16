@@ -2,7 +2,6 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   AdminAuditAction,
-  AdminSettingKey,
   CONTENT_STUDIO_COLLECTION_KEYS,
   RC,
   type AdminRole,
@@ -15,7 +14,7 @@ import {
 } from '@endemigo/shared';
 import { Repository } from 'typeorm';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
-import { AdminSetting } from '../admin-settings/entities/admin-setting.entity';
+import { ContentStudioDocumentEntity } from './entities/content-studio-document.entity';
 
 export interface UpdateContentStudioInput {
   actorAdminId: string;
@@ -28,8 +27,8 @@ export interface UpdateContentStudioInput {
 @Injectable()
 export class ContentStudioService {
   constructor(
-    @InjectRepository(AdminSetting)
-    private readonly settingRepo: Repository<AdminSetting>,
+    @InjectRepository(ContentStudioDocumentEntity)
+    private readonly documentRepo: Repository<ContentStudioDocumentEntity>,
     private readonly adminAuditService: AdminAuditService,
   ) {}
 
@@ -43,10 +42,8 @@ export class ContentStudioService {
   }
 
   async updateDocument(input: UpdateContentStudioInput) {
-    const existing = await this.settingRepo.findOne({
-      where: { key: AdminSettingKey.CONTENT_STUDIO },
-    });
-    const currentDocument = this.toDocument(existing?.value);
+    const existing = await this.findLatestDocument();
+    const currentDocument = this.toDocument(existing?.document);
 
     if (input.version !== currentDocument.version) {
       throw new ConflictException({
@@ -59,24 +56,23 @@ export class ContentStudioService {
       ...input.document,
       version: currentDocument.version + 1,
     });
-    const setting =
+    const documentEntity =
       existing ??
-      this.settingRepo.create({
-        key: AdminSettingKey.CONTENT_STUDIO,
-        description:
-          'Icerik studyo dokumani: blog, banner, popup, bulten ve operasyon koleksiyonlari',
-        isSensitive: false,
+      this.documentRepo.create({
+        document: currentDocument,
+        updatedByAdminId: null,
       });
 
-    setting.value = nextDocument as unknown as Record<string, unknown>;
-    const saved = await this.settingRepo.save(setting);
+    documentEntity.document = nextDocument;
+    documentEntity.updatedByAdminId = input.actorAdminId;
+    const saved = await this.documentRepo.save(documentEntity);
 
     await this.adminAuditService.recordAction({
       actorAdminId: input.actorAdminId,
       actorRoles: input.actorRoles,
       action: AdminAuditAction.SETTING_UPDATED,
       targetType: 'SETTING',
-      targetId: 'CONTENT_STUDIO',
+      targetId: 'CONTENT_STUDIO_DOCUMENT',
       reason: input.reason,
       before: currentDocument as unknown as Record<string, unknown>,
       after: nextDocument as unknown as Record<string, unknown>,
@@ -85,7 +81,7 @@ export class ContentStudioService {
     return {
       code: RC.CONTENT_STUDIO_UPDATED,
       message: 'Icerik studyo dokumani guncellendi',
-      document: this.toDocument(saved.value),
+      document: this.toDocument(saved.document),
     };
   }
 
@@ -104,10 +100,16 @@ export class ContentStudioService {
   }
 
   private async readDocument() {
-    const setting = await this.settingRepo.findOne({
-      where: { key: AdminSettingKey.CONTENT_STUDIO },
+    const existing = await this.findLatestDocument();
+    return this.toDocument(existing?.document);
+  }
+
+  private async findLatestDocument(): Promise<ContentStudioDocumentEntity | null> {
+    const documents = await this.documentRepo.find({
+      order: { createdAt: 'DESC' },
+      take: 1,
     });
-    return this.toDocument(setting?.value);
+    return documents[0] ?? null;
   }
 
   private toDocument(value: unknown): ContentStudioDocument {
