@@ -6,6 +6,7 @@ import {
   WALLET_QUERY_KEYS,
   type ApiResponseEnvelope,
   type PayoutRequestItem,
+  type WalletHoldItem,
   type PayoutRequestPayload,
   type WalletHistoryItem,
   type WalletHistoryResponse,
@@ -19,7 +20,7 @@ export type WalletHistoryFilter = 'all' | 'top_up' | 'payment' | 'hold' | 'refun
 interface WalletBalanceResponse extends ApiResponseEnvelope, WalletSummary {}
 
 interface WalletHoldsResponse extends ApiResponseEnvelope {
-  holds: WalletHistoryItem[];
+  holds: WalletHoldItem[];
 }
 
 interface WalletHistoryApiResponse extends ApiResponseEnvelope {
@@ -64,7 +65,7 @@ export function useWalletBalance() {
 }
 
 export function useWalletHolds() {
-  return useQuery<WalletHistoryItem[]>({
+  return useQuery<WalletHoldItem[]>({
     queryKey: WALLET_QUERY_KEYS.holds,
     queryFn: async () => {
       if (ENV.USE_MOCK) return [];

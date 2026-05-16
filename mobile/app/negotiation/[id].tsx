@@ -17,6 +17,8 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { NegotiationStatus } from '../../types';
 import { styles } from '../../styles/negotiation/[id].styles';
+import { resolveApiErrorMessage } from '../../utils/apiError';
+import { formatAmount } from '../../utils/transactionFormatters';
 
 const CLOSED_STATUSES = [
   NegotiationStatus.ACCEPTED,
@@ -54,6 +56,14 @@ export default function NegotiationDetailScreen() {
     });
   };
 
+  const handleActionError = (error: unknown) => {
+    showModal({
+      title: t('common.error'),
+      message: resolveApiErrorMessage(error, t, 'common.genericError'),
+      type: 'error',
+    });
+  };
+
   const handleClose = () => {
     if (!id) return;
     showModal({
@@ -63,7 +73,7 @@ export default function NegotiationDetailScreen() {
       cancelText: t('common.cancel'),
       confirmText: t('negotiation.actions.close'),
       onCancel: () => {},
-      onConfirm: () => actions.closeNegotiation.mutate(id),
+      onConfirm: () => actions.closeNegotiation.mutate(id, { onError: handleActionError }),
     });
   };
 
@@ -113,6 +123,13 @@ export default function NegotiationDetailScreen() {
 
       <View style={styles.statusRow}>
         <NegotiationStatusBadge status={negotiation.status} />
+        {negotiation.product.askPriceMinAmount ? (
+          <Text style={styles.minimumHint}>
+            {t('negotiation.askPrice.minimum', {
+              amount: formatAmount(negotiation.product.askPriceMinAmount),
+            })}
+          </Text>
+        ) : null}
       </View>
 
       <ScrollView
@@ -133,8 +150,8 @@ export default function NegotiationDetailScreen() {
               isOwn={message.senderId === user?.id}
               canRespondToOffer={canRespondToOffer(message.offer)}
               actionPending={actions.isPending}
-              onAcceptOffer={(offerId) => actions.acceptOffer.mutate({ negotiationId: id, offerId })}
-              onRejectOffer={(offerId) => actions.rejectOffer.mutate({ negotiationId: id, offerId })}
+              onAcceptOffer={(offerId) => actions.acceptOffer.mutate({ negotiationId: id, offerId }, { onError: handleActionError })}
+              onRejectOffer={(offerId) => actions.rejectOffer.mutate({ negotiationId: id, offerId }, { onError: handleActionError })}
             />
           ))
         )}
@@ -142,9 +159,10 @@ export default function NegotiationDetailScreen() {
 
       <NegotiationComposer
         negotiationId={id}
+        minimumAmount={negotiation.product.askPriceMinAmount}
         disabled={conversationClosed || actions.isPending}
-        onSendMessage={(input) => actions.sendMessage.mutate(input)}
-        onCreateOffer={(input) => actions.createOffer.mutate(input)}
+        onSendMessage={(input) => actions.sendMessage.mutate(input, { onError: handleActionError })}
+        onCreateOffer={(input) => actions.createOffer.mutate(input, { onError: handleActionError })}
         onPolicyViolation={handlePolicyViolation}
       />
     </KeyboardAvoidingView>

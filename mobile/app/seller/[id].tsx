@@ -76,7 +76,7 @@ function SellerProductCard({
   product: Product;
   onPress: () => void;
   onQuickAction: () => void;
-  quickActionIcon: 'cart' | 'chatbubble-ellipses' | 'hammer';
+  quickActionIcon: 'cart' | 'cash-outline' | 'hammer';
   quickActionLabel: string;
   quickActionStyle: StyleProp<ViewStyle>;
 }) {
@@ -276,7 +276,7 @@ export default function SellerDetailScreen() {
             {products.map((product) => {
               const quickActionIcon =
                 product.askPriceEnabled
-                  ? 'chatbubble-ellipses'
+                  ? 'cash-outline'
                   : product.listingType === ListingType.AUCTION
                     ? 'hammer'
                     : 'cart';

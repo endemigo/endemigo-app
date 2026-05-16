@@ -91,14 +91,14 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
         </View>
         <View style={styles.squareBody}>
           {productBadge ? <Text style={styles.squareBadge}>{productBadge}</Text> : null}
-          <Text style={styles.squareTitle} numberOfLines={2}>{item.title}</Text>
-          {isAskPrice ? (
-            <View style={styles.squareAskPriceBadge}>
-              <Ionicons name="chatbubble-ellipses" size={12} color={Colors.primary} />
-              <Text style={styles.squareAskPriceText}>
-                {productCardConfig.showAskPriceBadge ? t('product.askPrice') : productCtaLabel}
-              </Text>
-            </View>
+        <Text style={styles.squareTitle} numberOfLines={2}>{item.title}</Text>
+        {isAskPrice ? (
+          <View style={styles.squareAskPriceBadge}>
+            <Ionicons name="cash-outline" size={12} color={Colors.primary} />
+            <Text style={styles.squareAskPriceText}>
+              {productCardConfig.showAskPriceBadge ? t('product.askPrice') : productCtaLabel}
+            </Text>
+          </View>
           ) : productCardConfig.showPrice ? (
             <Text style={styles.squarePrice}>{formatCurrency(item.price)}</Text>
           ) : (
@@ -143,7 +143,7 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
         <View style={styles.gridFooter}>
           {isAskPrice ? (
             <View style={styles.gridAskPriceButton}>
-              <Ionicons name="chatbubble-ellipses" size={14} color={Colors.white} />
+              <Ionicons name="cash-outline" size={14} color={Colors.white} />
               <Text style={styles.gridAskPriceText}>
                 {productCardConfig.showAskPriceBadge ? t('product.askPrice') : productCtaLabel}
               </Text>

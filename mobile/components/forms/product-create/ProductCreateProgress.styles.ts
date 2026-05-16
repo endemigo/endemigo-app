@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native';
-import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../../constants/theme';
+import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../../constants/theme';
 
 export const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.lg,
   },
   headerRow: {
     alignItems: 'center',
@@ -14,19 +14,28 @@ export const styles = StyleSheet.create({
   stepTitle: {
     color: Colors.onSurface,
     fontFamily: FontFamily.bodyBold,
-    fontSize: FontSize.bodyXl,
+    fontSize: FontSize.subheading,
   },
   stepCounter: {
-    color: Colors.primary,
+    color: Colors.white,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
     fontFamily: FontFamily.bodySemiBold,
-    fontSize: FontSize.caption,
+    fontSize: FontSize.xs,
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    ...Shadows.sm,
   },
   stepCounterAuction: {
-    color: Colors.secondary,
+    backgroundColor: Colors.secondary,
   },
   trackRow: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.full,
     flexDirection: 'row',
     gap: Spacing.xs,
+    padding: Spacing.xs,
   },
   trackItem: {
     backgroundColor: Colors.slate200,

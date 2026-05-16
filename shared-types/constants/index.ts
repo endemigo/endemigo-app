@@ -23,6 +23,7 @@ export {
   MEMBERSHIP,
   TRUST,
   MOBILE,
+  CONTENT,
   GENERIC,
 } from './response-codes';
 export type { ResponseCode } from './response-codes';

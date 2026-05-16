@@ -2,8 +2,8 @@
   <section class="field-grid">
     <header class="page-header">
       <div>
-        <h1>Feature Gap Console</h1>
-        <p>Admin panelde eksik kalan moduller ve durumlari.</p>
+        <h1>Modul Coverage</h1>
+        <p>Once gap olarak izlenen admin modulleri artik canli sayfalara tasindi.</p>
       </div>
       <div class="toolbar">
         <RouterLink class="button" to="/">Panele don</RouterLink>
@@ -12,34 +12,33 @@
 
     <section class="panel">
       <div class="panel-header">
-        <strong>Secilen modul</strong>
-        <span class="muted">{{ selectedModuleLabel }}</span>
+        <strong>Acik gap</strong>
+        <span class="badge">0</span>
       </div>
       <div class="panel-body">
         <p class="muted">
-          Bu moduller su an backend contract disinda. Istikrarli gelisim icin once API ve yetki modeli tamamlanmali.
+          Icerik, bulten, destek ve finans koleksiyonlari artik ilgili operasyon ekranlarindan yonetiliyor.
         </p>
       </div>
     </section>
 
     <section class="feature-gap-grid">
-      <article v-for="group in featureGroups" :key="group.title" class="panel">
+      <article v-for="group in coverageGroups" :key="group.title" class="panel">
         <div class="panel-header">
           <strong>{{ group.title }}</strong>
-          <span class="badge warning">{{ group.items.length }} eksik</span>
+          <span class="badge">{{ group.items.length }} aktif</span>
         </div>
         <div class="panel-body">
           <div class="feature-gap-list">
             <button
               v-for="item in group.items"
-              :key="item"
+              :key="item.label"
               class="feature-gap-item"
-              :class="{ active: selectedModuleLabel === item }"
               type="button"
-              @click="selectModule(item)"
+              @click="openModule(item.route)"
             >
-              <strong>{{ item }}</strong>
-              <small>Backend endpoint gerekiyor</small>
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
             </button>
           </div>
         </div>
@@ -49,53 +48,60 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 
 interface FeatureGroup {
   title: string;
-  items: string[];
+  items: Array<{
+    label: string;
+    description: string;
+    route: string;
+  }>;
 }
 
-const route = useRoute();
 const router = useRouter();
 
-const featureGroups: FeatureGroup[] = [
+const coverageGroups: FeatureGroup[] = [
   {
-    title: 'CMS',
-    items: ['Contents', 'News', 'Blogs', 'Faq', 'Discover', 'MenuManagement'],
+    title: 'Content Studio',
+    items: [
+      { label: 'Contents', description: 'Statik sayfa koleksiyonlari', route: '/content-management' },
+      { label: 'News', description: 'Duyuru ve topluluk haberleri', route: '/content-management' },
+      { label: 'Blogs', description: 'Public blog feed ve editor akisi', route: '/content-management' },
+      { label: 'Faq', description: 'Sik sorulan sorular', route: '/content-management' },
+      { label: 'Discover', description: 'Kesif koleksiyonlari', route: '/content-management' },
+      { label: 'MenuManagement', description: 'Navigasyon tanimlari', route: '/content-management' },
+    ],
   },
   {
     title: 'Pazarlama Icerikleri',
-    items: ['Banners', 'Popups', 'Polls', 'EBulletin'],
+    items: [
+      { label: 'Banners', description: 'Banner ve hero alanlari', route: '/content-management' },
+      { label: 'Popups', description: 'Popup copy ve campaign overlays', route: '/content-management' },
+      { label: 'Polls', description: 'Anket ve mini survey koleksiyonlari', route: '/content-management' },
+      { label: 'EBulletin', description: 'Newsletter planlari ve email copy', route: '/newsletters' },
+    ],
   },
   {
-    title: 'Katalog Ek Modulleri',
-    items: ['Variants', 'ProductsComments', 'ProductsCombines'],
+    title: 'Operasyon Inbox',
+    items: [
+      { label: 'SupportInbox', description: 'Destek queue kurallari', route: '/content-management' },
+      { label: 'ContactInbox', description: 'Iletisim routing kurallari', route: '/content-management' },
+      { label: 'AdminMessageCenter', description: 'Outbound message template koleksiyonu', route: '/content-management' },
+    ],
   },
   {
     title: 'Finans Konfigurasyonlari',
-    items: ['BankAccount', 'Installment', 'VatTerms', 'Currency'],
-  },
-  {
-    title: 'Operasyon Talepleri',
-    items: ['TransferNotify', 'GiveInfo', 'RequestProduct', 'MReferences', 'SuppliersComments'],
-  },
-  {
-    title: 'Destek ve Mesajlasma',
-    items: ['SupportInbox', 'ContactInbox', 'AdminMessageCenter'],
+    items: [
+      { label: 'BankAccount', description: 'Tahsilat ve payout banka tanimlari', route: '/content-management' },
+      { label: 'Installment', description: 'Taksit ve odeme plani notlari', route: '/content-management' },
+      { label: 'VatTerms', description: 'Vergi ve oran bilgileri', route: '/content-management' },
+      { label: 'Currency', description: 'Para birimi ve cevrim metadata', route: '/content-management' },
+    ],
   },
 ];
 
-const selectedModuleLabel = computed(() => {
-  const module = route.query.module;
-  if (typeof module === 'string' && module.trim()) {
-    return module;
-  }
-  return 'Secim yok';
-});
-
-async function selectModule(module: string) {
-  await router.replace({ path: '/feature-gap', query: { module } });
+async function openModule(route: string) {
+  await router.push(route);
 }
 </script>

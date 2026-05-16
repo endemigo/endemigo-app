@@ -950,10 +950,10 @@ export class ProductService {
       listingMode: product.askPriceEnabled ? 'ASK_PRICE' : product.listingType,
       orderSource: product.askPriceEnabled ? 'ASK_PRICE' : product.listingType,
       askPriceEnabled: product.askPriceEnabled,
-      askPriceMinAmount:
-        product.askPriceMinAmount && !hideAskPriceAmounts
-          ? Number(product.askPriceMinAmount)
-          : null,
+      // Minimum teklif public olarak görünmeli; buyer teklif validasyonunu bununla yapıyor.
+      askPriceMinAmount: product.askPriceMinAmount
+        ? Number(product.askPriceMinAmount)
+        : null,
       wholesalePrice: product.wholesalePrice ? Number(product.wholesalePrice) : null,
       retailPrice: product.retailPrice ? Number(product.retailPrice) : null,
       shippingProvince: product.shippingProvince,

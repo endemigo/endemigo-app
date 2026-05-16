@@ -1,17 +1,20 @@
 import { StyleSheet } from 'react-native';
-import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../../constants/theme';
+import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../../constants/theme';
 
 export const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate200,
+    borderWidth: 1,
     borderRadius: BorderRadius.xl,
     flexDirection: 'row',
     gap: Spacing.sm,
     padding: Spacing.xs,
+    ...Shadows.sm,
   },
   option: {
     alignItems: 'center',
-    backgroundColor: Colors.transparent,
+    backgroundColor: Colors.surfaceContainerLow,
     borderRadius: BorderRadius.lg,
     flex: 1,
     paddingHorizontal: Spacing.sm,
@@ -20,7 +23,7 @@ export const styles = StyleSheet.create({
   optionActive: {
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: `${Colors.primary}40`,
+    ...Shadows.sm,
   },
   optionActiveDirectSale: {
     borderColor: `${Colors.primary}40`,

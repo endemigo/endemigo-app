@@ -55,6 +55,16 @@ export const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     textAlignVertical: 'top',
   },
+  minimumText: {
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.caption,
+  },
+  minimumTextInfo: {
+    color: Colors.onSurfaceVariant,
+  },
+  minimumTextError: {
+    color: Colors.error,
+  },
   expiryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

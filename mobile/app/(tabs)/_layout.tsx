@@ -1,14 +1,19 @@
 import React from 'react';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, View, Text, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
+import { useRoleModeStore } from '../../store/roleModeStore';
 import { styles } from '../../styles/tabs/_layout.styles';
 
 export default function TabLayout() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
+  const isProfileScreen = pathname === '/profile';
+  const activeMode = useRoleModeStore((state) => state.activeMode);
+  const isSellerMode = activeMode === 'seller';
 
   return (
     <Tabs
@@ -25,27 +30,33 @@ export default function TabLayout() {
         headerTintColor: Colors.onSurface,
         headerTitleStyle: styles.headerTitle,
         headerTitleAlign: 'center',
-        headerTitle: () => (
+        headerTitle: () => (isProfileScreen ? (
+          <Text style={styles.headerProfileTitle}>{t('tabs.profile')}</Text>
+        ) : (
           <Image
             source={require('../../assets/images/endemigo-icon.png')}
             style={styles.headerGoatIcon}
             resizeMode="contain"
           />
-        ),
+        )),
         headerLeft: () => null,
         headerRight: () => (
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerActionButtonCompact}
-              onPress={() => router.push('/(tabs)/profile')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={t('tabs.profile')}
-            >
-              <Ionicons name="person-outline" size={18} color={Colors.primary} />
-              <Text style={styles.headerActionText}>{t('tabs.profile')}</Text>
-            </TouchableOpacity>
-            <View style={styles.headerDivider} />
+            {!isProfileScreen ? (
+              <>
+                <TouchableOpacity
+                  style={styles.headerActionButtonCompact}
+                  onPress={() => router.push('/(tabs)/profile')}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tabs.profile')}
+                >
+                  <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.headerActionText}>{t('tabs.profile')}</Text>
+                </TouchableOpacity>
+                <View style={styles.headerDivider} />
+              </>
+            ) : null}
             <TouchableOpacity
               style={styles.headerIconButton}
               onPress={() => router.push('/(tabs)/notifications')}
@@ -93,9 +104,25 @@ export default function TabLayout() {
           title: t('tabs.listing'),
           headerShown: false,
           tabBarStyle: { display: 'none' },
+          href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'add-circle' : 'add-circle-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="seller-dashboard"
+        options={{
+          title: t('tabs.sellerDashboard'),
+          headerShown: false,
+          href: isSellerMode ? undefined : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'speedometer' : 'speedometer-outline'}
               size={24}
               color={color}
             />
@@ -107,9 +134,25 @@ export default function TabLayout() {
         options={{
           title: t('tabs.favorites'),
           headerShown: false,
+          href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'heart' : 'heart-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="seller-ads"
+        options={{
+          title: t('tabs.sellerAds'),
+          headerShown: false,
+          href: isSellerMode ? undefined : null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'megaphone' : 'megaphone-outline'}
               size={24}
               color={color}
             />
@@ -154,10 +197,8 @@ export default function TabLayout() {
       <Tabs.Screen name="categories/[id]" options={{ href: null }} />
       <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="membership" options={{ href: null }} />
-      <Tabs.Screen name="seller-ads" options={{ href: null }} />
       <Tabs.Screen name="seller-campaigns" options={{ href: null }} />
       <Tabs.Screen name="addresses" options={{ href: null }} />
-      <Tabs.Screen name="seller-dashboard" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );

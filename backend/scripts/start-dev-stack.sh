@@ -9,6 +9,11 @@ export NODE_ENV="${NODE_ENV:-development}"
 
 cd "${BACKEND_DIR}"
 
+is_listening() {
+  local port="$1"
+  lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+}
+
 start_with_docker() {
   export DATABASE_URL="${DATABASE_URL:-postgresql://endemigo:endemigo_dev@localhost:5432/endemigo}"
   export REDIS_HOST="${REDIS_HOST:-localhost}"
@@ -25,7 +30,9 @@ start_with_brew() {
   brew services start redis >/dev/null
 }
 
-if command -v docker >/dev/null 2>&1; then
+if is_listening 5432 && is_listening 6379; then
+  echo "Postgres and Redis are already running."
+elif command -v docker >/dev/null 2>&1; then
   start_with_docker
 elif command -v brew >/dev/null 2>&1; then
   start_with_brew

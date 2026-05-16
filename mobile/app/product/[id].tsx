@@ -21,10 +21,12 @@ import { getProductImageUri } from '../../utils/productImages';
 import { useCartStore } from '../../store/cartStore';
 import { AskPriceModal } from '../../components/negotiation';
 import { useStartNegotiation } from '../../hooks/useNegotiations';
+import { useToggleFavorite } from '../../hooks/useSearch';
 import { useModalStore } from '../../store/modalStore';
 import { useToastStore } from '../../store/toastStore';
 import { ProductCard, SectionHeader } from '../../components/ui';
-import { formatAmount, formatCurrency } from '../../utils/transactionFormatters';
+import { formatCurrency } from '../../utils/transactionFormatters';
+import { resolveApiErrorMessage } from '../../utils/apiError';
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x300/F8F9FA/0097D8?text=Endemigo';
 const GEO_BADGE_LOGOS = {
@@ -92,11 +94,13 @@ function TopBar({
   onBack,
   onShare,
   onFavorite,
+  isFavoriteActive,
 }: {
   title: string;
   onBack: () => void;
   onShare: () => void;
   onFavorite: () => void;
+  isFavoriteActive: boolean;
 }) {
   return (
     <View style={styles.topBar}>
@@ -109,7 +113,11 @@ function TopBar({
           <Ionicons name="share-outline" size={18} color={Colors.onSurface} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarIconButton} activeOpacity={0.8} onPress={onFavorite}>
-          <Ionicons name="heart-outline" size={18} color={Colors.onSurface} />
+          <Ionicons
+            name={isFavoriteActive ? 'heart' : 'heart-outline'}
+            size={18}
+            color={isFavoriteActive ? Colors.accent : Colors.onSurface}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -171,7 +179,7 @@ function PurchasePanel({
 
       {isAskPrice ? (
         <TouchableOpacity style={styles.primaryActionButton} activeOpacity={0.85} onPress={onAskPrice}>
-          <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.white} />
+          <Ionicons name="cash-outline" size={16} color={Colors.white} />
           <Text style={styles.primaryActionText}>{t('product.askPrice')}</Text>
         </TouchableOpacity>
       ) : cartQuantity > 0 ? (
@@ -207,6 +215,7 @@ export default function ProductDetailScreen() {
   const cartItems = useCartStore((state) => state.items);
   const showModal = useModalStore((state) => state.showModal);
   const showToast = useToastStore((state) => state.showToast);
+  const toggleFavorite = useToggleFavorite();
   const startNegotiation = useStartNegotiation();
   const [askPriceVisible, setAskPriceVisible] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<ProductTabKey>('story');
@@ -221,6 +230,7 @@ export default function ProductDetailScreen() {
   const [showStickyAddToCart, setShowStickyAddToCart] = React.useState(false);
   const [selectedColorVariantId, setSelectedColorVariantId] = React.useState<string | null>(null);
   const [selectedSizeVariantId, setSelectedSizeVariantId] = React.useState<string | null>(null);
+  const [favoriteActive, setFavoriteActive] = React.useState(false);
   const flyProgress = useSharedValue(0);
   const stickyCtaProgress = useSharedValue(0);
   const recommendedProducts = React.useMemo(() => {
@@ -240,6 +250,10 @@ export default function ProductDetailScreen() {
 
     return [...sameCategory, ...fallback].slice(0, 6);
   }, [product, productsData?.items]);
+
+  React.useEffect(() => {
+    setFavoriteActive(Boolean(product?.isFavorited));
+  }, [product?.isFavorited]);
   const flyToCartStyle = useAnimatedStyle(() => {
     const progress = flyProgress.value;
     const startX = SCREEN_WIDTH * 0.38;
@@ -280,7 +294,7 @@ export default function ProductDetailScreen() {
     () => [...reviewItems].sort((a, b) => getReviewTime(b.createdAt) - getReviewTime(a.createdAt)),
     [reviewItems],
   );
-  const tabItems: Array<{ key: ProductTabKey; label: string }> = [
+  const tabItems: { key: ProductTabKey; label: string }[] = [
     { key: 'story', label: t('product.tabStory') },
     { key: 'description', label: t('product.tabDescriptions') },
     { key: 'details', label: t('product.tabDetails') },
@@ -415,6 +429,24 @@ export default function ProductDetailScreen() {
         });
       },
     });
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!id) return;
+    try {
+      const response = await toggleFavorite.mutateAsync(id);
+      setFavoriteActive(response.isFavorited);
+      showToast({
+        message: t(`api.${response.code}`, { defaultValue: response.message }),
+        type: 'success',
+      });
+    } catch (error) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
   };
 
   const handlePolicyViolation = () => {
@@ -619,8 +651,9 @@ export default function ProductDetailScreen() {
         <TopBar
           title={toTurkishUppercase(product.categoryName || t('tabs.home'))}
           onBack={() => router.back()}
-          onShare={() => undefined}
-          onFavorite={() => undefined}
+          onShare={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
+          onFavorite={handleToggleFavorite}
+          isFavoriteActive={favoriteActive}
         />
 
         <HeroImage
@@ -1059,11 +1092,23 @@ export default function ProductDetailScreen() {
         style={[styles.stickyCartCtaWrap, stickyCtaAnimatedStyle]}
       >
         <View style={styles.stickyCartCtaRow}>
-          <TouchableOpacity style={styles.stickyCartUtilityButton} activeOpacity={0.85} onPress={() => undefined}>
+          <TouchableOpacity
+            style={styles.stickyCartUtilityButton}
+            activeOpacity={0.85}
+            onPress={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
+          >
             <Ionicons name="share-outline" size={18} color={Colors.onSurfaceVariant} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.stickyCartUtilityButton} activeOpacity={0.85} onPress={() => undefined}>
-            <Ionicons name="heart-outline" size={18} color={Colors.onSurfaceVariant} />
+          <TouchableOpacity
+            style={styles.stickyCartUtilityButton}
+            activeOpacity={0.85}
+            onPress={handleToggleFavorite}
+          >
+            <Ionicons
+              name={favoriteActive ? 'heart' : 'heart-outline'}
+              size={18}
+              color={favoriteActive ? Colors.accent : Colors.onSurfaceVariant}
+            />
           </TouchableOpacity>
           {cartQuantity > 0 ? (
             <View style={styles.stickyQuantityStepper}>

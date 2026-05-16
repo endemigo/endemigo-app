@@ -1,0 +1,192 @@
+import { StyleSheet } from 'react-native';
+import {
+  BorderRadius,
+  Colors,
+  FontFamily,
+  FontSize,
+  Shadows,
+  Spacing,
+} from '../../constants/theme';
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    padding: Spacing.base,
+    paddingBottom: Spacing.xxxl,
+    gap: Spacing.lg,
+  },
+  heroCard: {
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing.lg,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    ...Shadows.md,
+  },
+  heroBadge: {
+    color: Colors.primary,
+    fontFamily: FontFamily.label,
+    fontSize: FontSize.caption,
+    marginBottom: Spacing.xs,
+  },
+  heroTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.titleLg,
+  },
+  heroSubtitle: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+    lineHeight: 20,
+    marginTop: Spacing.sm,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.base,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.onSurface,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  filterChip: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  filterChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryFixed,
+  },
+  filterChipText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.meta,
+  },
+  filterChipTextActive: {
+    color: Colors.primaryContainer,
+  },
+  section: {
+    gap: Spacing.md,
+  },
+  sectionTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.subheading,
+  },
+  hintText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  categoryChipText: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.meta,
+  },
+  productGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Spacing.base,
+  },
+  productCardWrap: {
+    width: '47.5%',
+  },
+  auctionCard: {
+    flexDirection: 'row',
+    gap: Spacing.base,
+    padding: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  auctionImage: {
+    width: 84,
+    height: 84,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceContainer,
+  },
+  auctionBody: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  auctionTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.bodyLg,
+  },
+  auctionMeta: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.meta,
+  },
+  auctionPrice: {
+    color: Colors.auctionGreen,
+    fontFamily: FontFamily.headlineBlack,
+    fontSize: FontSize.subheading,
+  },
+  blogScroll: {
+    gap: Spacing.base,
+    paddingRight: Spacing.base,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerLow,
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.bodyLg,
+  },
+  emptyBody: {
+    textAlign: 'center',
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+});

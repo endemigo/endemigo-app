@@ -3,7 +3,6 @@ import {
   getDefaultMobileExperienceConfig,
   MOBILE_HOME_SURFACE_SLOT_IDS,
   MobileSurfaceKey,
-  type MobileAudience,
   type MobileHomeSurfaceSlotId,
 } from '@endemigo/shared';
 import React from 'react';
@@ -837,11 +836,15 @@ export default function HomeScreen() {
                 <BlogCard
                   key={blog.id}
                   item={blog}
-                  onPress={() => console.log('Blog pressed', blog.id)}
+                  onPress={() => router.push(`/blog/${blog.slug || blog.id}` as never)}
                 />
               ))}
             </ScrollView>
-            <TouchableOpacity style={styles.seeAllBlogsBtn} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.seeAllBlogsBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(tabs)/explore?section=blogs' as never)}
+            >
               <Text style={styles.seeAllBlogsText}>
                 {resolveLocalizedText(blogSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               </Text>

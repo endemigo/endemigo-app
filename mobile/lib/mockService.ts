@@ -464,6 +464,149 @@ export const mockService = {
     return MOCK_BLOGS;
   },
 
+  async searchProducts(query: {
+    q?: string;
+    categoryId?: string;
+    sort?: 'newest' | 'price_asc' | 'price_desc' | 'popular';
+    limit?: number;
+  }) {
+    await delay(250);
+    const normalizedQuery = query.q?.trim().toLocaleLowerCase() ?? '';
+    let items = [...MOCK_PRODUCTS_ENRICHED];
+
+    if (normalizedQuery) {
+      items = items.filter((item) =>
+        `${item.title} ${item.description} ${item.categoryName}`
+          .toLocaleLowerCase()
+          .includes(normalizedQuery),
+      );
+    }
+
+    if (query.categoryId) {
+      items = items.filter((item) => item.categoryId === query.categoryId);
+    }
+
+    switch (query.sort) {
+      case 'price_asc':
+        items.sort((left, right) => (left.price ?? 0) - (right.price ?? 0));
+        break;
+      case 'price_desc':
+        items.sort((left, right) => (right.price ?? 0) - (left.price ?? 0));
+        break;
+      case 'popular':
+        items.sort((left, right) => (right.likeCount ?? 0) - (left.likeCount ?? 0));
+        break;
+      default:
+        items.sort(
+          (left, right) =>
+            new Date(right.createdAt ?? '').getTime() -
+            new Date(left.createdAt ?? '').getTime(),
+        );
+    }
+
+    const limit = query.limit ?? 20;
+    return {
+      code: 'SEARCH_PRODUCTS_SUCCESS',
+      message: 'Mock urun arama sonuclari',
+      items: items.slice(0, limit).map((item) => ({
+        ...item,
+        favoriteCount: item.likeCount,
+        isFavorited: false,
+      })),
+      total: items.length,
+      page: 1,
+      totalPages: 1,
+    };
+  },
+
+  async searchAuctions(query: {
+    q?: string;
+    sort?: 'ending_soon' | 'newest' | 'price_asc' | 'most_bids';
+    limit?: number;
+  }) {
+    await delay(250);
+    const normalizedQuery = query.q?.trim().toLocaleLowerCase() ?? '';
+    let items = [...MOCK_AUCTIONS];
+
+    if (normalizedQuery) {
+      items = items.filter((item) =>
+        item.productTitle.toLocaleLowerCase().includes(normalizedQuery),
+      );
+    }
+
+    switch (query.sort) {
+      case 'ending_soon':
+        items.sort(
+          (left, right) =>
+            new Date(left.endTime).getTime() - new Date(right.endTime).getTime(),
+        );
+        break;
+      case 'price_asc':
+        items.sort((left, right) => left.currentPrice - right.currentPrice);
+        break;
+      case 'most_bids':
+        items.sort((left, right) => right.bidCount - left.bidCount);
+        break;
+      default:
+        items.sort(
+          (left, right) =>
+            new Date(right.startTime).getTime() -
+            new Date(left.startTime).getTime(),
+        );
+    }
+
+    const limit = query.limit ?? 20;
+    return {
+      code: 'SEARCH_AUCTIONS_SUCCESS',
+      message: 'Mock muzayede arama sonuclari',
+      items: items.slice(0, limit).map((item) => ({
+        id: item.id,
+        productTitle: item.productTitle,
+        productImageUrl: item.productImage,
+        categoryName: resolveCategoryName(
+          MOCK_PRODUCTS_ENRICHED.find((product) => product.id === item.productId)?.categoryId ?? '',
+        ),
+        startPrice: item.startPrice,
+        currentPrice: item.currentPrice,
+        bidCount: item.bidCount,
+        status: item.status,
+        startTime: item.startTime,
+        endTime: item.endTime,
+      })),
+      total: items.length,
+      page: 1,
+      totalPages: 1,
+    };
+  },
+
+  async getFavorites() {
+    await delay(220);
+    const items = MOCK_PRODUCTS_ENRICHED.slice(0, 3).map((item) => ({
+      ...item,
+      favoriteCount: item.likeCount,
+      isFavorited: true,
+    }));
+    return {
+      code: 'FAVORITES_LISTED',
+      message: 'Mock favoriler listelendi',
+      items,
+      total: items.length,
+      page: 1,
+      totalPages: 1,
+    };
+  },
+
+  async toggleFavorite(productId: string) {
+    await delay(160);
+    const product = MOCK_PRODUCTS_ENRICHED.find((item) => item.id === productId);
+    const isFavorited = Boolean(product);
+    return {
+      code: isFavorited ? 'FAVORITE_ADDED' : 'FAVORITE_REMOVED',
+      message: isFavorited ? 'Favorilere eklendi' : 'Favorilerden çıkarıldı',
+      isFavorited,
+    };
+  },
+
   // Auctions
   async getAuctions(page = 1, limit = 20) {
     await delay(500);
@@ -577,6 +720,29 @@ export const mockService = {
     if (!MOCK_BIDS[auctionId]) MOCK_BIDS[auctionId] = [];
     MOCK_BIDS[auctionId].unshift(newBid);
     return newBid;
+  },
+
+  async withdrawBid(auctionId: string) {
+    await delay(350);
+    const auction = MOCK_AUCTIONS.find((item) => item.id === auctionId);
+    if (!auction) {
+      throw new Error('Müzayede bulunamadı');
+    }
+
+    const bidList = MOCK_BIDS[auctionId] ?? [];
+    if (!bidList.length) {
+      throw new Error('Geri cekilebilecek aktif lider teklif bulunamadi');
+    }
+
+    bidList.shift();
+    auction.bidCount = Math.max(0, auction.bidCount - 1);
+    auction.currentPrice = bidList[0]?.amount ?? auction.startPrice;
+
+    return {
+      code: 'BID_WITHDRAWN',
+      message: 'Teklif geri cekildi',
+      auctionId,
+    };
   },
 
   // Wallet

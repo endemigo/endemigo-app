@@ -10,9 +10,9 @@ import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AuctionStatus } from '@endemigo/shared';
 
-import { useAuction, useAuctionBids, usePlaceBid } from '../../hooks/useAuctions';
+import { useAuction, useAuctionBids, usePlaceBid, useWithdrawBid } from '../../hooks/useAuctions';
 import { useAuctionSocket } from '../../hooks/useAuctionSocket';
-import { useWalletBalance } from '../../hooks/useWallet';
+import { useWalletBalance, useWalletHolds } from '../../hooks/useWallet';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { resolveApiErrorMessage } from '../../utils/apiError';
@@ -41,7 +41,9 @@ export default function AuctionDetailScreen() {
   const { data: auction, isLoading, refetch } = useAuction(id);
   const { data: bids, refetch: refetchBids } = useAuctionBids(id);
   const { data: wallet } = useWalletBalance();
+  const { data: walletHolds = [] } = useWalletHolds();
   const placeBid = usePlaceBid();
+  const withdrawBid = useWithdrawBid();
   const socket = useAuctionSocket(id);
   const { data: product } = useProduct(auction?.productId ?? '');
   const [bidAmount, setBidAmount] = useState('');
@@ -108,6 +110,7 @@ export default function AuctionDetailScreen() {
   const premium = Number(bidAmount || 0) * Number(auction.buyerPremiumRate);
   const showLoserState = isEnded && !socket.isWinner && socket.auctionEnded;
   const showResultButton = isEnded && !socket.auctionEnded;
+  const hasActiveHoldForAuction = walletHolds.some((hold) => hold.auctionId === id);
 
   const productImageUri = getProductImageUri(
     product,
@@ -164,6 +167,32 @@ export default function AuctionDetailScreen() {
         type: 'error',
       });
     }
+  };
+
+  const handleWithdrawBid = () => {
+    showModal({
+      title: t('auction.withdrawBidTitle'),
+      message: t('auction.withdrawBidMessage'),
+      type: 'info',
+      confirmText: t('auction.withdrawBidConfirm'),
+      cancelText: t('common.cancel'),
+      onConfirm: async () => {
+        try {
+          await withdrawBid.mutateAsync({ auctionId: id });
+          showModal({
+            title: t('auction.withdrawBidSuccessTitle'),
+            message: t('auction.withdrawBidSuccessMessage'),
+            type: 'success',
+          });
+        } catch (error: unknown) {
+          showModal({
+            title: t('common.error'),
+            message: resolveApiErrorMessage(error, t, 'auction.withdrawBidErrorFallback'),
+            type: 'error',
+          });
+        }
+      },
+    });
   };
 
   // Auction state remains the source of truth for pricing and timing,
@@ -249,6 +278,20 @@ export default function AuctionDetailScreen() {
             onSubmit={handleBid}
             t={t}
           />
+          {hasActiveHoldForAuction ? (
+            <TouchableOpacity
+              style={styles.withdrawButton}
+              onPress={handleWithdrawBid}
+              activeOpacity={0.85}
+              disabled={withdrawBid.isPending}
+            >
+              <Text style={styles.withdrawButtonText}>
+                {withdrawBid.isPending
+                  ? t('common.loading')
+                  : t('auction.withdrawBidCta')}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>

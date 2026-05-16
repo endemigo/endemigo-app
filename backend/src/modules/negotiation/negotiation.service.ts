@@ -741,9 +741,13 @@ export class NegotiationService {
     conversation: Conversation,
     status: NegotiationStatus,
   ) {
+    const lastActivityAt = new Date();
     conversation.status = status;
-    conversation.lastActivityAt = new Date();
-    await this.conversationRepository.save(conversation);
+    conversation.lastActivityAt = lastActivityAt;
+    await this.conversationRepository.update(conversation.id, {
+      status,
+      lastActivityAt,
+    });
   }
 
   private async createSystemMessage(
@@ -818,6 +822,9 @@ export class NegotiationService {
         imageUrl: conversation.product?.imageUrl ?? conversation.product?.images?.[0]?.url ?? null,
         sellerId: conversation.sellerId,
         sellerName: this.displayName(conversation.seller),
+        askPriceMinAmount: conversation.product?.askPriceMinAmount
+          ? Number(conversation.product.askPriceMinAmount)
+          : null,
       },
       buyer: {
         id: conversation.buyerId,

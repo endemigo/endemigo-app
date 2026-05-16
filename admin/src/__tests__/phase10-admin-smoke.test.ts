@@ -7,6 +7,8 @@ const routerSource = readFileSync(new URL('../router/index.ts', import.meta.url)
 const reportsSource = readFileSync(new URL('../views/reports/ReportsView.vue', import.meta.url), 'utf8');
 const mobileConfigSource = readFileSync(new URL('../views/mobile/MobileConfigView.vue', import.meta.url), 'utf8');
 const productFormSource = readFileSync(new URL('../views/products/ProductFormView.vue', import.meta.url), 'utf8');
+const contentStudioSource = readFileSync(new URL('../views/content/ContentStudioView.vue', import.meta.url), 'utf8');
+const newslettersSource = readFileSync(new URL('../views/content/NewslettersView.vue', import.meta.url), 'utf8');
 
 test('admin API envelope and auth token behavior stay contract-compatible', () => {
   assert.match(apiSource, /interface ApiEnvelope/);
@@ -17,7 +19,7 @@ test('admin API envelope and auth token behavior stay contract-compatible', () =
 });
 
 test('admin routes cover Phase 10 smoke areas', () => {
-  for (const route of ['dashboard', 'queues', 'operations', 'monetization', 'trust', 'settings', 'mobile-config', 'audit', 'reports']) {
+  for (const route of ['dashboard', 'queues', 'operations', 'monetization', 'trust', 'settings', 'mobile-config', 'content-management', 'newsletters', 'audit', 'reports']) {
     assert.match(routerSource, new RegExp(route));
   }
 });
@@ -37,5 +39,15 @@ test('mobile config editor exposes draft, publish, preview and localized fields'
 test('admin product form stays aligned with typed product contract', () => {
   for (const anchor of ['originCountry: \'TR\'', 'salesMonths: selectedSalesMonths.value', 'parseTrMoneyInput', 'normalizeMoneyScale']) {
     assert.match(productFormSource, new RegExp(anchor));
+  }
+});
+
+test('content studio and newsletter surfaces expose real collection management anchors', () => {
+  for (const anchor of ['admin/content-studio', 'collectionDefinitions', 'blogs', 'banners', 'supportInbox', 'financeConfigs']) {
+    assert.match(contentStudioSource, new RegExp(anchor));
+  }
+
+  for (const anchor of ['admin/content-studio', 'newsletters', 'featuredCollection']) {
+    assert.match(newslettersSource, new RegExp(anchor));
   }
 });

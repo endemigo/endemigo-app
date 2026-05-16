@@ -69,8 +69,14 @@ export const styles = StyleSheet.create({
   },
   statusRow: {
     backgroundColor: Colors.background,
+    gap: Spacing.sm,
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
+  },
+  minimumHint: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.caption,
   },
   messages: {
     flex: 1,

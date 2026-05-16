@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Not, Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
@@ -574,6 +574,97 @@ export class AuctionService {
     }
   }
 
+  async withdrawBid(auctionId: string, bidderId: string) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const auction = await queryRunner.manager.findOne(Auction, {
+        where: { id: auctionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!auction) {
+        throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+      }
+
+      if (auction.status !== AuctionStatus.ACTIVE) {
+        throw this.badRequest(
+          RC.BID_WITHDRAWAL_NOT_ALLOWED,
+          'Sadece aktif muzayedelerde teklif geri cekilebilir',
+        );
+      }
+
+      if (new Date() > auction.endTime) {
+        throw this.badRequest(RC.AUCTION_ENDED, 'Müzayede sona erdi');
+      }
+
+      const activeBid = await queryRunner.manager.findOne(Bid, {
+        where: {
+          auctionId,
+          bidderId,
+          isWinningBid: true,
+          status: BidStatus.ACTIVE,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!activeBid) {
+        throw this.badRequest(
+          RC.BID_WITHDRAWAL_NOT_ALLOWED,
+          'Geri cekilebilecek aktif lider teklif bulunamadi',
+        );
+      }
+
+      const previousCompetingBid = await queryRunner.manager.findOne(Bid, {
+        where: {
+          auctionId,
+          id: Not(activeBid.id),
+          status: Not(BidStatus.CANCELLED),
+        },
+        order: {
+          amount: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+
+      if (previousCompetingBid) {
+        throw this.badRequest(
+          RC.BID_WITHDRAWAL_NOT_ALLOWED,
+          'Rekabete girmis lider teklif geri cekilemez',
+        );
+      }
+
+      await this.walletService.releaseHold(
+        auctionId,
+        bidderId,
+        queryRunner.manager,
+      );
+
+      activeBid.status = BidStatus.CANCELLED;
+      activeBid.isWinningBid = false;
+      await queryRunner.manager.save(activeBid);
+
+      auction.currentPrice = Number(auction.startPrice);
+      auction.bidCount = Math.max(0, (auction.bidCount || 0) - 1);
+      await queryRunner.manager.save(auction);
+
+      await queryRunner.commitTransaction();
+
+      return {
+        code: RC.BID_WITHDRAWN,
+        message: 'Teklif geri cekildi',
+        auctionId,
+        bidId: activeBid.id,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════
   // ═══ Anti-Sniping Logic (D-03, D-10) ══════════════════════
   // ═══════════════════════════════════════════════════════════
@@ -899,9 +990,10 @@ export class AuctionService {
   // ─── Helpers ──────────────────────────────────────────────
 
   async getBids(auctionId: string) {
-    // D-15: Tam şeffaflık — tüm teklifler gösterilir
+    // Withdrawn bids stay in storage for audit, but the public ladder should
+    // only show currently effective offers so lead ranking remains accurate.
     const bids = await this.bidRepo.find({
-      where: { auctionId },
+      where: { auctionId, status: Not(BidStatus.CANCELLED) },
       relations: ['bidder'],
       order: { amount: 'DESC' },
     });

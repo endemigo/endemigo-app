@@ -47,6 +47,13 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.subheading,
     color: Colors.primary,
   },
+  headerProfileTitle: {
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+    fontSize: FontSize.subheading,
+    color: Colors.onSurface,
+    letterSpacing: 0.2,
+  },
   headerGoatIcon: {
     width: 34,
     height: 34,

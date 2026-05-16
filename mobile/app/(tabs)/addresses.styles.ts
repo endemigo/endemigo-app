@@ -63,6 +63,17 @@ export const styles = StyleSheet.create({
     marginBottom: Spacing.base,
     paddingRight: Spacing.base,
   },
+  formTypeRow: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    paddingRight: Spacing.base,
+  },
+  inlineLabel: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.meta,
+    fontWeight: '600',
+  },
   chip: {
     backgroundColor: Colors.surfaceContainerLow,
     borderRadius: BorderRadius.full,
@@ -132,6 +143,21 @@ export const styles = StyleSheet.create({
   },
   rowInput: {
     flex: 1,
+  },
+  selectInput: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  selectInputText: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+  selectInputPlaceholder: {
+    color: Colors.slate400,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
   },
   checkboxRow: {
     alignItems: 'center',
@@ -205,6 +231,22 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.meta,
     marginTop: Spacing.xs,
   },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xs,
+    backgroundColor: `${Colors.primary}12`,
+    borderColor: `${Colors.primary}28`,
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  typeBadgeText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+  },
   defaultBadge: {
     backgroundColor: Colors.secondaryContainer,
     borderRadius: BorderRadius.full,
@@ -274,5 +316,56 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.body,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  bottomSheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: `${Colors.black}55`,
+  },
+  bottomSheetCard: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    paddingBottom: Spacing.xl,
+    maxHeight: '70%',
+    ...Shadows.lg,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  bottomSheetTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.subheading,
+    fontWeight: '700',
+  },
+  bottomSheetSearch: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: BorderRadius.xl,
+    color: Colors.onSurface,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  bottomSheetList: {
+    maxHeight: 340,
+  },
+  bottomSheetItem: {
+    borderBottomColor: Colors.slate100,
+    borderBottomWidth: 1,
+    paddingVertical: Spacing.md,
+  },
+  bottomSheetItemText: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.body,
+    fontWeight: '600',
   },
 });

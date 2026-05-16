@@ -11,9 +11,31 @@
         <span class="status-pill">mobile-config</span>
         <span class="status-pill ghost">v{{ documentVersion }}</span>
         <span class="status-pill ghost">{{ draft ? 'Draft hazir' : 'Draft yukleniyor' }}</span>
+        <div class="toggle-group mode-toggle">
+          <button
+            class="button"
+            :class="{ active: workspaceMode === 'focused' }"
+            type="button"
+            @click="workspaceMode = 'focused'"
+          >
+            Sade Mod
+          </button>
+          <button
+            class="button"
+            :class="{ active: workspaceMode === 'full' }"
+            type="button"
+            @click="workspaceMode = 'full'"
+          >
+            Tam Gorunum
+          </button>
+        </div>
         <button class="button" type="button" @click="loadDraft">
           <i class="pi pi-refresh" aria-hidden="true" />
           Yenile
+        </button>
+        <button v-if="draft && !showWorkspaceLauncher" class="button" type="button" @click="showWorkspaceLauncher = true">
+          <i class="pi pi-th-large" aria-hidden="true" />
+          Alan Sec
         </button>
         <button class="button primary" type="button" :disabled="loading || !draft" @click="openReason('save')">
           <i class="pi pi-save" aria-hidden="true" />
@@ -26,7 +48,95 @@
       </div>
     </header>
 
-    <div v-if="draft" class="editor-layout">
+    <section v-if="draft && !showWorkspaceLauncher" class="workflow-strip">
+      <button
+        class="workflow-step"
+        :class="{ active: focusStage === 'select' }"
+        type="button"
+        @click="focusStage = 'select'"
+      >
+        <span class="step-index">1</span>
+        <span class="step-copy">
+          <strong>Blok Sec</strong>
+          <small>Soldan bir alan sec</small>
+        </span>
+      </button>
+      <button
+        class="workflow-step"
+        :class="{ active: focusStage === 'preview' }"
+        type="button"
+        @click="focusStage = 'preview'"
+      >
+        <span class="step-index">2</span>
+        <span class="step-copy">
+          <strong>Onizle</strong>
+          <small>Cihaz, dil ve audience kontrol et</small>
+        </span>
+      </button>
+      <button
+        class="workflow-step"
+        :class="{ active: focusStage === 'edit' }"
+        type="button"
+        @click="focusStage = 'edit'"
+      >
+        <span class="step-index">3</span>
+        <span class="step-copy">
+          <strong>Duzenle</strong>
+          <small>{{ selectedTarget ? selectedBlockTitle : 'Sag panelde ayar yap' }}</small>
+        </span>
+      </button>
+    </section>
+
+    <section v-if="draft && !showWorkspaceLauncher" class="workspace-context">
+      <div>
+        <strong>{{ currentWorkspaceTitle }}</strong>
+        <p class="muted">{{ currentWorkspaceDescription }}</p>
+      </div>
+      <div class="toolbar">
+        <button class="button" type="button" @click="showWorkspaceLauncher = true">
+          <i class="pi pi-arrow-left" aria-hidden="true" />
+          Alanlara Don
+        </button>
+      </div>
+    </section>
+
+    <section v-if="draft && showWorkspaceLauncher" class="workspace-launcher">
+      <header class="launcher-header">
+        <strong>Hangi alani duzenlemek istiyorsun?</strong>
+        <p class="muted">Bir kutucuga tikla, yalnizca ilgili ayarlar acilsin.</p>
+      </header>
+      <div class="launcher-grid">
+        <button class="launcher-card" type="button" @click="openWorkspaceArea('home')">
+          <i class="pi pi-home" aria-hidden="true" />
+          <strong>Ana Sayfayi Duzenle</strong>
+          <span>Hero, kartlar, bolum siralamasi ve onizleme</span>
+        </button>
+        <button class="launcher-card" type="button" @click="openWorkspaceArea('listing')">
+          <i class="pi pi-file-edit" aria-hidden="true" />
+          <strong>Ilan Verme Ayarlari</strong>
+          <span>Kullaniciya sorulacak alanlari sec</span>
+        </button>
+        <button class="launcher-card" type="button" @click="openWorkspaceArea('membership')">
+          <i class="pi pi-star" aria-hidden="true" />
+          <strong>Abone Olma Ayarlari</strong>
+          <span>Uyelik/abonelik yuzeyindeki metin ve CTA ayarlari</span>
+        </button>
+        <button class="launcher-card" type="button" @click="openWorkspaceArea('become-seller')">
+          <i class="pi pi-briefcase" aria-hidden="true" />
+          <strong>Satıcı Olma Ayarları</strong>
+          <span>Satıcı olma ekranına ait metin ve yönlendirmeleri düzenle</span>
+        </button>
+      </div>
+    </section>
+
+    <div
+      v-if="draft && !showWorkspaceLauncher"
+      class="editor-layout"
+      :class="[
+        `mode-${workspaceMode}`,
+        `stage-${focusStage}`,
+      ]"
+    >
       <aside class="panel navigator-panel">
         <div class="panel-header">
           <div>
@@ -263,7 +373,7 @@
                     <span class="preview-badge subtle">{{ textOf(draft.cards.productCard.badge, 'Product') }}</span>
                     <span>{{ draft.cards.productCard.showPrice ? 'Fiyat Acik' : 'Fiyat Kapali' }}</span>
                   </div>
-                  <strong>{{ selectedLocale === 'tr' ? 'Urun Karti' : 'Product Card' }}</strong>
+                  <strong>{{ selectedLocale === 'tr' ? 'Ürün Kartı' : 'Product Card' }}</strong>
                   <p>{{ textOf(draft.cards.productCard.ctaLabel, 'Incele') }}</p>
                 </button>
 
@@ -324,9 +434,9 @@
         </div>
 
         <div v-if="selectedTarget" class="panel-body drawer-body">
-          <div class="drawer-tabs">
+          <div v-if="activeDrawerTabs.length > 1" class="drawer-tabs">
             <button
-              v-for="tab in drawerTabs"
+              v-for="tab in activeDrawerTabs"
               :key="tab.value"
               class="button"
               :class="{ active: activeDrawerTab === tab.value }"
@@ -478,6 +588,15 @@
                   <strong>{{ group.title }}</strong>
                   <span>{{ group.options.filter((option) => selectedListingCreateConfig.optionalFields.includes(option.key)).length }}/{{ group.options.length }}</span>
                 </header>
+                <label
+                  v-for="requiredOption in group.requiredOptions"
+                  :key="`listing-required-${requiredOption.key}`"
+                  class="checkbox-pill full-width is-required"
+                >
+                  <input checked type="checkbox" disabled />
+                  <span>{{ requiredOption.label }}</span>
+                  <span class="required-badge">Zorunlu</span>
+                </label>
                 <label
                   v-for="option in group.options"
                   :key="`listing-field-${option.key}`"
@@ -658,7 +777,7 @@
 
 <script setup lang="ts">
 import axios from 'axios';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import AdminActionDrawer, { type DrawerConfirmPayload } from '../../components/AdminActionDrawer.vue';
 import LocalizedField from '../../components/LocalizedField.vue';
@@ -750,65 +869,78 @@ interface AuctionListCardConfig {
 
 const LISTING_CREATE_FIELD_GROUPS = [
   {
-    id: 'basic',
-    title: 'Temel Bilgiler',
+    id: 'step-core',
+    title: '1. Temel + Fiyat + Detay',
+    requiredOptions: [
+      { key: 'listingType', label: 'Satış modeli' },
+      { key: 'title', label: 'Ürün başlığı' },
+      { key: 'categoryId', label: 'Kategori' },
+      { key: 'price', label: 'Fiyat' },
+      { key: 'askPriceEnabled', label: 'Pazarlığa açık' },
+      { key: 'description', label: 'Açıklama' },
+      { key: 'stockQuantity', label: 'Stok adedi' },
+    ],
     options: [
-      { key: 'originRegion', label: 'Mensei il' },
+      { key: 'originRegion', label: 'Menşei il' },
     ],
   },
   {
-    id: 'shipping',
-    title: 'Kargo ve Teslimat',
+    id: 'step-shipping-payment',
+    title: '2. Kargo ve Odeme',
+    requiredOptions: [],
     options: [
-      { key: 'originCountry', label: 'Mensei ulke' },
+      { key: 'originCountry', label: 'Menşei ülke' },
       { key: 'shippingProvince', label: 'Kargo teslim ili' },
-      { key: 'shippingDistrict', label: 'Kargo teslim ilcesi' },
+      { key: 'shippingDistrict', label: 'Kargo teslim ilçesi' },
       { key: 'shippingAddress', label: 'Kargo teslim adresi' },
-      { key: 'deliveryTemplateDomestic', label: 'Teslimat sablonu (yurtici)' },
-      { key: 'deliveryTemplateInternational', label: 'Teslimat sablonu (yurtdisi)' },
-      { key: 'desiDomestic', label: 'Desi (yurtici)' },
-      { key: 'desiInternational', label: 'Desi (yurtdisi)' },
+      { key: 'deliveryTemplateDomestic', label: 'Teslimat şablonu (yurtiçi)' },
+      { key: 'deliveryTemplateInternational', label: 'Teslimat şablonu (yurtdışı)' },
+      { key: 'desiDomestic', label: 'Desi (yurtiçi)' },
+      { key: 'desiInternational', label: 'Desi (yurtdışı)' },
       { key: 'wholesalePrice', label: 'Toptan fiyat' },
       { key: 'retailPrice', label: 'Perakende fiyat' },
     ],
   },
   {
-    id: 'production',
-    title: 'Uretim ve Koken',
+    id: 'step-product-story',
+    title: '3. Ürünün Hikayesi',
+    requiredOptions: [],
     options: [
-      { key: 'productionProvince', label: 'Uretim ili' },
-      { key: 'productionDistrict', label: 'Uretim ilcesi' },
-      { key: 'productionSeasons', label: 'Uretim sezonu' },
-      { key: 'salesMonths', label: 'Satis aylari' },
-    ],
-  },
-  {
-    id: 'trust',
-    title: 'Kesif ve Guven',
-    options: [
-      { key: 'sellerNotes', label: 'Satici notlari' },
+      { key: 'sellerNotes', label: 'Satıcı notları' },
       { key: 'brand', label: 'Marka' },
       { key: 'isEndemigoBrandCandidate', label: 'Endemigo marka adayi' },
-      { key: 'productContent', label: 'Urun icerigi' },
-      { key: 'barcodeNo', label: 'Barkod no' },
-      { key: 'geoIndicationReceivedAt', label: 'Cografi isaret alinma tarihi' },
-      { key: 'geoIndicationCertNo', label: 'Cografi isaret belge no' },
-      { key: 'geoIndicationRegion', label: 'Cografi isaret bolgesi' },
-      { key: 'additionalCertificates', label: 'Ek sertifikalar' },
-      { key: 'featureBadges', label: 'Ozellik rozetleri' },
-      { key: 'geoBadgeSelections', label: 'Cografi rozet secimleri' },
+      { key: 'productionProvince', label: 'Üretim ili' },
+      { key: 'productionDistrict', label: 'Üretim ilçesi' },
     ],
   },
   {
-    id: 'media',
-    title: 'Urun Olcu ve Medya',
+    id: 'step-product-descriptions',
+    title: '4. Ürünün Açıklamaları',
+    requiredOptions: [],
+    options: [
+      { key: 'productContent', label: 'Ürün içeriği' },
+      { key: 'barcodeNo', label: 'Barkod no' },
+      { key: 'geoIndicationReceivedAt', label: 'Coğrafi işaret alınma tarihi' },
+      { key: 'geoIndicationCertNo', label: 'Coğrafi işaret belge no' },
+      { key: 'geoIndicationRegion', label: 'Coğrafi işaret bölgesi' },
+      { key: 'additionalCertificates', label: 'Ek sertifikalar' },
+      { key: 'featureBadges', label: 'Ozellik rozetleri' },
+      { key: 'geoBadgeSelections', label: 'Coğrafi rozet seçimleri' },
+    ],
+  },
+  {
+    id: 'step-product-details',
+    title: '5. Ürün Hakkında Detay',
+    requiredOptions: [],
     options: [
       { key: 'sku', label: 'SKU' },
-      { key: 'weight', label: 'Agirlik' },
-      { key: 'dimensionWidth', label: 'Genislik' },
-      { key: 'dimensionHeight', label: 'Yukseklik' },
+      { key: 'weight', label: 'Ağırlık' },
+      { key: 'dimensionWidth', label: 'Genişlik' },
+      { key: 'dimensionHeight', label: 'Yükseklik' },
       { key: 'dimensionDepth', label: 'Derinlik' },
-      { key: 'images', label: 'Urun gorselleri' },
+      { key: 'productionSeasons', label: 'Üretim sezonu' },
+      { key: 'salesMonths', label: 'Satış ayları' },
+      { key: 'images', label: 'Ürün görselleri' },
     ],
   },
 ] as const;
@@ -896,6 +1028,9 @@ type PendingAction = 'save' | 'publish' | null;
 type PreviewLocale = 'tr' | 'en';
 type DevicePreset = 'iphone' | 'android';
 type DrawerTab = 'content' | 'visibility' | 'order';
+type WorkspaceMode = 'focused' | 'full';
+type FocusStage = 'select' | 'preview' | 'edit';
+type WorkspaceArea = 'home' | 'listing' | 'membership' | 'become-seller';
 type EditorTargetKind =
   | 'hero'
   | 'entry'
@@ -923,6 +1058,10 @@ const selectedAudience = ref('BUYER');
 const selectedDevice = ref<DevicePreset>('iphone');
 const selectedTarget = ref<EditorTarget | null>(null);
 const activeDrawerTab = ref<DrawerTab>('content');
+const workspaceMode = ref<WorkspaceMode>('focused');
+const focusStage = ref<FocusStage>('select');
+const showWorkspaceLauncher = ref(true);
+const currentWorkspaceArea = ref<WorkspaceArea | null>(null);
 const reasonDrawerOpen = ref(false);
 const pendingAction = ref<PendingAction>(null);
 const route = useRoute();
@@ -951,6 +1090,25 @@ const drawerTabs = [
   { label: 'Gorunurluk', value: 'visibility' as DrawerTab },
   { label: 'Siralama', value: 'order' as DrawerTab },
 ];
+
+const WORKSPACE_CONTEXT_COPY: Record<WorkspaceArea, { title: string; description: string }> = {
+  home: {
+    title: 'Ana Sayfa Duzenleme',
+    description: 'Navigator ve telefon onizlemesi ile ana sayfa bloklarini hizli sekilde duzenle.',
+  },
+  listing: {
+    title: 'Ilan Verme Ayarlari',
+    description: 'Ilan verirken kullaniciya sorulacak opsiyonel alanlari tek ekrandan yonet.',
+  },
+  membership: {
+    title: 'Abone Olma Ayarlari',
+    description: 'Uyelik/abonelik ekraninda gorunen metinler ve CTA yonlendirmelerini duzenle.',
+  },
+  'become-seller': {
+    title: 'Satıcı Olma Ayarları',
+    description: 'Satıcı olma ekranının başlık, açıklama ve aksiyon alanlarını sade şekilde yönet.',
+  },
+};
 
 const SECTION_COPY: Record<string, { tr: string; en: string }> = {
   'recently-viewed': { tr: 'Son gezilen urun raili', en: 'Recent product rail' },
@@ -983,6 +1141,26 @@ const SURFACE_OPTIONS = [
   'SETTINGS',
   'HOME_QUICK_TAB_BAR',
 ];
+
+const WORKSPACE_SURFACE_BLUEPRINTS: Record<'membership' | 'become-seller', {
+  id: string;
+  titleTr: string;
+  titleEn: string;
+  route: string;
+}> = {
+  membership: {
+    id: 'surface-membership',
+    titleTr: 'Abonelik',
+    titleEn: 'Membership',
+    route: '/(tabs)/membership',
+  },
+  'become-seller': {
+    id: 'surface-become-seller',
+    titleTr: 'Satıcı Ol',
+    titleEn: 'Become Seller',
+    route: '/(tabs)/become-seller',
+  },
+};
 
 const DEFAULT_HOME_SURFACE_SLOTS = [
   { id: 'home-search-bar', order: 1, title: 'Arama Barı' },
@@ -1202,6 +1380,7 @@ function removeArrayItem<T>(items: T[], index: number) {
 function selectTarget(kind: EditorTargetKind, id: string) {
   selectedTarget.value = { kind, id };
   activeDrawerTab.value = 'content';
+  focusStage.value = 'edit';
 }
 
 function isSelected(kind: EditorTargetKind, id: string): boolean {
@@ -1211,6 +1390,7 @@ function isSelected(kind: EditorTargetKind, id: string): boolean {
 function selectFirstBlock() {
   if (!draft.value) return;
   selectTarget('product-card', 'product-card');
+  focusStage.value = 'preview';
 }
 
 function entryTileIcon(id: string): string {
@@ -1674,6 +1854,27 @@ const prePublishChecklist = computed(() => {
 
 const canPublish = computed(() => prePublishChecklist.value.every((item) => item.passed));
 
+const currentWorkspaceTitle = computed(() => {
+  if (!currentWorkspaceArea.value) return 'Duzenleme Alani';
+  return WORKSPACE_CONTEXT_COPY[currentWorkspaceArea.value].title;
+});
+
+const currentWorkspaceDescription = computed(() => {
+  if (!currentWorkspaceArea.value) return 'Secili alana gore odakli duzenleme yap.';
+  return WORKSPACE_CONTEXT_COPY[currentWorkspaceArea.value].description;
+});
+
+const activeDrawerTabs = computed(() => {
+  if (
+    selectedTarget.value?.kind === 'product-card'
+    || selectedTarget.value?.kind === 'auction-card'
+    || selectedTarget.value?.kind === 'listing-fields'
+  ) {
+    return drawerTabs.filter((tab) => tab.value === 'content');
+  }
+  return drawerTabs;
+});
+
 const publishedAtLabel = computed(() =>
   publishedAt.value ? new Date(publishedAt.value).toLocaleString('tr-TR') : '-',
 );
@@ -1816,6 +2017,74 @@ function addSurfaceSlot() {
   if (latest) selectTarget('surface', latest.id);
 }
 
+function findSurfaceByRoute(route: string): SurfaceSlot | null {
+  if (!draft.value) return null;
+  return draft.value.otherSurfaces.find((item) => item.cta?.route === route) ?? null;
+}
+
+function ensureWorkspaceSurface(kind: 'membership' | 'become-seller'): SurfaceSlot | null {
+  if (!draft.value) return null;
+  const blueprint = WORKSPACE_SURFACE_BLUEPRINTS[kind];
+  const foundById = draft.value.otherSurfaces.find((item) => item.id === blueprint.id);
+  if (foundById) return foundById;
+  const foundByRoute = findSurfaceByRoute(blueprint.route);
+  if (foundByRoute) return foundByRoute;
+
+  const newSurface: SurfaceSlot = {
+    id: blueprint.id,
+    type: 'SURFACE_SLOT',
+    enabled: true,
+    order: (draft.value.otherSurfaces.at(-1)?.order ?? 0) + 1,
+    audiences: ['BUYER'],
+    title: localizedText(blueprint.titleTr, blueprint.titleEn),
+    subtitle: localizedText('', ''),
+    cta: {
+      route: blueprint.route,
+      label: localizedText('Incele', 'View'),
+    },
+    surface: 'PROFILE',
+  };
+  draft.value.otherSurfaces.push(newSurface);
+  return newSurface;
+}
+
+function openWorkspaceArea(area: WorkspaceArea) {
+  currentWorkspaceArea.value = area;
+  showWorkspaceLauncher.value = false;
+
+  if (area === 'home') {
+    workspaceMode.value = 'full';
+    focusStage.value = 'preview';
+    if (!selectedTarget.value) selectFirstBlock();
+    return;
+  }
+
+  workspaceMode.value = 'focused';
+  focusStage.value = 'edit';
+
+  if (area === 'listing') {
+    selectTarget('listing-fields', 'listing-fields');
+    return;
+  }
+
+  const surface = ensureWorkspaceSurface(area);
+  if (surface) {
+    selectTarget('surface', surface.id);
+  }
+}
+
+watch(activeDrawerTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.value === activeDrawerTab.value)) {
+    activeDrawerTab.value = tabs[0]?.value ?? 'content';
+  }
+}, { immediate: true });
+
+watch(showWorkspaceLauncher, (isOpen) => {
+  if (isOpen) {
+    currentWorkspaceArea.value = null;
+  }
+});
+
 function openReason(action: Exclude<PendingAction, null>) {
   if (action === 'publish' && !canPublish.value) {
     error.value = 'Pre-publish checklist tamamlanmadan yayinlama yapilamaz.';
@@ -1868,10 +2137,12 @@ async function loadDraft() {
     updatedByAdminId.value = document.updatedByAdminId;
     publishedByAdminId.value = document.publishedByAdminId;
 
-    if (!selectedTarget.value) {
-      selectFirstBlock();
-    } else if (!selectedBlock.value) {
-      selectFirstBlock();
+    if (!showWorkspaceLauncher.value) {
+      if (!selectedTarget.value) {
+        selectFirstBlock();
+      } else if (!selectedBlock.value) {
+        selectFirstBlock();
+      }
     }
     await loadAuditSummary();
   } catch (loadError) {
@@ -1966,6 +2237,121 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
 }
 
+.mode-toggle {
+  margin-right: 2px;
+}
+
+.workflow-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workspace-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px 14px;
+}
+
+.workspace-launcher {
+  display: grid;
+  gap: 14px;
+}
+
+.launcher-header {
+  display: grid;
+  gap: 4px;
+}
+
+.launcher-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.launcher-card {
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.launcher-card:hover {
+  border-color: #2563eb;
+  box-shadow: 0 16px 32px rgba(37, 99, 235, 0.14);
+  transform: translateY(-1px);
+}
+
+.launcher-card i {
+  color: #1d4ed8;
+  font-size: 18px;
+}
+
+.launcher-card strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.launcher-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.workflow-step:hover,
+.workflow-step.active {
+  border-color: #2563eb;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+}
+
+.step-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.step-copy {
+  display: grid;
+}
+
+.step-copy strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.step-copy small {
+  color: #64748b;
+  font-size: 11px;
+}
+
 .status-pill {
   border: 1px solid #cbd5e1;
   border-radius: 999px;
@@ -1986,6 +2372,19 @@ onBeforeUnmount(() => {
   gap: 16px;
   grid-template-columns: 280px minmax(0, 1fr) 360px;
   align-items: start;
+}
+
+.editor-layout.mode-focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor-layout.mode-focused.stage-select .preview-panel,
+.editor-layout.mode-focused.stage-select .drawer-panel,
+.editor-layout.mode-focused.stage-preview .navigator-panel,
+.editor-layout.mode-focused.stage-preview .drawer-panel,
+.editor-layout.mode-focused.stage-edit .navigator-panel,
+.editor-layout.mode-focused.stage-edit .preview-panel {
+  display: none;
 }
 
 .navigator-panel,
@@ -2545,6 +2944,18 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+.checkbox-pill.is-required .required-badge {
+  margin-left: auto;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .empty-drawer {
   align-content: center;
   gap: 8px;
@@ -2682,6 +3093,19 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1180px) {
+  .workflow-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .launcher-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-context {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .editor-layout {
     grid-template-columns: 1fr;
   }

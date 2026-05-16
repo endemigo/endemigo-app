@@ -103,6 +103,7 @@ describe('NegotiationService', () => {
     conversationRepo = {
       create: jest.fn((data) => ({ id: 'conversation-1', createdAt: now, updatedAt: now, ...data })),
       save: jest.fn(async (entity) => ({ ...entity, updatedAt: now })),
+      update: jest.fn(async () => ({ affected: 1 })),
       findOne: jest.fn(),
       find: jest.fn(),
     };
@@ -171,6 +172,7 @@ describe('NegotiationService', () => {
     });
 
     expect(result.code).toBe(RC.NEGOTIATION_CREATED);
+    expect(result.negotiation.product.askPriceMinAmount).toBe(100);
     expect(conversationRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         buyerId: 'buyer-1',
@@ -223,6 +225,24 @@ describe('NegotiationService', () => {
       expect.objectContaining({
         content: 'Bu fiyat benim icin uygun.',
         metadata: { hasNote: true },
+      }),
+    );
+  });
+
+  it('updates conversation status with a targeted update during offer creation', async () => {
+    conversationRepo.findOne.mockResolvedValue(conversation());
+
+    await service.createOffer('buyer-1', 'conversation-1', {
+      amount: 250,
+      quantity: 1,
+      expiresInHours: 24,
+    });
+
+    expect(conversationRepo.update).toHaveBeenCalledWith(
+      'conversation-1',
+      expect.objectContaining({
+        status: NegotiationStatus.OFFER_PENDING,
+        lastActivityAt: expect.any(Date),
       }),
     );
   });

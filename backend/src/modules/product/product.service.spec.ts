@@ -716,7 +716,7 @@ describe('ProductService', () => {
       );
     });
 
-    it('should hide public price fields for Ask Price products', async () => {
+    it('should keep minimum offer visible while hiding sale price for Ask Price products', async () => {
       productRepo.findOne.mockResolvedValue({
         ...mockProduct,
         status: ProductStatus.ACTIVE,
@@ -727,7 +727,7 @@ describe('ProductService', () => {
       const result = await service.findPublicById('product-1');
 
       expect(result.price).toBeNull();
-      expect(result.askPriceMinAmount).toBeNull();
+      expect(result.askPriceMinAmount).toBe(10000);
     });
   });
 

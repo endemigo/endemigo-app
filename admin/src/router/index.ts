@@ -16,6 +16,8 @@ import MobileConfigView from '../views/mobile/MobileConfigView.vue';
 import FeatureGapView from '../views/FeatureGapView.vue';
 import ProductFormView from '../views/products/ProductFormView.vue';
 import VariantNumbersView from '../views/variants/VariantNumbersView.vue';
+import ContentStudioView from '../views/content/ContentStudioView.vue';
+import NewslettersView from '../views/content/NewslettersView.vue';
 
 const operationRoutes: RouteRecordRaw[] = [
   {
@@ -229,7 +231,12 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'content-management',
         name: 'content-management',
-        component: MobileConfigView,
+        component: ContentStudioView,
+      },
+      {
+        path: 'newsletters',
+        name: 'newsletters',
+        component: NewslettersView,
       },
       {
         path: 'audit',

@@ -213,7 +213,7 @@ const navGroups: NavGroup[] = [
       { label: 'Kampanyalar', to: '/campaigns', icon: 'pi pi-percentage' },
       { label: 'Raporlar', to: '/reports', icon: 'pi pi-chart-line' },
       { label: 'İçerik Yönetimi', to: '/content-management', icon: 'pi pi-file-edit' },
-      { label: 'Bultenler', icon: 'pi pi-envelope', available: false },
+      { label: 'Bultenler', to: '/newsletters', icon: 'pi pi-envelope' },
     ],
   },
   {

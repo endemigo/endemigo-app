@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   RefreshControl,
   ScrollView,
+  TouchableWithoutFeedback,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,8 +24,10 @@ import {
 import { Colors } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
+import { useRoleModeStore } from '../../store/roleModeStore';
 import type { AddressItem, AddressPayload } from '../../types/transactionFlows';
 import { resolveApiErrorMessage } from '../../utils/apiError';
+import { getTurkishDistrictsByProvinceName, TURKISH_PROVINCES } from '../../constants/turkishLocations';
 import { styles } from './addresses.styles';
 
 const DEFAULT_FORM_STATE: AddressPayload = {
@@ -43,46 +47,63 @@ const DEFAULT_FORM_STATE: AddressPayload = {
 export default function AddressesScreen() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const activeMode = useRoleModeStore((state) => state.activeMode);
   const { showModal } = useModalStore();
+  const canUseSenderType = Boolean(user?.isSeller);
   const params = useLocalSearchParams<{ type?: AddressType }>();
-  const initialType =
+  const initialFormType =
     params.type === AddressType.BILLING ||
-    params.type === AddressType.SENDER
+    (params.type === AddressType.SENDER && canUseSenderType)
       ? params.type
       : AddressType.SHIPPING;
-  const [selectedType, setSelectedType] = useState<AddressType>(initialType);
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [isCityModalVisible, setCityModalVisible] = useState(false);
+  const [isDistrictModalVisible, setDistrictModalVisible] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
+  const [districtSearch, setDistrictSearch] = useState('');
   const [editingAddress, setEditingAddress] = useState<AddressItem | null>(null);
   const [formState, setFormState] = useState<AddressPayload>({
     ...DEFAULT_FORM_STATE,
-    type: initialType,
+    type: initialFormType,
     fullName: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
     phone: user?.phone ?? '',
   });
 
-  const addresses = useAddresses(selectedType);
+  const addresses = useAddresses();
   const createAddress = useCreateAddress();
   const updateAddress = useUpdateAddress();
   const deleteAddress = useDeleteAddress();
   const setDefaultAddress = useSetDefaultAddress();
 
-  useEffect(() => {
-    setFormState((current) => ({
-      ...current,
-      type: selectedType,
-    }));
-  }, [selectedType]);
-
   const availableTypes = user?.isSeller
     ? [AddressType.SHIPPING, AddressType.BILLING, AddressType.SENDER]
     : [AddressType.SHIPPING, AddressType.BILLING];
+  const addressTypeBadgeLabel = (type: AddressType) => {
+    if (type === AddressType.SHIPPING) {
+      const shippingKey = activeMode === 'seller'
+        ? 'addresses.badges.SHIPPING_SELLER'
+        : 'addresses.badges.SHIPPING_BUYER';
+      return t(shippingKey, { defaultValue: t(`addresses.types.${type}`) });
+    }
+    return t(`addresses.badges.${type}`, { defaultValue: t(`addresses.types.${type}`) });
+  };
+
+  const districtOptions = getTurkishDistrictsByProvinceName(formState.city);
+  const filteredCities = TURKISH_PROVINCES.filter((city) =>
+    city.toLocaleLowerCase('tr-TR').includes(citySearch.trim().toLocaleLowerCase('tr-TR')));
+  const filteredDistricts = districtOptions.filter((district) =>
+    district.toLocaleLowerCase('tr-TR').includes(districtSearch.trim().toLocaleLowerCase('tr-TR')));
 
   const resetForm = () => {
     setEditingAddress(null);
     setIsFormVisible(false);
+    setCityModalVisible(false);
+    setDistrictModalVisible(false);
+    setCitySearch('');
+    setDistrictSearch('');
     setFormState({
       ...DEFAULT_FORM_STATE,
-      type: selectedType,
+      type: initialFormType,
       fullName: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
       phone: user?.phone ?? '',
     });
@@ -201,28 +222,6 @@ export default function AddressesScreen() {
         <Text style={styles.subtitle}>{t('addresses.subtitle')}</Text>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        {availableTypes.map((type) => {
-          const isActive = type === selectedType;
-          return (
-            <TouchableOpacity
-              key={type}
-              style={[styles.chip, isActive && styles.chipActive]}
-              onPress={() => setSelectedType(type)}
-              activeOpacity={0.82}
-            >
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                {t(`addresses.types.${type}`)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => {
@@ -240,6 +239,28 @@ export default function AddressesScreen() {
           <Text style={styles.formTitle}>
             {editingAddress ? t('addresses.editTitle') : t('addresses.createTitle')}
           </Text>
+          <Text style={styles.inlineLabel}>{t('addresses.fields.type')}</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.formTypeRow}
+          >
+            {availableTypes.map((type) => {
+              const isActive = formState.type === type;
+              return (
+                <TouchableOpacity
+                  key={`form-type-${type}`}
+                  style={[styles.chip, isActive && styles.chipActive]}
+                  onPress={() => setFormState((current) => ({ ...current, type }))}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                    {t(`addresses.types.${type}`)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
           <TextInput
             style={styles.input}
             value={formState.title}
@@ -263,20 +284,36 @@ export default function AddressesScreen() {
             keyboardType="phone-pad"
           />
           <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              value={formState.city}
-              onChangeText={(value) => setFormState((current) => ({ ...current, city: value }))}
-              placeholder={t('addresses.fields.city')}
-              placeholderTextColor={Colors.slate400}
-            />
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              value={formState.district}
-              onChangeText={(value) => setFormState((current) => ({ ...current, district: value }))}
-              placeholder={t('addresses.fields.district')}
-              placeholderTextColor={Colors.slate400}
-            />
+            <TouchableOpacity
+              style={[styles.input, styles.rowInput, styles.selectInput]}
+              onPress={() => setCityModalVisible(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={formState.city ? styles.selectInputText : styles.selectInputPlaceholder}>
+                {formState.city || t('addresses.fields.city')}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.input, styles.rowInput, styles.selectInput]}
+              onPress={() => {
+                if (!formState.city) {
+                  showModal({
+                    title: t('common.error'),
+                    message: t('addresses.selectProvinceFirst'),
+                    type: 'error',
+                  });
+                  return;
+                }
+                setDistrictModalVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={formState.district ? styles.selectInputText : styles.selectInputPlaceholder}>
+                {formState.district || t('addresses.fields.district')}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
+            </TouchableOpacity>
           </View>
           <TextInput
             style={styles.input}
@@ -352,6 +389,9 @@ export default function AddressesScreen() {
                 <Text style={styles.addressMeta}>
                   {address.fullName} • {address.phone}
                 </Text>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeBadgeText}>{addressTypeBadgeLabel(address.type)}</Text>
+                </View>
               </View>
               {address.isDefault && (
                 <View style={styles.defaultBadge}>
@@ -399,6 +439,99 @@ export default function AddressesScreen() {
           <Text style={styles.emptyBody}>{t('addresses.emptyBody')}</Text>
         </View>
       )}
+
+      <Modal
+        visible={isCityModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCityModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setCityModalVisible(false)}>
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.bottomSheetCard}>
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>{t('addresses.cityModalTitle')}</Text>
+                  <TouchableOpacity onPress={() => setCityModalVisible(false)} activeOpacity={0.8}>
+                    <Ionicons name="close" size={20} color={Colors.onSurface} />
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={styles.bottomSheetSearch}
+                  value={citySearch}
+                  onChangeText={setCitySearch}
+                  placeholder={t('addresses.searchCityPlaceholder')}
+                  placeholderTextColor={Colors.slate400}
+                />
+                <ScrollView style={styles.bottomSheetList}>
+                  {filteredCities.map((city) => (
+                    <TouchableOpacity
+                      key={`city-${city}`}
+                      style={styles.bottomSheetItem}
+                      onPress={() => {
+                        setFormState((current) => ({
+                          ...current,
+                          city,
+                          district: current.city === city ? current.district : '',
+                        }));
+                        setCityModalVisible(false);
+                        setDistrictSearch('');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.bottomSheetItemText}>{city}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={isDistrictModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDistrictModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setDistrictModalVisible(false)}>
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.bottomSheetCard}>
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>{t('addresses.districtModalTitle')}</Text>
+                  <TouchableOpacity onPress={() => setDistrictModalVisible(false)} activeOpacity={0.8}>
+                    <Ionicons name="close" size={20} color={Colors.onSurface} />
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={styles.bottomSheetSearch}
+                  value={districtSearch}
+                  onChangeText={setDistrictSearch}
+                  placeholder={t('addresses.searchDistrictPlaceholder')}
+                  placeholderTextColor={Colors.slate400}
+                />
+                <ScrollView style={styles.bottomSheetList}>
+                  {filteredDistricts.map((district) => (
+                    <TouchableOpacity
+                      key={`district-${district}`}
+                      style={styles.bottomSheetItem}
+                      onPress={() => {
+                        setFormState((current) => ({ ...current, district }));
+                        setDistrictModalVisible(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.bottomSheetItemText}>{district}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </ScrollView>
   );
 }

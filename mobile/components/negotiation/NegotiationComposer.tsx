@@ -5,12 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { detectNegotiationPolicyViolation } from '../../hooks/useNegotiations';
 import type { CreateNegotiationOfferInput, SendNegotiationMessageInput } from '../../types';
+import { formatAmount } from '../../utils/transactionFormatters';
 import { styles } from './NegotiationComposer.styles';
 
 const EXPIRY_OPTIONS = [12, 24, 48, 72] as const;
 
 interface NegotiationComposerProps {
   negotiationId: string;
+  minimumAmount?: number | null;
   disabled?: boolean;
   onSendMessage: (input: SendNegotiationMessageInput) => void;
   onCreateOffer: (input: CreateNegotiationOfferInput) => void;
@@ -19,6 +21,7 @@ interface NegotiationComposerProps {
 
 export function NegotiationComposer({
   negotiationId,
+  minimumAmount = 0,
   disabled = false,
   onSendMessage,
   onCreateOffer,
@@ -31,11 +34,19 @@ export function NegotiationComposer({
   const [quantity, setQuantity] = useState('1');
   const [note, setNote] = useState('');
   const [expiresInHours, setExpiresInHours] = useState<(typeof EXPIRY_OPTIONS)[number]>(24);
+  const parsedAmount = Number(amount);
+  const minimumOfferAmount = minimumAmount ?? 0;
+  const showMinimumValidation = amount.trim().length > 0
+    && Number.isFinite(parsedAmount)
+    && parsedAmount < minimumOfferAmount;
 
   const canSendMessage = useMemo(() => message.trim().length > 0 && !disabled, [disabled, message]);
   const canCreateOffer = useMemo(() => {
-    return Number(amount) > 0 && Number(quantity) > 0 && !disabled;
-  }, [amount, disabled, quantity]);
+    return parsedAmount > 0
+      && parsedAmount >= minimumOfferAmount
+      && Number(quantity) > 0
+      && !disabled;
+  }, [disabled, minimumOfferAmount, parsedAmount, quantity]);
 
   const handleSendMessage = () => {
     const body = message.trim();
@@ -104,6 +115,14 @@ export function NegotiationComposer({
             placeholder={t('negotiation.composer.notePlaceholder')}
             placeholderTextColor={Colors.slate400}
           />
+          {minimumOfferAmount > 0 ? (
+            <Text style={[
+              styles.minimumText,
+              showMinimumValidation ? styles.minimumTextError : styles.minimumTextInfo,
+            ]}>
+              {t('negotiation.askPrice.minimum', { amount: formatAmount(minimumOfferAmount) })}
+            </Text>
+          ) : null}
           <View style={styles.expiryRow}>
             {EXPIRY_OPTIONS.map((option) => (
               <TouchableOpacity
@@ -142,7 +161,7 @@ export function NegotiationComposer({
           activeOpacity={0.8}
           disabled={disabled}
         >
-          <Ionicons name="pricetag-outline" size={20} color={Colors.primary} />
+          <Ionicons name="cash-outline" size={20} color={Colors.primary} />
         </TouchableOpacity>
         <TextInput
           style={styles.messageInput}

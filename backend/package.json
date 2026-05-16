@@ -28,6 +28,7 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/datasource.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/datasource.ts",
     "migration:show": "typeorm-ts-node-commonjs migration:show -d src/database/datasource.ts",
+    "schema:sync": "typeorm-ts-node-commonjs schema:sync -d src/database/datasource.ts",
     "phase10:contract": "node ../scripts/phase10-contract-drift.mjs",
     "phase10:inventory": "node ../scripts/phase10-endpoint-inventory.mjs",
     "phase10:contracts": "npm run phase10:contract && npm run phase10:inventory",

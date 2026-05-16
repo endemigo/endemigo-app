@@ -30,13 +30,13 @@ export class Address extends BaseEntity {
   @Column()
   district: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   neighborhood: string | null;
 
   @Column({ type: 'text' })
   addressLine: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   postalCode: string | null;
 
   @Column({ default: 'TR' })

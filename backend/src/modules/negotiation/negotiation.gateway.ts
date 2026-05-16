@@ -96,6 +96,12 @@ export class NegotiationGateway implements OnGatewayConnection, OnGatewayDisconn
     event: string,
     payload: Record<string, unknown>,
   ) {
+    if (!this.server) {
+      this.logger.warn(
+        `Negotiation websocket server not ready, skipping ${event} for ${conversationId}`,
+      );
+      return;
+    }
     this.server.to(this.room(conversationId)).emit(event, payload);
   }
 

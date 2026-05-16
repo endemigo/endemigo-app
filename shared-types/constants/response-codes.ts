@@ -114,6 +114,8 @@ export const AUCTION = {
   AUCTION_NOT_ACTIVE: 'AUCTION_NOT_ACTIVE',
   AUCTION_ENDED: 'AUCTION_ENDED',
   BID_ACCEPTED: 'BID_ACCEPTED',
+  BID_WITHDRAWN: 'BID_WITHDRAWN',
+  BID_WITHDRAWAL_NOT_ALLOWED: 'BID_WITHDRAWAL_NOT_ALLOWED',
   CANNOT_BID_OWN: 'CANNOT_BID_OWN',
   BID_TOO_LOW: 'BID_TOO_LOW',
   INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
@@ -340,6 +342,15 @@ export const MOBILE = {
 } as const;
 
 // ==========================================
+// Content Studio
+// ==========================================
+export const CONTENT = {
+  CONTENT_STUDIO_FETCHED: 'CONTENT_STUDIO_FETCHED',
+  CONTENT_STUDIO_UPDATED: 'CONTENT_STUDIO_UPDATED',
+  PUBLIC_BLOGS_FETCHED: 'PUBLIC_BLOGS_FETCHED',
+} as const;
+
+// ==========================================
 // Generic
 // ==========================================
 export const GENERIC = {
@@ -377,6 +388,7 @@ export const RC = {
   ...MEMBERSHIP,
   ...TRUST,
   ...MOBILE,
+  ...CONTENT,
   ...GENERIC,
 } as const;
 

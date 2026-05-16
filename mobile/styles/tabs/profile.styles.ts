@@ -80,10 +80,10 @@ export const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   sellerBadge: {
-    backgroundColor: `${Colors.primary}1A`,
+    backgroundColor: Colors.primaryFixed,
   },
   buyerBadge: {
-    backgroundColor: `${Colors.secondary}1A`,
+    backgroundColor: Colors.primaryFixed,
   },
   badgeText: {
     fontSize: FontSize.meta,
@@ -94,7 +94,7 @@ export const styles = StyleSheet.create({
     color: Colors.primary,
   },
   badgeTextBuyer: {
-    color: Colors.secondary,
+    color: Colors.primary,
   },
 
   // Wallet

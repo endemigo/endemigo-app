@@ -33,7 +33,7 @@ export default function ProfileScreen() {
     syncRoleModeFromUser(user);
   }, [syncRoleModeFromUser, user]);
 
-  const commonItems = useMemo<ProfileMenuItemConfig[]>(() => [
+  const buyerCommonItems = useMemo<ProfileMenuItemConfig[]>(() => [
     {
       key: 'wallet',
       labelKey: 'profileMenu.wallet',
@@ -51,11 +51,19 @@ export default function ProfileScreen() {
       tone: 'primary',
     },
     {
+      key: 'favorites',
+      labelKey: 'profileMenu.favorites',
+      icon: 'heart-outline',
+      route: '/(tabs)/favoriler',
+      order: 3,
+      tone: 'accent',
+    },
+    {
       key: 'notifications',
       labelKey: 'profileMenu.notifications',
       icon: 'notifications-outline',
       route: '/(tabs)/notifications',
-      order: 3,
+      order: 4,
       tone: 'accent',
     },
     {
@@ -63,7 +71,50 @@ export default function ProfileScreen() {
       labelKey: 'profileMenu.settings',
       icon: 'settings-outline',
       route: '/(tabs)/settings',
+      order: 5,
+      tone: 'neutral',
+    },
+  ], []);
+
+  const sellerCommonItems = useMemo<ProfileMenuItemConfig[]>(() => [
+    {
+      key: 'wallet',
+      labelKey: 'profileMenu.wallet',
+      icon: 'wallet-outline',
+      route: '/(tabs)/wallet',
+      order: 1,
+      tone: 'secondary',
+    },
+    {
+      key: 'sender-addresses',
+      labelKey: 'profileMenu.senderAddresses',
+      icon: 'business-outline',
+      route: '/(tabs)/addresses?type=SENDER',
+      order: 2,
+      tone: 'primary',
+    },
+    {
+      key: 'membership',
+      labelKey: 'profileMenu.membership',
+      icon: 'ribbon-outline',
+      route: '/(tabs)/membership',
+      order: 3,
+      tone: 'primary',
+    },
+    {
+      key: 'notifications',
+      labelKey: 'profileMenu.notifications',
+      icon: 'notifications-outline',
+      route: '/(tabs)/notifications',
       order: 4,
+      tone: 'accent',
+    },
+    {
+      key: 'settings',
+      labelKey: 'profileMenu.settings',
+      icon: 'settings-outline',
+      route: '/(tabs)/settings',
+      order: 5,
       tone: 'neutral',
     },
   ], []);
@@ -113,27 +164,11 @@ export default function ProfileScreen() {
       tone: 'accent',
     },
     {
-      key: 'sender-addresses',
-      labelKey: 'profileMenu.senderAddresses',
-      icon: 'business-outline',
-      route: '/(tabs)/addresses?type=SENDER',
-      order: 4,
-      tone: 'primary',
-    },
-    {
-      key: 'membership',
-      labelKey: 'profileMenu.membership',
-      icon: 'ribbon-outline',
-      route: '/(tabs)/membership',
-      order: 5,
-      tone: 'primary',
-    },
-    {
       key: 'seller-ads',
       labelKey: 'profileMenu.sellerAds',
       icon: 'megaphone-outline',
       route: '/(tabs)/seller-ads',
-      order: 6,
+      order: 4,
       tone: 'accent',
     },
     {
@@ -141,10 +176,20 @@ export default function ProfileScreen() {
       labelKey: 'profileMenu.sellerCampaigns',
       icon: 'pricetags-outline',
       route: '/(tabs)/seller-campaigns',
-      order: 7,
+      order: 5,
       tone: 'secondary',
     },
+    {
+      key: 'messages',
+      labelKey: 'profileMenu.messages',
+      icon: 'chatbubble-ellipses-outline',
+      route: '/(tabs)/messages',
+      order: 6,
+      tone: 'primary',
+    },
   ], []);
+
+  const commonItems = activeMode === 'seller' ? sellerCommonItems : buyerCommonItems;
 
   const handleLogout = async () => {
     resetRoleMode();
@@ -170,7 +215,7 @@ export default function ProfileScreen() {
             <Ionicons
               name={user?.isSeller ? 'storefront' : 'cart'}
               size={14}
-              color={user?.isSeller ? Colors.primary : Colors.secondary}
+              color={Colors.primary}
             />
             <Text style={[
               styles.badgeText,

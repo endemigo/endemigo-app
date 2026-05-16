@@ -983,6 +983,90 @@ describe('AuctionService', () => {
     });
   });
 
+  describe('withdrawBid', () => {
+    it('kendi aktif lider teklifi tek teklifse geri cekebilmeli', async () => {
+      const auction = createMockAuction({
+        currentPrice: 1500,
+        bidCount: 1,
+      });
+      const activeBid = {
+        id: 'bid-leading',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-1',
+        amount: 1500,
+        premiumAmount: 375,
+        status: BidStatus.ACTIVE,
+        isWinningBid: true,
+        createdAt: new Date(),
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(activeBid)
+        .mockResolvedValueOnce(null);
+
+      const result = await service.withdrawBid('auction-1', 'buyer-1');
+
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
+      );
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'bid-leading',
+          status: BidStatus.CANCELLED,
+          isWinningBid: false,
+        }),
+      );
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'auction-1',
+          currentPrice: 1000,
+          bidCount: 0,
+        }),
+      );
+      expect(result.code).toBe('BID_WITHDRAWN');
+    });
+
+    it('rekabete girmis lider teklif geri cekilememeli', async () => {
+      const auction = createMockAuction({
+        currentPrice: 1700,
+        bidCount: 2,
+      });
+      const activeBid = {
+        id: 'bid-leading',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-1',
+        amount: 1700,
+        premiumAmount: 425,
+        status: BidStatus.ACTIVE,
+        isWinningBid: true,
+        createdAt: new Date(),
+      };
+      const previousBid = {
+        id: 'bid-previous',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-2',
+        amount: 1500,
+        premiumAmount: 375,
+        status: BidStatus.OUTBID,
+        isWinningBid: false,
+        createdAt: new Date(),
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(activeBid)
+        .mockResolvedValueOnce(previousBid);
+
+      await expect(
+        service.withdrawBid('auction-1', 'buyer-1'),
+      ).rejects.toThrow(/geri cekilemez/);
+      expect(walletService.releaseHold).not.toHaveBeenCalled();
+    });
+  });
+
   // ══════════════════════════════════════════════════════
   // findById
   // ══════════════════════════════════════════════════════

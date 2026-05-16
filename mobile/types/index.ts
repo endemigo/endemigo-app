@@ -156,6 +156,11 @@ export interface Product {
   reviewCount?: number | null;
   latestReviewComment?: string | null;
   reviews?: ProductReview[];
+  favoriteCount?: number;
+  isFavorited?: boolean;
+  favoritedAt?: string;
+  isSponsored?: boolean;
+  visibilityBoost?: number;
   createdAt?: string;
 }
 
@@ -200,6 +205,7 @@ export interface NegotiationProductSummary {
   imageUrl?: string | null;
   sellerId?: string;
   sellerName?: string;
+  askPriceMinAmount?: number | null;
 }
 
 export interface NegotiationOffer {
@@ -275,6 +281,9 @@ export interface Blog {
   excerpt: string;
   readTime: string;
   image?: string;
+  slug?: string;
+  body?: string;
+  publishedAt?: string;
 }
 
 export interface SellerProfile {

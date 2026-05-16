@@ -38,6 +38,8 @@ interface BidEntry {
   premiumAmount: number;
   bidderName: string;
   createdAt: string;
+  status?: string;
+  isWinningBid?: boolean;
 }
 
 interface AuctionResult {
@@ -134,6 +136,23 @@ export function usePlaceBid() {
       queryClient.invalidateQueries({ queryKey: ['auction', variables.auctionId] });
       queryClient.invalidateQueries({ queryKey: ['auction-bids', variables.auctionId] });
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
+    },
+  });
+}
+
+export function useWithdrawBid() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ auctionId }: { auctionId: string }) => {
+      if (ENV.USE_MOCK) return mockService.withdrawBid(auctionId);
+      const { data } = await api.delete(`/auctions/${auctionId}/bids/me`);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['auction', variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['auction-bids', variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-holds'] });
     },
   });
 }

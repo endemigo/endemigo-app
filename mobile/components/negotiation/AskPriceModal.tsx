@@ -122,7 +122,7 @@ export function AskPriceModal({
             disabled={!canSubmit}
             activeOpacity={0.86}
           >
-            <Ionicons name="chatbubble-ellipses" size={18} color={Colors.white} />
+            <Ionicons name="cash-outline" size={18} color={Colors.white} />
             <Text style={styles.submitText}>
               {isPending ? t('negotiation.askPrice.sending') : t('product.askPrice')}
             </Text>

@@ -19,6 +19,19 @@ interface PaginatedProducts {
 type ProductListResponse = ApiResponseEnvelope & PaginatedProducts;
 type ProductResponse = ApiResponseEnvelope & Product;
 type CategoryListResponse = ApiResponseEnvelope & { categories: Category[] };
+type BlogListResponse = ApiResponseEnvelope & { items: ProductBlog[] };
+
+type ProductBlog = {
+  id: string | number;
+  title: string;
+  category: string;
+  excerpt: string;
+  readTime: string;
+  image?: string;
+  slug?: string;
+  body?: string;
+  publishedAt?: string;
+};
 
 function unwrapProductList(data: ProductListResponse): PaginatedProducts {
   return {
@@ -40,6 +53,10 @@ function unwrapProduct(data: ProductResponse): Product {
 
 function unwrapCategories(data: Category[] | CategoryListResponse): Category[] {
   return Array.isArray(data) ? data : data.categories;
+}
+
+function unwrapBlogs(data: ProductBlog[] | BlogListResponse): ProductBlog[] {
+  return Array.isArray(data) ? data : data.items;
 }
 
 /**
@@ -116,13 +133,12 @@ export function useProductsByBrand(brand: string, page = 1) {
 }
 
 export function useBlogs() {
-  return useQuery({
+  return useQuery<ProductBlog[]>({
     queryKey: ['blogs'],
     queryFn: async () => {
       if (ENV.USE_MOCK) return mockService.getBlogs();
-      // Adjust with real API endpoint when ready
-      const { data } = await api.get('/blogs');
-      return data;
+      const { data } = await api.get<ProductBlog[] | BlogListResponse>('/blogs');
+      return unwrapBlogs(data);
     },
   });
 }

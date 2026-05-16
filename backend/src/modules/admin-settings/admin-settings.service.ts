@@ -6,6 +6,7 @@ import {
   AdminRole,
   AdminSettingKey,
   RC,
+  getDefaultContentStudioDocument,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AdminSetting } from './entities/admin-setting.entity';
@@ -122,6 +123,7 @@ export class AdminSettingsService {
       [AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES]: {},
       [AdminSettingKey.AD_SPONSORED_DENSITY]: { maxSponsoredPerPage: 3 },
       [AdminSettingKey.TRUST_GRACE_DAYS]: { days: 7 },
+      [AdminSettingKey.CONTENT_STUDIO]: getDefaultContentStudioDocument() as unknown as Record<string, unknown>,
     };
     return defaults[key];
   }
@@ -137,6 +139,8 @@ export class AdminSettingsService {
       [AdminSettingKey.AD_SPONSORED_DENSITY]:
         'Sponsorlu içerik yoğunluk ayarı',
       [AdminSettingKey.TRUST_GRACE_DAYS]: 'Trust kısıtlamaları için grace süresi',
+      [AdminSettingKey.CONTENT_STUDIO]:
+        'İçerik stüdyosu dokümanı: blog, banner, popup, bülten ve operasyon koleksiyonları',
     };
     return descriptions[key];
   }

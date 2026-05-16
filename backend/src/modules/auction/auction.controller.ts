@@ -155,6 +155,17 @@ export class AuctionController {
     return this.auctionService.placeBid(auctionId, userId, dto);
   }
 
+  @Delete(':id/bids/me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Aktif lider teklifini geri cek' })
+  @ApiResponse({ status: 200, description: 'Teklif geri cekildi' })
+  async withdrawBid(
+    @Param('id', ParseUUIDPipe) auctionId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.withdrawBid(auctionId, userId);
+  }
+
   @Public()
   @Get(':id/bids')
   @ApiOperation({ summary: 'Teklif geçmişi (D-15: tam şeffaflık)' })
