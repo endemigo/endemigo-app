@@ -71,6 +71,18 @@ export class AuctionProcessor extends WorkerHost {
           break;
         }
 
+        case 'winner-payment-reminder': {
+          this.logger.log(`Sending winner payment reminder for ${auctionId}`);
+          await this.auctionService.sendWinnerPaymentReminder(auctionId);
+          break;
+        }
+
+        case 'winner-payment-expiry': {
+          this.logger.log(`Processing winner payment expiry for ${auctionId}`);
+          await this.auctionService.processWinnerPaymentExpiry(auctionId);
+          break;
+        }
+
         case 'warning': {
           const minutesLeft = job.data.minutesLeft || 1;
           this.logger.log(

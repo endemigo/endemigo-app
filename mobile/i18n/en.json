@@ -18,6 +18,14 @@
   "launchSplash": {
     "tagline": "Rare finds. Live bids."
   },
+  "connectionIssue": {
+    "title": "Connection Issue",
+    "offlineMessage": "You appear to be offline. Check your internet connection and try again.",
+    "networkMessage": "A network error occurred. Please try again.",
+    "timeoutMessage": "The request timed out. Check your connection and try again.",
+    "serverMessage": "The server is unreachable right now. Please try again shortly.",
+    "retry": "Try Again"
+  },
   "tabs": {
     "home": "Home",
     "search": "Search",
@@ -125,6 +133,7 @@
     "endTime": "Ends in: {{time}}",
     "highestBid": "Highest Bid",
     "bid": "Bid Now",
+    "reserve": "Reserve",
     "ended": "Ended",
     "waiting": "Upcoming",
     "bidCount": "{{count}} bids"
@@ -427,7 +436,7 @@
     "featureBadges": "Feature Badges",
     "geoBadgeSelections": "Geographical Badge Selections",
     "addImages": "Add product images",
-    "imagePickerHint": "You can select up to {{count}} images. The first one becomes the cover.",
+    "imagePickerHint": "You can select at least {{minCount}} and up to {{count}} images. The first one becomes the cover.",
     "imagePermissionRequired": "Photo library access is required to select images.",
     "maxImagesReached": "You can add up to {{count}} images.",
     "auctionStartsWhen": "When should the auction start?",
@@ -440,6 +449,8 @@
       "TIMED": "Timed"
     },
     "minIncrement": "Minimum Increment",
+    "reservePrice": "Reserve Price",
+    "reservePriceHint": "Optional. The sale will not complete below this amount.",
     "moreAuctionSettings": "Advanced auction settings",
     "antiSnipingEnabled": "Automatic extension enabled",
     "antiSnipingHint": "Extend time when bids come in at the end.",
@@ -460,6 +471,13 @@
   "settings": {
     "title": "Settings",
     "kvkkTitle": "KVKK Consents",
+    "legalTitle": "Legal documents",
+    "legalPrivacyTitle": "Privacy and KVKK",
+    "legalPrivacyMeta": "Data processing, retention, and user rights",
+    "legalDistanceSalesTitle": "Distance sales notice",
+    "legalDistanceSalesMeta": "Order, delivery, and support flow",
+    "legalReturnTitle": "Return and refund policy",
+    "legalReturnMeta": "Reverse logistics, approval, and payout flow",
     "dataProcessing": "Data Processing",
     "dataProcessingDesc": "Processing of your personal data (required)",
     "marketing": "Marketing",
@@ -475,6 +493,73 @@
     "confirmDelete": "Permanently Delete My Account",
     "accountDeleted": "Account Deleted",
     "accountDeletedMessage": "Your account has been deleted. You can reactivate it within 30 days."
+  },
+  "legal": {
+    "headerTitle": "Legal documents",
+    "eyebrow": "Information",
+    "privacy": {
+      "title": "Privacy and KVKK",
+      "summary": "Endemigo processes the personal data required for account creation, ordering, payment, delivery, and support for specific operational purposes.",
+      "sections": {
+        "collection": {
+          "title": "Collected data",
+          "body1": "Identity, contact, delivery, payment reference, and order lifecycle data are stored to manage your account and transaction safety.",
+          "body2": "Marketing and third-party sharing preferences are evaluated only within the scope of the consent you provide."
+        },
+        "processing": {
+          "title": "Processing purposes",
+          "body1": "Data is used for order creation, cargo tracking, return management, fraud prevention, and compliance with legal obligations.",
+          "body2": "Authorized teams can access records only within their responsibilities, and critical actions are monitored through audit logs."
+        },
+        "retention": {
+          "title": "Retention and logs",
+          "body1": "Order and payment records are retained for financial and legal obligations, while support and operational logs are reviewed for service quality and security.",
+          "body2": "After the account reactivation grace period expires, personal data is anonymized or removed in line with the applicable policy and regulation."
+        }
+      }
+    },
+    "distanceSales": {
+      "title": "Distance sales notice",
+      "summary": "For platform orders, product details, total amount, delivery steps, and post-order support flow are presented clearly to the user.",
+      "sections": {
+        "scope": {
+          "title": "Agreement scope",
+          "body1": "When you place an order, the transaction is formed through the product listing, seller information, cargo flow, and payment summary.",
+          "body2": "After payment is secured, the order moves into seller operations and is completed after delivery confirmation."
+        },
+        "delivery": {
+          "title": "Delivery and tracking",
+          "body1": "The order detail screen shows cargo status, tracking number, and shipment history.",
+          "body2": "Post-delivery confirmation, return requests, and refund steps are all tracked through the order status flow."
+        },
+        "support": {
+          "title": "Support and records",
+          "body1": "Critical order changes are delivered as notifications and the transaction trail is stored for audit purposes.",
+          "body2": "When disputes or operational reviews are needed, these records can be referenced by admin review flows."
+        }
+      }
+    },
+    "returnPolicy": {
+      "title": "Return and refund policy",
+      "summary": "For completed orders, the buyer can open a return request and the approval, reverse logistics, and refund stages are tracked within the platform flow.",
+      "sections": {
+        "eligibility": {
+          "title": "Return eligibility",
+          "body1": "A return request can be opened only for completed orders, and only one active return process is allowed per order.",
+          "body2": "While a return request is active, no new review can be submitted; once refunded, review stays permanently closed."
+        },
+        "logistics": {
+          "title": "Reverse logistics",
+          "body1": "When the seller approves the return request, a return shipment is created and its movement is shown in the order detail.",
+          "body2": "Once the return reaches the seller, delivery is confirmed and the flow moves to the refund preparation stage."
+        },
+        "refund": {
+          "title": "Refund flow",
+          "body1": "The refund starts after the returned shipment is delivered and is tracked as a payment-provider and order-status transition.",
+          "body2": "Risky or exceptional cases may be routed to admin review, and critical decisions are kept in the audit trail."
+        }
+      }
+    }
   },
   "buyNow": {
     "orderNow": "Place Order",
@@ -570,6 +655,8 @@
     "BID_TOO_LOW": "Bid is below the minimum increment.",
     "BID_WITHDRAWN": "Your bid was withdrawn.",
     "BID_WITHDRAWAL_NOT_ALLOWED": "This bid can no longer be withdrawn.",
+    "AUCTION_WINNER_PAYMENT_COMPLETED": "Winner payment completed.",
+    "AUCTION_WINNER_PAYMENT_SKIPPED": "Winner payment cannot be completed right now.",
     "ACTIVE_AUCTION_EXISTS": "This product already has an active auction.",
     "INSUFFICIENT_BALANCE": "Insufficient balance.",
     "NEGOTIATION_POLICY_VIOLATION": "For safe negotiation, contact and payment details cannot be shared off-platform.",
@@ -664,8 +751,14 @@
     "you": "You!",
     "resultTitleWinner": "Congratulations!",
     "resultTitleEnded": "Auction Ended",
+    "resultTitleReserveNotMet": "Reserve Not Met",
     "resultTitleNoBid": "No Bids Received",
     "resultProductFallback": "Product",
+    "resultWinnerSummary": "Your bid won. The payment summary is ready below.",
+    "resultEndedMessage": "A winning bid was determined and the auction closed.",
+    "resultReserveNotMetMessage": "The highest bid did not reach the reserve threshold of {{amount}}. The lot remained unsold.",
+    "resultNoBidMessage": "No valid bid was placed for this lot.",
+    "resultHighestBidLabel": "Highest Bid",
     "backToAuctions": "Back to Auctions",
     "live": "LIVE",
     "currentPrice": "Current Price",
@@ -684,8 +777,11 @@
     "placeholderImage": "Auction",
     "emptyBidError": "Bid amount cannot be empty",
     "minBidError": "Minimum bid: ₺{{amount}}",
+    "maxBidError": "Maximum bid cannot be lower than the bid amount.",
     "bidAcceptedTitle": "Success!",
     "bidAcceptedMessage": "Your ₺{{amount}} bid was accepted.",
+    "proxyOutbidTitle": "Proxy bid engaged",
+    "proxyOutbidMessage": "A higher maximum bid outpaced you immediately. Current price: ₺{{amount}}",
     "bidErrorFallback": "Could not place bid",
     "buyerPremiumRate": "Buyer Premium (%{{rate}})",
     "auctionEnded": "Auction Ended",
@@ -727,6 +823,11 @@
     "rulesSubtitle": "Visible rules and constraints before you place a bid.",
     "ruleAuctionType": "Auction Type",
     "ruleIncrement": "Minimum Increment",
+    "ruleReserve": "Reserve Status",
+    "reserveDetail": "{{amount}} • {{status}}",
+    "reserveMet": "met",
+    "reserveNotMet": "not met yet",
+    "reserveDisabled": "No reserve price",
     "ruleExtensions": "Extension Policy",
     "extensionDetail": "{{seconds}} sec extension • {{current}} / {{max}} used",
     "extensionDisabled": "Extensions disabled",
@@ -736,10 +837,24 @@
     "bidHistorySubtitle": "Leading bid and recent movement are listed here.",
     "leadBidderLabel": "Leading bid",
     "previousBidLabel": "Previous bid",
+    "proxyMaxLabel": "Maximum bid: {{amount}}",
     "bidPremiumLabel": "With premium: {{amount}}",
     "noBidsPremiumHint": "Make the first move and take the leading position for this lot.",
     "stickyBidSubtitle": "Join the live bidding from the persistent composer below.",
     "bidComposerHint": "Your hold updates automatically after a valid bid.",
+    "quickBidMin": "Min {{amount}}",
+    "quickBidPlusOne": "+1 increment {{amount}}",
+    "quickBidPlusThree": "+3 increments {{amount}}",
+    "leaderStateLeading": "You are holding the lead bid right now.",
+    "leaderStateOutbid": "You have been outbid. Reposition quickly if needed.",
+    "leaderStateWatching": "Track the live movement and step in at the right moment.",
+    "proxyActiveMessage": "Automatic bidding is active. Your ceiling is {{amount}}.",
+    "activityFeedTitle": "Live movement",
+    "activityBidTitle": "A new bid landed",
+    "activityWarningTitle": "Critical timing",
+    "activityWarningBody": "Movement may accelerate as the lot approaches closing.",
+    "maxBidHint": "Optionally let the system keep bidding for you up to your maximum.",
+    "maxBidPlaceholder": "Maximum bid (optional)",
     "withdrawBidCta": "Withdraw Bid",
     "withdrawBidTitle": "Withdraw this bid?",
     "withdrawBidMessage": "This removes your active leading bid and releases the held wallet amount.",
@@ -750,7 +865,23 @@
     "auctionTypeTimed": "Timed",
     "auctionTypeRealtime": "Live",
     "connectionLive": "Live connection",
-    "connectionOffline": "Waiting for connection"
+    "connectionOffline": "Waiting for connection",
+    "paymentStatusLabel": "Payment status",
+    "paymentDeadlineLabel": "Payment deadline",
+    "paymentPendingWinnerMessage": "This lot is reserved for you. Complete the payment before the window closes.",
+    "paymentPendingObserverMessage": "The winner payment window is open. Order processing starts after payment is completed.",
+    "paymentPaidMessage": "Payment received. Order processing has started.",
+    "paymentExpiredMessage": "The winner missed the payment window. The system applied the fallback outcome.",
+    "paymentSuccessTitle": "Payment completed",
+    "paymentSuccessMessage": "Your auction payment was received and the order was created.",
+    "completePayment": "Complete Payment",
+    "viewOrder": "View Order",
+    "paymentStatuses": {
+      "NONE": "None",
+      "PENDING": "Payment pending",
+      "PAID": "Paid",
+      "EXPIRED": "Expired"
+    }
   },
   "wallet": {
     "title": "Wallet",
@@ -837,7 +968,35 @@
     "sellerActionsConfirm": "Do you want to update this order to {{status}}?",
     "sellerAdvancePreparing": "Start preparing",
     "sellerAdvanceTransit": "Mark shipped",
-    "sellerAdvanceDelivered": "Mark delivered"
+    "sellerAdvanceDelivered": "Mark delivered",
+    "returnRequestTitle": "Return request",
+    "returnRequestBody": "You can create a return request after the order is completed.",
+    "createReturnRequest": "Create return request",
+    "returnNotePlaceholder": "Add your return note",
+    "returnRequestSuccessTitle": "Return request received",
+    "returnRequestSuccessMessage": "The return flow has started.",
+    "returnStatusTitle": "Return status",
+    "approveReturn": "Approve",
+    "rejectReturn": "Reject",
+    "confirmReturnDelivered": "Return received",
+    "returnApproveSuccess": "The return request has been approved.",
+    "returnRejectSuccess": "The return request has been rejected.",
+    "returnDeliveredSuccess": "The return was received and refund flow started.",
+    "reviewTitle": "Review this order",
+    "reviewSubmittedTitle": "Review submitted",
+    "reviewSubmittedMessage": "Your rating and comment have been saved.",
+    "submitReview": "Submit review",
+    "productReviewLabel": "Product rating and review",
+    "sellerReviewLabel": "Seller rating and review",
+    "productReviewPlaceholder": "Write your comment about the product",
+    "sellerReviewPlaceholder": "Write your comment about the seller",
+    "returnReasons": {
+      "DAMAGED": "Arrived damaged",
+      "NOT_AS_DESCRIBED": "Not as described",
+      "WRONG_ITEM": "Wrong item sent",
+      "MISSING_PARTS": "Missing parts",
+      "OTHER": "Other"
+    }
   },
   "cargo": {
     "title": "Cargo",
@@ -848,7 +1007,9 @@
     "deliveredAt": "Delivered at",
     "timeline": "Cargo activity",
     "noCargo": "Cargo information is not available yet",
-    "mockProviderNote": "Cargo status is tracked through the integration adapter."
+    "mockProviderNote": "Cargo status is tracked through the integration adapter.",
+    "forwardShipment": "Forward shipment",
+    "returnShipment": "Return shipment"
   },
   "notifications": {
     "title": "Notifications",
@@ -1008,6 +1169,8 @@
       "preparing": "To prepare",
       "inTransit": "In transit",
       "unread": "Unread notifications",
+      "returnRequested": "Return requests",
+      "returnInTransit": "Returns in transit",
       "activeProducts": "Active products",
       "draftProducts": "Draft products",
       "reviewProducts": "Under review",
@@ -1015,7 +1178,8 @@
       "heldBalance": "Held balance",
       "processingPayout": "Processing payout",
       "openNegotiations": "Open negotiations",
-      "senderAddresses": "Sender addresses"
+      "senderAddresses": "Sender addresses",
+      "refundedOrders": "Refunded orders"
     },
     "quickActions": {
       "orders": "Orders",
@@ -1219,6 +1383,13 @@
     "IN_TRANSIT": "In cargo",
     "DELIVERED": "Delivered",
     "COMPLETED": "Completed",
+    "RETURN_REQUESTED": "Return requested",
+    "RETURN_APPROVED": "Return approved",
+    "RETURN_REJECTED": "Return rejected",
+    "RETURN_IN_TRANSIT": "Return in transit",
+    "RETURN_DELIVERED": "Return delivered",
+    "REFUND_PENDING": "Refund pending",
+    "REFUNDED": "Refunded",
     "CANCELLED": "Cancelled",
     "FAILED": "Failed",
     "ADMIN_REVIEW": "Under review"

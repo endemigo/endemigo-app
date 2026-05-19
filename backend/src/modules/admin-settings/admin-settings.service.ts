@@ -1,11 +1,15 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   AdminAuditAction,
   AdminRole,
   AdminSettingKey,
+  DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
   RC,
+  sanitizeProductImageUploadLimits,
+  validateProductImageUploadLimits,
+  type ProductImageUploadLimits,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AdminSetting } from './entities/admin-setting.entity';
@@ -25,6 +29,7 @@ const MANAGED_SETTING_KEYS = [
   AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES,
   AdminSettingKey.AD_SPONSORED_DENSITY,
   AdminSettingKey.TRUST_GRACE_DAYS,
+  AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS,
 ] as const satisfies readonly AdminSettingKey[];
 type ManagedAdminSettingKey = (typeof MANAGED_SETTING_KEYS)[number];
 const MANAGED_SETTING_KEY_SET = new Set<AdminSettingKey>(MANAGED_SETTING_KEYS);
@@ -52,6 +57,7 @@ export class AdminSettingsService {
 
   async update(input: UpdateAdminSettingInput) {
     this.assertCanUpdate(input.key, input.actorRoles);
+    this.assertValidValue(input.key, input.value);
 
     const existing = await this.settingRepo.findOne({
       where: { key: input.key },
@@ -95,6 +101,16 @@ export class AdminSettingsService {
       message: 'Admin ayarı güncellendi',
       setting: saved,
     };
+  }
+
+  async getProductImageUploadLimits(): Promise<ProductImageUploadLimits> {
+    const existing = await this.settingRepo.findOne({
+      where: { key: AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS },
+    });
+
+    return sanitizeProductImageUploadLimits(
+      existing?.value ?? DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
+    );
   }
 
   private assertCanUpdate(
@@ -144,6 +160,8 @@ export class AdminSettingsService {
       [AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES]: {},
       [AdminSettingKey.AD_SPONSORED_DENSITY]: { maxSponsoredPerPage: 3 },
       [AdminSettingKey.TRUST_GRACE_DAYS]: { days: 7 },
+      [AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS]:
+        DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
     };
     return defaults[key];
   }
@@ -159,7 +177,29 @@ export class AdminSettingsService {
       [AdminSettingKey.AD_SPONSORED_DENSITY]:
         'Sponsorlu içerik yoğunluk ayarı',
       [AdminSettingKey.TRUST_GRACE_DAYS]: 'Trust kısıtlamaları için grace süresi',
+      [AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS]:
+        'İlan görsel min/max yükleme limiti',
     };
     return descriptions[key];
+  }
+
+  private assertValidValue(
+    key: ManagedAdminSettingKey,
+    value: Record<string, unknown>,
+  ) {
+    if (key !== AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS) {
+      return;
+    }
+
+    const errors = validateProductImageUploadLimits(value);
+    if (errors.length === 0) {
+      return;
+    }
+
+    throw new BadRequestException({
+      code: RC.VALIDATION_ERROR,
+      message: 'Gorsel limiti ayari gecersiz',
+      errors,
+    });
   }
 }

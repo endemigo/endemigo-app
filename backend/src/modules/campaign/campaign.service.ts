@@ -16,7 +16,9 @@ import {
 import { IsNull, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { Product } from '../product/entities/product.entity';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { AdminCouponListQueryDto } from './dto/admin-coupon-list-query.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
+import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { Campaign } from './entities/campaign.entity';
 import { CampaignRule } from './entities/campaign-rule.entity';
 import { Coupon } from './entities/coupon.entity';
@@ -184,6 +186,95 @@ export class CampaignService {
       order: { createdAt: 'DESC' },
     });
     return { code: RC.SUCCESS, message: 'Kuponlar getirildi', items };
+  }
+
+  async listAdminCoupons(query: AdminCouponListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const where = {
+      ...(query.sellerId ? { sellerId: query.sellerId } : {}),
+      ...(query.status ? { status: query.status as CouponStatus } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.couponRepo.find({
+        where,
+        order: { createdAt: 'DESC' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.couponRepo.count({ where }),
+    ]);
+
+    const itemsWithStats = await Promise.all(
+      items.map(async (coupon) => {
+        const totalRedemptions = await this.couponRedemptionRepo.count({
+          where: { couponId: coupon.id },
+        });
+        return {
+          ...coupon,
+          totalRedemptions,
+          remainingUses:
+            coupon.maxUses === null ? null : Math.max(coupon.maxUses - totalRedemptions, 0),
+        };
+      }),
+    );
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin kuponları getirildi',
+      resource: 'coupons',
+      items: itemsWithStats,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  async updateCoupon(id: string, dto: UpdateCouponDto) {
+    const coupon = await this.findCouponOrFail(id);
+
+    if (dto.scopeType && dto.scopeId && coupon.sellerId) {
+      await this.assertSellerOwnsScopes(coupon.sellerId, [
+        {
+          scopeType: dto.scopeType,
+          scopeId: dto.scopeId,
+          discountType: dto.discountType ?? coupon.discountType,
+          discountValue: dto.discountValue ?? Number(coupon.discountValue),
+        },
+      ]);
+    }
+
+    if (dto.code !== undefined) coupon.code = dto.code.trim().toUpperCase();
+    if (dto.discountType !== undefined) coupon.discountType = dto.discountType;
+    if (dto.discountValue !== undefined) coupon.discountValue = dto.discountValue;
+    if (dto.startsAt !== undefined) coupon.startsAt = new Date(dto.startsAt);
+    if (dto.endsAt !== undefined) coupon.endsAt = new Date(dto.endsAt);
+    if (dto.minAmount !== undefined) coupon.minAmount = dto.minAmount;
+    if (dto.maxUses !== undefined) coupon.maxUses = dto.maxUses;
+    if (dto.perUserLimit !== undefined) coupon.perUserLimit = dto.perUserLimit;
+    if (dto.scopeType !== undefined) coupon.scopeType = dto.scopeType;
+    if (dto.scopeId !== undefined) coupon.scopeId = dto.scopeId;
+
+    const saved = await this.couponRepo.save(coupon);
+    return {
+      code: RC.COUPON_UPDATED,
+      message: 'Kupon güncellendi',
+      coupon: saved,
+    };
+  }
+
+  async updateCouponStatus(id: string, status: CouponStatus) {
+    const coupon = await this.findCouponOrFail(id);
+    coupon.status = status;
+    const saved = await this.couponRepo.save(coupon);
+    return {
+      code: RC.COUPON_STATUS_UPDATED,
+      message: 'Kupon durumu güncellendi',
+      coupon: saved,
+    };
   }
 
   async evaluateOrderDiscount(
@@ -413,6 +504,19 @@ export class CampaignService {
       }),
     );
     return { totalByCoupon, userByCoupon };
+  }
+
+  private async findCouponOrFail(id: string) {
+    const coupon = await this.couponRepo.findOne({
+      where: { id },
+    });
+    if (!coupon) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Kupon bulunamadı',
+      });
+    }
+    return coupon;
   }
 
   private async assertSellerOwnsScopes(

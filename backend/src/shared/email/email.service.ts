@@ -34,4 +34,28 @@ export class EmailService {
       `[EMAIL STUB] Password reset email to ${email}: ${resetUrl}`,
     );
   }
+
+  async sendOrderLifecycleEmail(input: {
+    email: string;
+    subject: string;
+    summary: string;
+    orderId: string;
+  }): Promise<void> {
+    const orderUrl = `${this.appUrl}/orders/${input.orderId}`;
+    this.logger.log(
+      `[EMAIL STUB] Order lifecycle email to ${input.email}: ${input.subject} — ${input.summary} (${orderUrl})`,
+    );
+  }
+
+  async sendCargoLifecycleEmail(input: {
+    email: string;
+    subject: string;
+    summary: string;
+    orderId: string;
+  }): Promise<void> {
+    const orderUrl = `${this.appUrl}/orders/${input.orderId}`;
+    this.logger.log(
+      `[EMAIL STUB] Cargo lifecycle email to ${input.email}: ${input.subject} — ${input.summary} (${orderUrl})`,
+    );
+  }
 }

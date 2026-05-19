@@ -27,9 +27,15 @@ export default function OrdersScreen() {
   const orders = useOrdersByMode(status, 1);
 
   const filterLabels = useMemo(
-    () => ({
+    (): Record<OrderStatusFilter, string> => ({
       all: t('orders.filterAll'),
       [OrderStatus.PAYMENT_PENDING]: t('orders.filterPayment'),
+      [OrderStatus.RETURN_REQUESTED]: t('orders.filterCompleted'),
+      [OrderStatus.RETURN_APPROVED]: t('orders.filterCompleted'),
+      [OrderStatus.RETURN_IN_TRANSIT]: t('orders.filterInTransit'),
+      [OrderStatus.RETURN_DELIVERED]: t('orders.filterDelivered'),
+      [OrderStatus.REFUND_PENDING]: t('orders.filterDelivered'),
+      [OrderStatus.REFUNDED]: t('orders.filterCompleted'),
       [OrderStatus.ESCROW_HELD]: t('orders.filterPayment'),
       [OrderStatus.PREPARING_SHIPMENT]: t('orders.filterPreparing'),
       [OrderStatus.IN_TRANSIT]: t('orders.filterInTransit'),

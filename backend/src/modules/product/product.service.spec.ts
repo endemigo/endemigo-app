@@ -19,6 +19,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { RC } from '../../shared/constants/response-codes';
+import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 
 describe('ProductService', () => {
   let service: ProductService;
@@ -30,6 +31,7 @@ describe('ProductService', () => {
   let favoriteRepo: any;
   let userService: any;
   let storageService: any;
+  let adminSettingsService: any;
 
   const mockSeller = {
     id: 'seller-1',
@@ -143,6 +145,12 @@ describe('ProductService', () => {
       delete: jest.fn().mockResolvedValue(undefined),
     };
 
+    adminSettingsService = {
+      getProductImageUploadLimits: jest
+        .fn()
+        .mockResolvedValue({ min: 1, max: 10 }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
@@ -154,6 +162,7 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
         { provide: UserService, useValue: userService },
         { provide: STORAGE_SERVICE, useValue: storageService },
+        { provide: AdminSettingsService, useValue: adminSettingsService },
       ],
     }).compile();
 
@@ -273,10 +282,14 @@ describe('ProductService', () => {
     });
 
     it('should require uploaded image records when activating', async () => {
+      adminSettingsService.getProductImageUploadLimits.mockResolvedValue({
+        min: 2,
+        max: 10,
+      });
       productRepo.findOne.mockResolvedValue({
         ...mockProduct,
         imageUrl: '/uploads/products/product-1/bypass.webp',
-        images: [],
+        images: [{ id: 'img-1' }],
         description: 'Yeterince uzun ürün açıklaması',
         categoryId: 'cat-1',
         price: 100,
@@ -365,12 +378,16 @@ describe('ProductService', () => {
     });
 
     it('should reject when max images reached', async () => {
-      const tenImages = Array.from({ length: 10 }, (_, i) => ({
+      adminSettingsService.getProductImageUploadLimits.mockResolvedValue({
+        min: 1,
+        max: 2,
+      });
+      const existingImages = Array.from({ length: 2 }, (_, i) => ({
         id: `img-${i}`,
       }));
       productRepo.findOne.mockResolvedValue({
         ...mockProduct,
-        images: tenImages,
+        images: existingImages,
       });
 
       await expect(

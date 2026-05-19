@@ -22,12 +22,34 @@ import {
 import { BlogCard, ProductCard } from '../../components/ui';
 import type { Blog, Category, Product } from '../../types';
 import { formatCurrency } from '../../utils/transactionFormatters';
-import { styles } from './ExploreScreen.styles';
+import { styles } from '../../styles/tabs/ExploreScreen.styles';
 
 type ExploreSectionKey = 'all' | 'products' | 'auctions' | 'blogs';
 
 const AUCTION_PLACEHOLDER =
   'https://placehold.co/120x120/F8F9FA/42b94b?text=Auction';
+
+function getReserveBadgeConfig(
+  reservePrice: number | null | undefined,
+  reserveMet: boolean | null | undefined,
+  t: (key: string) => string,
+) {
+  if (reservePrice === null || reservePrice === undefined) {
+    return null;
+  }
+
+  return reserveMet
+    ? {
+        label: `${t('auctions.reserve')}: ${t('auction.reserveMet')}`,
+        backgroundColor: Colors.secondaryContainer,
+        textColor: Colors.onSecondaryContainer,
+      }
+    : {
+        label: `${t('auctions.reserve')}: ${t('auction.reserveNotMet')}`,
+        backgroundColor: Colors.errorContainer,
+        textColor: Colors.onErrorContainer,
+      };
+}
 
 function normalizeSection(value: string | string[] | undefined): ExploreSectionKey {
   if (value === 'products' || value === 'auctions' || value === 'blogs') {
@@ -117,33 +139,61 @@ export default function ExploreScreen() {
       );
     }
 
-    return items.map((item) => (
-      <TouchableOpacity
-        key={item.id}
-        style={styles.auctionCard}
-        activeOpacity={0.82}
-        onPress={() => router.push(`/auction/${item.id}` as never)}
-      >
-        <Image
-          source={{ uri: item.productImageUrl || AUCTION_PLACEHOLDER }}
-          style={styles.auctionImage}
-        />
-        <View style={styles.auctionBody}>
-          <Text style={styles.auctionTitle} numberOfLines={2}>
-            {item.productTitle}
-          </Text>
-          <Text style={styles.auctionMeta}>
-            {item.categoryName || t('exploreScreen.openAuction')}
-          </Text>
-          <Text style={styles.auctionPrice}>
-            {formatCurrency(item.currentPrice)}
-          </Text>
-          <Text style={styles.auctionMeta}>
-            {t('exploreScreen.bidCount', { count: item.bidCount })}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    ));
+    return items.map((item) => {
+      const reserveBadge = getReserveBadgeConfig(
+        item.reservePrice,
+        item.reserveMet,
+        t,
+      );
+
+      return (
+        <TouchableOpacity
+          key={item.id}
+          style={styles.auctionCard}
+          activeOpacity={0.82}
+          onPress={() => router.push(`/auction/${item.id}` as never)}
+        >
+          <Image
+            source={{ uri: item.productImageUrl || AUCTION_PLACEHOLDER }}
+            style={styles.auctionImage}
+          />
+          <View style={styles.auctionBody}>
+            <Text style={styles.auctionTitle} numberOfLines={2}>
+              {item.productTitle}
+            </Text>
+            <Text style={styles.auctionMeta}>
+              {item.categoryName || t('exploreScreen.openAuction')}
+            </Text>
+            <Text style={styles.auctionPrice}>
+              {formatCurrency(item.currentPrice)}
+            </Text>
+            <View style={styles.auctionFooter}>
+              <Text style={styles.auctionMeta}>
+                {t('exploreScreen.bidCount', { count: item.bidCount })}
+              </Text>
+              {reserveBadge ? (
+                <View
+                  style={[
+                    styles.reserveBadge,
+                    { backgroundColor: reserveBadge.backgroundColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.reserveBadgeText,
+                      { color: reserveBadge.textColor },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {reserveBadge.label}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    });
   };
 
   const renderBlogList = (items: Blog[], emptyKey: string) => {

@@ -32,6 +32,28 @@ function formatTimeLeft(ms: number, t: (k: string) => string) {
   return `${secs}s`;
 }
 
+function getReserveBadgeConfig(
+  reservePrice: number | null | undefined,
+  reserveMet: boolean | null | undefined,
+  t: (key: string) => string,
+) {
+  if (reservePrice === null || reservePrice === undefined) {
+    return null;
+  }
+
+  return reserveMet
+    ? {
+        label: `${t('auctions.reserve')}: ${t('auction.reserveMet')}`,
+        backgroundColor: Colors.secondaryContainer,
+        textColor: Colors.onSecondaryContainer,
+      }
+    : {
+        label: `${t('auctions.reserve')}: ${t('auction.reserveNotMet')}`,
+        backgroundColor: Colors.errorContainer,
+        textColor: Colors.onErrorContainer,
+      };
+}
+
 export default function AuctionsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
@@ -122,6 +144,11 @@ export default function AuctionsScreen() {
           const st = hasEndedByTime
             ? statusConfig[AuctionStatus.ENDED]
             : statusConfig[item.status as keyof typeof statusConfig];
+          const reserveBadge = getReserveBadgeConfig(
+            item.reservePrice,
+            item.reserveMet,
+            t,
+          );
 
           return (
             <TouchableOpacity
@@ -176,6 +203,24 @@ export default function AuctionsScreen() {
                         <Text style={[styles.statusText, { color: st?.color }]}>{st?.label}</Text>
                       </View>
                     ) : <View />}
+                    {reserveBadge ? (
+                      <View
+                        style={[
+                          styles.reserveBadge,
+                          { backgroundColor: reserveBadge.backgroundColor },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.reserveBadgeText,
+                            { color: reserveBadge.textColor },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {reserveBadge.label}
+                        </Text>
+                      </View>
+                    ) : null}
                     {auctionCardConfig.showBidCount ? (
                       <Text style={styles.bidCount}>{t('auctions.bidCount', { count: item.bidCount })}</Text>
                     ) : null}

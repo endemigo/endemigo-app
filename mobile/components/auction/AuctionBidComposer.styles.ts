@@ -95,6 +95,43 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
   },
+  quickBidRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  quickBidChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  quickBidChipText: {
+    color: Colors.onSurface,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+  stateCard: {
+    borderRadius: BorderRadius.xl,
+    backgroundColor: `${Colors.primary}10`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}20`,
+    padding: Spacing.base,
+    gap: Spacing.xs,
+  },
+  stateTitle: {
+    color: Colors.primary,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  stateBody: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -18,6 +18,14 @@
   "launchSplash": {
     "tagline": "Nadir parçalar. Canlı teklifler."
   },
+  "connectionIssue": {
+    "title": "Bağlantı Sorunu",
+    "offlineMessage": "İnternet bağlantısı yok görünüyor. Bağlantınızı kontrol edip tekrar deneyin.",
+    "networkMessage": "Ağ bağlantısında sorun oluştu. Lütfen tekrar deneyin.",
+    "timeoutMessage": "İstek zaman aşımına uğradı. İnternetinizi kontrol edip tekrar deneyin.",
+    "serverMessage": "Sunucuya şu anda ulaşılamıyor. Lütfen birazdan tekrar deneyin.",
+    "retry": "Tekrar Dene"
+  },
   "tabs": {
     "home": "Ana Sayfa",
     "search": "Ara",
@@ -125,6 +133,7 @@
     "endTime": "Müzayede Sonu: {{time}}",
     "highestBid": "En Yüksek Teklif",
     "bid": "Teklif Ver",
+    "reserve": "Reserve",
     "ended": "Bitti",
     "waiting": "Bekliyor",
     "bidCount": "{{count}} teklif"
@@ -427,7 +436,7 @@
     "featureBadges": "Özellik Rozetleri",
     "geoBadgeSelections": "Coğrafi Rozet Seçimleri",
     "addImages": "Ürün görsellerini ekle",
-    "imagePickerHint": "En fazla {{count}} görsel seçebilirsin. İlk görsel kapak olur.",
+    "imagePickerHint": "En az {{minCount}}, en fazla {{count}} görsel seçebilirsin. İlk görsel kapak olur.",
     "imagePermissionRequired": "Görsel seçebilmek için fotoğraf erişimi gerekli.",
     "maxImagesReached": "En fazla {{count}} görsel ekleyebilirsin.",
     "auctionStartsWhen": "Müzayede ne zaman başlasın?",
@@ -440,6 +449,8 @@
       "TIMED": "Zamanlı"
     },
     "minIncrement": "Minimum Artış",
+    "reservePrice": "Reserve Fiyatı",
+    "reservePriceHint": "İsteğe bağlı. Bu tutarın altında satış tamamlanmaz.",
     "moreAuctionSettings": "Gelişmiş müzayede ayarları",
     "antiSnipingEnabled": "Otomatik uzatma açık",
     "antiSnipingHint": "Son saniye tekliflerinde süre uzatılır.",
@@ -460,6 +471,13 @@
   "settings": {
     "title": "Ayarlar",
     "kvkkTitle": "KVKK Onayları",
+    "legalTitle": "Yasal metinler",
+    "legalPrivacyTitle": "Gizlilik ve KVKK",
+    "legalPrivacyMeta": "Veri işleme, saklama ve kullanıcı hakları",
+    "legalDistanceSalesTitle": "Mesafeli satış bilgilendirmesi",
+    "legalDistanceSalesMeta": "Sipariş, teslimat ve destek akışı",
+    "legalReturnTitle": "İade ve refund politikası",
+    "legalReturnMeta": "İade lojistiği, onay ve ödeme süreci",
     "dataProcessing": "Veri İşleme",
     "dataProcessingDesc": "Kişisel verilerinizin işlenmesi (zorunlu)",
     "marketing": "Pazarlama",
@@ -475,6 +493,73 @@
     "confirmDelete": "Hesabımı Kalıcı Olarak Sil",
     "accountDeleted": "Hesap Silindi",
     "accountDeletedMessage": "Hesabınız silinmiştir. 30 gün içinde geri aktifleştirebilirsiniz."
+  },
+  "legal": {
+    "headerTitle": "Yasal metinler",
+    "eyebrow": "Bilgilendirme",
+    "privacy": {
+      "title": "Gizlilik ve KVKK",
+      "summary": "Endemigo, hesap oluşturma, sipariş, ödeme, teslimat ve destek süreçlerinde gerekli kişisel verileri belirli amaçlarla işler.",
+      "sections": {
+        "collection": {
+          "title": "Toplanan veriler",
+          "body1": "Kimlik, iletişim, teslimat, ödeme referansı ve sipariş hareketleri gibi veriler hesabınızın yönetimi ve işlem güvenliği için tutulur.",
+          "body2": "Pazarlama ve üçüncü taraf paylaşım tercihleri yalnızca verdiğiniz açık rıza kapsamında değerlendirilir."
+        },
+        "processing": {
+          "title": "İşleme amaçları",
+          "body1": "Veriler; sipariş oluşturma, kargo takibi, iade yönetimi, dolandırıcılık önleme ve yasal yükümlülüklerin yerine getirilmesi için kullanılır.",
+          "body2": "Yetkili ekipler, yalnızca görev alanlarıyla sınırlı olacak şekilde kayıtlara erişebilir ve kritik işlemler audit log ile izlenir."
+        },
+        "retention": {
+          "title": "Saklama ve log kaydı",
+          "body1": "Sipariş ve ödeme kayıtları, mali ve hukuki yükümlülükler boyunca saklanır; destek ve operasyon logları ise servis kalitesi ve güvenlik amacıyla denetlenir.",
+          "body2": "Hesap silme talebinden sonra geri aktifleştirme süresi dolduğunda kişisel veriler ilgili politika ve mevzuata uygun şekilde anonimleştirilir veya kaldırılır."
+        }
+      }
+    },
+    "distanceSales": {
+      "title": "Mesafeli satış bilgilendirmesi",
+      "summary": "Platform üzerindeki siparişlerde ürün bilgisi, toplam bedel, teslimat adımı ve sipariş sonrası destek akışı kullanıcıya görünür şekilde sunulur.",
+      "sections": {
+        "scope": {
+          "title": "Sözleşme kapsamı",
+          "body1": "Sipariş verdiğinizde ürün açıklaması, satıcı bilgisi, kargo akışı ve ödeme özeti üzerinden işlem kurulur.",
+          "body2": "Ödeme güvence altına alındıktan sonra sipariş satıcı operasyonuna düşer ve teslimat teyidiyle tamamlanır."
+        },
+        "delivery": {
+          "title": "Teslimat ve takip",
+          "body1": "Sipariş detayı ekranında kargo statüsü, takip numarası ve hareket geçmişi görüntülenir.",
+          "body2": "Teslimat sonrası onay, iade talebi ve refund süreci sipariş statüsü üzerinden ilerler."
+        },
+        "support": {
+          "title": "Destek ve kayıt",
+          "body1": "Sipariş akışındaki kritik değişiklikler bildirim olarak iletilir ve işlem geçmişi denetim amacıyla kaydedilir.",
+          "body2": "Uyuşmazlık veya operasyonel inceleme gereken durumlarda kayıtlar admin inceleme süreçlerinde referans olarak kullanılır."
+        }
+      }
+    },
+    "returnPolicy": {
+      "title": "İade ve refund politikası",
+      "summary": "Tamamlanan siparişlerde alıcı iade talebi açabilir; onay, tersine lojistik ve refund adımları platform akışıyla izlenir.",
+      "sections": {
+        "eligibility": {
+          "title": "İade uygunluğu",
+          "body1": "İade talebi yalnızca tamamlanmış siparişlerde açılır ve sipariş başına tek aktif iade süreci yürütülür.",
+          "body2": "İade talebi açıkken yeni değerlendirme gönderilemez; refund tamamlandıysa review kalıcı olarak kapanır."
+        },
+        "logistics": {
+          "title": "İade lojistiği",
+          "body1": "Satıcı iade talebini onayladığında iade kargosu oluşturulur ve hareketler sipariş detayında izlenir.",
+          "body2": "İade gönderisi satıcıya ulaştığında teslim onayı verilir ve refund hazırlık adımına geçilir."
+        },
+        "refund": {
+          "title": "Refund süreci",
+          "body1": "Refund işlemi iade tesliminden sonra başlatılır ve ödeme sağlayıcısı ile sipariş kaydında durum değişikliği olarak izlenir.",
+          "body2": "Riskli veya istisnai durumlar admin inceleme akışına alınabilir; kritik kararlar audit trail içinde tutulur."
+        }
+      }
+    }
   },
   "buyNow": {
     "orderNow": "Sipariş Ver",
@@ -570,6 +655,8 @@
     "BID_TOO_LOW": "Teklif minimum artışın altında.",
     "BID_WITHDRAWN": "Teklifiniz geri çekildi.",
     "BID_WITHDRAWAL_NOT_ALLOWED": "Bu teklif artık geri çekilemez.",
+    "AUCTION_WINNER_PAYMENT_COMPLETED": "Kazanan ödemesi tamamlandı.",
+    "AUCTION_WINNER_PAYMENT_SKIPPED": "Kazanan ödemesi şu anda tamamlanamıyor.",
     "ACTIVE_AUCTION_EXISTS": "Bu ürün zaten aktif bir müzayedede.",
     "INSUFFICIENT_BALANCE": "Yetersiz bakiye.",
     "NEGOTIATION_POLICY_VIOLATION": "Güvenli pazarlık için iletişim ve ödeme bilgileri platform dışında paylaşılamaz.",
@@ -664,8 +751,14 @@
     "you": "Siz!",
     "resultTitleWinner": "Tebrikler!",
     "resultTitleEnded": "Müzayede Bitti",
+    "resultTitleReserveNotMet": "Reserve Karşılanmadı",
     "resultTitleNoBid": "Teklif Alınamadı",
     "resultProductFallback": "Ürün",
+    "resultWinnerSummary": "Kazanan teklif sizde kaldı. Ödeme özeti aşağıda hazır.",
+    "resultEndedMessage": "Kazanan teklif belirlendi ve müzayede kapandı.",
+    "resultReserveNotMetMessage": "En yüksek teklif reserve eşiği {{amount}} seviyesine ulaşamadı. Lot satılmadı.",
+    "resultNoBidMessage": "Bu lot için geçerli teklif oluşmadı.",
+    "resultHighestBidLabel": "En Yüksek Teklif",
     "backToAuctions": "Müzayedelere Dön",
     "live": "CANLI",
     "currentPrice": "Güncel Fiyat",
@@ -684,8 +777,11 @@
     "placeholderImage": "Müzayede",
     "emptyBidError": "Teklif tutarı boş bırakılamaz",
     "minBidError": "Minimum teklif: {{amount}}₺",
+    "maxBidError": "Maksimum teklif, teklif tutarından düşük olamaz.",
     "bidAcceptedTitle": "Başarılı!",
     "bidAcceptedMessage": "{{amount}}₺ teklifiniz kabul edildi.",
+    "proxyOutbidTitle": "Proxy teklif devrede",
+    "proxyOutbidMessage": "Daha yüksek bir maksimum teklif sizi anında geçti. Güncel fiyat: ₺{{amount}}",
     "bidErrorFallback": "Teklif verilemedi",
     "buyerPremiumRate": "Alıcı Primi (%{{rate}})",
     "auctionEnded": "Müzayede Bitti",
@@ -727,6 +823,11 @@
     "rulesSubtitle": "Teklif vermeden önce görünür kurallar ve sınırlar.",
     "ruleAuctionType": "Müzayede Tipi",
     "ruleIncrement": "Minimum Artış",
+    "ruleReserve": "Reserve Durumu",
+    "reserveDetail": "{{amount}} • {{status}}",
+    "reserveMet": "karşılandı",
+    "reserveNotMet": "henüz karşılanmadı",
+    "reserveDisabled": "Reserve fiyatı yok",
     "ruleExtensions": "Uzatma Politikası",
     "extensionDetail": "{{seconds}} sn uzatma • {{current}} / {{max}} kullanıldı",
     "extensionDisabled": "Uzatma kapalı",
@@ -736,10 +837,24 @@
     "bidHistorySubtitle": "Lider teklif ve son hareketler burada listelenir.",
     "leadBidderLabel": "Lider teklif",
     "previousBidLabel": "Önceki teklif",
+    "proxyMaxLabel": "Maksimum teklif: {{amount}}",
     "bidPremiumLabel": "Prim dahil: {{amount}}",
     "noBidsPremiumHint": "İlk hamleyi yapıp bu lot için lider konumu alın.",
     "stickyBidSubtitle": "Canlı rekabete aşağıdan anında katılın.",
     "bidComposerHint": "Teklif verince blokaj otomatik güncellenir.",
+    "quickBidMin": "Min {{amount}}",
+    "quickBidPlusOne": "+1 artış {{amount}}",
+    "quickBidPlusThree": "+3 artış {{amount}}",
+    "leaderStateLeading": "Lider teklif şu an sizde.",
+    "leaderStateOutbid": "Teklifiniz geçildi, hızlıca yeniden konum alın.",
+    "leaderStateWatching": "Canlı hareketleri izleyin ve doğru anda teklif verin.",
+    "proxyActiveMessage": "Otomatik artırma aktif. Tavan teklifiniz: {{amount}}",
+    "activityFeedTitle": "Canlı hareketler",
+    "activityBidTitle": "Yeni teklif geldi",
+    "activityWarningTitle": "Kritik zaman",
+    "activityWarningBody": "Lot kapanışa yaklaşırken hareket hızlanabilir.",
+    "maxBidHint": "İsterseniz sistem sizin adınıza maximum teklif sınırınıza kadar otomatik artırır.",
+    "maxBidPlaceholder": "Maksimum teklif (opsiyonel)",
     "withdrawBidCta": "Teklifi Geri Çek",
     "withdrawBidTitle": "Teklif geri çekilsin mi?",
     "withdrawBidMessage": "Bu işlem aktif lider teklifinizi kaldırır ve bloke edilen bakiyeyi serbest bırakır.",
@@ -750,7 +865,23 @@
     "auctionTypeTimed": "Zamanlı",
     "auctionTypeRealtime": "Canlı",
     "connectionLive": "Canlı bağlı",
-    "connectionOffline": "Bağlantı bekleniyor"
+    "connectionOffline": "Bağlantı bekleniyor",
+    "paymentStatusLabel": "Ödeme durumu",
+    "paymentDeadlineLabel": "Ödeme son zamanı",
+    "paymentPendingWinnerMessage": "Bu lot sizin için rezerve edildi. Süre dolmadan ödemeyi tamamlayın.",
+    "paymentPendingObserverMessage": "Kazanan için ödeme penceresi açık. Ödeme tamamlanınca sipariş süreci başlayacak.",
+    "paymentPaidMessage": "Ödeme alındı. Sipariş akışı başlatıldı.",
+    "paymentExpiredMessage": "Kazanan ödeme süresini kaçırdı. Sistem alternatif sonucu uyguladı.",
+    "paymentSuccessTitle": "Ödeme tamamlandı",
+    "paymentSuccessMessage": "Müzayede ödemeniz alındı ve siparişiniz oluşturuldu.",
+    "completePayment": "Ödemeyi Tamamla",
+    "viewOrder": "Siparişi Gör",
+    "paymentStatuses": {
+      "NONE": "Yok",
+      "PENDING": "Ödeme bekleniyor",
+      "PAID": "Ödendi",
+      "EXPIRED": "Süre doldu"
+    }
   },
   "wallet": {
     "title": "Cüzdan",
@@ -837,7 +968,35 @@
     "sellerActionsConfirm": "Sipariş durumunu {{status}} olarak güncellemek istiyor musunuz?",
     "sellerAdvancePreparing": "Hazırlanmaya al",
     "sellerAdvanceTransit": "Kargoya ver",
-    "sellerAdvanceDelivered": "Teslim edildi işaretle"
+    "sellerAdvanceDelivered": "Teslim edildi işaretle",
+    "returnRequestTitle": "İade talebi",
+    "returnRequestBody": "Sipariş tamamlandıysa iade talebi oluşturabilirsiniz.",
+    "createReturnRequest": "İade talebi oluştur",
+    "returnNotePlaceholder": "İade notunuzu ekleyin",
+    "returnRequestSuccessTitle": "İade talebi alındı",
+    "returnRequestSuccessMessage": "İade süreci başlatıldı.",
+    "returnStatusTitle": "İade durumu",
+    "approveReturn": "Onayla",
+    "rejectReturn": "Reddet",
+    "confirmReturnDelivered": "İade teslim alındı",
+    "returnApproveSuccess": "İade talebi onaylandı.",
+    "returnRejectSuccess": "İade talebi reddedildi.",
+    "returnDeliveredSuccess": "İade teslim alındı ve refund süreci başlatıldı.",
+    "reviewTitle": "Siparişi değerlendir",
+    "reviewSubmittedTitle": "Değerlendirme gönderildi",
+    "reviewSubmittedMessage": "Puan ve yorumunuz kaydedildi.",
+    "submitReview": "Değerlendirmeyi gönder",
+    "productReviewLabel": "Ürün puanı ve yorumu",
+    "sellerReviewLabel": "Satıcı puanı ve yorumu",
+    "productReviewPlaceholder": "Ürünle ilgili yorumunuzu yazın",
+    "sellerReviewPlaceholder": "Satıcıyla ilgili yorumunuzu yazın",
+    "returnReasons": {
+      "DAMAGED": "Hasarlı geldi",
+      "NOT_AS_DESCRIBED": "Açıklamayla uyuşmuyor",
+      "WRONG_ITEM": "Yanlış ürün gönderildi",
+      "MISSING_PARTS": "Eksik parça var",
+      "OTHER": "Diğer"
+    }
   },
   "cargo": {
     "title": "Kargo",
@@ -848,7 +1007,9 @@
     "deliveredAt": "Teslim edildi",
     "timeline": "Kargo hareketleri",
     "noCargo": "Kargo bilgisi henüz oluşmadı",
-    "mockProviderNote": "Kargo durumu entegrasyon adaptörü üzerinden takip edilir."
+    "mockProviderNote": "Kargo durumu entegrasyon adaptörü üzerinden takip edilir.",
+    "forwardShipment": "Gidiş kargosu",
+    "returnShipment": "İade kargosu"
   },
   "notifications": {
     "title": "Bildirimler",
@@ -1008,6 +1169,8 @@
       "preparing": "Hazırlanacak",
       "inTransit": "Yoldaki sipariş",
       "unread": "Okunmamış bildirim",
+      "returnRequested": "İade talebi",
+      "returnInTransit": "İade yolda",
       "activeProducts": "Yayındaki ürün",
       "draftProducts": "Taslak ürün",
       "reviewProducts": "İncelemede",
@@ -1015,7 +1178,8 @@
       "heldBalance": "Blokedeki bakiye",
       "processingPayout": "İşlenen payout",
       "openNegotiations": "Açık pazarlık",
-      "senderAddresses": "Gönderici adresi"
+      "senderAddresses": "Gönderici adresi",
+      "refundedOrders": "Tamamlanan iade"
     },
     "quickActions": {
       "orders": "Siparişler",
@@ -1219,6 +1383,13 @@
     "IN_TRANSIT": "Kargoda",
     "DELIVERED": "Teslim edildi",
     "COMPLETED": "Tamamlandı",
+    "RETURN_REQUESTED": "İade talep edildi",
+    "RETURN_APPROVED": "İade onaylandı",
+    "RETURN_REJECTED": "İade reddedildi",
+    "RETURN_IN_TRANSIT": "İade kargoda",
+    "RETURN_DELIVERED": "İade teslim edildi",
+    "REFUND_PENDING": "İade ödemesi bekliyor",
+    "REFUNDED": "İade ödendi",
     "CANCELLED": "İptal edildi",
     "FAILED": "Başarısız",
     "ADMIN_REVIEW": "İncelemede"

@@ -91,6 +91,31 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHigh,
     marginVertical: Spacing.md,
   },
+  linkButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+  },
+  linkButtonLeft: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  linkButtonText: {
+    color: Colors.onSurface,
+    flex: 1,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.body,
+  },
+  linkButtonMeta: {
+    color: Colors.slate500,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.caption,
+    marginTop: 2,
+  },
   dangerCard: {
     marginHorizontal: Spacing.base,
     backgroundColor: Colors.white,

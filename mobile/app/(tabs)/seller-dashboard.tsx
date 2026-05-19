@@ -8,7 +8,7 @@ import { SellerStatCard } from '../../components/ui/seller-dashboard/SellerStatC
 import { useSellerDashboardSummary } from '../../hooks/useSellerDashboard';
 import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/transactionFormatters';
-import { styles } from './seller-dashboard.styles';
+import { styles } from '../../styles/tabs/seller-dashboard.styles';
 
 export default function SellerDashboardScreen() {
   const { t } = useTranslation();
@@ -139,6 +139,18 @@ export default function SellerDashboardScreen() {
           icon="mail-unread-outline"
           tone="neutral"
         />
+        <SellerStatCard
+          label={t('sellerDashboard.cards.returnRequested')}
+          value={String(summary.data.orders.returnRequested)}
+          icon="arrow-undo-outline"
+          tone="accent"
+        />
+        <SellerStatCard
+          label={t('sellerDashboard.cards.returnInTransit')}
+          value={String(summary.data.orders.returnInTransit)}
+          icon="swap-horizontal-outline"
+          tone="secondary"
+        />
       </View>
 
       <Text style={styles.sectionTitle}>{t('sellerDashboard.sections.products')}</Text>
@@ -194,6 +206,12 @@ export default function SellerDashboardScreen() {
           value={String(summary.data.addresses.senderAddressCount)}
           icon="location-outline"
           tone="primary"
+        />
+        <SellerStatCard
+          label={t('sellerDashboard.cards.refundedOrders')}
+          value={String(summary.data.orders.refundedOrders)}
+          icon="refresh-circle-outline"
+          tone="neutral"
         />
       </View>
 

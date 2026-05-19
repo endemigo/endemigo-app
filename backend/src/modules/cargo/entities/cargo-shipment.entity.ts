@@ -1,9 +1,9 @@
-import { CargoProvider, CargoStatus } from '@endemigo/shared';
+import { CargoProvider, CargoShipmentType, CargoStatus } from '@endemigo/shared';
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 @Entity('cargo_shipments')
-@Index(['orderId'], { unique: true })
+@Index(['orderId', 'shipmentType'], { unique: true })
 @Index(['trackingNumber'], { unique: true })
 export class CargoShipment extends BaseEntity {
   @Column()
@@ -15,8 +15,17 @@ export class CargoShipment extends BaseEntity {
   @Column({ type: 'enum', enum: CargoProvider, default: CargoProvider.MOCK })
   provider: CargoProvider;
 
+  @Column({ type: 'enum', enum: CargoShipmentType, default: CargoShipmentType.FORWARD })
+  shipmentType: CargoShipmentType;
+
   @Column({ type: 'enum', enum: CargoStatus, default: CargoStatus.PREPARING })
   status: CargoStatus;
+
+  @Column({ type: 'varchar', nullable: true })
+  externalTrackingUrl: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  carrierReference: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   lastEventAt: Date | null;

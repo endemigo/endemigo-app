@@ -181,6 +181,18 @@ const operationRoutes: RouteRecordRaw[] = [
       title: 'Ödeme Talebi Detayı',
     }),
   },
+  {
+    path: 'audit',
+    name: 'audit',
+    component: AdminListView,
+    props: { resource: 'audit-logs', title: 'Denetim', endpoint: '/admin/audit-logs', readOnly: true },
+  },
+  {
+    path: 'audit/:id',
+    name: 'audit-detail',
+    component: AdminDetailView,
+    props: (route) => ({ resource: 'audit-logs', id: String(route.params.id), title: 'Denetim Detayı', readOnly: true }),
+  },
 ];
 
 const routes: RouteRecordRaw[] = [
@@ -237,12 +249,6 @@ const routes: RouteRecordRaw[] = [
         path: 'newsletters',
         name: 'newsletters',
         component: NewslettersView,
-      },
-      {
-        path: 'audit',
-        name: 'audit',
-        component: AdminListView,
-        props: { resource: 'audit-logs', title: 'Denetim', endpoint: '/admin/audit-logs', readOnly: true },
       },
       {
         path: 'reports',

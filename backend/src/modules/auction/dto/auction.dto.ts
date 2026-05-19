@@ -27,6 +27,12 @@ export class CreateAuctionDto {
   @IsOptional()
   minIncrement?: number;
 
+  @ApiPropertyOptional({ example: 1500, minimum: 1 })
+  @IsNumber()
+  @Min(1)
+  @IsOptional()
+  reservePrice?: number;
+
   @ApiPropertyOptional({
     example: 0.25,
     minimum: 0,
@@ -92,4 +98,10 @@ export class PlaceBidDto {
   @IsNumber()
   @Min(0.01)
   amount: number;
+
+  @ApiPropertyOptional({ example: 1500, minimum: 0.01 })
+  @IsNumber()
+  @Min(0.01)
+  @IsOptional()
+  maxAmount?: number;
 }

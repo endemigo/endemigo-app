@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -16,17 +16,28 @@ import { styles } from './GlobalModal.styles';
 export function GlobalModal() {
   const { t } = useTranslation();
   const { isVisible, options, hideModal } = useModalStore();
+  const [shouldRender, setShouldRender] = useState(isVisible);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.9);
 
   useEffect(() => {
+    let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
     if (isVisible) {
+      setShouldRender(true);
       opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) });
       scale.value = withSpring(1, { damping: 15, stiffness: 150 });
     } else {
       opacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
       scale.value = withTiming(0.9, { duration: 200, easing: Easing.in(Easing.ease) });
+      hideTimeout = setTimeout(() => setShouldRender(false), 200);
     }
+
+    return () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
+    };
   }, [isVisible, opacity, scale]);
 
   const handleConfirm = () => {
@@ -59,7 +70,7 @@ export function GlobalModal() {
     }
   };
 
-  if (!isVisible && opacity.value === 0) return null;
+  if (!shouldRender) return null;
 
   return (
     <Animated.View style={[styles.overlay, animatedStyle]} pointerEvents={isVisible ? 'auto' : 'none'}>

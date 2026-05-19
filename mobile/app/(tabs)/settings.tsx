@@ -36,6 +36,23 @@ export default function SettingsScreen() {
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteSection, setShowDeleteSection] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const legalLinks = [
+    {
+      slug: 'privacy',
+      titleKey: 'settings.legalPrivacyTitle',
+      metaKey: 'settings.legalPrivacyMeta',
+    },
+    {
+      slug: 'distance-sales',
+      titleKey: 'settings.legalDistanceSalesTitle',
+      metaKey: 'settings.legalDistanceSalesMeta',
+    },
+    {
+      slug: 'return-policy',
+      titleKey: 'settings.legalReturnTitle',
+      metaKey: 'settings.legalReturnMeta',
+    },
+  ] as const;
 
   useEffect(() => {
     loadConsents();
@@ -168,6 +185,29 @@ export default function SettingsScreen() {
             thumbColor={Colors.white}
           />
         </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>{t('settings.legalTitle')}</Text>
+      <View style={styles.card}>
+        {legalLinks.map((item, index) => (
+          <React.Fragment key={item.slug}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.push(`/legal/${item.slug}` as never)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.linkButtonLeft}>
+                <Ionicons name="document-text-outline" size={20} color={Colors.primary} />
+                <View style={styles.consentInfo}>
+                  <Text style={styles.linkButtonText}>{t(item.titleKey)}</Text>
+                  <Text style={styles.linkButtonMeta}>{t(item.metaKey)}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+            </TouchableOpacity>
+            {index < legalLinks.length - 1 ? <View style={styles.divider} /> : null}
+          </React.Fragment>
+        ))}
       </View>
 
       {/* Danger Zone */}

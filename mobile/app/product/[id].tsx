@@ -16,7 +16,7 @@ import Animated, {
 
 import { useProduct, useProducts } from '../../hooks/useProducts';
 import { Colors, Spacing } from '../../constants/theme';
-import { styles } from './_id.styles';
+import { styles } from '../../styles/product/_id.styles';
 import { getProductImageUri } from '../../utils/productImages';
 import { useCartStore } from '../../store/cartStore';
 import { AskPriceModal } from '../../components/negotiation';
@@ -287,7 +287,10 @@ export default function ProductDetailScreen() {
     [product],
   );
   const latestComments = React.useMemo(
-    () => reviewItems.map((item) => item.comment).filter((item) => item.trim().length > 0),
+    () =>
+      reviewItems
+        .map((item) => item.comment)
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
     [reviewItems],
   );
   const sortedReviews = React.useMemo(

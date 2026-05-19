@@ -14,7 +14,7 @@ import { Colors } from '../../constants/theme';
 import { useToggleFavorite, useFavorites } from '../../hooks/useSearch';
 import { useToastStore } from '../../store/toastStore';
 import { formatShortDate } from '../../utils/transactionFormatters';
-import { styles } from './FavoritesScreen.styles';
+import { styles } from '../../styles/tabs/FavoritesScreen.styles';
 
 export default function FavorilerScreen() {
   const { t } = useTranslation();

@@ -54,4 +54,34 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.body,
     lineHeight: 20,
   },
+  shipmentCard: {
+    borderColor: Colors.slate100,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    gap: Spacing.sm,
+    padding: Spacing.md,
+  },
+  shipmentTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.body,
+    fontWeight: '700',
+  },
+  timelineItem: {
+    borderLeftColor: Colors.slate200,
+    borderLeftWidth: 2,
+    gap: Spacing.xs,
+    paddingLeft: Spacing.md,
+  },
+  timelineTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.caption,
+    fontWeight: '700',
+  },
+  timelineMeta: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.caption,
+  },
 });

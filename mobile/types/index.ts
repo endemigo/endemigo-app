@@ -56,8 +56,10 @@ export interface ProductImage {
 
 export interface ProductReview {
   id?: string;
+  orderId?: string;
+  buyerId?: string;
   rating: number;
-  comment: string;
+  comment: string | null;
   createdAt?: string;
 }
 
@@ -293,6 +295,8 @@ export interface SellerProfile {
   banner?: string;
   rating: number;
   reviewCount: number;
+  latestReviewComment?: string | null;
+  reviews?: ProductReview[];
   productCount: number;
   totalSales: number;
   description?: string;

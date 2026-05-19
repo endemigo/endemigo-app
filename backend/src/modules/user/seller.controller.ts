@@ -10,6 +10,13 @@ export class SellerController {
   constructor(private readonly userService: UserService) {}
 
   @Public()
+  @Get(':id/reviews')
+  @ApiOperation({ summary: 'Satıcı yorumlarını getir' })
+  async getSellerReviews(@Param('id') id: string) {
+    return this.userService.getSellerReviews(id);
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Satıcı profilini ve ürünlerini getir' })
   @ApiResponse({ status: 200, description: 'Satıcı profili ve ürün listesi' })

@@ -7,6 +7,7 @@ describe('AdminAuditService', () => {
     create: jest.Mock;
     save: jest.Mock;
     findAndCount: jest.Mock;
+    findOne: jest.Mock;
   };
   let service: AdminAuditService;
 
@@ -15,6 +16,7 @@ describe('AdminAuditService', () => {
       create: jest.fn((value) => ({ id: 'audit-1', ...value })),
       save: jest.fn(async (value) => value),
       findAndCount: jest.fn().mockResolvedValue([[], 0]),
+      findOne: jest.fn().mockResolvedValue(null),
     };
     service = new AdminAuditService(repo as never);
   });
@@ -64,6 +66,41 @@ describe('AdminAuditService', () => {
       expect.objectContaining({
         skip: 0,
         take: 100,
+      }),
+    );
+  });
+
+  it('returns detail payload for audit detail view', async () => {
+    repo.findOne.mockResolvedValue({
+      id: 'audit-1',
+      action: AdminAuditAction.USER_RESTRICTED,
+      targetType: 'USER',
+      targetId: 'user-1',
+      actorAdminId: 'admin-1',
+      actorRoles: [AdminRole.OPERATIONS],
+      reason: 'policy',
+      before: { isActive: true },
+      after: { isActive: false },
+      metadata: { source: 'panel' },
+      ipAddress: '127.0.0.1',
+      userAgent: 'jest',
+      createdAt: '2026-05-17T17:00:00.000Z',
+      updatedAt: '2026-05-17T17:00:00.000Z',
+    });
+
+    const result = await service.detail('audit-1');
+    expect(result.code).toBe(RC.ADMIN_AUDIT_FETCHED);
+    expect(result.overview).toEqual(
+      expect.objectContaining({
+        id: 'audit-1',
+        action: AdminAuditAction.USER_RESTRICTED,
+        targetType: 'USER',
+      }),
+    );
+    expect(result.relatedRecords).toEqual(
+      expect.objectContaining({
+        before: { isActive: true },
+        after: { isActive: false },
       }),
     );
   });

@@ -2,8 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Product } from '../../product/entities/product.entity';
 import { User } from '../../user/entities/user.entity';
-import { AuctionStatus } from '../../../shared/types/auction-status.enum';
-import { AuctionType } from '../../../shared/types/auction-type.enum';
+import { AuctionPaymentStatus, AuctionStatus, AuctionType } from '@endemigo/shared';
 
 @Entity('auctions')
 export class Auction extends BaseEntity {
@@ -30,6 +29,12 @@ export class Auction extends BaseEntity {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 1.0 })
   minIncrement: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  reservePrice: number | null;
+
+  @Column({ default: false })
+  reserveMet: boolean;
+
   @Column({ type: 'decimal', precision: 5, scale: 4, default: 0.25 })
   buyerPremiumRate: number;
 
@@ -46,11 +51,36 @@ export class Auction extends BaseEntity {
   endTime: Date;
 
   @Column({ nullable: true })
-  winnerId: string;
+  winnerId: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'winnerId' })
   winner: User;
+
+  @Column({
+    type: 'enum',
+    enum: AuctionPaymentStatus,
+    default: AuctionPaymentStatus.NONE,
+  })
+  winnerPaymentStatus: AuctionPaymentStatus;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  winnerPaymentDeadlineAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  winnerPaymentCompletedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  winningBidId: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  orderId: string | null;
+
+  @Column({ default: 0 })
+  fallbackRound: number;
+
+  @Column({ default: 0 })
+  paymentAttemptCount: number;
 
   @Column({ default: 0 })
   bidCount: number;

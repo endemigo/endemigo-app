@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminRole } from '@endemigo/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -7,8 +7,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { CampaignService } from './campaign.service';
+import { AdminCouponListQueryDto } from './dto/admin-coupon-list-query.dto';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
+import { UpdateCouponDto, UpdateCouponStatusDto } from './dto/update-coupon.dto';
 
 interface AdminCampaignRequest {
   adminUser: {
@@ -89,6 +91,39 @@ export class CampaignController {
       ...dto,
       isPlatform: true,
     }, { adminPlatform: true });
+  }
+
+  @Public()
+  @UseGuards(AdminJwtGuard)
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE)
+  @Get('admin/coupons')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin kupon listesi' })
+  async adminCoupons(@Query() query: AdminCouponListQueryDto) {
+    return this.campaignService.listAdminCoupons(query);
+  }
+
+  @Public()
+  @UseGuards(AdminJwtGuard)
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE)
+  @Patch('admin/coupons/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin kupon güncelle' })
+  async updateCoupon(@Param('id') id: string, @Body() dto: UpdateCouponDto) {
+    return this.campaignService.updateCoupon(id, dto);
+  }
+
+  @Public()
+  @UseGuards(AdminJwtGuard)
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE)
+  @Patch('admin/coupons/:id/status')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin kupon durum güncelle' })
+  async updateCouponStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateCouponStatusDto,
+  ) {
+    return this.campaignService.updateCouponStatus(id, dto.status);
   }
 
   @Public()

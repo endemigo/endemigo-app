@@ -137,6 +137,10 @@
                   <strong>{{ getString(overview, 'isSeller') === 'true' ? 'SELLER' : 'BUYER' }}</strong>
                 </div>
                 <div class="metric-row">
+                  <span>Adres</span>
+                  <strong>{{ userRelated.summary.addressCount }}</strong>
+                </div>
+                <div class="metric-row">
                   <span>Kayıt</span>
                   <strong>{{ getString(overview, 'createdAt') ? formatDate(getString(overview, 'createdAt')) : '-' }}</strong>
                 </div>
@@ -310,6 +314,8 @@
                       <th>Müzayede</th>
                       <th>Durum</th>
                       <th>Güncel Fiyat</th>
+                      <th>Reserve</th>
+                      <th>Reserve Durumu</th>
                       <th>Teklif</th>
                       <th>Bitiş</th>
                     </tr>
@@ -323,6 +329,8 @@
                       </td>
                       <td><span class="status-pill">{{ auction.status }}</span></td>
                       <td>{{ formatMoney(auction.currentPrice, 'TRY') }}</td>
+                      <td>{{ formatReserveLabel(auction.reservePrice) }}</td>
+                      <td>{{ formatReserveState(auction.reservePrice, auction.reserveMet) }}</td>
                       <td>{{ auction.bidCount }}</td>
                       <td>{{ formatDate(auction.endTime) }}</td>
                     </tr>
@@ -337,6 +345,7 @@
                       <th>Müzayede</th>
                       <th>Teklif Veren</th>
                       <th>Tutar</th>
+                      <th>Max</th>
                       <th>Prim</th>
                       <th>Durum</th>
                       <th>Tarih</th>
@@ -356,6 +365,7 @@
                         </button>
                       </td>
                       <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
+                      <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
                       <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
                       <td><span class="status-pill">{{ bid.status }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
@@ -460,6 +470,14 @@
                 <div class="metric-track">
                   <div class="metric-fill is-warning" :style="{ width: `${sellerDraftProductRate}%` }"></div>
                 </div>
+                <div class="metric-row">
+                  <span>İncelemedeki Ürün</span>
+                  <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Askıdaki/Stoksuz</span>
+                  <strong>{{ sellerRelated.summary.suspendedProductCount }} / {{ sellerRelated.summary.outOfStockProductCount }}</strong>
+                </div>
               </article>
 
               <article class="overview-card">
@@ -476,6 +494,10 @@
                   <span>Toplam Ödeme Talebi</span>
                   <strong>{{ sellerRelated.summary.payoutRequestCount }}</strong>
                 </div>
+                <div class="metric-row">
+                  <span>Benzersiz Alıcı</span>
+                  <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
+                </div>
               </article>
 
               <article class="overview-card">
@@ -485,12 +507,36 @@
                   <strong>{{ getString(overview, 'userId') || '-' }}</strong>
                 </div>
                 <div class="metric-row">
+                  <span>E-posta</span>
+                  <strong>{{ getString(overview, 'userEmail') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
                   <span>Telefon</span>
                   <strong>{{ getString(overview, 'phone') || '-' }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Komisyon</span>
                   <strong>%{{ Number(getString(overview, 'commissionRate') || 0) * 100 }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Adres Sayısı</span>
+                  <strong>{{ sellerRelated.summary.addressCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Kullanıcı Durumu</span>
+                  <strong>{{ getString(overview, 'userIsActive') === 'true' ? 'ACTIVE' : 'INACTIVE' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>E-posta Doğrulama</span>
+                  <strong>{{ getString(overview, 'userIsVerified') === 'true' ? 'DOĞRULU' : 'DOĞRUSUZ' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Sözleşme Versiyonu</span>
+                  <strong>{{ getString(overview, 'agreementVersion') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Sözleşme Tarihi</span>
+                  <strong>{{ getString(overview, 'agreementAcceptedAt') ? formatDate(getString(overview, 'agreementAcceptedAt')) : '-' }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Onay Tarihi</span>
@@ -590,6 +636,147 @@
               </article>
             </section>
           </template>
+          <template v-else-if="isBidResource && bidRelated">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div>
+                    <p class="overview-eyebrow">Müzayede Teklif Özeti</p>
+                    <h3 class="overview-title">
+                      {{ getString(overview, 'lotNumber') || shortId(getString(overview, 'auctionId')) }}
+                    </h3>
+                  </div>
+                  <span class="status-pill">{{ getString(overview, 'status') || '-' }}</span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>Toplam Teklif</p>
+                    <strong>{{ bidRelated.summary.totalBidCount }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Katılımcı</p>
+                    <strong>{{ bidRelated.summary.uniqueBidderCount }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>En Yüksek Teklif</p>
+                    <strong>{{ formatMoney(bidRelated.summary.highestBidAmount, 'TRY') }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Anlık Fiyat</p>
+                    <strong>{{ formatMoney(Number(getString(overview, 'currentPrice') || 0), 'TRY') }}</strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Müzayede</h4>
+                <div class="metric-row">
+                  <span>Ürün</span>
+                  <strong>{{ getString(overview, 'productTitle') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Satıcı</span>
+                  <strong>{{ getString(overview, 'sellerName') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Başlangıç</span>
+                  <strong>{{ formatMoney(Number(getString(overview, 'startPrice') || 0), 'TRY') }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Min Artış</span>
+                  <strong>{{ formatMoney(Number(getString(overview, 'minIncrement') || 0), 'TRY') }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Reserve</span>
+                  <strong>{{ formatReserveLabel(getNullableNumber(overview, 'reservePrice')) }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Reserve Durumu</span>
+                  <strong>{{ formatReserveState(getNullableNumber(overview, 'reservePrice'), getBoolean(overview, 'reserveMet')) }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Bitiş</span>
+                  <strong>{{ getString(overview, 'endTime') ? formatDate(getString(overview, 'endTime')) : '-' }}</strong>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Satış Durumu</h4>
+                <div class="metric-row">
+                  <span>Kazanan</span>
+                  <strong>{{ bidRelated.summary.winningBidderName || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Kazanan Teklif</span>
+                  <strong>{{ formatMoney(bidRelated.summary.winningBidAmount, 'TRY') }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Sipariş</span>
+                  <strong>{{ bidRelated.summary.hasOrder ? 'VAR' : 'YOK' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Ödeme</span>
+                  <strong>{{ bidRelated.summary.hasPayment ? 'VAR' : 'YOK' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Son Teklif</span>
+                  <strong>{{ bidRelated.summary.lastBidAt ? formatDate(bidRelated.summary.lastBidAt) : '-' }}</strong>
+                </div>
+              </article>
+            </section>
+          </template>
+          <template v-else-if="isAuditResource">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div>
+                    <p class="overview-eyebrow">Denetim Özeti</p>
+                    <h3 class="overview-title">{{ auditActionLabel(getString(overview, 'action')) }}</h3>
+                  </div>
+                  <span class="status-pill">{{ auditTargetLabel(getString(overview, 'targetType')) }}</span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>Hedef Kayıt</p>
+                    <strong>{{ shortId(getString(overview, 'targetId')) }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Yapan</p>
+                    <strong>{{ auditActorLabel(overview) }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>IP</p>
+                    <strong>{{ getString(overview, 'ipAddress') || '-' }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Tarih</p>
+                    <strong>{{ getString(overview, 'createdAt') ? formatDate(getString(overview, 'createdAt')) : '-' }}</strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Sebep</h4>
+                <p>{{ getString(overview, 'reason') || '-' }}</p>
+              </article>
+
+              <article class="overview-card">
+                <h4>Tam Kayıt Kimliği</h4>
+                <div class="metric-row">
+                  <span>Denetim ID</span>
+                  <strong>{{ getString(overview, 'id') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Hedef ID</span>
+                  <strong>{{ getString(overview, 'targetId') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Yönetici ID</span>
+                  <strong>{{ getString(overview, 'actorAdminId') || '-' }}</strong>
+                </div>
+              </article>
+            </section>
+          </template>
           <pre v-else class="json-box">{{ pretty(overview) }}</pre>
         </div>
         <div v-else-if="activeTab === 'Zaman Çizelgesi'" class="timeline">
@@ -623,6 +810,10 @@
                 <strong>{{ userRelated.summary.cartQuantityTotal }}</strong>
               </article>
               <article class="summary-card">
+                <p class="summary-label">Adres Sayısı</p>
+                <strong>{{ userRelated.summary.addressCount }}</strong>
+              </article>
+              <article class="summary-card">
                 <p class="summary-label">Tanımlı Kupon</p>
                 <strong>{{ userRelated.summary.definedCouponCount }}</strong>
               </article>
@@ -631,6 +822,43 @@
                 <strong>{{ userRelated.summary.couponUsageCount }}</strong>
               </article>
             </div>
+
+            <section class="record-block">
+              <h3>Adresler</h3>
+              <p v-if="userRelated.addresses.length === 0" class="muted">Adres kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Tip</th>
+                      <th>Başlık</th>
+                      <th>Ad Soyad</th>
+                      <th>Telefon</th>
+                      <th>Konum</th>
+                      <th>Varsayılan</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="address in userRelated.addresses" :key="address.id">
+                      <td>{{ shortId(address.id) }}</td>
+                      <td><span class="status-pill">{{ address.type }}</span></td>
+                      <td>{{ address.title || '-' }}</td>
+                      <td>{{ address.fullName || '-' }}</td>
+                      <td>{{ address.phone || '-' }}</td>
+                      <td>{{ `${address.city}/${address.district}` }}</td>
+                      <td>
+                        <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
+                          {{ address.isDefault ? 'EVET' : 'HAYIR' }}
+                        </span>
+                      </td>
+                      <td>{{ formatDate(address.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
             <section class="record-block">
               <h3>Geçmiş Siparişler</h3>
@@ -913,8 +1141,28 @@
                 <strong>{{ sellerRelated.summary.draftProductCount }}</strong>
               </article>
               <article class="summary-card">
+                <p class="summary-label">İncelemede Ürün</p>
+                <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Askıdaki Ürün</p>
+                <strong>{{ sellerRelated.summary.suspendedProductCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Stoksuz Ürün</p>
+                <strong>{{ sellerRelated.summary.outOfStockProductCount }}</strong>
+              </article>
+              <article class="summary-card">
                 <p class="summary-label">Toplam Satış</p>
                 <strong>{{ sellerRelated.summary.saleCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Tamamlanan Satış</p>
+                <strong>{{ sellerRelated.summary.completedSaleCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Benzersiz Alıcı</p>
+                <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
               </article>
               <article class="summary-card">
                 <p class="summary-label">Toplam Ciro</p>
@@ -940,7 +1188,48 @@
                 <p class="summary-label">İnceleme Bekleyen Ödeme</p>
                 <strong>{{ sellerRelated.summary.adminReviewPaymentCount }}</strong>
               </article>
+              <article class="summary-card">
+                <p class="summary-label">Adres Sayısı</p>
+                <strong>{{ sellerRelated.summary.addressCount }}</strong>
+              </article>
             </div>
+
+            <section class="record-block">
+              <h3>Adresler</h3>
+              <p v-if="sellerRelated.addresses.length === 0" class="muted">Adres kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Tip</th>
+                      <th>Başlık</th>
+                      <th>Ad Soyad</th>
+                      <th>Telefon</th>
+                      <th>Konum</th>
+                      <th>Varsayılan</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="address in sellerRelated.addresses" :key="address.id">
+                      <td>{{ shortId(address.id) }}</td>
+                      <td><span class="status-pill">{{ address.type }}</span></td>
+                      <td>{{ address.title || '-' }}</td>
+                      <td>{{ address.fullName || '-' }}</td>
+                      <td>{{ address.phone || '-' }}</td>
+                      <td>{{ `${address.city}/${address.district}` }}</td>
+                      <td>
+                        <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
+                          {{ address.isDefault ? 'EVET' : 'HAYIR' }}
+                        </span>
+                      </td>
+                      <td>{{ formatDate(address.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
             <section class="record-block">
               <h3>Son Ürünler</h3>
@@ -1027,6 +1316,8 @@
                       <th>Ürün</th>
                       <th>Durum</th>
                       <th>Güncel Fiyat</th>
+                      <th>Reserve</th>
+                      <th>Reserve Durumu</th>
                       <th>Teklif</th>
                       <th>Bitiş</th>
                     </tr>
@@ -1045,6 +1336,8 @@
                       </td>
                       <td><span class="status-pill">{{ auction.status }}</span></td>
                       <td>{{ formatMoney(auction.currentPrice, 'TRY') }}</td>
+                      <td>{{ formatReserveLabel(auction.reservePrice) }}</td>
+                      <td>{{ formatReserveState(auction.reservePrice, auction.reserveMet) }}</td>
                       <td>{{ auction.bidCount }}</td>
                       <td>{{ formatDate(auction.endTime) }}</td>
                     </tr>
@@ -1152,6 +1445,174 @@
                   </tbody>
                 </table>
               </div>
+            </section>
+          </template>
+          <template v-else-if="isBidResource && bidRelated">
+            <div class="summary-grid">
+              <article class="summary-card">
+                <p class="summary-label">Toplam Teklif</p>
+                <strong>{{ bidRelated.summary.totalBidCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Katılımcı</p>
+                <strong>{{ bidRelated.summary.uniqueBidderCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">En Yüksek Teklif</p>
+                <strong>{{ formatMoney(bidRelated.summary.highestBidAmount, 'TRY') }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Prim</p>
+                <strong>{{ formatMoney(bidRelated.summary.highestPremiumAmount, 'TRY') }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Toplam (Teklif+Prim)</p>
+                <strong>{{ formatMoney(bidRelated.summary.highestTotalAmount, 'TRY') }}</strong>
+              </article>
+            </div>
+
+            <section class="record-block">
+              <h3>Satış Kaydı</h3>
+              <p v-if="!bidRelated.order" class="muted">Satış siparişi henüz oluşmamış.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Sipariş</th>
+                      <th>Alıcı</th>
+                      <th>Satıcı</th>
+                      <th>Tutar</th>
+                      <th>Durum</th>
+                      <th>Escrow</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToOrderDetail(getString(bidRelated.order, 'id'))">
+                          {{ shortId(getString(bidRelated.order, 'id')) }}
+                        </button>
+                      </td>
+                      <td>{{ getString(bidRelated.order, 'buyerName') || shortId(getString(bidRelated.order, 'buyerId')) }}</td>
+                      <td>{{ getString(bidRelated.order, 'sellerName') || shortId(getString(bidRelated.order, 'sellerId')) }}</td>
+                      <td>{{ formatMoney(Number(getString(bidRelated.order, 'amount') || 0), getString(bidRelated.order, 'currency') || 'TRY') }}</td>
+                      <td><span class="status-pill">{{ getString(bidRelated.order, 'status') || '-' }}</span></td>
+                      <td><span class="status-pill">{{ getString(bidRelated.order, 'escrowStatus') || '-' }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Ödeme Kaydı</h3>
+              <p v-if="!bidRelated.payment" class="muted">Ödeme kaydı henüz oluşmamış.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Ödeme</th>
+                      <th>Durum</th>
+                      <th>Tutar</th>
+                      <th>Sağlayıcı</th>
+                      <th>Ödendi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToPaymentDetail(getString(bidRelated.payment, 'id'))">
+                          {{ shortId(getString(bidRelated.payment, 'id')) }}
+                        </button>
+                      </td>
+                      <td><span class="status-pill">{{ getString(bidRelated.payment, 'status') || '-' }}</span></td>
+                      <td>{{ formatMoney(Number(getString(bidRelated.payment, 'amount') || 0), getString(bidRelated.payment, 'currency') || 'TRY') }}</td>
+                      <td>{{ getString(bidRelated.payment, 'provider') || '-' }}</td>
+                      <td>{{ getString(bidRelated.payment, 'paidAt') ? formatDate(getString(bidRelated.payment, 'paidAt')) : '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Katılımcılar</h3>
+              <p v-if="bidRelated.participants.length === 0" class="muted">Katılımcı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Kullanıcı</th>
+                      <th>Teklif Adedi</th>
+                      <th>En Yüksek Teklif</th>
+                      <th>Son Teklif</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="participant in bidRelated.participants" :key="participant.bidderId">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(participant.bidderId)">
+                          {{ participant.bidderName || participant.bidderEmail || shortId(participant.bidderId) }}
+                        </button>
+                      </td>
+                      <td>{{ participant.bidCount }}</td>
+                      <td>{{ formatMoney(participant.highestBidAmount, 'TRY') }}</td>
+                      <td>{{ formatDate(participant.latestBidAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Teklif Geçmişi</h3>
+              <p v-if="bidRelated.bids.length === 0" class="muted">Teklif kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Teklif</th>
+                      <th>Kullanıcı</th>
+                      <th>Tutar</th>
+                      <th>Max</th>
+                      <th>Prim</th>
+                      <th>Toplam</th>
+                      <th>Durum</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="bid in bidRelated.bids" :key="bid.id">
+                      <td>{{ shortId(bid.id) }}</td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(bid.bidderId)">
+                          {{ bid.bidderName || bid.bidderEmail || shortId(bid.bidderId) }}
+                        </button>
+                      </td>
+                      <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
+                      <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
+                      <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
+                      <td>{{ formatMoney(bid.totalAmount, 'TRY') }}</td>
+                      <td><span class="status-pill">{{ bid.status }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
+                      <td>{{ formatDate(bid.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </template>
+          <template v-else-if="isAuditResource">
+            <section class="record-block">
+              <h3>Önceki Durum</h3>
+              <pre class="json-box">{{ pretty(relatedRecords.before ?? {}) }}</pre>
+            </section>
+            <section class="record-block">
+              <h3>Sonraki Durum</h3>
+              <pre class="json-box">{{ pretty(relatedRecords.after ?? {}) }}</pre>
+            </section>
+            <section class="record-block">
+              <h3>Ek Bilgiler</h3>
+              <pre class="json-box">{{ pretty(relatedRecords.metadata ?? {}) }}</pre>
             </section>
           </template>
           <pre v-else class="json-box">{{ pretty(relatedRecords) }}</pre>
@@ -1268,6 +1729,22 @@ interface UserCouponUsageItem {
   createdAt: string;
 }
 
+interface UserAddressItem {
+  id: string;
+  type: string;
+  title: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  neighborhood: string | null;
+  addressLine: string;
+  postalCode: string | null;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 interface UserRelatedPaginationItem {
   page: number;
   limit: number;
@@ -1298,11 +1775,13 @@ interface UserRelatedRecords {
     favoriteCount: number;
     cartLineCount: number;
     cartQuantityTotal: number;
+    addressCount: number;
     definedCouponCount: number;
     couponUsageCount: number;
   };
   orders: UserOrderItem[];
   sales: UserOrderItem[];
+  addresses: UserAddressItem[];
   favorites: UserFavoriteItem[];
   cart: UserCartItem[];
   coupons: {
@@ -1339,6 +1818,8 @@ interface SellerAuctionItem {
   productId: string;
   status: string;
   currentPrice: number;
+  reservePrice: number | null;
+  reserveMet: boolean;
   bidCount: number;
   startTime: string;
   endTime: string;
@@ -1375,12 +1856,33 @@ interface SellerPaymentItem {
   createdAt: string;
 }
 
+interface SellerAddressItem {
+  id: string;
+  type: string;
+  title: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  neighborhood: string | null;
+  addressLine: string;
+  postalCode: string | null;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 interface SellerRelatedRecords {
   summary: {
     productCount: number;
     activeProductCount: number;
     draftProductCount: number;
+    reviewProductCount: number;
+    suspendedProductCount: number;
+    outOfStockProductCount: number;
     saleCount: number;
+    completedSaleCount: number;
+    uniqueBuyerCount: number;
     grossMerchandiseValue: number;
     auctionCount: number;
     activeAuctionCount: number;
@@ -1388,6 +1890,7 @@ interface SellerRelatedRecords {
     payoutRequestCount: number;
     pendingPayoutCount: number;
     adminReviewPaymentCount: number;
+    addressCount: number;
   };
   products: SellerProductItem[];
   sales: UserOrderItem[];
@@ -1395,6 +1898,7 @@ interface SellerRelatedRecords {
   payouts: SellerPayoutItem[];
   coupons: SellerCouponItem[];
   payments: SellerPaymentItem[];
+  addresses: SellerAddressItem[];
 }
 
 interface ProductOrderItem {
@@ -1443,6 +1947,7 @@ interface ProductBidItem {
   bidderName: string;
   bidderEmail: string;
   amount: number;
+  maxAmount: number | null;
   premiumAmount: number;
   status: string;
   isWinningBid: boolean;
@@ -1486,6 +1991,76 @@ interface ProductRelatedRecords {
   payments: ProductPaymentItem[];
 }
 
+interface BidAuctionOverview {
+  auctionId: string;
+  status: string;
+  lotNumber: string | null;
+  productId: string;
+  productTitle: string;
+  sellerId: string;
+  sellerName: string;
+  winnerId: string | null;
+  winnerName: string;
+  startPrice: number;
+  currentPrice: number;
+  reservePrice: number | null;
+  reserveMet: boolean;
+  minIncrement: number;
+  buyerPremiumRate: number;
+  bidCount: number;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+interface BidAuctionSummary {
+  totalBidCount: number;
+  uniqueBidderCount: number;
+  highestBidAmount: number;
+  highestPremiumAmount: number;
+  highestTotalAmount: number;
+  winningBidAmount: number;
+  winningBidderName: string;
+  lastBidAt: string | null;
+  hasOrder: boolean;
+  hasPayment: boolean;
+}
+
+interface BidAuctionParticipant {
+  bidderId: string;
+  bidderName: string;
+  bidderEmail: string;
+  bidCount: number;
+  highestBidAmount: number;
+  latestBidAt: string;
+}
+
+interface BidAuctionBid {
+  id: string;
+  bidderId: string;
+  bidderName: string;
+  bidderEmail: string;
+  amount: number;
+  maxAmount: number | null;
+  premiumAmount: number;
+  totalAmount: number;
+  status: string;
+  isWinningBid: boolean;
+  createdAt: string;
+}
+
+interface BidAuctionRelatedRecords {
+  summary: BidAuctionSummary;
+  auction: Record<string, unknown>;
+  product: Record<string, unknown> | null;
+  seller: Record<string, unknown> | null;
+  winner: Record<string, unknown> | null;
+  order: Record<string, unknown> | null;
+  payment: Record<string, unknown> | null;
+  participants: BidAuctionParticipant[];
+  bids: BidAuctionBid[];
+}
+
 interface ActionConfig extends AdminTableAction {
   method: ActionMethod;
   path: (id: string) => string;
@@ -1518,6 +2093,7 @@ const relatedRecords = ref<Record<string, unknown>>({});
 const userRelated = ref<UserRelatedRecords | null>(null);
 const sellerRelated = ref<SellerRelatedRecords | null>(null);
 const productRelated = ref<ProductRelatedRecords | null>(null);
+const bidRelated = ref<BidAuctionRelatedRecords | null>(null);
 const auditTarget = ref<{ targetType: string; targetId: string } | null>(null);
 const auditEvents = ref<AuditEvent[]>([]);
 const drawerOpen = ref(false);
@@ -1571,6 +2147,28 @@ const statusOptions = [
 const yesNoOptions = [
   { label: 'Evet', value: 'true' },
   { label: 'Hayır', value: 'false' },
+];
+
+const sellerStatusOptions = [
+  { label: 'Beklemede', value: 'PENDING' },
+  { label: 'Onaylandı', value: 'APPROVED' },
+  { label: 'Askıda', value: 'SUSPENDED' },
+  { label: 'Sonlandırıldı', value: 'TERMINATED' },
+];
+
+const sellerFields = (row: Record<string, unknown>): DrawerField[] => [
+  { key: 'businessName', label: 'Mağaza / İşletme Adı', required: true, value: getString(row, 'businessName') },
+  { key: 'phone', label: 'Telefon', value: getString(row, 'phone') },
+  { key: 'taxOffice', label: 'Vergi Dairesi', value: getString(row, 'taxOffice') },
+  { key: 'taxNumber', label: 'Vergi Numarası', value: getString(row, 'taxNumber') },
+  { key: 'commissionRate', label: 'Komisyon Oranı', type: 'number', value: getString(row, 'commissionRate') },
+  {
+    key: 'status',
+    label: 'Durum',
+    type: 'select',
+    value: getString(row, 'status') || 'PENDING',
+    options: sellerStatusOptions,
+  },
 ];
 
 const productFields = (row: Record<string, unknown>): DrawerField[] => {
@@ -1627,6 +2225,7 @@ const actionConfigs: Record<string, ActionConfig[]> = {
       tone: 'danger',
       method: 'patch',
       path: (id) => `/admin/users/${id}/restrict`,
+      when: (row) => String(row.isActive ?? '').toLowerCase() !== 'false',
     },
     {
       key: 'reactivate',
@@ -1635,9 +2234,20 @@ const actionConfigs: Record<string, ActionConfig[]> = {
       tone: 'primary',
       method: 'patch',
       path: (id) => `/admin/users/${id}/reactivate`,
+      when: (row) => String(row.isActive ?? '').toLowerCase() === 'false',
     },
   ],
   sellers: [
+    {
+      key: 'editSeller',
+      label: 'Düzenle',
+      icon: 'pi pi-pencil',
+      tone: 'primary',
+      method: 'patch',
+      path: (id) => `/admin/sellers/${id}`,
+      fields: sellerFields,
+      confirmLabel: 'Satıcı güncelle',
+    },
     {
       key: 'approve',
       label: 'Onayla',
@@ -1753,6 +2363,8 @@ const endpoint = computed(() => `/admin/${props.resource}/${props.id}`);
 const isUserResource = computed(() => props.resource === 'users');
 const isSellerResource = computed(() => props.resource === 'sellers');
 const isProductResource = computed(() => props.resource === 'products');
+const isBidResource = computed(() => props.resource === 'bids');
+const isAuditResource = computed(() => props.resource === 'audit-logs');
 const userDisplayName = computed(() => {
   const firstName = getString(overview.value, 'firstName');
   const lastName = getString(overview.value, 'lastName');
@@ -1803,6 +2415,20 @@ const sellerDraftProductRate = computed(() => {
 function getString(row: Record<string, unknown>, key: string): string {
   const value = row[key];
   return value === null || value === undefined ? '' : String(value);
+}
+
+function getNullableNumber(row: Record<string, unknown>, key: string): number | null {
+  const value = row[key];
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getBoolean(row: Record<string, unknown>, key: string): boolean {
+  const value = row[key];
+  return value === true || value === 'true';
 }
 
 function toBooleanString(value: unknown): string {
@@ -1920,6 +2546,65 @@ function shortId(value: string): string {
   return value.slice(0, 8);
 }
 
+function auditActionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    SELLER_APPROVED: 'Satıcı onaylandı',
+    SELLER_REJECTED: 'Satıcı reddedildi',
+    USER_RESTRICTED: 'Üye kısıtlandı',
+    USER_REACTIVATED: 'Üye yeniden etkinleştirildi',
+    PRODUCT_REMOVED: 'Ürün yayından kaldırıldı',
+    AUCTION_CANCELLED: 'Müzayede iptal edildi',
+    ORDER_MARKED_ADMIN_REVIEW: 'Sipariş incelemeye alındı',
+    PAYMENT_MARKED_ADMIN_REVIEW: 'Ödeme incelemeye alındı',
+    CATEGORY_CREATED: 'Kategori oluşturuldu',
+    CATEGORY_UPDATED: 'Kategori güncellendi',
+    CATEGORY_DELETED: 'Kategori devre dışı bırakıldı',
+    BRAND_CREATED: 'Marka oluşturuldu',
+    BRAND_UPDATED: 'Marka güncellendi',
+    BRAND_DELETED: 'Marka devre dışı bırakıldı',
+    PAYOUT_APPROVED: 'Ödeme talebi onaylandı',
+    PAYOUT_REJECTED: 'Ödeme talebi reddedildi',
+    ADMIN_LOGIN: 'Yönetici girişi',
+    SETTING_UPDATED: 'Ayar güncellendi',
+    NEGOTIATION_VIEWED: 'Pazarlık kaydı görüntülendi',
+    TRUST_REVIEWED: 'Güven değerlendirmesi yapıldı',
+    AD_APPROVED: 'İlan onaylandı',
+    AD_REJECTED: 'İlan reddedildi',
+  };
+
+  if (labels[action]) return labels[action];
+  if (!action) return '-';
+  return action
+    .split('_')
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function auditTargetLabel(targetType: string): string {
+  const labels: Record<string, string> = {
+    USER: 'Üye',
+    SELLER: 'Satıcı',
+    PRODUCT: 'Ürün',
+    AUCTION: 'Müzayede',
+    ORDER: 'Sipariş',
+    PAYMENT: 'Ödeme',
+    CATEGORY: 'Kategori',
+    BRAND: 'Marka',
+    ADMIN: 'Yönetici',
+    BID: 'Teklif',
+    PAYOUT_REQUEST: 'Ödeme talebi',
+  };
+  return labels[targetType] ?? (targetType || 'Kayıt');
+}
+
+function auditActorLabel(record: Record<string, unknown>): string {
+  const actorAdminId = getString(record, 'actorAdminId');
+  const actorRolesRaw = record.actorRoles;
+  const roles = Array.isArray(actorRolesRaw) ? actorRolesRaw.map(String) : [];
+  const roleLabel = roles[0] ? roles[0].replace(/_/g, ' ') : 'Yönetici';
+  return `${roleLabel} (${shortId(actorAdminId)})`;
+}
+
 function toDefaultPagination(): UserRelatedPaginationItem {
   return {
     page: 1,
@@ -1937,6 +2622,7 @@ function normalizeUserRelated(candidate: Partial<UserRelatedRecords>): UserRelat
     summary: candidate.summary,
     orders: candidate.orders ?? [],
     sales: candidate.sales ?? [],
+    addresses: candidate.addresses ?? [],
     favorites: candidate.favorites ?? [],
     cart: candidate.cart ?? [],
     coupons: {
@@ -1962,7 +2648,8 @@ function normalizeSellerRelated(candidate: Partial<SellerRelatedRecords>): Selle
     !Array.isArray(candidate.auctions) ||
     !Array.isArray(candidate.payouts) ||
     !Array.isArray(candidate.coupons) ||
-    !Array.isArray(candidate.payments)
+    !Array.isArray(candidate.payments) ||
+    !Array.isArray(candidate.addresses)
   ) {
     return null;
   }
@@ -1974,6 +2661,7 @@ function normalizeSellerRelated(candidate: Partial<SellerRelatedRecords>): Selle
     payouts: candidate.payouts,
     coupons: candidate.coupons,
     payments: candidate.payments,
+    addresses: candidate.addresses,
   };
 }
 
@@ -2000,6 +2688,44 @@ function normalizeProductRelated(candidate: Partial<ProductRelatedRecords>): Pro
     bids: candidate.bids,
     payments: candidate.payments,
   };
+}
+
+function normalizeBidRelated(candidate: Partial<BidAuctionRelatedRecords>): BidAuctionRelatedRecords | null {
+  if (
+    !candidate.summary ||
+    !Array.isArray(candidate.participants) ||
+    !Array.isArray(candidate.bids)
+  ) {
+    return null;
+  }
+  return {
+    summary: candidate.summary,
+    auction: candidate.auction ?? {},
+    product: candidate.product ?? null,
+    seller: candidate.seller ?? null,
+    winner: candidate.winner ?? null,
+    order: candidate.order ?? null,
+    payment: candidate.payment ?? null,
+    participants: candidate.participants,
+    bids: candidate.bids,
+  };
+}
+
+function formatReserveLabel(reservePrice: number | null | undefined): string {
+  if (reservePrice === null || reservePrice === undefined) {
+    return 'Yok';
+  }
+  return formatMoney(reservePrice, 'TRY');
+}
+
+function formatReserveState(
+  reservePrice: number | null | undefined,
+  reserveMet: boolean | null | undefined,
+): string {
+  if (reservePrice === null || reservePrice === undefined) {
+    return 'Yok';
+  }
+  return reserveMet ? 'Karşılandı' : 'Karşılanmadı';
 }
 
 function relatedPagination(section: UserRelatedSectionKey): UserRelatedPaginationItem {
@@ -2126,18 +2852,27 @@ async function loadDetail() {
       userRelated.value = normalizeUserRelated(relatedRecords.value as Partial<UserRelatedRecords>);
       sellerRelated.value = null;
       productRelated.value = null;
+      bidRelated.value = null;
     } else if (isSellerResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
       sellerRelated.value = normalizeSellerRelated(relatedRecords.value as Partial<SellerRelatedRecords>);
       userRelated.value = null;
       productRelated.value = null;
+      bidRelated.value = null;
     } else if (isProductResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
       productRelated.value = normalizeProductRelated(relatedRecords.value as Partial<ProductRelatedRecords>);
       userRelated.value = null;
       sellerRelated.value = null;
+      bidRelated.value = null;
+    } else if (isBidResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
+      bidRelated.value = normalizeBidRelated(relatedRecords.value as Partial<BidAuctionRelatedRecords>);
+      userRelated.value = null;
+      sellerRelated.value = null;
+      productRelated.value = null;
     } else {
       userRelated.value = null;
       sellerRelated.value = null;
       productRelated.value = null;
+      bidRelated.value = null;
     }
     auditTarget.value = response.data.audit ?? null;
     await loadAudit();

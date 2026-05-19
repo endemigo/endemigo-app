@@ -18,7 +18,7 @@ import { useModalStore } from '../../store/modalStore';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import { formatAmount } from '../../utils/transactionFormatters';
 import { Colors } from '../../constants/theme';
-import { styles } from './_id.styles';
+import { styles } from '../../styles/auction/_id.styles';
 import { useProduct } from '../../hooks/useProducts';
 import { getProductImageUri } from '../../utils/productImages';
 import {
@@ -47,6 +47,9 @@ export default function AuctionDetailScreen() {
   const socket = useAuctionSocket(id);
   const { data: product } = useProduct(auction?.productId ?? '');
   const [bidAmount, setBidAmount] = useState('');
+  const [maxBidAmount, setMaxBidAmount] = useState('');
+  const [activeProxyAmount, setActiveProxyAmount] = useState<number | null>(null);
+  const [bidState, setBidState] = useState<'leading' | 'outbid' | null>(null);
 
   const apiCurrentPrice = Number(auction?.currentPrice || 0);
   const socketCurrentPrice = Number(socket.currentPrice || 0);
@@ -69,9 +72,17 @@ export default function AuctionDetailScreen() {
   }, [refetch, refetchBids, socket.auctionEnded]);
 
   useEffect(() => {
+    if (socket.wasOutbid) {
+      setBidState('outbid');
+      setActiveProxyAmount(null);
+    }
+  }, [socket.wasOutbid]);
+
+  useEffect(() => {
     if (auction?.minIncrement) {
       const nextBidAmount = currentPrice + Number(auction.minIncrement);
       setBidAmount(nextBidAmount.toString());
+      setMaxBidAmount('');
     }
   }, [auction?.minIncrement, currentPrice]);
 
@@ -102,15 +113,62 @@ export default function AuctionDetailScreen() {
   const isSeller = user?.id === auction.sellerId;
   const minBid = currentPrice + Number(auction.minIncrement);
   const parsedBidAmount = parseFloat(bidAmount);
+  const parsedMaxBidAmount = parseFloat(maxBidAmount);
   const isBidEmpty = bidAmount.trim().length === 0;
+  const isMaxBidEmpty = maxBidAmount.trim().length === 0;
   const isBidBelowMinimum =
     !isBidEmpty && !Number.isNaN(parsedBidAmount) && parsedBidAmount < minBid;
+  const isMaxBidBelowBid =
+    !isMaxBidEmpty
+    && !Number.isNaN(parsedMaxBidAmount)
+    && parsedMaxBidAmount < parsedBidAmount;
   const isBidInvalid =
-    isBidEmpty || Number.isNaN(parsedBidAmount) || isBidBelowMinimum;
-  const premium = Number(bidAmount || 0) * Number(auction.buyerPremiumRate);
+    isBidEmpty
+    || Number.isNaN(parsedBidAmount)
+    || isBidBelowMinimum
+    || isMaxBidBelowBid;
+  const premiumBaseAmount = !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount)
+    ? parsedMaxBidAmount
+    : Number.isNaN(parsedBidAmount)
+      ? 0
+      : parsedBidAmount;
+  const premium = premiumBaseAmount * Number(auction.buyerPremiumRate);
   const showLoserState = isEnded && !socket.isWinner && socket.auctionEnded;
   const showResultButton = isEnded && !socket.auctionEnded;
   const hasActiveHoldForAuction = walletHolds.some((hold) => hold.auctionId === id);
+  const quickBidOptions = [
+    {
+      key: 'min',
+      label: t('auction.quickBidMin', { amount: formatAmount(minBid) }),
+      amount: String(minBid),
+    },
+    {
+      key: 'plusOne',
+      label: t('auction.quickBidPlusOne', {
+        amount: formatAmount(minBid + Number(auction.minIncrement)),
+      }),
+      amount: String(minBid + Number(auction.minIncrement)),
+    },
+    {
+      key: 'plusThree',
+      label: t('auction.quickBidPlusThree', {
+        amount: formatAmount(minBid + Number(auction.minIncrement) * 3),
+      }),
+      amount: String(minBid + Number(auction.minIncrement) * 3),
+    },
+  ];
+  const bidStatusMessage = bidState
+    ? t(
+        bidState === 'leading'
+          ? 'auction.leaderStateLeading'
+          : 'auction.leaderStateOutbid',
+      )
+    : t('auction.leaderStateWatching');
+  const proxyMessage = activeProxyAmount
+    ? t('auction.proxyActiveMessage', {
+        amount: formatAmount(activeProxyAmount),
+      })
+    : null;
 
   const productImageUri = getProductImageUri(
     product,
@@ -146,8 +204,42 @@ export default function AuctionDetailScreen() {
       return;
     }
 
+    if (isMaxBidBelowBid) {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.maxBidError'),
+        type: 'error',
+      });
+      return;
+    }
+
     try {
-      await placeBid.mutateAsync({ auctionId: id, amount });
+      const result = await placeBid.mutateAsync({
+        auctionId: id,
+        amount,
+        maxAmount:
+          !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount)
+            ? parsedMaxBidAmount
+            : undefined,
+      });
+      if (result?.bid?.isLeadingBid === false) {
+        setBidState('outbid');
+        setActiveProxyAmount(null);
+        showModal({
+          title: t('auction.proxyOutbidTitle'),
+          message: t('auction.proxyOutbidMessage', {
+            amount: formatAmount(result.auction?.currentPrice ?? amount),
+          }),
+          type: 'info',
+        });
+        return;
+      }
+      setBidState('leading');
+      setActiveProxyAmount(
+        !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount) && parsedMaxBidAmount > amount
+          ? parsedMaxBidAmount
+          : null,
+      );
       showModal({
         title: t('auction.bidAcceptedTitle'),
         message: t('auction.bidAcceptedMessage', {
@@ -179,6 +271,8 @@ export default function AuctionDetailScreen() {
       onConfirm: async () => {
         try {
           await withdrawBid.mutateAsync({ auctionId: id });
+          setBidState(null);
+          setActiveProxyAmount(null);
           showModal({
             title: t('auction.withdrawBidSuccessTitle'),
             message: t('auction.withdrawBidSuccessMessage'),
@@ -238,6 +332,7 @@ export default function AuctionDetailScreen() {
             showResultButton={showResultButton}
             finalPrice={socket.finalPrice}
             lastBid={socket.lastBid}
+            activityFeed={socket.activityFeed}
             onViewResult={() => router.push(`/auction/${id}/result` as never)}
             t={t}
           />
@@ -249,6 +344,8 @@ export default function AuctionDetailScreen() {
             description={product?.description}
             auctionTypeLabel={auctionTypeLabel}
             minIncrement={Number(auction.minIncrement)}
+            reservePrice={auction.reservePrice}
+            reserveMet={auction.reserveMet}
             antiSnipingEnabled={auction.antiSnipingEnabled}
             extensionSeconds={auction.extensionSeconds}
             currentExtensions={auction.currentExtensions}
@@ -265,13 +362,20 @@ export default function AuctionDetailScreen() {
         <View style={styles.stickyComposer}>
           <AuctionBidComposer
             bidAmount={bidAmount}
+            maxBidAmount={maxBidAmount}
+            quickBidOptions={quickBidOptions}
+            statusMessage={bidStatusMessage}
+            proxyMessage={proxyMessage}
             onChangeText={setBidAmount}
+            onChangeMaxBidText={setMaxBidAmount}
+            onSelectQuickBid={setBidAmount}
             placeholder={minBid.toString()}
+            maxPlaceholder={t('auction.maxBidPlaceholder')}
             minBidText={t('auction.minBid', {
               amount: formatAmount(minBid),
             })}
             premiumTotalText={t('auction.premiumTotal', {
-              amount: formatAmount((Number.isNaN(parsedBidAmount) ? 0 : parsedBidAmount) + premium),
+              amount: formatAmount(premiumBaseAmount + premium),
             })}
             disabled={placeBid.isPending || isBidInvalid}
             isPending={placeBid.isPending}

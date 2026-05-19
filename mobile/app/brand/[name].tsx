@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { useProductsByBrand } from '../../hooks/useProducts';
 import { ProductCard } from '../../components/ui';
-import { styles } from './_name.styles';
+import { styles } from '../../styles/brand/_name.styles';
 
 export default function BrandProductsScreen() {
   const { name } = useLocalSearchParams<{ name?: string }>();

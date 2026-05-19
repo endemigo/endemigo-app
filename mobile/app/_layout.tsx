@@ -6,13 +6,15 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import NetInfo from '@react-native-community/netinfo';
 import { queryClient } from '../lib/queryClient';
 import { storage } from '../lib/storage';
 import { initMobileMonitoring } from '../lib/monitoring';
 import { useAuthStore } from '../store/authStore';
+import { useBackendConnectionStore } from '../store/backendConnectionStore';
 import { useCartStore } from '../store/cartStore';
 import { Colors } from '../constants/theme';
-import { GlobalModal, GlobalToast } from '../components/ui';
+import { BackendUnavailableScreen, GlobalModal, GlobalToast } from '../components/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { styles } from '../styles/_layout.styles';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,6 +100,8 @@ function AuthGate({ children }: { children: ReactNode }) {
 export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const setConnectionIssue = useBackendConnectionStore((state) => state.setConnectionIssue);
+  const clearConnectionIssue = useBackendConnectionStore((state) => state.clearConnectionIssue);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [storedLaunchImages, setStoredLaunchImages] = useState<string[]>([]);
   const items = useCartStore((state) => state.items);
@@ -124,6 +128,22 @@ export default function RootLayout() {
   useEffect(() => {
     void initMobileMonitoring();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const hasInternet = state.isConnected === true && state.isInternetReachable !== false;
+      if (!hasInternet) {
+        setConnectionIssue('offline');
+        return;
+      }
+
+      if (useBackendConnectionStore.getState().connectionIssueType === 'offline') {
+        clearConnectionIssue();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [clearConnectionIssue, setConnectionIssue]);
 
   useEffect(() => {
     let isActive = true;
@@ -251,6 +271,7 @@ export default function RootLayout() {
               <GlobalModal />
               <GlobalToast />
               {showLaunchSplash ? <LaunchSplash images={launchSplashImages} /> : null}
+              <BackendUnavailableScreen />
             </View>
           </AuthGate>
         </ErrorBoundary>

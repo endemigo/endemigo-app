@@ -123,6 +123,56 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
   },
+  feedCard: {
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.surfaceContainerLow,
+    padding: Spacing.base,
+  },
+  feedTitle: {
+    color: Colors.onSurface,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  feedList: {
+    gap: Spacing.sm,
+  },
+  feedItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  feedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: BorderRadius.full,
+    marginTop: 6,
+  },
+  feedDotPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  feedDotAccent: {
+    backgroundColor: Colors.accent,
+  },
+  feedDotError: {
+    backgroundColor: Colors.error,
+  },
+  feedTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  feedItemTitle: {
+    color: Colors.onSurface,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  feedItemBody: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+  },
   walletStrip: {
     flexDirection: 'row',
     alignItems: 'center',

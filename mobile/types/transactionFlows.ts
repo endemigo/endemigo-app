@@ -160,7 +160,9 @@ export interface CargoTimelineEvent {
   createdAt: string;
 }
 
-export interface CargoSummary {
+export interface CargoShipmentSummary {
+  id: string;
+  shipmentType: 'FORWARD' | 'RETURN';
   provider: CargoProvider;
   trackingNumber: string;
   status: CargoStatus;
@@ -170,9 +172,23 @@ export interface CargoSummary {
   timeline: CargoTimelineEvent[];
 }
 
+export type CargoSummary = CargoShipmentSummary;
+
+export interface SubmittedOrderReview {
+  id: string;
+  productRating: number;
+  productComment: string | null;
+  sellerRating: number;
+  sellerComment: string | null;
+  createdAt: string;
+}
+
 export interface OrderDetail {
   id: string;
   orderCode: string;
+  title: string;
+  productId: string;
+  productImage: string | null;
   buyerId: string;
   sellerId: string;
   status: OrderStatus;
@@ -183,7 +199,16 @@ export interface OrderDetail {
   canDispute: boolean;
   autoCompleteAt: string | null;
   timeline: OrderTimelineStep[];
-  cargo: CargoSummary | null;
+  shipments: CargoShipmentSummary[];
+  forwardShipment: CargoShipmentSummary | null;
+  returnShipment: CargoShipmentSummary | null;
+  reviewEligibility: {
+    canRequestReturn: boolean;
+    canReview: boolean;
+  };
+  submittedReview: SubmittedOrderReview | null;
+  returnReasonCode?: string | null;
+  returnReasonNote?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +224,9 @@ export interface SellerDashboardSummary {
     preparingShipment: number;
     inTransit: number;
     delivered: number;
+    returnRequested: number;
+    returnInTransit: number;
+    refundedOrders: number;
   };
   products: {
     draftProducts: number;

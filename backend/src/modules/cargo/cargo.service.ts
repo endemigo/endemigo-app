@@ -1,18 +1,30 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  CargoEventSource,
   CargoProvider,
+  CargoShipmentType,
   CargoStatus,
   NotificationEventType,
+  OrderStatus,
   RC,
 } from '@endemigo/shared';
 import { Queue } from 'bullmq';
 import { Repository } from 'typeorm';
-import { CargoShipment } from './entities/cargo-shipment.entity';
 import { NotificationService } from '../notification/notification.service';
 import { Order } from '../order/entities/order.entity';
+import { User } from '../user/entities/user.entity';
+import { EmailService } from '../../shared/email/email.service';
+import { CargoShipmentEvent } from './entities/cargo-shipment-event.entity';
+import { CargoShipment } from './entities/cargo-shipment.entity';
 import { MockCargoProvider } from './providers/mock-cargo.provider';
 
 const ALLOWED_CARGO_TRANSITIONS: Record<CargoStatus, CargoStatus[]> = {
@@ -32,6 +44,8 @@ export class CargoService {
   constructor(
     @InjectRepository(CargoShipment)
     private readonly cargoShipmentRepository?: Repository<CargoShipment>,
+    @InjectRepository(CargoShipmentEvent)
+    private readonly cargoShipmentEventRepository?: Repository<CargoShipmentEvent>,
     @InjectQueue('cargo')
     private readonly cargoQueue?: Queue,
     @Optional()
@@ -42,6 +56,11 @@ export class CargoService {
     private readonly configService?: ConfigService,
     @InjectRepository(Order)
     private readonly orderRepository?: Repository<Order>,
+    @Optional()
+    @InjectRepository(User)
+    private readonly userRepository?: Repository<User>,
+    @Optional()
+    private readonly emailService?: EmailService,
   ) {}
 
   createMockShipment(orderId: string) {
@@ -50,56 +69,107 @@ export class CargoService {
       orderId,
       trackingNumber,
       provider: CargoProvider.MOCK,
+      shipmentType: CargoShipmentType.FORWARD,
       status: CargoStatus.PREPARING,
     };
   }
 
   async createShipmentForOrder(orderId: string) {
-    const existing = await this.cargoShipmentRepository?.findOne({
-      where: { orderId },
-    });
-    if (existing) {
-      return {
-        code: RC.CARGO_TRACKING_CREATED,
-        message: 'Cargo shipment already exists',
-        shipment: existing,
-      };
-    }
+    return this.createShipment(orderId, CargoShipmentType.FORWARD);
+  }
 
-    const trackingNumber = await this.generateTrackingNumber();
-    const providerShipment = await this.mockCargoProvider?.createShipment({
-      orderId,
-      trackingNumber,
-    });
+  async createShipmentForOrderForUser(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    await this.assertSellerManagedOrder(orderId, actor);
+    return this.createShipmentForOrder(orderId);
+  }
 
-    const shipment = this.cargoShipmentRepository?.create({
-      orderId,
-      trackingNumber,
-      provider: CargoProvider.MOCK,
-      status: providerShipment?.status ?? CargoStatus.PREPARING,
-      lastEventAt: new Date(),
-      deliveredAt: null,
-    });
-    const saved =
-      shipment && this.cargoShipmentRepository
-        ? await this.cargoShipmentRepository.save(shipment)
-        : shipment;
+  async createReturnShipmentForOrder(orderId: string) {
+    return this.createShipment(orderId, CargoShipmentType.RETURN);
+  }
 
-    if (saved) {
-      await this.enqueueTransitions(saved.id);
-    }
+  async createReturnShipmentForOrderForUser(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    await this.assertSellerManagedOrder(orderId, actor);
+    return this.createReturnShipmentForOrder(orderId);
+  }
+
+  async getOrderShipmentsForUser(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    await this.assertOrderAccess(orderId, actor);
+
+    const shipments =
+      this.cargoShipmentRepository && 'find' in this.cargoShipmentRepository
+        ? await this.cargoShipmentRepository.find({
+            where: { orderId },
+            order: { createdAt: 'ASC' },
+          })
+        : [];
 
     return {
-      code: RC.CARGO_TRACKING_CREATED,
-      message: 'Cargo shipment created',
-      shipment: saved,
+      code: RC.CARGO_TRACKING_FETCHED,
+      message: 'Cargo shipments fetched',
+      shipments,
     };
+  }
+
+  async getShipmentById(shipmentId: string) {
+    const shipment = await this.cargoShipmentRepository?.findOne({
+      where: { id: shipmentId },
+    });
+
+    return {
+      code: RC.CARGO_TRACKING_FETCHED,
+      message: 'Cargo shipment fetched',
+      shipment: shipment ?? null,
+    };
+  }
+
+  async getShipmentEventsForUser(
+    shipmentId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    const shipment = await this.requireShipment(shipmentId);
+    await this.assertOrderAccess(shipment.orderId, actor);
+    return this.getShipmentEvents(shipmentId);
+  }
+
+  async getShipmentEvents(shipmentId: string) {
+    const events =
+      this.cargoShipmentEventRepository &&
+      'find' in this.cargoShipmentEventRepository
+        ? await this.cargoShipmentEventRepository.find({
+            where: { shipmentId },
+            order: { occurredAt: 'ASC', createdAt: 'ASC' },
+          })
+        : [];
+
+    return {
+      code: RC.CARGO_EVENTS_FETCHED,
+      message: 'Cargo shipment events fetched',
+      events,
+    };
+  }
+
+  async getShipmentForOrderForUser(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    await this.assertOrderAccess(orderId, actor);
+    return this.getShipmentForOrder(orderId);
   }
 
   async getShipmentForOrder(orderId: string) {
     const shipment = await this.cargoShipmentRepository?.findOne({
-      where: { orderId },
+      where: { orderId, shipmentType: CargoShipmentType.FORWARD },
     });
+
     return {
       code: RC.CARGO_TRACKING_FETCHED,
       message: 'Cargo shipment fetched',
@@ -132,19 +202,117 @@ export class CargoService {
       shipment.trackingNumber,
       nextStatus,
     );
+
     shipment.status = nextStatus;
     shipment.lastEventAt = new Date();
     if (nextStatus === CargoStatus.DELIVERED) {
       shipment.deliveredAt = new Date();
     }
+
     const saved = await this.cargoShipmentRepository?.save(shipment);
+    if (saved) {
+      await this.recordShipmentEvent(
+        saved,
+        nextStatus,
+        this.getEventTitle(nextStatus, saved.shipmentType),
+        this.getEventDetail(nextStatus, saved.shipmentType),
+      );
+    }
+
     await this.notifyCargoStatusChanged(shipment, nextStatus);
+    await this.syncOrderStatusForReturnShipment(shipment, nextStatus);
 
     return {
       code: RC.CARGO_STATUS_TRANSITIONED,
       message: 'Cargo status transitioned',
       shipment: saved,
       idempotent: false,
+    };
+  }
+
+  private async createShipment(
+    orderId: string,
+    shipmentType: CargoShipmentType,
+  ) {
+    const existing = await this.cargoShipmentRepository?.findOne({
+      where: { orderId, shipmentType },
+    });
+    if (existing) {
+      return {
+        code: RC.CARGO_TRACKING_CREATED,
+        message: 'Cargo shipment already exists',
+        shipment: existing,
+      };
+    }
+
+    const order = await this.orderRepository?.findOne({
+      where: { id: orderId },
+    });
+    if (!order) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
+    }
+
+    if (
+      shipmentType === CargoShipmentType.FORWARD &&
+      ![OrderStatus.ESCROW_HELD, OrderStatus.PREPARING_SHIPMENT].includes(
+        order.status,
+      )
+    ) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Order is not ready for forward shipment',
+      });
+    }
+
+    if (
+      shipmentType === CargoShipmentType.RETURN &&
+      order.status !== OrderStatus.RETURN_APPROVED
+    ) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Order is not ready for return shipment',
+      });
+    }
+
+    const trackingNumber = await this.generateTrackingNumber(shipmentType);
+    const providerShipment = await this.mockCargoProvider?.createShipment({
+      orderId,
+      trackingNumber,
+    });
+
+    const shipment = this.cargoShipmentRepository?.create({
+      orderId,
+      trackingNumber,
+      provider: CargoProvider.MOCK,
+      shipmentType,
+      status: providerShipment?.status ?? CargoStatus.PREPARING,
+      externalTrackingUrl: null,
+      carrierReference: null,
+      lastEventAt: new Date(),
+      deliveredAt: null,
+    });
+    const saved =
+      shipment && this.cargoShipmentRepository
+        ? await this.cargoShipmentRepository.save(shipment)
+        : shipment;
+
+    if (saved) {
+      await this.recordShipmentEvent(
+        saved,
+        saved.status,
+        this.getEventTitle(saved.status, shipmentType),
+        this.getEventDetail(saved.status, shipmentType),
+      );
+      await this.enqueueTransitions(saved.id);
+    }
+
+    return {
+      code: RC.CARGO_TRACKING_CREATED,
+      message: 'Cargo shipment created',
+      shipment: saved,
     };
   }
 
@@ -167,19 +335,27 @@ export class CargoService {
     );
   }
 
-  private async generateTrackingNumber() {
-    await this.cargoShipmentRepository?.manager.query(
-      `SELECT pg_advisory_xact_lock(hashtext('mock_cargo_tracking'))`,
-    );
+  private async generateTrackingNumber(shipmentType: CargoShipmentType) {
+    const repositoryManager = this.cargoShipmentRepository?.manager;
+    if (repositoryManager?.query) {
+      await repositoryManager.query(
+        `SELECT pg_advisory_xact_lock(hashtext('mock_cargo_tracking'))`,
+      );
+    }
+
     const now = new Date();
-    const prefix = `MOCK-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const count =
-      (await this.cargoShipmentRepository
-        ?.createQueryBuilder('shipment')
-        .where('shipment.trackingNumber LIKE :prefix', {
-          prefix: `${prefix}-%`,
-        })
-        .getCount()) ?? 0;
+    const prefix = `${shipmentType === CargoShipmentType.RETURN ? 'RMA' : 'MOCK'}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const queryBuilder = this.cargoShipmentRepository?.createQueryBuilder?.(
+      'shipment',
+    );
+    const count = queryBuilder
+      ? ((await queryBuilder
+          .where('shipment.trackingNumber LIKE :prefix', {
+            prefix: `${prefix}-%`,
+          })
+          .getCount()) ?? 0)
+      : 0;
+
     return `${prefix}-${String(count + 1).padStart(5, '0')}`;
   }
 
@@ -187,11 +363,164 @@ export class CargoService {
     return `MOCK-${orderId}`;
   }
 
+  private async recordShipmentEvent(
+    shipment: CargoShipment,
+    status: CargoStatus,
+    title: string,
+    detail: string,
+  ) {
+    const event = this.cargoShipmentEventRepository?.create({
+      shipmentId: shipment.id,
+      status,
+      title,
+      detail,
+      source: CargoEventSource.SYSTEM,
+      occurredAt: new Date(),
+    });
+
+    if (event && this.cargoShipmentEventRepository) {
+      await this.cargoShipmentEventRepository.save(event);
+    }
+  }
+
+  private getEventTitle(status: CargoStatus, shipmentType: CargoShipmentType) {
+    const shipmentLabel =
+      shipmentType === CargoShipmentType.RETURN ? 'Return shipment' : 'Shipment';
+
+    switch (status) {
+      case CargoStatus.PREPARING:
+        return `${shipmentLabel} created`;
+      case CargoStatus.IN_TRANSIT:
+        return `${shipmentLabel} in transit`;
+      case CargoStatus.DELIVERED:
+        return `${shipmentLabel} delivered`;
+      case CargoStatus.CANCELLED:
+        return `${shipmentLabel} cancelled`;
+      case CargoStatus.FAILED:
+        return `${shipmentLabel} failed`;
+      default:
+        return `${shipmentLabel} updated`;
+    }
+  }
+
+  private getEventDetail(status: CargoStatus, shipmentType: CargoShipmentType) {
+    const flow =
+      shipmentType === CargoShipmentType.RETURN ? 'return cargo' : 'cargo';
+
+    switch (status) {
+      case CargoStatus.PREPARING:
+        return `The ${flow} record has been created.`;
+      case CargoStatus.IN_TRANSIT:
+        return `The ${flow} is currently in transit.`;
+      case CargoStatus.DELIVERED:
+        return `The ${flow} has been delivered.`;
+      case CargoStatus.CANCELLED:
+        return `The ${flow} has been cancelled.`;
+      case CargoStatus.FAILED:
+        return `The ${flow} encountered a delivery failure.`;
+      default:
+        return `The ${flow} status has been updated.`;
+    }
+  }
+
+  private async assertOrderAccess(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    const order = await this.orderRepository?.findOne({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
+    }
+
+    if (!actor.isAdmin && ![order.buyerId, order.sellerId].includes(actor.id)) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Shipment does not belong to authenticated user',
+      });
+    }
+
+    return order;
+  }
+
+  private async assertSellerManagedOrder(
+    orderId: string,
+    actor: { id: string; isAdmin?: boolean },
+  ) {
+    const order = await this.assertOrderAccess(orderId, actor);
+
+    if (!actor.isAdmin && order.sellerId !== actor.id) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Only the seller can manage shipment creation',
+      });
+    }
+
+    return order;
+  }
+
+  private async requireShipment(shipmentId: string) {
+    const shipment = await this.cargoShipmentRepository?.findOne({
+      where: { id: shipmentId },
+    });
+
+    if (!shipment) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Cargo shipment not found',
+      });
+    }
+
+    return shipment;
+  }
+
+  private async syncOrderStatusForReturnShipment(
+    shipment: CargoShipment,
+    nextStatus: CargoStatus,
+  ) {
+    if (
+      shipment.shipmentType !== CargoShipmentType.RETURN ||
+      !this.orderRepository
+    ) {
+      return;
+    }
+
+    const order = await this.orderRepository.findOne({
+      where: { id: shipment.orderId },
+    });
+    if (!order) {
+      return;
+    }
+
+    if (
+      nextStatus === CargoStatus.IN_TRANSIT &&
+      order.status === OrderStatus.RETURN_APPROVED
+    ) {
+      order.status = OrderStatus.RETURN_IN_TRANSIT;
+      await this.orderRepository.save(order);
+      return;
+    }
+
+    if (
+      nextStatus === CargoStatus.DELIVERED &&
+      order.status === OrderStatus.RETURN_IN_TRANSIT
+    ) {
+      order.status = OrderStatus.RETURN_DELIVERED;
+      order.returnDeliveredAt = new Date();
+      await this.orderRepository.save(order);
+    }
+  }
+
   private async notifyCargoStatusChanged(
     shipment: CargoShipment,
     nextStatus: CargoStatus,
   ) {
-    if (!this.notificationService || !this.orderRepository) {
+    if (!this.orderRepository) {
       return;
     }
 
@@ -202,21 +531,87 @@ export class CargoService {
     if (order?.buyerId) recipientIds.add(order.buyerId);
     if (order?.sellerId) recipientIds.add(order.sellerId);
 
-    const notificationService = this.notificationService;
+    const recipientList = Array.from(recipientIds);
+
+    if (this.notificationService) {
+      await Promise.all(
+        recipientList.map((userId) =>
+          this.notificationService!.createFromEvent({
+            eventId: `cargo-status:${shipment.id}:${nextStatus}:${userId}`,
+            userId,
+            eventType: NotificationEventType.CARGO_STATUS_CHANGED,
+            title: this.getCargoEmailSubject(nextStatus, shipment.shipmentType),
+            body: this.getCargoEmailSummary(nextStatus, shipment.shipmentType),
+            relatedEntityType: 'order',
+            relatedEntityId: shipment.orderId,
+          }),
+        ),
+      );
+    }
+
+    if (!this.emailService || !this.userRepository) {
+      return;
+    }
+
+    const users = await this.userRepository.find({
+      where: recipientList.map((id) => ({ id })),
+      select: ['id', 'email'],
+    });
 
     await Promise.all(
-      Array.from(recipientIds).map((userId) =>
-        notificationService.createFromEvent({
-          eventId: `cargo-status:${shipment.id}:${nextStatus}`,
-          userId,
-          eventType: NotificationEventType.CARGO_STATUS_CHANGED,
-          title: 'Cargo status changed',
-          body: `Cargo status changed to ${nextStatus}.`,
-          relatedEntityType: 'cargoShipment',
-          relatedEntityId: shipment.id,
+      users.map((user) =>
+        this.emailService!.sendCargoLifecycleEmail({
+          email: user.email,
+          subject: this.getCargoEmailSubject(nextStatus, shipment.shipmentType),
+          summary: this.getCargoEmailSummary(nextStatus, shipment.shipmentType),
+          orderId: shipment.orderId,
         }),
       ),
     );
+  }
+
+  private getCargoEmailSubject(
+    status: CargoStatus,
+    shipmentType: CargoShipmentType,
+  ) {
+    const prefix =
+      shipmentType === CargoShipmentType.RETURN ? 'Return cargo' : 'Cargo';
+    switch (status) {
+      case CargoStatus.PREPARING:
+        return `${prefix} created`;
+      case CargoStatus.IN_TRANSIT:
+        return `${prefix} is in transit`;
+      case CargoStatus.DELIVERED:
+        return `${prefix} delivered`;
+      case CargoStatus.CANCELLED:
+        return `${prefix} cancelled`;
+      case CargoStatus.FAILED:
+        return `${prefix} delivery failed`;
+      default:
+        return `${prefix} updated`;
+    }
+  }
+
+  private getCargoEmailSummary(
+    status: CargoStatus,
+    shipmentType: CargoShipmentType,
+  ) {
+    const flow =
+      shipmentType === CargoShipmentType.RETURN ? 'return shipment' : 'shipment';
+    switch (status) {
+      case CargoStatus.PREPARING:
+        return `The ${flow} record has been created.`;
+      case CargoStatus.IN_TRANSIT:
+        return `The ${flow} is currently in transit.`;
+      case CargoStatus.DELIVERED:
+        return `The ${flow} has been delivered.`;
+      case CargoStatus.CANCELLED:
+        return `The ${flow} has been cancelled.`;
+      case CargoStatus.FAILED:
+        return `The ${flow} has failed.`;
+      default:
+        return `The ${flow} status has been updated.`;
+    }
   }
 
   private getTransitDelayMs() {

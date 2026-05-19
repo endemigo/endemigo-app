@@ -7,10 +7,11 @@ import {
   ORDER_QUERY_KEYS,
   WALLET_QUERY_KEYS,
   type ApiResponseEnvelope,
-  type CargoSummary,
+  type CargoShipmentSummary,
   type OrderDetail,
   type OrderListItem,
   type RoleMode,
+  type SubmittedOrderReview,
 } from '../types/transactionFlows';
 
 const ORDER_PAGE_SIZE = 20;
@@ -22,7 +23,13 @@ export type OrderStatusFilter =
   | OrderStatus.PREPARING_SHIPMENT
   | OrderStatus.IN_TRANSIT
   | OrderStatus.DELIVERED
-  | OrderStatus.COMPLETED;
+  | OrderStatus.COMPLETED
+  | OrderStatus.RETURN_REQUESTED
+  | OrderStatus.RETURN_APPROVED
+  | OrderStatus.RETURN_IN_TRANSIT
+  | OrderStatus.RETURN_DELIVERED
+  | OrderStatus.REFUND_PENDING
+  | OrderStatus.REFUNDED;
 
 interface RawOrder {
   id: string;
@@ -35,14 +42,23 @@ interface RawOrder {
   autoConfirmAt?: string | null;
   buyerId?: string;
   sellerId?: string;
+  productTitle?: string | null;
+  productImageUrl?: string | null;
+  returnReasonCode?: string | null;
+  returnReasonNote?: string | null;
 }
 
-interface OrdersResponse extends ApiResponseEnvelope {
-  orders: RawOrder[];
-}
-
-interface CargoShipment {
+interface RawCargoEvent {
   id: string;
+  status: CargoStatus;
+  title: string;
+  detail: string | null;
+  occurredAt: string;
+}
+
+interface RawShipment {
+  id: string;
+  shipmentType: 'FORWARD' | 'RETURN';
   orderId: string;
   trackingNumber: string;
   provider: CargoProvider;
@@ -51,10 +67,32 @@ interface CargoShipment {
   deliveredAt: string | null;
   createdAt: string;
   updatedAt: string;
+  events?: RawCargoEvent[];
 }
 
-interface CargoResponse extends ApiResponseEnvelope {
-  shipment: CargoShipment | null;
+interface RawReview {
+  id: string;
+  productRating: number;
+  productComment: string | null;
+  sellerRating: number;
+  sellerComment: string | null;
+  createdAt: string;
+}
+
+interface OrdersResponse extends ApiResponseEnvelope {
+  orders: RawOrder[];
+}
+
+interface OrderDetailResponse extends ApiResponseEnvelope {
+  order: RawOrder;
+  shipments: RawShipment[];
+  forwardShipment: RawShipment | null;
+  returnShipment: RawShipment | null;
+  reviewEligibility: {
+    canRequestReturn: boolean;
+    canReview: boolean;
+  };
+  submittedReview: RawReview | null;
 }
 
 interface ConfirmDeliveryResponse extends ApiResponseEnvelope {
@@ -63,6 +101,23 @@ interface ConfirmDeliveryResponse extends ApiResponseEnvelope {
 
 interface TransitionSellerOrderResponse extends ApiResponseEnvelope {
   order?: RawOrder;
+}
+
+interface ReturnRequestPayload {
+  reasonCode: string;
+  note?: string;
+}
+
+interface ReturnReviewPayload {
+  decision: 'approve' | 'reject';
+  reason?: string;
+}
+
+interface SubmitReviewPayload {
+  productRating: number;
+  productComment?: string;
+  sellerRating: number;
+  sellerComment?: string;
 }
 
 function getOrderEndpoint(activeMode: RoleMode) {
@@ -74,15 +129,64 @@ function normalizeOrder(raw: RawOrder, activeMode: RoleMode): OrderListItem {
     id: raw.id,
     orderCode: raw.id.slice(0, 8).toUpperCase(),
     roleMode: activeMode,
-    title: raw.productId,
+    title: raw.productTitle || raw.productId,
     productId: raw.productId,
-    productImage: null,
+    productImage: raw.productImageUrl ?? null,
     amount: Number(raw.amount),
     currency: raw.currency,
     status: raw.status,
     updatedAt: raw.updatedAt ?? raw.createdAt,
     autoCompleteAt: raw.autoConfirmAt ?? null,
   };
+}
+
+function normalizeShipment(raw: RawShipment): CargoShipmentSummary {
+  return {
+    id: raw.id,
+    shipmentType: raw.shipmentType,
+    provider: raw.provider,
+    trackingNumber: raw.trackingNumber,
+    status: raw.status,
+    shippedAt: raw.createdAt,
+    deliveredAt: raw.deliveredAt,
+    updatedAt: raw.lastEventAt ?? raw.updatedAt,
+    timeline: (raw.events ?? []).map((event) => ({
+      id: event.id,
+      status: event.status,
+      title: event.title,
+      detail: event.detail ?? raw.trackingNumber,
+      createdAt: event.occurredAt,
+    })),
+  };
+}
+
+function normalizeReview(review: RawReview | null): SubmittedOrderReview | null {
+  if (!review) {
+    return null;
+  }
+
+  return {
+    id: review.id,
+    productRating: review.productRating,
+    productComment: review.productComment,
+    sellerRating: review.sellerRating,
+    sellerComment: review.sellerComment,
+    createdAt: review.createdAt,
+  };
+}
+
+function invalidateOrderRelatedQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  orderId?: string,
+) {
+  if (orderId) {
+    queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.detail(orderId) });
+    queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.cargo(orderId) });
+  }
+  queryClient.invalidateQueries({ queryKey: ['orders'] });
+  queryClient.invalidateQueries({ queryKey: ['product'] });
+  queryClient.invalidateQueries({ queryKey: ['seller'] });
+  queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
 }
 
 export function useOrdersByMode(status: OrderStatusFilter = 'all', page = 1) {
@@ -114,26 +218,42 @@ export function useOrderDetail(orderId?: string) {
     queryKey: [...ORDER_QUERY_KEYS.detail(orderId ?? 'unknown'), activeMode],
     queryFn: async () => {
       if (!orderId || ENV.USE_MOCK) return null;
-      const { data } = await api.get<OrdersResponse>(getOrderEndpoint(activeMode));
-      const found = data.orders.find((order) => order.id === orderId);
-      if (!found) return null;
-      const item = normalizeOrder(found, activeMode);
+      const { data } = await api.get<OrderDetailResponse>(`/orders/${orderId}`);
+      const order = data.order;
+      const shipments = (data.shipments ?? []).map(normalizeShipment);
+      const forwardShipment = data.forwardShipment
+        ? normalizeShipment(data.forwardShipment)
+        : null;
+      const returnShipment = data.returnShipment
+        ? normalizeShipment(data.returnShipment)
+        : null;
+
       return {
-        id: item.id,
-        orderCode: item.orderCode,
-        buyerId: found.buyerId ?? '',
-        sellerId: found.sellerId ?? '',
-        status: item.status,
-        amount: item.amount,
-        currency: item.currency,
+        id: order.id,
+        orderCode: order.id.slice(0, 8).toUpperCase(),
+        title: order.productTitle || order.productId,
+        productId: order.productId,
+        productImage: order.productImageUrl ?? null,
+        buyerId: order.buyerId ?? '',
+        sellerId: order.sellerId ?? '',
+        status: order.status,
+        amount: Number(order.amount),
+        currency: order.currency,
         roleMode: activeMode,
-        canConfirmDelivery: activeMode === 'buyer' && item.status === OrderStatus.DELIVERED,
-        canDispute: activeMode === 'buyer' && item.status === OrderStatus.DELIVERED,
-        autoCompleteAt: item.autoCompleteAt,
+        canConfirmDelivery:
+          activeMode === 'buyer' && order.status === OrderStatus.DELIVERED,
+        canDispute: false,
+        autoCompleteAt: order.autoConfirmAt ?? null,
         timeline: [],
-        cargo: null,
-        createdAt: found.createdAt,
-        updatedAt: item.updatedAt,
+        shipments,
+        forwardShipment,
+        returnShipment,
+        reviewEligibility: data.reviewEligibility,
+        submittedReview: normalizeReview(data.submittedReview),
+        returnReasonCode: order.returnReasonCode ?? null,
+        returnReasonNote: order.returnReasonNote ?? null,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
       };
     },
     enabled: Boolean(orderId),
@@ -141,30 +261,12 @@ export function useOrderDetail(orderId?: string) {
 }
 
 export function useOrderCargo(orderId?: string) {
-  return useQuery<CargoSummary | null>({
+  return useQuery<CargoShipmentSummary | null>({
     queryKey: ORDER_QUERY_KEYS.cargo(orderId ?? 'unknown'),
     queryFn: async () => {
       if (!orderId || ENV.USE_MOCK) return null;
-      const { data } = await api.get<CargoResponse>(`/cargo/orders/${orderId}/shipment`);
-      if (!data.shipment) return null;
-      const shipment = data.shipment;
-      return {
-        provider: shipment.provider,
-        trackingNumber: shipment.trackingNumber,
-        status: shipment.status,
-        shippedAt: shipment.createdAt,
-        deliveredAt: shipment.deliveredAt,
-        updatedAt: shipment.lastEventAt ?? shipment.updatedAt,
-        timeline: [
-          {
-            id: shipment.id,
-            status: shipment.status,
-            title: shipment.status,
-            detail: shipment.trackingNumber,
-            createdAt: shipment.lastEventAt ?? shipment.updatedAt,
-          },
-        ],
-      };
+      const { data } = await api.get<OrderDetailResponse>(`/orders/${orderId}`);
+      return data.forwardShipment ? normalizeShipment(data.forwardShipment) : null;
     },
     enabled: Boolean(orderId),
   });
@@ -182,16 +284,84 @@ export function useOrderConfirmDelivery(orderId?: string) {
           message: 'Order delivery confirmed',
         };
       }
-      const { data } = await api.post<ConfirmDeliveryResponse>(`/orders/${orderId}/confirm-delivery`);
+      const { data } = await api.post<ConfirmDeliveryResponse>(
+        `/orders/${orderId}/confirm-delivery`,
+      );
       return data;
     },
     onSuccess: () => {
-      if (orderId) {
-        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.detail(orderId) });
-        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.cargo(orderId) });
-      }
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
+      invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useOrderReturnRequest(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ApiResponseEnvelope, Error, ReturnRequestPayload>({
+    mutationFn: async (payload) => {
+      if (!orderId) throw new Error('Order id is required');
+      const { data } = await api.post<ApiResponseEnvelope>(
+        `/orders/${orderId}/return-request`,
+        payload,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useSellerReturnReview(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ApiResponseEnvelope, Error, ReturnReviewPayload>({
+    mutationFn: async (payload) => {
+      if (!orderId) throw new Error('Order id is required');
+      const { data } = await api.patch<ApiResponseEnvelope>(
+        `/orders/${orderId}/return-review`,
+        payload,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useConfirmReturnDelivered(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ApiResponseEnvelope, Error, void>({
+    mutationFn: async () => {
+      if (!orderId) throw new Error('Order id is required');
+      const { data } = await api.post<ApiResponseEnvelope>(
+        `/orders/${orderId}/confirm-return-delivered`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useOrderSubmitReview(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ApiResponseEnvelope, Error, SubmitReviewPayload>({
+    mutationFn: async (payload) => {
+      if (!orderId) throw new Error('Order id is required');
+      const { data } = await api.post<ApiResponseEnvelope>(
+        `/orders/${orderId}/review`,
+        payload,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      invalidateOrderRelatedQueries(queryClient, orderId);
     },
   });
 }
@@ -211,11 +381,7 @@ export function useSellerOrderTransition(orderId?: string) {
       return data;
     },
     onSuccess: () => {
-      if (orderId) {
-        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.detail(orderId) });
-        queryClient.invalidateQueries({ queryKey: ORDER_QUERY_KEYS.cargo(orderId) });
-      }
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      invalidateOrderRelatedQueries(queryClient, orderId);
     },
   });
 }

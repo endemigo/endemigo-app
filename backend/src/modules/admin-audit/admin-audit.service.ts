@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
 import { AdminAuditAction, AdminRole, RC } from '@endemigo/shared';
@@ -91,6 +91,54 @@ export class AdminAuditService {
         page,
         limit,
         total,
+      },
+    };
+  }
+
+  async detail(id: string) {
+    const item = await this.auditRepo.findOne({ where: { id } });
+    if (!item) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Admin audit kaydı bulunamadı',
+      });
+    }
+
+    return {
+      code: RC.ADMIN_AUDIT_FETCHED,
+      message: 'Admin audit detayı getirildi',
+      resource: 'audit-logs',
+      overview: {
+        id: item.id,
+        action: item.action,
+        targetType: item.targetType,
+        targetId: item.targetId,
+        actorAdminId: item.actorAdminId,
+        actorRoles: item.actorRoles,
+        reason: item.reason,
+        ipAddress: item.ipAddress,
+        userAgent: item.userAgent,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      },
+      timeline: [
+        {
+          id: item.id,
+          label: `${item.action} • ${item.targetType}`,
+          createdAt: item.createdAt,
+        },
+      ],
+      relatedRecords: {
+        before: item.before ?? {},
+        after: item.after ?? {},
+        metadata: item.metadata ?? {},
+        actorRoles: item.actorRoles ?? [],
+        ipAddress: item.ipAddress,
+        userAgent: item.userAgent,
+      },
+      audit: {
+        targetType: item.targetType,
+        targetId: item.targetId,
       },
     };
   }

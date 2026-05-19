@@ -176,6 +176,17 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
   },
+  reserveBadge: {
+    flexShrink: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.md,
+  },
+  reserveBadgeText: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
   bidCount: {
     fontSize: FontSize.xs,
     fontFamily: FontFamily.body,

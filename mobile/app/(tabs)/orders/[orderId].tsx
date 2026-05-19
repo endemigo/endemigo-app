@@ -3,17 +3,23 @@ import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, 
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { OrderStatus } from '@endemigo/shared';
+import { CargoStatus, OrderStatus } from '@endemigo/shared';
 import { Colors } from '../../../constants/theme';
 import {
-  useOrderCargo,
+  useConfirmReturnDelivered,
   useOrderConfirmDelivery,
   useOrderDetail,
+  useOrderReturnRequest,
+  useOrderSubmitReview,
+  useSellerReturnReview,
   useSellerOrderTransition,
 } from '../../../hooks/useOrders';
 import { CargoSummaryCard } from '../../../components/ui/orders/CargoSummaryCard';
 import { DeliveryConfirmActions } from '../../../components/ui/orders/DeliveryConfirmActions';
+import { OrderReviewCard } from '../../../components/ui/orders/OrderReviewCard';
 import { OrderStatusTimeline } from '../../../components/ui/orders/OrderStatusTimeline';
+import { ReturnRequestCard } from '../../../components/ui/orders/ReturnRequestCard';
+import { ReturnStatusCard } from '../../../components/ui/orders/ReturnStatusCard';
 import { SellerOrderActions } from '../../../components/ui/orders/SellerOrderActions';
 import { formatCurrency } from '../../../utils/transactionFormatters';
 import { useModalStore } from '../../../store/modalStore';
@@ -28,12 +34,15 @@ export default function OrderDetailScreen() {
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const { showModal } = useModalStore();
   const order = useOrderDetail(orderId);
-  const cargo = useOrderCargo(orderId);
   const confirmDelivery = useOrderConfirmDelivery(orderId);
   const sellerTransition = useSellerOrderTransition(orderId);
+  const returnRequest = useOrderReturnRequest(orderId);
+  const returnReview = useSellerReturnReview(orderId);
+  const confirmReturnDelivered = useConfirmReturnDelivered(orderId);
+  const submitReview = useOrderSubmitReview(orderId);
 
   const handleRefresh = async () => {
-    await Promise.all([order.refetch(), cargo.refetch()]);
+    await order.refetch();
   };
 
   const handleSellerAdvance = (status: OrderStatus) => {
@@ -59,7 +68,84 @@ export default function OrderDetailScreen() {
     });
   };
 
-  if (order.isLoading || cargo.isLoading) {
+  const handleReturnRequest = async (payload: { reasonCode: string; note?: string }) => {
+    try {
+      await returnRequest.mutateAsync(payload);
+      showModal({
+        title: t('orders.returnRequestSuccessTitle'),
+        message: t('orders.returnRequestSuccessMessage'),
+        type: 'success',
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
+
+  const handleReturnDecision = async (decision: 'approve' | 'reject') => {
+    try {
+      await returnReview.mutateAsync({ decision });
+      showModal({
+        title: t('orders.returnStatusTitle'),
+        message: t(
+          decision === 'approve'
+            ? 'orders.returnApproveSuccess'
+            : 'orders.returnRejectSuccess',
+        ),
+        type: 'success',
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
+
+  const handleConfirmReturnDelivered = async () => {
+    try {
+      await confirmReturnDelivered.mutateAsync();
+      showModal({
+        title: t('orders.returnStatusTitle'),
+        message: t('orders.returnDeliveredSuccess'),
+        type: 'success',
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
+
+  const handleSubmitReview = async (payload: {
+    productRating: number;
+    productComment?: string;
+    sellerRating: number;
+    sellerComment?: string;
+  }) => {
+    try {
+      await submitReview.mutateAsync(payload);
+      showModal({
+        title: t('orders.reviewSubmittedTitle'),
+        message: t('orders.reviewSubmittedMessage'),
+        type: 'success',
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
+
+  if (order.isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={Colors.primary} size="large" />
@@ -96,7 +182,7 @@ export default function OrderDetailScreen() {
       contentContainerStyle={styles.scrollContent}
       refreshControl={
         <RefreshControl
-          refreshing={order.isRefetching || cargo.isRefetching}
+          refreshing={order.isRefetching}
           onRefresh={handleRefresh}
           tintColor={Colors.primary}
         />
@@ -120,13 +206,44 @@ export default function OrderDetailScreen() {
         createdAt={order.data.createdAt}
         updatedAt={order.data.updatedAt}
       />
-      <CargoSummaryCard cargo={cargo.data ?? null} />
+      <CargoSummaryCard shipments={order.data.shipments} />
       <DeliveryConfirmActions
         canConfirm={order.data.canConfirmDelivery}
         canDispute={order.data.canDispute}
-        cargoStatus={cargo.data?.status}
+        cargoStatus={order.data.forwardShipment?.status}
         isSubmitting={confirmDelivery.isPending}
         onConfirm={confirmDelivery.mutateAsync}
+      />
+      <ReturnRequestCard
+        canRequestReturn={activeMode === 'buyer' && order.data.reviewEligibility.canRequestReturn}
+        isSubmitting={returnRequest.isPending}
+        onSubmit={handleReturnRequest}
+      />
+      <ReturnStatusCard
+        status={order.data.status}
+        reasonCode={order.data.returnReasonCode}
+        note={order.data.returnReasonNote}
+        canApprove={
+          activeMode === 'seller' && order.data.status === OrderStatus.RETURN_REQUESTED
+        }
+        canReject={
+          activeMode === 'seller' && order.data.status === OrderStatus.RETURN_REQUESTED
+        }
+        canConfirmDelivered={
+          activeMode === 'seller' &&
+          Boolean(order.data.returnShipment) &&
+          order.data.returnShipment?.status === CargoStatus.DELIVERED
+        }
+        isSubmitting={returnReview.isPending || confirmReturnDelivered.isPending}
+        onApprove={() => handleReturnDecision('approve')}
+        onReject={() => handleReturnDecision('reject')}
+        onConfirmDelivered={handleConfirmReturnDelivered}
+      />
+      <OrderReviewCard
+        canReview={activeMode === 'buyer' && order.data.reviewEligibility.canReview}
+        submittedReview={order.data.submittedReview}
+        isSubmitting={submitReview.isPending}
+        onSubmit={handleSubmitReview}
       />
       {activeMode === 'seller' && (
         <SellerOrderActions

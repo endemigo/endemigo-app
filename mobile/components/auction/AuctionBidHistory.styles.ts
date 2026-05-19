@@ -81,6 +81,12 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.body,
     marginTop: 2,
   },
+  proxyMeta: {
+    color: Colors.accent,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    marginTop: 4,
+  },
   amountBlock: {
     alignItems: 'flex-end',
     gap: 2,

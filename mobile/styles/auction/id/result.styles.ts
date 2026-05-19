@@ -40,6 +40,9 @@ export const styles = StyleSheet.create({
   iconCircleEnded: {
     backgroundColor: `${Colors.auctionGreen}1A`,
   },
+  iconCircleReserveFailed: {
+    backgroundColor: Colors.errorContainer,
+  },
   iconCircleEmpty: {
     backgroundColor: Colors.slate100,
   },
@@ -56,7 +59,15 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.body,
     textAlign: 'center',
     marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  stateMessage: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    textAlign: 'center',
     marginBottom: Spacing.xl,
+    lineHeight: 20,
   },
   resultCard: {
     backgroundColor: Colors.white,
@@ -125,6 +136,46 @@ export const styles = StyleSheet.create({
   },
   winnerTextActive: {
     color: Colors.secondary,
+  },
+  settlementCard: {
+    backgroundColor: Colors.surfaceContainerLow,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius['3xl'],
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  primaryAction: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius['2xl'],
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    ...Shadows.colored(Colors.primary),
+  },
+  primaryActionText: {
+    color: Colors.white,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
+  secondaryAction: {
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  secondaryActionText: {
+    color: Colors.onSurface,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
   },
   homeButton: {
     flexDirection: 'row',

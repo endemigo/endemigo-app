@@ -78,6 +78,24 @@ describe('SearchService', () => {
     createdAt: new Date(),
   };
 
+  const mockAuction = {
+    id: 'auction-1',
+    product: {
+      title: 'Nadir Kilim',
+      imageUrl: 'https://example.com/kilim.jpg',
+      category: { name: 'El Sanatlari' },
+    },
+    startPrice: 1000,
+    currentPrice: 1500,
+    reservePrice: 2000,
+    reserveMet: false,
+    bidCount: 3,
+    status: AuctionStatus.ACTIVE,
+    startTime: new Date('2026-05-18T08:00:00.000Z'),
+    endTime: new Date('2026-05-18T10:00:00.000Z'),
+    createdAt: new Date('2026-05-18T07:00:00.000Z'),
+  };
+
   // Mock QueryBuilder
   const mockQb = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -221,6 +239,22 @@ describe('SearchService', () => {
 
       expect(result.items).toHaveLength(0);
       expect(result.total).toBe(0);
+    });
+
+    it('should expose reserve fields in auction search results', async () => {
+      const auctionQueryBuilder = {
+        ...mockQb,
+        getManyAndCount: jest.fn().mockResolvedValue([[mockAuction], 1]),
+      };
+      auctionRepo.createQueryBuilder.mockReturnValueOnce(auctionQueryBuilder);
+
+      const result = await service.searchAuctions({});
+
+      expect(result.items[0]).toMatchObject({
+        id: 'auction-1',
+        reservePrice: 2000,
+        reserveMet: false,
+      });
     });
 
     it('should restrict omitted auction status to public statuses', async () => {

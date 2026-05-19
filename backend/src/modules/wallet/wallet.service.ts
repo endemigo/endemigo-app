@@ -197,9 +197,10 @@ export class WalletService {
   async captureHold(
     auctionId: string,
     userId: string,
+    manager?: EntityManager,
   ): Promise<WalletHold | null> {
-    return this.withTransaction(async (manager) => {
-      const hold = await manager.findOne(WalletHold, {
+    return this.withOptionalTransaction(manager, async (transactionManager) => {
+      const hold = await transactionManager.findOne(WalletHold, {
         where: { auctionId, userId, status: HoldStatus.HELD },
         lock: { mode: 'pessimistic_write' },
       });
@@ -207,9 +208,12 @@ export class WalletService {
         return null;
       }
 
-      const wallet = await this.getOrCreateLockedWallet(userId, manager);
+      const wallet = await this.getOrCreateLockedWallet(
+        userId,
+        transactionManager,
+      );
       await this.postWalletMovement(
-        manager,
+        transactionManager,
         {
           type: JournalEntryType.WALLET_CAPTURE,
           description: 'Capture auction wallet hold',
@@ -223,13 +227,13 @@ export class WalletService {
       );
 
       hold.status = HoldStatus.CAPTURED;
-      await manager.save(WalletHold, hold);
+      await transactionManager.save(WalletHold, hold);
       wallet.balance = Number(wallet.balance) - Number(hold.amount);
       wallet.heldAmount = Math.max(
         0,
         Number(wallet.heldAmount) - Number(hold.amount),
       );
-      await manager.save(Wallet, wallet);
+      await transactionManager.save(Wallet, wallet);
       return hold;
     });
   }

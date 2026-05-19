@@ -25,6 +25,12 @@ type AuctionSummaryPanelProps = {
   showResultButton: boolean;
   finalPrice?: number | null;
   lastBid?: { bidderName: string; amount: number } | null;
+  activityFeed?: Array<{
+    id: string;
+    title: string;
+    body: string;
+    tone: 'accent' | 'error' | 'primary';
+  }>;
   onViewResult: () => void;
   t: TFunction;
 };
@@ -46,6 +52,7 @@ export function AuctionSummaryPanel({
   showResultButton,
   finalPrice,
   lastBid,
+  activityFeed = [],
   onViewResult,
   t,
 }: AuctionSummaryPanelProps) {
@@ -123,6 +130,32 @@ export function AuctionSummaryPanel({
                 amount: formatCurrency(lastBid.amount),
               })}
             </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {activityFeed.length ? (
+        <View style={styles.feedCard}>
+          <Text style={styles.feedTitle}>{t('auction.activityFeedTitle')}</Text>
+          <View style={styles.feedList}>
+            {activityFeed.map((item) => (
+              <View key={item.id} style={styles.feedItem}>
+                <View
+                  style={[
+                    styles.feedDot,
+                    item.tone === 'error'
+                      ? styles.feedDotError
+                      : item.tone === 'accent'
+                        ? styles.feedDotAccent
+                        : styles.feedDotPrimary,
+                  ]}
+                />
+                <View style={styles.feedTextWrap}>
+                  <Text style={styles.feedItemTitle}>{item.title}</Text>
+                  <Text style={styles.feedItemBody}>{item.body}</Text>
+                </View>
+              </View>
+            ))}
           </View>
         </View>
       ) : null}

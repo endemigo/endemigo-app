@@ -10,6 +10,7 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { OrderService } from '../order/order.service';
+import { AuctionPaymentStatus, RC } from '@endemigo/shared';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { BidStatus } from '../../shared/types/bid-status.enum';
@@ -53,6 +54,8 @@ describe('AuctionService', () => {
     startPrice: 1000,
     currentPrice: 1000,
     minIncrement: 100,
+    reservePrice: null,
+    reserveMet: false,
     buyerPremiumRate: 0.25,
     auctionType: AuctionType.REALTIME,
     antiSnipingEnabled: true,
@@ -63,6 +66,13 @@ describe('AuctionService', () => {
     startTime: new Date(Date.now() - 3600000),
     endTime: new Date(Date.now() + 86400000),
     winnerId: null,
+    winnerPaymentStatus: AuctionPaymentStatus.NONE,
+    winnerPaymentDeadlineAt: null,
+    winnerPaymentCompletedAt: null,
+    winningBidId: null,
+    orderId: null,
+    fallbackRound: 0,
+    paymentAttemptCount: 0,
     bidCount: 0,
     lotNumber: 'LOT-202604-00001',
     culturalAssetRestricted: false,
@@ -133,7 +143,9 @@ describe('AuctionService', () => {
     };
 
     orderService = {
-      createFromAuction: jest.fn().mockResolvedValue({ id: 'order-1' }),
+      createFromAuction: jest
+        .fn()
+        .mockResolvedValue({ order: { id: 'order-1' } }),
     };
 
     auctionQueue = {
@@ -173,6 +185,7 @@ describe('AuctionService', () => {
           createdAt: new Date(),
           ...data,
         })),
+        find: jest.fn().mockResolvedValue([]),
         save: jest.fn((entityOrTarget: any, maybeEntity?: any) =>
           Promise.resolve(maybeEntity ?? entityOrTarget),
         ),
@@ -240,6 +253,26 @@ describe('AuctionService', () => {
           antiSnipingEnabled: true,
           extensionSeconds: 60,
           maxExtensions: 5,
+        }),
+      );
+    });
+
+    it('reserve price verilirse auction kaydina yazmali', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      auctionRepo.findOne.mockResolvedValue(createMockAuction());
+
+      await service.create('seller-1', {
+        productId: 'product-1',
+        startPrice: 1000,
+        reservePrice: 1800,
+        startTime: '2026-04-08T10:00:00Z',
+        endTime: '2026-04-08T12:00:00Z',
+      });
+
+      expect(auctionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservePrice: 1800,
+          reserveMet: false,
         }),
       );
     });
@@ -386,6 +419,64 @@ describe('AuctionService', () => {
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();
       expect(result.bid.amount).toBe(1100);
+    });
+
+    it('max bid verilirse maxAmount saklanmali ama hold gorunur lider teklif uzerinden alinmali', async () => {
+      setupBidTransaction();
+
+      const result = await service.placeBid('auction-1', 'buyer-1', {
+        amount: 1100,
+        maxAmount: 1600,
+      });
+
+      expect(walletService.createHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        1375,
+        mockQueryRunner.manager,
+      );
+      expect(result.bid.maxAmount).toBe(1600);
+      expect(result.bid.isLeadingBid).toBe(true);
+    });
+
+    it('dusuk max bid mevcut lideri gecemiyorsa proxy ile otomatik gecilmeli', async () => {
+      const auction = createMockAuction({
+        currentPrice: 1200,
+        bidCount: 1,
+      });
+      const previousBid = {
+        id: 'prev-bid',
+        bidderId: 'buyer-2',
+        amount: 1200,
+        maxAmount: 1600,
+        isWinningBid: true,
+        status: BidStatus.ACTIVE,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(previousBid);
+
+      userService.findById.mockResolvedValue(mockBuyer);
+      const result = await service.placeBid('auction-1', 'buyer-1', {
+        amount: 1300,
+        maxAmount: 1400,
+      });
+
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-2',
+        mockQueryRunner.manager,
+      );
+      expect(walletService.createHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-2',
+        1875,
+        mockQueryRunner.manager,
+      );
+      expect(result.bid.isLeadingBid).toBe(false);
+      expect(result.auction.currentPrice).toBe(1500);
+      expect(result.auction.leadingBidderId).toBe('buyer-2');
     });
 
     it('pessimistic_write lock kullanılmalı', async () => {
@@ -883,6 +974,13 @@ describe('AuctionService', () => {
           isWinningBid: true,
         }),
       );
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          winnerId: 'buyer-1',
+          winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+          winningBidId: 'winning-bid',
+        }),
+      );
       expect(mockQueryRunner.manager.createQueryBuilder).toHaveBeenCalled();
     });
 
@@ -933,7 +1031,9 @@ describe('AuctionService', () => {
         where: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({}),
       });
-      walletService.captureHold.mockRejectedValueOnce(new Error('wallet down'));
+      walletService.releaseAllHoldsForAuction.mockRejectedValueOnce(
+        new Error('wallet down'),
+      );
 
       await expect(service.finalizeAuction('auction-1')).rejects.toThrow('wallet down');
 
@@ -952,6 +1052,37 @@ describe('AuctionService', () => {
       );
       await service.finalizeAuction('auction-1');
       expect(auctionGateway.emitAuctionEnded).not.toHaveBeenCalled();
+    });
+
+    it('reserve price karsilanmadiysa FAILED olmali ve kazanan olusmamali', async () => {
+      const auction = createMockAuction({
+        reservePrice: 2000,
+        reserveMet: false,
+        bidCount: 2,
+        endTime: new Date(Date.now() - 1000),
+      });
+      const winningBid = {
+        id: 'winning-bid',
+        bidderId: 'buyer-1',
+        amount: 1500,
+        maxAmount: 1800,
+        status: BidStatus.ACTIVE,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+
+      await service.finalizeAuction('auction-1');
+
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: AuctionStatus.FAILED,
+          winnerId: null,
+        }),
+      );
+      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalled();
+      expect(auctionGateway.emitBidWinner).not.toHaveBeenCalled();
     });
   });
 
@@ -1067,6 +1198,139 @@ describe('AuctionService', () => {
     });
   });
 
+  describe('completeWinnerPayment', () => {
+    it('current winner holdunu capture edip order olusturmali', async () => {
+      const auction = createMockAuction({
+        status: AuctionStatus.ENDED,
+        winnerId: 'buyer-1',
+        winningBidId: 'winning-bid',
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+        winnerPaymentDeadlineAt: new Date(Date.now() + 60_000),
+      });
+      const winningBid = {
+        id: 'winning-bid',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-1',
+        amount: 1800,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+
+      const result = await service.completeWinnerPayment('auction-1', 'buyer-1');
+
+      expect(walletService.captureHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
+      );
+      expect(orderService.createFromAuction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auctionId: 'auction-1',
+          buyerId: 'buyer-1',
+          amount: 1800,
+        }),
+      );
+      expect(result).toMatchObject({
+        code: RC.AUCTION_WINNER_PAYMENT_COMPLETED,
+        orderId: 'order-1',
+        paymentStatus: AuctionPaymentStatus.PAID,
+      });
+    });
+  });
+
+  describe('processWinnerPaymentExpiry', () => {
+    it('uygun fallback bidder varsa yeni kazanan atamali', async () => {
+      const auction = createMockAuction({
+        status: AuctionStatus.ENDED,
+        winnerId: 'buyer-1',
+        winningBidId: 'winning-bid',
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+        winnerPaymentDeadlineAt: new Date(Date.now() - 1_000),
+      });
+      const winningBid = {
+        id: 'winning-bid',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-1',
+        amount: 2000,
+        premiumAmount: 500,
+        status: BidStatus.WON,
+        isWinningBid: true,
+      };
+      const fallbackBid = {
+        id: 'fallback-bid',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-2',
+        amount: 1800,
+        maxAmount: 1900,
+        premiumAmount: 450,
+        status: BidStatus.OUTBID,
+        isWinningBid: false,
+        createdAt: new Date('2026-05-18T10:00:00.000Z'),
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+      mockQueryRunner.manager.find.mockResolvedValueOnce([winningBid, fallbackBid]);
+
+      const result = await service.processWinnerPaymentExpiry('auction-1');
+
+      expect(walletService.releaseHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
+      );
+      expect(walletService.createHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-2',
+        2250,
+        mockQueryRunner.manager,
+      );
+      expect(result).toMatchObject({
+        winnerId: 'buyer-2',
+      });
+      expect(auctionGateway.emitBidWinner).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-2',
+        expect.objectContaining({ finalPrice: 1800 }),
+      );
+    });
+
+    it('fallback yoksa muzayedeyi FAILED kapatmali', async () => {
+      const auction = createMockAuction({
+        status: AuctionStatus.ENDED,
+        winnerId: 'buyer-1',
+        winningBidId: 'winning-bid',
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+        winnerPaymentDeadlineAt: new Date(Date.now() - 1_000),
+        fallbackRound: 1,
+      });
+      const winningBid = {
+        id: 'winning-bid',
+        auctionId: 'auction-1',
+        bidderId: 'buyer-1',
+        amount: 2000,
+        premiumAmount: 500,
+        status: BidStatus.WON,
+        isWinningBid: true,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(winningBid);
+
+      const result = await service.processWinnerPaymentExpiry('auction-1');
+
+      expect(result).toMatchObject({ winnerId: null });
+      expect(auctionGateway.emitAuctionEnded).toHaveBeenCalledWith(
+        'auction-1',
+        expect.objectContaining({ winnerId: null }),
+      );
+    });
+  });
+
   // ══════════════════════════════════════════════════════
   // findById
   // ══════════════════════════════════════════════════════
@@ -1084,10 +1348,67 @@ describe('AuctionService', () => {
 
       expect(result).toHaveProperty('lotNumber');
       expect(result).toHaveProperty('auctionType');
+      expect(result).toHaveProperty('reservePrice');
+      expect(result).toHaveProperty('reserveMet');
       expect(result).toHaveProperty('antiSnipingEnabled');
       expect(result).toHaveProperty('serverTime');
       expect(result).toHaveProperty('timeLeftMs');
       expect(result).toHaveProperty('culturalAssetRestricted');
+      expect(result).toHaveProperty('winnerPaymentStatus');
+      expect(result).toHaveProperty('winnerPaymentDeadlineAt');
+    });
+  });
+
+  describe('getBids', () => {
+    it('teklif listesinde maxAmount bilgisini donmeli', async () => {
+      bidRepo.find.mockResolvedValue([
+        {
+          id: 'bid-1',
+          amount: 1500,
+          maxAmount: 1800,
+          premiumAmount: 375,
+          status: BidStatus.ACTIVE,
+          isWinningBid: true,
+          bidder: mockBuyer,
+          createdAt: new Date('2026-05-18T09:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.getBids('auction-1');
+
+      expect(result.code).toBeDefined();
+      expect(result.bids[0]).toMatchObject({
+        id: 'bid-1',
+        amount: 1500,
+        maxAmount: 1800,
+      });
+    });
+  });
+
+  describe('getResult', () => {
+    it('reserve alanlarini ve kazanan yoksa sifir buyer premium donmeli', async () => {
+      auctionRepo.findOne.mockResolvedValue(
+        createMockAuction({
+          status: AuctionStatus.FAILED,
+          bidCount: 2,
+          currentPrice: 1700,
+          reservePrice: 2000,
+          reserveMet: false,
+          winnerId: null,
+          winner: null,
+        }),
+      );
+
+      const result = await service.getResult('auction-1');
+
+      expect(result).toMatchObject({
+        status: AuctionStatus.FAILED,
+        reservePrice: 2000,
+        reserveMet: false,
+        buyerPremium: 0,
+        winner: null,
+        paymentStatus: AuctionPaymentStatus.NONE,
+      });
     });
   });
 });

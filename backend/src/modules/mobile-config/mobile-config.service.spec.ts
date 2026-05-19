@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   AdminAuditAction,
   AdminRole,
+  DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
   MOBILE_LISTING_CREATE_OPTIONAL_FIELDS,
   MobileAudience,
   MobileBlockType,
@@ -11,6 +12,7 @@ import {
   type MobileExperienceConfig,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 import { MobileConfigService } from './mobile-config.service';
 
 function createDraft(): MobileExperienceConfig {
@@ -107,6 +109,9 @@ describe('MobileConfigService', () => {
   let adminAuditService: {
     recordAction: jest.Mock;
   };
+  let adminSettingsService: {
+    getProductImageUploadLimits: jest.Mock;
+  };
   let service: MobileConfigService;
 
   beforeEach(() => {
@@ -118,9 +123,15 @@ describe('MobileConfigService', () => {
     adminAuditService = {
       recordAction: jest.fn().mockResolvedValue({ id: 'audit-1' }),
     };
+    adminSettingsService = {
+      getProductImageUploadLimits: jest
+        .fn()
+        .mockResolvedValue(DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS),
+    };
     service = new MobileConfigService(
       repo as never,
       adminAuditService as unknown as AdminAuditService,
+      adminSettingsService as unknown as AdminSettingsService,
     );
   });
 
@@ -257,5 +268,12 @@ describe('MobileConfigService', () => {
         reason: 'stale update',
       }),
     ).rejects.toThrow('Taslak baska bir yonetici tarafindan guncellenmis');
+  });
+
+  it('includes public image upload limits in mobile config payload', async () => {
+    const result = await service.getPublicConfig();
+
+    expect(result.imageUploadLimits).toEqual(DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS);
+    expect(adminSettingsService.getProductImageUploadLimits).toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@
  *   - /wallet/balance (useWallet.ts)
  *   - /auth/login, /auth/register, /auth/profile (authStore.ts)
  */
-import { AuctionStatus, ProductStatus } from '@endemigo/shared';
+import { AuctionPaymentStatus, AuctionStatus, ProductStatus } from '@endemigo/shared';
 import { resolveSellerBanner } from '../utils/sellerBanner';
 import type { ProductCreateImageDraft } from '../types/productCreate';
 
@@ -24,10 +24,41 @@ const hours = (n: number) => n * 60 * mins(1);
 
 interface MockBid {
   id: string;
+  bidderId?: string;
   amount: number;
+  maxAmount?: number | null;
   premiumAmount: number;
   bidderName: string;
+  status?: string;
+  isWinningBid?: boolean;
   createdAt: string;
+}
+
+interface MockAuction {
+  id: string;
+  productId: string;
+  productTitle: string;
+  productImage: string;
+  sellerId: string;
+  sellerName: string;
+  startPrice: number;
+  currentPrice: number;
+  minIncrement: number;
+  reservePrice: number | null;
+  reserveMet: boolean;
+  buyerPremiumRate: number;
+  status: AuctionStatus;
+  startTime: string;
+  endTime: string;
+  timeLeftMs: number;
+  winnerId: string | null;
+  winnerPaymentStatus: AuctionPaymentStatus;
+  winnerPaymentDeadlineAt: string | null;
+  winnerPaymentCompletedAt: string | null;
+  fallbackRound: number;
+  paymentAttemptCount: number;
+  orderId: string | null;
+  bidCount: number;
 }
 
 // ─── Categories ─────────────────────────────────────────────────
@@ -150,7 +181,7 @@ function resolveCategoryName(categoryId: string) {
 
 
 // ─── Auctions ────────────────────────────────────────────────────
-export const MOCK_AUCTIONS = [
+export const MOCK_AUCTIONS: MockAuction[] = [
   {
     id: 'auc-1',
     productId: 'prod-4',
@@ -161,12 +192,20 @@ export const MOCK_AUCTIONS = [
     startPrice: 2500,
     currentPrice: 3750,
     minIncrement: 100,
+    reservePrice: 3600,
+    reserveMet: true,
     buyerPremiumRate: 0.1,
     status: AuctionStatus.ACTIVE,
     startTime: new Date(now - hours(2)).toISOString(),
     endTime: new Date(now + hours(1) + mins(23)).toISOString(),
     timeLeftMs: hours(1) + mins(23),
     winnerId: null,
+    winnerPaymentStatus: AuctionPaymentStatus.NONE,
+    winnerPaymentDeadlineAt: null,
+    winnerPaymentCompletedAt: null,
+    fallbackRound: 0,
+    paymentAttemptCount: 0,
+    orderId: null,
     bidCount: 14,
   },
   {
@@ -179,12 +218,20 @@ export const MOCK_AUCTIONS = [
     startPrice: 5000,
     currentPrice: 7200,
     minIncrement: 200,
+    reservePrice: 8000,
+    reserveMet: false,
     buyerPremiumRate: 0.12,
-    status: 'active' as const,
+    status: AuctionStatus.ACTIVE,
     startTime: new Date(now - hours(5)).toISOString(),
     endTime: new Date(now + mins(45)).toISOString(),
     timeLeftMs: mins(45),
     winnerId: null,
+    winnerPaymentStatus: AuctionPaymentStatus.NONE,
+    winnerPaymentDeadlineAt: null,
+    winnerPaymentCompletedAt: null,
+    fallbackRound: 0,
+    paymentAttemptCount: 0,
+    orderId: null,
     bidCount: 22,
   },
   {
@@ -197,12 +244,20 @@ export const MOCK_AUCTIONS = [
     startPrice: 3000,
     currentPrice: 3000,
     minIncrement: 150,
+    reservePrice: 4200,
+    reserveMet: false,
     buyerPremiumRate: 0.1,
     status: AuctionStatus.PUBLISHED,
     startTime: new Date(now + hours(2)).toISOString(),
     endTime: new Date(now + hours(26)).toISOString(),
     timeLeftMs: hours(26),
     winnerId: null,
+    winnerPaymentStatus: AuctionPaymentStatus.NONE,
+    winnerPaymentDeadlineAt: null,
+    winnerPaymentCompletedAt: null,
+    fallbackRound: 0,
+    paymentAttemptCount: 0,
+    orderId: null,
     bidCount: 0,
   },
   {
@@ -215,12 +270,20 @@ export const MOCK_AUCTIONS = [
     startPrice: 8000,
     currentPrice: 11500,
     minIncrement: 500,
+    reservePrice: 11000,
+    reserveMet: true,
     buyerPremiumRate: 0.12,
     status: AuctionStatus.ENDED,
     startTime: new Date(now - hours(48)).toISOString(),
     endTime: new Date(now - hours(24)).toISOString(),
     timeLeftMs: 0,
     winnerId: 'user-mock',
+    winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+    winnerPaymentDeadlineAt: new Date(now + hours(20)).toISOString(),
+    winnerPaymentCompletedAt: null,
+    fallbackRound: 0,
+    paymentAttemptCount: 0,
+    orderId: null,
     bidCount: 31,
   },
 ];
@@ -228,22 +291,62 @@ export const MOCK_AUCTIONS = [
 // ─── Bids ────────────────────────────────────────────────────────
 export const MOCK_BIDS: Record<string, MockBid[]> = {
   'auc-1': [
-    { id: 'bid-1', amount: 3750, premiumAmount: 375, bidderName: 'A. Yılmaz', createdAt: new Date(now - mins(5)).toISOString() },
-    { id: 'bid-2', amount: 3650, premiumAmount: 365, bidderName: 'M. Kaya',   createdAt: new Date(now - mins(12)).toISOString() },
-    { id: 'bid-3', amount: 3500, premiumAmount: 350, bidderName: 'F. Demir',  createdAt: new Date(now - mins(28)).toISOString() },
-    { id: 'bid-4', amount: 3200, premiumAmount: 320, bidderName: 'S. Çelik',  createdAt: new Date(now - mins(45)).toISOString() },
+    { id: 'bid-1', bidderId: 'bidder-1', amount: 3750, maxAmount: 4300, premiumAmount: 375, bidderName: 'A. Yılmaz', status: 'ACTIVE', isWinningBid: true, createdAt: new Date(now - mins(5)).toISOString() },
+    { id: 'bid-2', bidderId: 'bidder-2', amount: 3650, maxAmount: 3650, premiumAmount: 365, bidderName: 'M. Kaya', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - mins(12)).toISOString() },
+    { id: 'bid-3', bidderId: 'bidder-3', amount: 3500, maxAmount: 3500, premiumAmount: 350, bidderName: 'F. Demir', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - mins(28)).toISOString() },
+    { id: 'bid-4', bidderId: 'bidder-4', amount: 3200, maxAmount: 3200, premiumAmount: 320, bidderName: 'S. Çelik', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - mins(45)).toISOString() },
   ],
   'auc-2': [
-    { id: 'bid-5', amount: 7200, premiumAmount: 864, bidderName: 'K. Arslan', createdAt: new Date(now - mins(3)).toISOString() },
-    { id: 'bid-6', amount: 7000, premiumAmount: 840, bidderName: 'A. Yılmaz', createdAt: new Date(now - mins(9)).toISOString() },
-    { id: 'bid-7', amount: 6500, premiumAmount: 780, bidderName: 'H. Şahin',  createdAt: new Date(now - mins(20)).toISOString() },
+    { id: 'bid-5', bidderId: 'bidder-5', amount: 7200, maxAmount: 7200, premiumAmount: 864, bidderName: 'K. Arslan', status: 'ACTIVE', isWinningBid: true, createdAt: new Date(now - mins(3)).toISOString() },
+    { id: 'bid-6', bidderId: 'bidder-1', amount: 7000, maxAmount: 7000, premiumAmount: 840, bidderName: 'A. Yılmaz', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - mins(9)).toISOString() },
+    { id: 'bid-7', bidderId: 'bidder-6', amount: 6500, maxAmount: 6500, premiumAmount: 780, bidderName: 'H. Şahin', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - mins(20)).toISOString() },
   ],
   'auc-3': [],
   'auc-4': [
-    { id: 'bid-8', amount: 11500, premiumAmount: 1380, bidderName: 'Siz',      createdAt: new Date(now - hours(25)).toISOString() },
-    { id: 'bid-9', amount: 11000, premiumAmount: 1320, bidderName: 'R. Doğan', createdAt: new Date(now - hours(25.2)).toISOString() },
+    { id: 'bid-8', bidderId: 'user-mock', amount: 11500, maxAmount: 11500, premiumAmount: 1380, bidderName: 'Siz', status: 'WON', isWinningBid: true, createdAt: new Date(now - hours(25)).toISOString() },
+    { id: 'bid-9', bidderId: 'bidder-7', amount: 11000, maxAmount: 11000, premiumAmount: 1320, bidderName: 'R. Doğan', status: 'OUTBID', isWinningBid: false, createdAt: new Date(now - hours(25.2)).toISOString() },
   ],
 };
+
+function getBidMaxAmount(bid?: MockBid | null): number {
+  if (!bid) {
+    return 0;
+  }
+  return Number(bid.maxAmount ?? bid.amount);
+}
+
+function isReserveMet(reservePrice: number | null | undefined, leadingMaxAmount: number): boolean {
+  return reservePrice !== null
+    && reservePrice !== undefined
+    && leadingMaxAmount >= reservePrice;
+}
+
+function calculateVisibleWinningAmount(input: {
+  leadingMaxAmount: number;
+  challengerMaxAmount?: number;
+  requestedAmount: number;
+  minimumBid: number;
+  minIncrement: number;
+}): number {
+  const challengerPressure = input.challengerMaxAmount !== undefined
+    ? input.challengerMaxAmount + input.minIncrement
+    : 0;
+  const nextVisibleAmount = Math.max(
+    input.minimumBid,
+    input.requestedAmount,
+    challengerPressure,
+  );
+  return Math.min(input.leadingMaxAmount, nextVisibleAmount);
+}
+
+function markLeadingBid(auctionId: string, leadingBidId: string | null) {
+  const bids = MOCK_BIDS[auctionId] ?? [];
+  bids.forEach((bid) => {
+    const isLeadingBid = bid.id === leadingBidId;
+    bid.isWinningBid = isLeadingBid;
+    bid.status = isLeadingBid ? 'ACTIVE' : 'OUTBID';
+  });
+}
 
 // ─── Auth ────────────────────────────────────────────────────────
 export const MOCK_USER = {
@@ -568,6 +671,8 @@ export const mockService = {
         ),
         startPrice: item.startPrice,
         currentPrice: item.currentPrice,
+        reservePrice: item.reservePrice,
+        reserveMet: item.reserveMet,
         bidCount: item.bidCount,
         status: item.status,
         startTime: item.startTime,
@@ -629,6 +734,7 @@ export const mockService = {
     productId: string;
     startPrice: number;
     minIncrement: number;
+    reservePrice?: number;
     startTime: string;
     endTime: string;
   }) {
@@ -650,12 +756,20 @@ export const mockService = {
       startPrice: payload.startPrice,
       currentPrice: payload.startPrice,
       minIncrement: payload.minIncrement,
+      reservePrice: payload.reservePrice ?? null,
+      reserveMet: false,
       buyerPremiumRate: 0.1,
       status: AuctionStatus.PUBLISHED,
       startTime: payload.startTime,
       endTime: payload.endTime,
       timeLeftMs: Math.max(0, new Date(payload.endTime).getTime() - Date.now()),
       winnerId: null,
+      winnerPaymentStatus: AuctionPaymentStatus.NONE,
+      winnerPaymentDeadlineAt: null,
+      winnerPaymentCompletedAt: null,
+      fallbackRound: 0,
+      paymentAttemptCount: 0,
+      orderId: null,
       bidCount: 0,
     };
 
@@ -690,36 +804,188 @@ export const mockService = {
   async getAuctionResult(id: string) {
     await delay(400);
     const auction = MOCK_AUCTIONS.find((a) => a.id === id);
-    if (!auction || auction.status !== AuctionStatus.ENDED) throw new Error('Sonuç bulunamadı');
+    if (
+      !auction ||
+      ![
+        AuctionStatus.ENDED,
+        AuctionStatus.COMPLETED,
+        AuctionStatus.FAILED,
+      ].includes(auction.status)
+    ) {
+      throw new Error('Sonuç bulunamadı');
+    }
     const bids = MOCK_BIDS[id] || [];
+    const winner = auction.reserveMet && auction.winnerId
+      ? { id: auction.winnerId, name: bids.find((bid) => bid.bidderId === auction.winnerId)?.bidderName || 'Kazanan' }
+      : null;
     return {
       id: auction.id,
-      status: AuctionStatus.ENDED,
+      status: auction.status,
       finalPrice: auction.currentPrice,
-      buyerPremium: Math.round(auction.currentPrice * auction.buyerPremiumRate),
+      buyerPremium: winner
+        ? Math.round(auction.currentPrice * auction.buyerPremiumRate)
+        : 0,
       bidCount: auction.bidCount,
-      winner: auction.winnerId ? { id: auction.winnerId, name: bids[0]?.bidderName || 'Kazanan' } : null,
+      paymentStatus: auction.winnerPaymentStatus,
+      paymentDeadlineAt: auction.winnerPaymentDeadlineAt,
+      paymentCompletedAt: auction.winnerPaymentCompletedAt,
+      fallbackRound: auction.fallbackRound,
+      paymentAttemptCount: auction.paymentAttemptCount,
+      orderId: auction.orderId,
+      reservePrice: auction.reservePrice,
+      reserveMet: auction.reserveMet,
+      winner,
       product: { id: auction.productId, title: auction.productTitle },
     };
   },
 
-  async placeBid(auctionId: string, amount: number) {
+  async completeAuctionPayment(auctionId: string) {
+    await delay(350);
+    const auction = MOCK_AUCTIONS.find((item) => item.id === auctionId);
+    if (!auction) {
+      throw new Error('Müzayede bulunamadı');
+    }
+    if (
+      auction.status !== AuctionStatus.ENDED ||
+      auction.winnerPaymentStatus !== AuctionPaymentStatus.PENDING
+    ) {
+      throw new Error('Kazanan ödemesi beklenmiyor');
+    }
+
+    auction.status = AuctionStatus.COMPLETED;
+    auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
+    auction.winnerPaymentCompletedAt = new Date().toISOString();
+    auction.orderId = `order-${auction.id}`;
+    auction.paymentAttemptCount += 1;
+
+    return {
+      code: 'AUCTION_WINNER_PAYMENT_COMPLETED',
+      message: 'Auction winner payment completed',
+      auctionId,
+      orderId: auction.orderId,
+      paymentStatus: auction.winnerPaymentStatus,
+    };
+  },
+
+  async placeBid(auctionId: string, amount: number, maxAmount?: number) {
     await delay(600);
     const auction = MOCK_AUCTIONS.find((a) => a.id === auctionId);
     if (!auction) throw new Error('Müzayede bulunamadı');
-    if (amount <= auction.currentPrice) throw new Error(`Teklif mevcut fiyattan yüksek olmalı: ₺${auction.currentPrice}`);
-    auction.currentPrice = amount;
-    auction.bidCount++;
-    const newBid = {
+    const minimumBid = auction.currentPrice + auction.minIncrement;
+    if (amount < minimumBid) {
+      throw new Error(`Minimum teklif: ₺${minimumBid}`);
+    }
+    if (maxAmount !== undefined && maxAmount < amount) {
+      throw new Error('Maximum teklif teklif tutarindan düşük olamaz');
+    }
+
+    const submittedMaxAmount = Number(maxAmount ?? amount);
+    if (!MOCK_BIDS[auctionId]) MOCK_BIDS[auctionId] = [];
+    const bidList = MOCK_BIDS[auctionId];
+    const previousLeadBid = bidList.find((bid) => bid.isWinningBid) ?? null;
+    const previousLeadMaxAmount = getBidMaxAmount(previousLeadBid);
+
+    if (
+      previousLeadBid
+      && previousLeadBid.bidderId !== 'user-mock'
+      && submittedMaxAmount <= previousLeadMaxAmount
+    ) {
+      const effectiveCurrentPrice = calculateVisibleWinningAmount({
+        leadingMaxAmount: previousLeadMaxAmount,
+        challengerMaxAmount: submittedMaxAmount,
+        requestedAmount: amount,
+        minimumBid,
+        minIncrement: auction.minIncrement,
+      });
+
+      previousLeadBid.amount = effectiveCurrentPrice;
+      previousLeadBid.premiumAmount = Math.round(effectiveCurrentPrice * auction.buyerPremiumRate);
+      previousLeadBid.isWinningBid = true;
+      previousLeadBid.status = 'ACTIVE';
+
+      const losingBid: MockBid = {
+        id: 'bid-new-' + Date.now(),
+        bidderId: 'user-mock',
+        amount: submittedMaxAmount,
+        maxAmount: submittedMaxAmount,
+        premiumAmount: Math.round(submittedMaxAmount * auction.buyerPremiumRate),
+        bidderName: 'Siz',
+        status: 'OUTBID',
+        isWinningBid: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      bidList.unshift(losingBid);
+      auction.currentPrice = effectiveCurrentPrice;
+      auction.bidCount += 1;
+      auction.reserveMet = isReserveMet(auction.reservePrice, previousLeadMaxAmount);
+
+      return {
+        code: 'BID_ACCEPTED',
+        message: 'Bid accepted',
+        bid: {
+          ...losingBid,
+          isLeadingBid: false,
+          outbidImmediately: true,
+        },
+        auction: {
+          currentPrice: auction.currentPrice,
+          bidCount: auction.bidCount,
+          endTime: auction.endTime,
+          serverTime: new Date().toISOString(),
+          leadingBidderId: previousLeadBid.bidderId,
+          reserveMet: auction.reserveMet,
+        },
+      };
+    }
+
+    const effectiveCurrentPrice = previousLeadBid
+      && previousLeadBid.bidderId !== 'user-mock'
+      ? calculateVisibleWinningAmount({
+          leadingMaxAmount: submittedMaxAmount,
+          challengerMaxAmount: previousLeadMaxAmount,
+          requestedAmount: amount,
+          minimumBid,
+          minIncrement: auction.minIncrement,
+        })
+      : amount;
+
+    const newBid: MockBid = {
       id: 'bid-new-' + Date.now(),
-      amount,
-      premiumAmount: Math.round(amount * auction.buyerPremiumRate),
+      bidderId: 'user-mock',
+      amount: effectiveCurrentPrice,
+      maxAmount: submittedMaxAmount,
+      premiumAmount: Math.round(effectiveCurrentPrice * auction.buyerPremiumRate),
       bidderName: 'Siz',
+      status: 'ACTIVE',
+      isWinningBid: true,
       createdAt: new Date().toISOString(),
     };
-    if (!MOCK_BIDS[auctionId]) MOCK_BIDS[auctionId] = [];
-    MOCK_BIDS[auctionId].unshift(newBid);
-    return newBid;
+
+    bidList.unshift(newBid);
+    auction.currentPrice = effectiveCurrentPrice;
+    auction.bidCount += 1;
+    auction.winnerId = 'user-mock';
+    auction.reserveMet = isReserveMet(auction.reservePrice, submittedMaxAmount);
+    markLeadingBid(auctionId, newBid.id);
+
+    return {
+      code: 'BID_ACCEPTED',
+      message: 'Bid accepted',
+      bid: {
+        ...newBid,
+        isLeadingBid: true,
+        outbidImmediately: false,
+      },
+      auction: {
+        currentPrice: auction.currentPrice,
+        bidCount: auction.bidCount,
+        endTime: auction.endTime,
+        serverTime: new Date().toISOString(),
+        leadingBidderId: 'user-mock',
+        reserveMet: auction.reserveMet,
+      },
+    };
   },
 
   async withdrawBid(auctionId: string) {
@@ -737,6 +1003,12 @@ export const mockService = {
     bidList.shift();
     auction.bidCount = Math.max(0, auction.bidCount - 1);
     auction.currentPrice = bidList[0]?.amount ?? auction.startPrice;
+    auction.winnerId = bidList[0]?.bidderId ?? null;
+    auction.reserveMet = isReserveMet(
+      auction.reservePrice,
+      getBidMaxAmount(bidList[0]),
+    );
+    markLeadingBid(auctionId, bidList[0]?.id ?? null);
 
     return {
       code: 'BID_WITHDRAWN',

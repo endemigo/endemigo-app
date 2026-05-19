@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
-import { AuctionStatus } from '@endemigo/shared';
+import { AuctionPaymentStatus, AuctionStatus } from '@endemigo/shared';
 
 interface Auction {
   id: string;
@@ -14,6 +14,8 @@ interface Auction {
   startPrice: number;
   currentPrice: number;
   minIncrement: number;
+  reservePrice?: number | null;
+  reserveMet?: boolean;
   buyerPremiumRate: number;
   status: AuctionStatus;
   auctionType?: string;
@@ -22,6 +24,12 @@ interface Auction {
   timeLeftMs: number;
   serverTime?: string;
   winnerId: string | null;
+  winnerPaymentStatus?: AuctionPaymentStatus;
+  winnerPaymentDeadlineAt?: string | null;
+  winnerPaymentCompletedAt?: string | null;
+  fallbackRound?: number;
+  paymentAttemptCount?: number;
+  orderId?: string | null;
   bidCount: number;
   lotNumber?: string;
   antiSnipingEnabled?: boolean;
@@ -35,6 +43,7 @@ interface Auction {
 interface BidEntry {
   id: string;
   amount: number;
+  maxAmount?: number | null;
   premiumAmount: number;
   bidderName: string;
   createdAt: string;
@@ -50,6 +59,14 @@ interface AuctionResult {
   finalPrice: number;
   buyerPremium: number;
   bidCount: number;
+  paymentStatus?: AuctionPaymentStatus;
+  paymentDeadlineAt?: string | null;
+  paymentCompletedAt?: string | null;
+  fallbackRound?: number;
+  paymentAttemptCount?: number;
+  orderId?: string | null;
+  reservePrice?: number | null;
+  reserveMet?: boolean;
   winner: { id: string; name: string } | null;
   product: { id: string; title: string } | null;
 }
@@ -127,9 +144,20 @@ export function useAuctionResult(id: string) {
 export function usePlaceBid() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ auctionId, amount }: { auctionId: string; amount: number }) => {
-      if (ENV.USE_MOCK) return mockService.placeBid(auctionId, amount);
-      const { data } = await api.post(`/auctions/${auctionId}/bids`, { amount });
+    mutationFn: async ({
+      auctionId,
+      amount,
+      maxAmount,
+    }: {
+      auctionId: string;
+      amount: number;
+      maxAmount?: number;
+    }) => {
+      if (ENV.USE_MOCK) return mockService.placeBid(auctionId, amount, maxAmount);
+      const { data } = await api.post(`/auctions/${auctionId}/bids`, {
+        amount,
+        ...(maxAmount !== undefined ? { maxAmount } : {}),
+      });
       return data;
     },
     onSuccess: (_data, variables) => {
@@ -173,6 +201,27 @@ export function useCreateAuction() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auctions'] });
+    },
+  });
+}
+
+export function useCompleteAuctionPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ auctionId }: { auctionId: string }) => {
+      if (ENV.USE_MOCK) {
+        return mockService.completeAuctionPayment(auctionId);
+      }
+      const { data } = await api.post(`/auctions/${auctionId}/complete-payment`);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['auction', variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['auction-result', variables.auctionId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-holds'] });
     },
   });
 }

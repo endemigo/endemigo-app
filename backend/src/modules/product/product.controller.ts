@@ -194,6 +194,13 @@ export class ProductController {
   }
 
   @Public()
+  @Get(':id/reviews')
+  @ApiOperation({ summary: 'Ürün yorumları' })
+  async getReviews(@Param('id', ParseUUIDPipe) id: string) {
+    return this.productService.getProductReviews(id);
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Ürün detay' })
   @ApiResponse({ status: 200, type: ProductResponseDto })

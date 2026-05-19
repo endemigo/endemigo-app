@@ -13,6 +13,7 @@ import {
 } from '@endemigo/shared';
 import { Repository } from 'typeorm';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 import { MobileConfigDocument } from './entities/mobile-config-document.entity';
 
 interface DraftActorInput {
@@ -38,6 +39,7 @@ export class MobileConfigService {
     @InjectRepository(MobileConfigDocument)
     private readonly mobileConfigRepo: Repository<MobileConfigDocument>,
     private readonly adminAuditService: AdminAuditService,
+    private readonly adminSettingsService: AdminSettingsService,
   ) {}
 
   async getDraft() {
@@ -143,11 +145,14 @@ export class MobileConfigService {
 
   async getPublicConfig() {
     const document = await this.findLatestDocument();
+    const imageUploadLimits =
+      await this.adminSettingsService.getProductImageUploadLimits();
 
     return {
       code: RC.MOBILE_CONFIG_PUBLISHED_FETCHED,
       message: 'Mobil uygulama konfigurasyonu getirildi',
       config: sanitizeMobileExperienceConfig(document?.published ?? null),
+      imageUploadLimits,
       publishedAt: document?.publishedAt?.toISOString() ?? null,
     };
   }

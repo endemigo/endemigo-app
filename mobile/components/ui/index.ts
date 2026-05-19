@@ -15,4 +15,5 @@ export { HorizontalProductGrid } from './HorizontalProductGrid';
 export { BlogCard } from './BlogCard';
 export { GlobalModal } from './GlobalModal';
 export { GlobalToast } from './GlobalToast';
+export { BackendUnavailableScreen } from './BackendUnavailableScreen';
 export { HomeQuickTabBar } from './HomeQuickTabBar';

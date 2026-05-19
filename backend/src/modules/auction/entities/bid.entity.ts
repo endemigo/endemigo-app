@@ -23,6 +23,9 @@ export class Bid extends BaseEntity {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  maxAmount: number | null;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   premiumAmount: number;
 

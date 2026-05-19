@@ -19,9 +19,28 @@ const STATUS_ORDER: OrderStatus[] = [
   OrderStatus.COMPLETED,
 ];
 
+const RETURN_STATUS_ORDER: OrderStatus[] = [
+  OrderStatus.COMPLETED,
+  OrderStatus.RETURN_REQUESTED,
+  OrderStatus.RETURN_APPROVED,
+  OrderStatus.RETURN_IN_TRANSIT,
+  OrderStatus.RETURN_DELIVERED,
+  OrderStatus.REFUND_PENDING,
+  OrderStatus.REFUNDED,
+];
+
+function resolveStatusOrder(status: OrderStatus) {
+  if (RETURN_STATUS_ORDER.includes(status)) {
+    return RETURN_STATUS_ORDER;
+  }
+
+  return STATUS_ORDER;
+}
+
 function getStepState(status: OrderStatus, step: OrderStatus) {
-  const currentIndex = STATUS_ORDER.indexOf(status);
-  const stepIndex = STATUS_ORDER.indexOf(step);
+  const resolvedOrder = resolveStatusOrder(status);
+  const currentIndex = resolvedOrder.indexOf(status);
+  const stepIndex = resolvedOrder.indexOf(step);
   if (currentIndex > stepIndex) return 'done';
   if (currentIndex === stepIndex) return 'active';
   return 'pending';
@@ -29,11 +48,12 @@ function getStepState(status: OrderStatus, step: OrderStatus) {
 
 export function OrderStatusTimeline({ status, createdAt, updatedAt }: OrderStatusTimelineProps) {
   const { t } = useTranslation();
+  const statusOrder = resolveStatusOrder(status);
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{t('orders.timelineTitle')}</Text>
-      {STATUS_ORDER.map((step, index) => {
+      {statusOrder.map((step, index) => {
         const state = getStepState(status, step);
         return (
           <View key={step} style={styles.step}>

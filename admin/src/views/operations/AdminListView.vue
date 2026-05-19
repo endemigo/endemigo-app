@@ -344,24 +344,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
       { key: 'isActive', label: 'Aktif', format: 'status' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
-    actions: [
-      {
-        key: 'restrict',
-        label: 'Kısıtla',
-        icon: 'pi pi-ban',
-        tone: 'danger',
-        method: 'patch',
-        path: (id) => `/admin/users/${id}/restrict`,
-      },
-      {
-        key: 'reactivate',
-        label: 'Yeniden etkinleştir',
-        icon: 'pi pi-check-circle',
-        tone: 'primary',
-        method: 'patch',
-        path: (id) => `/admin/users/${id}/reactivate`,
-      },
-    ],
+    actions: [],
   },
   sellers: {
     detailBase: 'sellers',
@@ -371,39 +354,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
       { key: 'approvedAt', label: 'Onaylandı', format: 'date' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
-    actions: [
-      {
-        key: 'editSeller',
-        label: 'Düzenle',
-        icon: 'pi pi-pencil',
-        tone: 'primary',
-        iconOnly: true,
-        method: 'patch',
-        path: (id) => `/admin/sellers/${id}`,
-        fields: sellerFields,
-        confirmLabel: 'Satıcı güncelle',
-      },
-      {
-        key: 'approve',
-        label: 'Onayla',
-        icon: 'pi pi-check',
-        tone: 'primary',
-        iconOnly: true,
-        method: 'patch',
-        path: (id) => `/admin/sellers/${id}/approve`,
-        when: (row) => String(row.status ?? '').toUpperCase() === 'PENDING',
-      },
-      {
-        key: 'reject',
-        label: 'Reddet',
-        icon: 'pi pi-times',
-        tone: 'danger',
-        iconOnly: true,
-        method: 'patch',
-        path: (id) => `/admin/sellers/${id}/reject`,
-        when: (row) => String(row.status ?? '').toUpperCase() === 'PENDING',
-      },
-    ],
+    actions: [],
   },
   products: {
     detailBase: 'products',
@@ -498,6 +449,10 @@ const resourceConfigs: Record<string, ResourceConfig> = {
     columns: [
       { key: 'productId', label: 'Ürün', format: 'id' },
       { key: 'status', label: 'Durum', format: 'status' },
+      { key: 'currentPrice', label: 'Anlık Fiyat', format: 'money' },
+      { key: 'reservePriceLabel', label: 'Reserve' },
+      { key: 'reserveStatusLabel', label: 'Reserve Durumu' },
+      { key: 'bidCount', label: 'Teklif' },
       { key: 'endTime', label: 'Bitiş zamanı', format: 'date' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
@@ -551,10 +506,30 @@ const resourceConfigs: Record<string, ResourceConfig> = {
   bids: {
     detailBase: 'bids',
     columns: [
-      { key: 'auctionId', label: 'Müzayede', format: 'id' },
-      { key: 'userId', label: 'Kullanıcı', format: 'id' },
-      { key: 'amount', label: 'Tutar', format: 'money' },
-      { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
+      { key: 'auctionLabel', label: 'Müzayede', route: (row) => `/bids/${String(row.id ?? '')}` },
+      { key: 'sellerName', label: 'Satıcı' },
+      { key: 'auctionStatus', label: 'Durum', format: 'status' },
+      { key: 'reserveStatusLabel', label: 'Reserve' },
+      { key: 'totalBidCount', label: 'Teklif' },
+      { key: 'uniqueBidderCount', label: 'Katılımcı' },
+      { key: 'highestBidAmount', label: 'En Yüksek Teklif', format: 'money' },
+      { key: 'lastBidAt', label: 'Son Teklif', format: 'date' },
+    ],
+    actions: [],
+  },
+  'audit-logs': {
+    detailBase: 'audit',
+    columns: [
+      { key: 'actionLabel', label: 'İşlem', route: (row) => `/audit/${String(row.id ?? '')}` },
+      {
+        key: 'targetLabel',
+        label: 'Hedef',
+        route: (row) => auditTargetRoute(getString(row, 'targetType'), getString(row, 'targetId')),
+      },
+      { key: 'targetIdShort', label: 'Kayıt No' },
+      { key: 'actorLabel', label: 'Yapan' },
+      { key: 'reasonText', label: 'Sebep' },
+      { key: 'createdAt', label: 'Tarih', format: 'date' },
     ],
     actions: [],
   },
@@ -751,6 +726,148 @@ function normalizeProductRow(row: Record<string, unknown>): Record<string, unkno
   };
 }
 
+function normalizeBidRow(row: Record<string, unknown>): Record<string, unknown> {
+  const productTitle = getString(row, 'productTitle');
+  const lotNumber = getString(row, 'lotNumber');
+  const auctionId = getString(row, 'auctionId') || getString(row, 'id');
+  const auctionLabel = lotNumber
+    ? `${lotNumber} - ${productTitle || auctionId}`
+    : (productTitle || auctionId);
+
+  return {
+    ...row,
+    auctionId,
+    auctionLabel,
+    reserveStatusLabel: formatReserveStatusLabel(row.reservePrice, row.reserveMet),
+  };
+}
+
+function normalizeAuctionRow(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    reservePriceLabel: formatReservePriceLabel(row.reservePrice),
+    reserveStatusLabel: formatReserveStatusLabel(row.reservePrice, row.reserveMet),
+  };
+}
+
+function formatReservePriceLabel(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return 'Yok';
+  }
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function formatReserveStatusLabel(
+  reservePrice: unknown,
+  reserveMet: unknown,
+): string {
+  if (reservePrice === null || reservePrice === undefined || reservePrice === '') {
+    return 'Yok';
+  }
+  return reserveMet === true || reserveMet === 'true'
+    ? 'Karşılandı'
+    : 'Karşılanmadı';
+}
+
+function auditActionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    SELLER_APPROVED: 'Satıcı onaylandı',
+    SELLER_REJECTED: 'Satıcı reddedildi',
+    USER_RESTRICTED: 'Üye kısıtlandı',
+    USER_REACTIVATED: 'Üye yeniden etkinleştirildi',
+    PRODUCT_REMOVED: 'Ürün yayından kaldırıldı',
+    AUCTION_CANCELLED: 'Müzayede iptal edildi',
+    ORDER_MARKED_ADMIN_REVIEW: 'Sipariş incelemeye alındı',
+    PAYMENT_MARKED_ADMIN_REVIEW: 'Ödeme incelemeye alındı',
+    CATEGORY_CREATED: 'Kategori oluşturuldu',
+    CATEGORY_UPDATED: 'Kategori güncellendi',
+    CATEGORY_DELETED: 'Kategori devre dışı bırakıldı',
+    BRAND_CREATED: 'Marka oluşturuldu',
+    BRAND_UPDATED: 'Marka güncellendi',
+    BRAND_DELETED: 'Marka devre dışı bırakıldı',
+    PAYOUT_APPROVED: 'Ödeme talebi onaylandı',
+    PAYOUT_REJECTED: 'Ödeme talebi reddedildi',
+    ADMIN_LOGIN: 'Yönetici girişi',
+    SETTING_UPDATED: 'Ayar güncellendi',
+    NEGOTIATION_VIEWED: 'Pazarlık kaydı görüntülendi',
+    TRUST_REVIEWED: 'Güven değerlendirmesi yapıldı',
+    AD_APPROVED: 'İlan onaylandı',
+    AD_REJECTED: 'İlan reddedildi',
+  };
+
+  if (labels[action]) return labels[action];
+  if (!action) return '-';
+  return action
+    .split('_')
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function auditTargetLabel(targetType: string): string {
+  const labels: Record<string, string> = {
+    USER: 'Üye',
+    SELLER: 'Satıcı',
+    PRODUCT: 'Ürün',
+    AUCTION: 'Müzayede',
+    ORDER: 'Sipariş',
+    PAYMENT: 'Ödeme',
+    CATEGORY: 'Kategori',
+    BRAND: 'Marka',
+    ADMIN: 'Yönetici',
+    BID: 'Teklif',
+    PAYOUT_REQUEST: 'Ödeme talebi',
+  };
+  return labels[targetType] ?? (targetType || 'Kayıt');
+}
+
+function auditTargetRoute(targetType: string, targetId: string): string {
+  if (!targetId) return '';
+  const baseByType: Record<string, string> = {
+    USER: '/users',
+    SELLER: '/sellers',
+    PRODUCT: '/products',
+    AUCTION: '/auctions',
+    ORDER: '/orders',
+    PAYMENT: '/payments',
+    CATEGORY: '/categories',
+    BRAND: '/brands',
+    BID: '/bids',
+    PAYOUT_REQUEST: '/payouts',
+  };
+  const base = baseByType[targetType];
+  return base ? `${base}/${targetId}` : '';
+}
+
+function shortAuditId(value: string): string {
+  if (!value) return '-';
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function normalizeAuditRow(row: Record<string, unknown>): Record<string, unknown> {
+  const action = getString(row, 'action');
+  const targetType = getString(row, 'targetType');
+  const targetId = getString(row, 'targetId');
+  const actorAdminId = getString(row, 'actorAdminId');
+  const actorRolesRaw = row.actorRoles;
+  const actorRoles = Array.isArray(actorRolesRaw) ? actorRolesRaw.map(String) : [];
+  const actorRole = actorRoles[0] ? actorRoles[0].replace(/_/g, ' ') : 'Yönetici';
+  const reason = getString(row, 'reason');
+
+  return {
+    ...row,
+    actionLabel: auditActionLabel(action),
+    targetLabel: auditTargetLabel(targetType),
+    targetIdShort: shortAuditId(targetId),
+    actorLabel: `${actorRole} (${shortAuditId(actorAdminId)})`,
+    reasonText: reason || '-',
+  };
+}
+
 function buildListQueryParams(filtersValue: Record<string, string>): Record<string, string | number> {
   const params: Record<string, string | number> = {
     page: pagination.value.page,
@@ -844,6 +961,12 @@ async function loadRows() {
         ? loadedRows.map((row) => normalizeMemberRow(row))
         : props.resource === 'products'
           ? loadedRows.map((row) => normalizeProductRow(row))
+          : props.resource === 'auctions'
+            ? loadedRows.map((row) => normalizeAuctionRow(row))
+          : props.resource === 'bids'
+            ? loadedRows.map((row) => normalizeBidRow(row))
+            : props.resource === 'audit-logs'
+              ? loadedRows.map((row) => normalizeAuditRow(row))
           : loadedRows;
     pagination.value = response.data.pagination ?? pagination.value;
   } catch (loadError) {

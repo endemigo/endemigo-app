@@ -179,4 +179,14 @@ export class AuctionController {
   async getResult(@Param('id', ParseUUIDPipe) auctionId: string) {
     return this.auctionService.getResult(auctionId);
   }
+
+  @Post(':id/complete-payment')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kazanan odemesini tamamla' })
+  async completeWinnerPayment(
+    @Param('id', ParseUUIDPipe) auctionId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.completeWinnerPayment(auctionId, userId);
+  }
 }

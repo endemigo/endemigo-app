@@ -108,6 +108,54 @@ async function mockAdminApi(page: Page) {
         },
       });
     }
+    if (path === '/admin/reports/campaigns') {
+      return route.fulfill({
+        json: {
+          code: 'SUCCESS',
+          message: 'campaigns',
+          items: [{ id: 'campaign-1', name: 'Spring', sellerId: null, status: 'ACTIVE', isPlatform: true, requiresSellerOptIn: true, startsAt: new Date().toISOString(), endsAt: new Date().toISOString() }],
+          pagination: { page: 1, limit: 25, total: 1 },
+        },
+      });
+    }
+    if (path === '/admin/coupons' && request.method() === 'GET') {
+      return route.fulfill({
+        json: {
+          code: 'SUCCESS',
+          message: 'coupons',
+          resource: 'coupons',
+          items: [{ id: 'coupon-1', code: 'SAVE10', sellerId: 'seller-1', status: 'ACTIVE', discountType: 'FIXED_AMOUNT', discountValue: 10, maxUses: 100, perUserLimit: 1, startsAt: new Date().toISOString(), endsAt: new Date().toISOString() }],
+          pagination: { page: 1, limit: 25, total: 1 },
+        },
+      });
+    }
+    if (path === '/admin/coupons' && request.method() === 'POST') {
+      return route.fulfill({
+        json: {
+          code: 'COUPON_CREATED',
+          message: 'coupon created',
+          coupon: { id: 'coupon-2', code: 'WELCOME10' },
+        },
+      });
+    }
+    if (path === '/admin/coupons/coupon-1' && request.method() === 'PATCH') {
+      return route.fulfill({
+        json: {
+          code: 'COUPON_UPDATED',
+          message: 'coupon updated',
+          coupon: { id: 'coupon-1', code: 'SAVE20' },
+        },
+      });
+    }
+    if (path === '/admin/coupons/coupon-1/status' && request.method() === 'PATCH') {
+      return route.fulfill({
+        json: {
+          code: 'COUPON_STATUS_UPDATED',
+          message: 'coupon status updated',
+          coupon: { id: 'coupon-1', status: 'DISABLED' },
+        },
+      });
+    }
 
     return route.fulfill({ json: { code: 'SUCCESS', message: 'ok', items: [], pagination: { page: 1, limit: 25, total: 0 } } });
   });
@@ -117,12 +165,12 @@ test.beforeEach(async ({ page }) => {
   await mockAdminApi(page);
 });
 
-test('login, dashboard, queues, bids detail, reason drawer, and PDF exports', async ({ page }) => {
+test('login, dashboard, queues, bids detail, reports, and coupons tab', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('E-posta').fill('admin@endemigo.test');
   await page.getByLabel('Şifre').fill('secret');
   await page.getByRole('button', { name: /Giriş yap/i }).click();
-  await expect(page.getByRole('heading', { name: 'Öncelikli İşler' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operations Console' })).toBeVisible();
 
   await page.goto('/queues');
   await expect(page.getByRole('heading', { name: 'Öncelikli Kuyruklar' })).toBeVisible();
@@ -130,15 +178,20 @@ test('login, dashboard, queues, bids detail, reason drawer, and PDF exports', as
   await page.goto('/bids/bid-1');
   await expect(page.getByRole('heading', { name: 'Teklif Detayı' })).toBeVisible();
 
-  await page.goto('/users');
-  await page.getByRole('button', { name: /Kısıtla/i }).click();
-  await expect(page.getByText(/gerekçe girilmelidir/i)).toBeVisible();
-  await page.getByPlaceholder('Değişiklik yapan yönetici işlemleri için zorunludur').fill('Manuel inceleme gerekçesi');
-  await page.getByRole('button', { name: 'Onayla' }).click();
-
   await page.goto('/reports');
   await expect(page.getByRole('heading', { name: 'Raporlar' })).toBeVisible();
   await page.getByRole('button', { name: 'CSV' }).click();
   await page.getByRole('button', { name: 'Excel' }).click();
   await page.getByRole('button', { name: 'PDF' }).click();
+
+  await page.goto('/campaigns');
+  await page.getByRole('button', { name: 'Kuponlar' }).click();
+  await expect(page.getByRole('button', { name: 'Platform Kuponu' })).toBeVisible();
+  await page.getByRole('button', { name: 'Düzenle' }).click();
+  await page.getByLabel('Kod').fill('SAVE20');
+  await page.getByPlaceholder('Değişiklik yapan yönetici işlemleri için zorunludur').fill('Kupon güncelleme');
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await page.getByRole('button', { name: 'Pasif Yap' }).click();
+  await page.getByPlaceholder('Değişiklik yapan yönetici işlemleri için zorunludur').fill('Kuponu kapat');
+  await page.getByRole('dialog').getByRole('button', { name: 'Uygula', exact: true }).click();
 });

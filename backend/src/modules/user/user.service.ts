@@ -29,6 +29,7 @@ import { Notification } from '../notification/entities/notification.entity';
 import { Conversation } from '../negotiation/entities/conversation.entity';
 import { Wallet } from '../wallet/entities/wallet.entity';
 import { PayoutRequest } from '../wallet/entities/payout-request.entity';
+import { OrderReview } from '../order/entities/order-review.entity';
 import { ProductStatus } from '../../shared/types/product-status.enum';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BecomeSellerDto } from './dto/become-seller.dto';
@@ -65,6 +66,9 @@ export class UserService {
     private readonly payoutRequestRepo: Repository<PayoutRequest>,
     @Optional()
     private readonly trustService?: TrustService,
+    @Optional()
+    @InjectRepository(OrderReview)
+    private readonly orderReviewRepo?: Repository<OrderReview>,
   ) {}
 
   // ==========================================
@@ -302,6 +306,9 @@ export class UserService {
       preparingShipment,
       inTransit,
       delivered,
+      returnRequested,
+      returnInTransit,
+      refundedOrders,
       draftProducts,
       reviewProducts,
       activeProducts,
@@ -320,6 +327,9 @@ export class UserService {
       this.orderRepo.count({ where: { sellerId, status: OrderStatus.PREPARING_SHIPMENT } }),
       this.orderRepo.count({ where: { sellerId, status: OrderStatus.IN_TRANSIT } }),
       this.orderRepo.count({ where: { sellerId, status: OrderStatus.DELIVERED } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.RETURN_REQUESTED } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.RETURN_IN_TRANSIT } }),
+      this.orderRepo.count({ where: { sellerId, status: OrderStatus.REFUNDED } }),
       this.productRepo.count({ where: { sellerId, status: ProductStatus.DRAFT } }),
       this.productRepo.count({ where: { sellerId, status: ProductStatus.PENDING_REVIEW } }),
       this.productRepo.count({ where: { sellerId, status: ProductStatus.ACTIVE } }),
@@ -368,6 +378,9 @@ export class UserService {
           preparingShipment,
           inTransit,
           delivered,
+          returnRequested,
+          returnInTransit,
+          refundedOrders,
         },
         products: {
           draftProducts,
@@ -402,6 +415,7 @@ export class UserService {
           requiresActionCount:
             newOrders +
             preparingShipment +
+            returnRequested +
             lowStockProducts +
             unreadNotifications,
         },
@@ -515,6 +529,7 @@ export class UserService {
     const trustBadge = this.trustService
       ? await this.trustService.getSellerTrustBadge(userId)
       : null;
+    const reviewSummary = await this.buildSellerReviewSummary(userId);
 
     return {
       profile: {
@@ -522,8 +537,9 @@ export class UserService {
         name: user.sellerProfile?.businessName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Satıcı',
         avatar: user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName || 'E')}&background=0097D8&color=fff&size=256`,
         banner: resolveSellerBanner(user.id, user.bannerUrl),
-        rating: 4.8,
-        reviewCount: products.length * 12 + 8,
+        rating: reviewSummary.rating,
+        reviewCount: reviewSummary.reviewCount,
+        latestReviewComment: reviewSummary.latestReviewComment,
         productCount: products.length,
         totalSales: products.length * 34 + 12,
         description: user.bio || undefined,
@@ -531,6 +547,7 @@ export class UserService {
         since: user.createdAt ? new Date(user.createdAt).getFullYear().toString() : undefined,
         trustBadges: trustBadge ? [trustBadge] : ['verified'],
       },
+      reviews: reviewSummary.reviews,
       products: products.map((p) => ({
         id: p.id,
         title: p.title,
@@ -557,6 +574,26 @@ export class UserService {
         favoriteCount: p.favoriteCount,
         createdAt: p.createdAt,
       })),
+    };
+  }
+
+  async getSellerReviews(userId: string) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['id'],
+    });
+    if (!user) {
+      throw new NotFoundException({
+        code: RC.SELLER_NOT_FOUND,
+        message: 'Satıcı bulunamadı',
+      });
+    }
+
+    const reviewSummary = await this.buildSellerReviewSummary(userId);
+    return {
+      code: RC.SELLER_FETCHED,
+      message: 'Satıcı yorumları getirildi',
+      ...reviewSummary,
     };
   }
 
@@ -594,6 +631,44 @@ export class UserService {
         message: 'Gönderici adresi için satıcı hesabı gerekir',
       });
     }
+  }
+
+  private async buildSellerReviewSummary(sellerId: string) {
+    const reviews =
+      this.orderReviewRepo && 'find' in this.orderReviewRepo
+        ? await this.orderReviewRepo.find({
+            where: { sellerId },
+            order: { createdAt: 'DESC' },
+          })
+        : [];
+
+    const mappedReviews = reviews
+      .filter((review) => review.sellerComment || review.sellerRating)
+      .map((review) => ({
+        id: review.id,
+        orderId: review.orderId,
+        buyerId: review.buyerId,
+        rating: review.sellerRating,
+        comment: review.sellerComment,
+        createdAt: review.createdAt,
+      }));
+    const reviewCount = mappedReviews.length;
+    const rating =
+      reviewCount > 0
+        ? Number(
+            (
+              mappedReviews.reduce((total, review) => total + review.rating, 0) /
+              reviewCount
+            ).toFixed(1),
+          )
+        : 0;
+
+    return {
+      rating,
+      reviewCount,
+      latestReviewComment: mappedReviews[0]?.comment ?? null,
+      reviews: mappedReviews,
+    };
   }
 
   // ==========================================

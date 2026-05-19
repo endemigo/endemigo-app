@@ -43,6 +43,13 @@ export function AuctionBidHistory({ bids, t }: AuctionBidHistoryProps) {
                         {' • '}
                         {formatShortDateTime(bid.createdAt)}
                       </Text>
+                      {bid.maxAmount && Number(bid.maxAmount) > Number(bid.amount) ? (
+                        <Text style={styles.proxyMeta}>
+                          {t('auction.proxyMaxLabel', {
+                            amount: formatCurrency(Number(bid.maxAmount)),
+                          })}
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
 

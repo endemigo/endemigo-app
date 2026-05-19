@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminAuditAction, AdminRole } from '@endemigo/shared';
 import { Public } from '../../common/decorators/public.decorator';
@@ -34,5 +34,14 @@ export class AdminAuditController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
+  // Response code contract: ADMIN_AUDIT_FETCHED
+  @ApiOperation({ summary: 'Admin audit detayını getir' })
+  async detail(@Param('id') id: string) {
+    return this.adminAuditService.detail(id);
   }
 }

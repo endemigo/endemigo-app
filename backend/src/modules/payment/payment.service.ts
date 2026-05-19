@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -41,6 +43,7 @@ export class PaymentService {
     @Optional()
     private readonly notificationService?: NotificationService,
     @Optional()
+    @Inject(forwardRef(() => OrderService))
     private readonly orderService?: OrderService,
   ) {}
 

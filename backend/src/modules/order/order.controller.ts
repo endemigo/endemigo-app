@@ -3,6 +3,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { RequestReturnDto } from './dto/request-return.dto';
+import { ReviewReturnDto } from './dto/review-return.dto';
+import { SubmitOrderReviewDto } from './dto/submit-order-review.dto';
 import { TransitionSellerOrderDto } from './dto/transition-seller-order.dto';
 import { OrderService } from './order.service';
 
@@ -31,10 +34,67 @@ export class OrderController {
     return this.orderService.getSellerOrders(sellerId);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get order detail' })
+  getOrderDetail(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.orderService.getOrderDetail(id, userId);
+  }
+
   @Post(':id/confirm-delivery')
   @ApiOperation({ summary: 'Confirm order delivery' })
   confirmDelivery(@CurrentUser('id') buyerId: string, @Param('id') id: string) {
     return this.orderService.confirmDelivery(id, buyerId);
+  }
+
+  @Post(':id/return-request')
+  @ApiOperation({ summary: 'Create return request' })
+  requestReturn(
+    @CurrentUser('id') buyerId: string,
+    @Param('id') id: string,
+    @Body() dto: RequestReturnDto,
+  ) {
+    return this.orderService.requestReturn(id, buyerId, dto);
+  }
+
+  @Patch(':id/return-review')
+  @Roles('seller', 'admin')
+  @ApiOperation({ summary: 'Review return request' })
+  reviewReturn(
+    @CurrentUser() user: { id: string; isAdmin?: boolean },
+    @Param('id') id: string,
+    @Body() dto: ReviewReturnDto,
+  ) {
+    return this.orderService.reviewReturn(id, user, dto);
+  }
+
+  @Post(':id/confirm-return-delivered')
+  @Roles('seller', 'admin')
+  @ApiOperation({ summary: 'Confirm return shipment delivery and finalize refund' })
+  confirmReturnDelivered(
+    @CurrentUser() user: { id: string; isAdmin?: boolean },
+    @Param('id') id: string,
+  ) {
+    return this.orderService.confirmReturnDelivered(id, user);
+  }
+
+  @Post(':id/refund-finalize')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Finalize return refund manually' })
+  finalizeRefund(
+    @CurrentUser() user: { id: string; isAdmin?: boolean },
+    @Param('id') id: string,
+  ) {
+    return this.orderService.finalizeReturnRefund(id, user.id);
+  }
+
+  @Post(':id/review')
+  @ApiOperation({ summary: 'Submit order review' })
+  submitReview(
+    @CurrentUser('id') buyerId: string,
+    @Param('id') id: string,
+    @Body() dto: SubmitOrderReviewDto,
+  ) {
+    return this.orderService.submitOrderReview(id, buyerId, dto);
   }
 
   @Patch(':id/seller-status')

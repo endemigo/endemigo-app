@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AdminAuditAction, AdminRole, AdminSettingKey, RC } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AdminSettingsService } from './admin-settings.service';
@@ -96,5 +96,17 @@ describe('AdminSettingsService', () => {
         targetId: AdminSettingKey.COMMISSION_DEFAULT_RATE,
       }),
     );
+  });
+
+  it('validates product image upload limits payload', async () => {
+    await expect(
+      service.update({
+        actorAdminId: 'admin-1',
+        actorRoles: [AdminRole.OPERATIONS],
+        key: AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS,
+        value: { min: 5, max: 3 },
+        reason: 'invalid image limits',
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 });

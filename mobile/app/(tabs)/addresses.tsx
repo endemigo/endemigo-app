@@ -28,7 +28,7 @@ import { useRoleModeStore } from '../../store/roleModeStore';
 import type { AddressItem, AddressPayload } from '../../types/transactionFlows';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import { getTurkishDistrictsByProvinceName, TURKISH_PROVINCES } from '../../constants/turkishLocations';
-import { styles } from './addresses.styles';
+import { styles } from '../../styles/tabs/addresses.styles';
 
 const DEFAULT_FORM_STATE: AddressPayload = {
   type: AddressType.SHIPPING,

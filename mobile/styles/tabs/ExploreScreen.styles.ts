@@ -149,6 +149,12 @@ export const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.xs,
   },
+  auctionFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
   auctionTitle: {
     color: Colors.onSurface,
     fontFamily: FontFamily.bodySemiBold,
@@ -163,6 +169,17 @@ export const styles = StyleSheet.create({
     color: Colors.auctionGreen,
     fontFamily: FontFamily.headlineBlack,
     fontSize: FontSize.subheading,
+  },
+  reserveBadge: {
+    flexShrink: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.md,
+  },
+  reserveBadgeText: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
   },
   blogScroll: {
     gap: Spacing.base,

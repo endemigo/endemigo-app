@@ -53,6 +53,7 @@ interface AuctionCreatePayload {
   productId: string;
   startPrice: number;
   minIncrement: number;
+  reservePrice?: number;
   startTime: string;
   endTime: string;
   auctionType: ProductCreateWizardState['auctionType'];
@@ -131,6 +132,12 @@ export function buildAuctionCreatePayload(
     productId,
     startPrice: normalizeMoneyScale(parsePriceInput(state.auctionStartPrice) ?? 0),
     minIncrement: normalizeMoneyScale(parsePriceInput(state.auctionMinIncrement) ?? 0),
+    reservePrice: (() => {
+      const parsedReservePrice = parsePriceInput(state.auctionReservePrice);
+      return parsedReservePrice !== undefined
+        ? normalizeMoneyScale(parsedReservePrice)
+        : undefined;
+    })(),
     startTime: state.auctionStartTime,
     endTime: state.auctionEndTime,
     auctionType: state.auctionType,

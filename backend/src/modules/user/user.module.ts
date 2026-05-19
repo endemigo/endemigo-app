@@ -16,6 +16,7 @@ import { Notification } from '../notification/entities/notification.entity';
 import { Conversation } from '../negotiation/entities/conversation.entity';
 import { Wallet } from '../wallet/entities/wallet.entity';
 import { PayoutRequest } from '../wallet/entities/payout-request.entity';
+import { OrderReview } from '../order/entities/order-review.entity';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { PayoutRequest } from '../wallet/entities/payout-request.entity';
       Conversation,
       Wallet,
       PayoutRequest,
+      OrderReview,
     ]),
     TrustModule,
   ],

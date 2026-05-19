@@ -1,0 +1,7 @@
+export enum OrderReturnReasonCode {
+  DAMAGED = 'DAMAGED',
+  NOT_AS_DESCRIBED = 'NOT_AS_DESCRIBED',
+  WRONG_ITEM = 'WRONG_ITEM',
+  MISSING_PARTS = 'MISSING_PARTS',
+  OTHER = 'OTHER',
+}

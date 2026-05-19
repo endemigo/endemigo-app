@@ -20,7 +20,19 @@ function getStatusStyle(status: OrderStatus) {
   if (status === OrderStatus.PREPARING_SHIPMENT || status === OrderStatus.IN_TRANSIT) {
     return styles.statusProgress;
   }
+  if (
+    status === OrderStatus.RETURN_REQUESTED ||
+    status === OrderStatus.RETURN_APPROVED ||
+    status === OrderStatus.RETURN_IN_TRANSIT ||
+    status === OrderStatus.RETURN_DELIVERED ||
+    status === OrderStatus.REFUND_PENDING
+  ) {
+    return styles.statusProgress;
+  }
   if (status === OrderStatus.DELIVERED || status === OrderStatus.COMPLETED) {
+    return styles.statusSuccess;
+  }
+  if (status === OrderStatus.REFUNDED) {
     return styles.statusSuccess;
   }
   if (status === OrderStatus.CANCELLED || status === OrderStatus.FAILED) {

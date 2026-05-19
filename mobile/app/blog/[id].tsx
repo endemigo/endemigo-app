@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useBlogs } from '../../hooks/useProducts';
 import { Colors } from '../../constants/theme';
 import { formatShortDate } from '../../utils/transactionFormatters';
-import { styles } from './BlogDetailScreen.styles';
+import { styles } from '../../styles/blog/BlogDetailScreen.styles';
 
 const BLOG_PLACEHOLDER =
   'https://placehold.co/1000x600/F8F9FA/0097D8?text=Endemigo';

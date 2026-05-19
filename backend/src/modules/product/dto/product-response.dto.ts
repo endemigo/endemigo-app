@@ -57,6 +57,10 @@ export class ProductItemResponseDto {
 export class ProductResponseDto extends ProductItemResponseDto {
   @ApiProperty() code: string;
   @ApiProperty() message: string;
+  @ApiPropertyOptional() rating?: number;
+  @ApiPropertyOptional() reviewCount?: number;
+  @ApiPropertyOptional() latestReviewComment?: string | null;
+  @ApiPropertyOptional({ type: [Object] }) reviews?: Array<Record<string, unknown>>;
 }
 
 export class PaginatedProductsDto {

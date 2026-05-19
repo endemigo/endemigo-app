@@ -15,6 +15,12 @@ interface AuctionSocketState {
   viewerCount: number;
   isConnected: boolean;
   lastBid: { amount: number; bidderName: string } | null;
+  activityFeed: Array<{
+    id: string;
+    title: string;
+    body: string;
+    tone: 'accent' | 'error' | 'primary';
+  }>;
   wasOutbid: boolean;
   auctionEnded: boolean;
   isWinner: boolean;
@@ -32,6 +38,7 @@ export function useAuctionSocket(auctionId: string) {
     viewerCount: 0,
     isConnected: false,
     lastBid: null,
+    activityFeed: [],
     wasOutbid: false,
     auctionEnded: false,
     isWinner: false,
@@ -50,6 +57,25 @@ export function useAuctionSocket(auctionId: string) {
       const socket = await getAuctionSocket();
       if (cancelled) return;
       socketRef.current = socket;
+
+      const appendActivity = (
+        title: string,
+        body: string,
+        tone: 'accent' | 'error' | 'primary' = 'primary',
+      ) => {
+        setState((currentState) => ({
+          ...currentState,
+          activityFeed: [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              title,
+              body,
+              tone,
+            },
+            ...currentState.activityFeed,
+          ].slice(0, 4),
+        }));
+      };
 
       socket.emit('auction:join', { auctionId });
 
@@ -75,6 +101,14 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime,
             lastBid: { amount: data.amount, bidderName: data.bidderName },
           }));
+          appendActivity(
+            t('auction.activityBidTitle'),
+            t('auction.latestBidMessage', {
+              bidder: data.bidderName,
+              amount: formatAmount(data.amount),
+            }),
+            'accent',
+          );
         }
       });
 
@@ -89,6 +123,13 @@ export function useAuctionSocket(auctionId: string) {
             }),
             type: 'info',
           });
+          appendActivity(
+            t('auction.outbidTitle'),
+            t('auction.outbidMessage', {
+              amount: formatAmount(data.newAmount),
+            }),
+            'error',
+          );
         }
       });
 
@@ -125,6 +166,13 @@ export function useAuctionSocket(auctionId: string) {
             }),
             type: 'info',
           });
+          appendActivity(
+            t('auction.extendedTitle'),
+            t('auction.extendedMessage', {
+              count: data.extensionNumber,
+            }),
+            'primary',
+          );
         }
       });
 
@@ -147,6 +195,11 @@ export function useAuctionSocket(auctionId: string) {
       socket.on('auction:warning', (data: { auctionId: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(100);
+          appendActivity(
+            t('auction.activityWarningTitle'),
+            t('auction.activityWarningBody'),
+            'primary',
+          );
         }
       });
 

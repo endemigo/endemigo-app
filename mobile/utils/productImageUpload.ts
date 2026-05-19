@@ -1,6 +1,6 @@
 import type { ProductCreateImageDraft, ProductCreatePickerAsset } from '../types/productCreate.ts';
 
-export const MAX_PRODUCT_IMAGE_COUNT = 10;
+export const DEFAULT_MAX_PRODUCT_IMAGE_COUNT = 10;
 
 type UploadableFile = Blob & {
   uri: string;

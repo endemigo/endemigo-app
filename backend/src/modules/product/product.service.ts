@@ -22,12 +22,18 @@ import { ListingType } from '../../shared/types/listing-type.enum';
 import { RC } from '../../shared/constants/response-codes';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
 import type { IStorageService } from '../../shared/storage/storage.interface';
-import { AdPlacementType, VariantOptionKind } from '@endemigo/shared';
+import {
+  AdPlacementType,
+  DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
+  VariantOptionKind,
+  type ProductImageUploadLimits,
+} from '@endemigo/shared';
 import { AdsService } from '../ads/ads.service';
+import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 import { TrustService } from '../trust/trust.service';
 import { MembershipService } from '../membership/membership.service';
+import { OrderReview } from '../order/entities/order-review.entity';
 
-const MAX_IMAGES = 10;
 const COMMONS_FILE_PATH_BASE_URL =
   'https://commons.wikimedia.org/wiki/Special:FilePath/';
 
@@ -352,6 +358,11 @@ export class ProductService {
     private readonly trustService?: TrustService,
     @Optional()
     private readonly membershipService?: MembershipService,
+    @Optional()
+    private readonly adminSettingsService?: AdminSettingsService,
+    @Optional()
+    @InjectRepository(OrderReview)
+    private readonly orderReviewRepo?: Repository<OrderReview>,
   ) {}
 
   // ==========================================
@@ -523,9 +534,12 @@ export class ProductService {
 
     // K5: DRAFT→ACTIVE status geçiş guard'ı — yayınlama kalite kontrolü
     if (product.status === ProductStatus.ACTIVE) {
+      const imageUploadLimits = await this.getProductImageUploadLimits();
       const errors: string[] = [];
-      const hasImage = (product.images?.length || 0) > 0;
-      if (!hasImage) errors.push('En az 1 ürün görseli gereklidir');
+      const imageCount = product.images?.length || 0;
+      if (imageCount < imageUploadLimits.min) {
+        errors.push(`En az ${imageUploadLimits.min} ürün görseli gereklidir`);
+      }
       if (!product.description || product.description.trim().length < 10)
         errors.push('Ürün açıklaması en az 10 karakter olmalıdır');
       if (!product.categoryId) errors.push('Kategori seçimi zorunludur');
@@ -610,11 +624,12 @@ export class ProductService {
       });
     }
 
+    const imageUploadLimits = await this.getProductImageUploadLimits();
     const imageCount = product.images?.length || 0;
-    if (imageCount >= MAX_IMAGES) {
+    if (imageCount >= imageUploadLimits.max) {
       throw new BadRequestException({
         code: RC.MAX_IMAGES_REACHED,
-        message: `Maksimum ${MAX_IMAGES} görsel yüklenebilir`,
+        message: `Maksimum ${imageUploadLimits.max} görsel yüklenebilir`,
       });
     }
 
@@ -677,6 +692,14 @@ export class ProductService {
     }
 
     return { code: RC.IMAGE_DELETED, message: 'Görsel silindi' };
+  }
+
+  private async getProductImageUploadLimits(): Promise<ProductImageUploadLimits> {
+    if (!this.adminSettingsService) {
+      return DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS;
+    }
+
+    return this.adminSettingsService.getProductImageUploadLimits();
   }
 
   // ==========================================
@@ -775,6 +798,26 @@ export class ProductService {
     };
   }
 
+  async getProductReviews(id: string) {
+    const product = await this.productRepo.findOne({
+      where: { id },
+      select: ['id'],
+    });
+    if (!product) {
+      throw new NotFoundException({
+        code: RC.PRODUCT_NOT_FOUND,
+        message: 'Ürün bulunamadı',
+      });
+    }
+
+    const reviewSummary = await this.buildProductReviewSummary(id);
+    return {
+      code: RC.PRODUCT_FETCHED,
+      message: 'Ürün yorumları getirildi',
+      ...reviewSummary,
+    };
+  }
+
   private async findProductResponse(
     id: string,
     userId?: string,
@@ -815,7 +858,11 @@ export class ProductService {
         product.categoryId ?? undefined,
       ),
     );
-    return response;
+    const reviewSummary = await this.buildProductReviewSummary(product.id);
+    return {
+      ...response,
+      ...reviewSummary,
+    };
   }
 
   // ==========================================
@@ -1069,6 +1116,44 @@ export class ProductService {
         return rightBoost - leftBoost || left.index - right.index;
       })
       .map(({ item }) => item);
+  }
+
+  private async buildProductReviewSummary(productId: string) {
+    const reviews =
+      this.orderReviewRepo && 'find' in this.orderReviewRepo
+        ? await this.orderReviewRepo.find({
+            where: { productId },
+            order: { createdAt: 'DESC' },
+          })
+        : [];
+
+    const mappedReviews = reviews
+      .filter((review) => review.productComment || review.productRating)
+      .map((review) => ({
+        id: review.id,
+        orderId: review.orderId,
+        buyerId: review.buyerId,
+        rating: review.productRating,
+        comment: review.productComment,
+        createdAt: review.createdAt,
+      }));
+    const reviewCount = mappedReviews.length;
+    const rating =
+      reviewCount > 0
+        ? Number(
+            (
+              mappedReviews.reduce((total, review) => total + review.rating, 0) /
+              reviewCount
+            ).toFixed(1),
+          )
+        : 0;
+
+    return {
+      rating,
+      reviewCount,
+      latestReviewComment: mappedReviews[0]?.comment ?? null,
+      reviews: mappedReviews,
+    };
   }
 
   private buildVariantOptionsFromSkus(skus: ProductVariantSku[]) {

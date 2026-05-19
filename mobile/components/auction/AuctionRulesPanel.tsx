@@ -14,6 +14,8 @@ type AuctionRulesPanelProps = {
   description?: string;
   auctionTypeLabel: string;
   minIncrement: number;
+  reservePrice?: number | null;
+  reserveMet?: boolean;
   antiSnipingEnabled?: boolean;
   extensionSeconds?: number;
   currentExtensions?: number;
@@ -29,6 +31,8 @@ export function AuctionRulesPanel({
   description,
   auctionTypeLabel,
   minIncrement,
+  reservePrice,
+  reserveMet,
   antiSnipingEnabled,
   extensionSeconds,
   currentExtensions,
@@ -46,6 +50,16 @@ export function AuctionRulesPanel({
       icon: 'trending-up-outline' as const,
       title: t('auction.ruleIncrement'),
       body: formatCurrency(minIncrement),
+    },
+    {
+      icon: 'flag-outline' as const,
+      title: t('auction.ruleReserve'),
+      body: reservePrice
+        ? t('auction.reserveDetail', {
+            amount: formatCurrency(reservePrice),
+            status: reserveMet ? t('auction.reserveMet') : t('auction.reserveNotMet'),
+          })
+        : t('auction.reserveDisabled'),
     },
     {
       icon: 'refresh-circle-outline' as const,

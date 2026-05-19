@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LedgerModule } from '../ledger/ledger.module';
@@ -15,7 +15,7 @@ import { IyzicoProvider } from './providers/iyzico.provider';
     TypeOrmModule.forFeature([Payment, PaymentProviderEvent]),
     LedgerModule,
     NotificationModule,
-    OrderModule,
+    forwardRef(() => OrderModule),
     ConfigModule,
   ],
   controllers: [PaymentController],

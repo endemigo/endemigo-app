@@ -1,9 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
+  CargoShipmentType,
   CargoStatus,
   EscrowStatus,
   LedgerAccountType,
   OrderSource,
+  OrderReturnReasonCode,
   OrderStatus,
   ListingType,
   ProductStatus,
@@ -17,6 +19,7 @@ import { CampaignService } from '../campaign/campaign.service';
 import { Product } from '../product/entities/product.entity';
 import { OrderAuditEvent } from './entities/order-audit-event.entity';
 import { Order } from './entities/order.entity';
+import { OrderReview } from './entities/order-review.entity';
 import { OrderService } from './order.service';
 
 type OrderStore = Map<string, Order>;
@@ -37,6 +40,13 @@ const createOrder = (overrides: Partial<Order> = {}): Order =>
     autoConfirmAt: null,
     deliveryConfirmedAt: null,
     completedAt: null,
+    returnRequestedAt: null,
+    returnApprovedAt: null,
+    returnDeliveredAt: null,
+    refundedAt: null,
+    returnReasonCode: null,
+    returnReasonNote: null,
+    returnShipmentId: null,
     ...overrides,
   }) as Order;
 
@@ -78,6 +88,28 @@ const createAuditRepository = () =>
     ),
     save: jest.fn((event: OrderAuditEvent) => Promise.resolve(event)),
   }) as unknown as Repository<OrderAuditEvent>;
+
+const createOrderReviewRepository = (
+  reviews: Map<string, OrderReview> = new Map(),
+) =>
+  ({
+    create: jest.fn(
+      (input: Partial<OrderReview>) => ({ id: 'review-new', ...input }) as OrderReview,
+    ),
+    findOne: jest.fn(({ where }: { where: Partial<OrderReview> }) => {
+      if (!where.orderId) {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve(
+        Array.from(reviews.values()).find((review) => review.orderId === where.orderId) ?? null,
+      );
+    }),
+    save: jest.fn((review: OrderReview) => {
+      const saved = { ...review } as OrderReview;
+      reviews.set(saved.id, saved);
+      return Promise.resolve(saved);
+    }),
+  }) as unknown as Repository<OrderReview>;
 
 const createProductRepository = (product: Partial<Product> = {}) =>
   ({
@@ -468,5 +500,252 @@ describe('OrderService', () => {
     await expect(
       service.transitionOrder('missing-order', OrderStatus.COMPLETED),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('opens a return request only for completed buyer orders', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.COMPLETED,
+          escrowStatus: EscrowStatus.RELEASED,
+          completedAt: new Date(),
+        }),
+      ],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    const result = await service.requestReturn('order-1', 'buyer-1', {
+      reasonCode: OrderReturnReasonCode.NOT_AS_DESCRIBED,
+      note: 'Damaged item',
+    });
+
+    expect(result.code).toBe(RC.RETURN_REQUESTED);
+    expect(result.order?.status).toBe(OrderStatus.RETURN_REQUESTED);
+    expect(result.order?.returnShipmentId).toBeNull();
+  });
+
+  it('creates the return shipment after seller approval', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.RETURN_REQUESTED,
+          escrowStatus: EscrowStatus.RELEASED,
+          completedAt: new Date(),
+          returnRequestedAt: new Date(),
+          returnReasonCode: OrderReturnReasonCode.NOT_AS_DESCRIBED,
+        }),
+      ],
+    ]);
+    const cargoService = {
+      createReturnShipmentForOrder: jest.fn(() =>
+        Promise.resolve({
+          code: RC.CARGO_TRACKING_CREATED,
+          message: 'Cargo shipment created',
+          shipment: {
+            id: 'return-shipment-1',
+            orderId: 'order-1',
+            shipmentType: CargoShipmentType.RETURN,
+          },
+        }),
+      ),
+    } as unknown as CargoService;
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      cargoService,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    const result = await service.reviewReturn(
+      'order-1',
+      { id: 'seller-1', isAdmin: false },
+      { decision: 'approve' },
+    );
+
+    expect(result.code).toBe(RC.RETURN_APPROVED);
+    expect(result.order?.status).toBe(OrderStatus.RETURN_APPROVED);
+    expect(result.order?.returnShipmentId).toBe('return-shipment-1');
+    expect(cargoService.createReturnShipmentForOrder).toHaveBeenCalledWith(
+      'order-1',
+    );
+  });
+
+  it('rejects duplicate return requests for the same order', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.RETURN_REQUESTED,
+          escrowStatus: EscrowStatus.RELEASED,
+          completedAt: new Date(),
+          returnRequestedAt: new Date(),
+        }),
+      ],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    await expect(
+      service.requestReturn('order-1', 'buyer-1', {
+        reasonCode: OrderReturnReasonCode.WRONG_ITEM,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('finalizes refund after return delivery', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.RETURN_DELIVERED,
+          escrowStatus: EscrowStatus.HELD,
+          paymentId: 'payment-1',
+          returnDeliveredAt: new Date(),
+        }),
+      ],
+    ]);
+    const paymentService = {
+      requestRefund: jest.fn(() =>
+        Promise.resolve({
+          code: RC.PAYMENT_REFUND_REQUESTED,
+          message: 'Payment refund requested',
+        }),
+      ),
+    };
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      paymentService as never,
+    );
+
+    const result = await service.finalizeReturnRefund('order-1', 'seller-1');
+
+    expect(result.code).toBe(RC.RETURN_REFUNDED);
+    expect(result.order?.status).toBe(OrderStatus.REFUNDED);
+    expect(paymentService.requestRefund).toHaveBeenCalledWith('payment-1');
+  });
+
+  it('accepts one review per completed order', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.COMPLETED,
+          escrowStatus: EscrowStatus.RELEASED,
+          completedAt: new Date(),
+        }),
+      ],
+    ]);
+    const reviewRepository = createOrderReviewRepository();
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      reviewRepository,
+    );
+
+    const result = await service.submitOrderReview('order-1', 'buyer-1', {
+      productRating: 5,
+      productComment: 'Excellent',
+      sellerRating: 4,
+      sellerComment: 'Fast shipping',
+    });
+
+    expect(result.code).toBe(RC.REVIEW_SUBMITTED);
+    expect(result.review?.orderId).toBe('order-1');
+  });
+
+  it('rejects duplicate reviews for the same order', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.COMPLETED,
+          escrowStatus: EscrowStatus.RELEASED,
+          completedAt: new Date(),
+        }),
+      ],
+    ]);
+    const reviewRepository = createOrderReviewRepository(
+      new Map([
+        [
+          'review-1',
+          {
+            id: 'review-1',
+            orderId: 'order-1',
+            productId: 'product-1',
+            sellerId: 'seller-1',
+            buyerId: 'buyer-1',
+            productRating: 5,
+            productComment: 'Great',
+            sellerRating: 5,
+            sellerComment: 'Great',
+          } as OrderReview,
+        ],
+      ]),
+    );
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      reviewRepository,
+    );
+
+    await expect(
+      service.submitOrderReview('order-1', 'buyer-1', {
+        productRating: 5,
+        sellerRating: 5,
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 });

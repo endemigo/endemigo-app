@@ -42,6 +42,7 @@ export function createInitialProductCreateState(): ProductCreateWizardState {
     askPriceMinAmount: '',
     auctionStartPrice: '',
     auctionMinIncrement: '1',
+    auctionReservePrice: '',
     auctionStartTime: '',
     auctionEndTime: '',
     auctionType: PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
@@ -97,6 +98,7 @@ export function canContinueProductCreateStep(
   state: ProductCreateWizardState,
   imageCount: number,
   visibilityOptions?: ListingFieldVisibilityOptions,
+  minImageCount = 1,
 ): boolean {
   if (step === 1) {
     const hasBasics = state.title.trim().length >= 3 && state.categoryId.length > 0;
@@ -115,7 +117,7 @@ export function canContinueProductCreateStep(
     if (!isOptionalFieldVisible('images', visibilityOptions)) {
       return true;
     }
-    return imageCount > 0;
+    return imageCount >= minImageCount;
   }
 
   return state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION
@@ -130,18 +132,19 @@ export function isProductCreateReadyToSubmit(
   state: ProductCreateWizardState,
   imageCount: number,
   visibilityOptions?: ListingFieldVisibilityOptions,
+  minImageCount = 1,
 ): boolean {
   const normalizedVisibilityOptions = {
     optionalFields: visibilityOptions?.optionalFields ?? [...MOBILE_LISTING_CREATE_OPTIONAL_FIELDS],
   };
 
   return (
-    canContinueProductCreateStep(1, state, imageCount, normalizedVisibilityOptions)
-    && canContinueProductCreateStep(2, state, imageCount, normalizedVisibilityOptions)
-    && canContinueProductCreateStep(3, state, imageCount, normalizedVisibilityOptions)
-    && canContinueProductCreateStep(4, state, imageCount, normalizedVisibilityOptions)
-    && canContinueProductCreateStep(5, state, imageCount, normalizedVisibilityOptions)
-    && canContinueProductCreateStep(6, state, imageCount, normalizedVisibilityOptions)
+    canContinueProductCreateStep(1, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(2, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(3, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(4, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(5, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(6, state, imageCount, normalizedVisibilityOptions, minImageCount)
   );
 }
 

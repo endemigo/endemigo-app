@@ -85,7 +85,10 @@ describe('AdminOperationsService', () => {
 
     expect(result.code).toBe(RC.ADMIN_QUEUE_FETCHED);
     expect(result.sellerApprovals.count).toBe(0);
-    expect(repos[1].findAndCount).toHaveBeenCalledWith(
+    expect(repos[1].find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: SellerStatus.PENDING } }),
+    );
+    expect(repos[1].count).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: SellerStatus.PENDING } }),
     );
     expect(repos[15].findAndCount).toHaveBeenCalledWith(

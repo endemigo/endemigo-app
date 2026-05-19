@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 
 import { SellerNotFoundError, useSeller } from '../../hooks/useSeller';
 import { Colors } from '../../constants/theme';
-import { styles } from './_id.styles';
+import { styles } from '../../styles/seller/_id.styles';
 import { ListingType, type Product } from '@/types';
 import { useCartStore } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';

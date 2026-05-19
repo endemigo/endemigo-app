@@ -22,6 +22,7 @@ test('buildProductCreatePayload maps direct-sale wizard state to backend payload
     askPriceMinAmount: '1.000,00',
     auctionStartPrice: '',
     auctionMinIncrement: '',
+    auctionReservePrice: '',
     auctionStartTime: '',
     auctionEndTime: '',
     auctionType: PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
@@ -81,6 +82,7 @@ test('buildAuctionCreatePayload maps auction wizard state to backend payload', (
     askPriceMinAmount: '',
     auctionStartPrice: '800,00',
     auctionMinIncrement: '50,25',
+    auctionReservePrice: '1.250,00',
     auctionStartTime: '2026-05-06T10:00:00.000Z',
     auctionEndTime: '2026-05-07T10:00:00.000Z',
     auctionType: PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
@@ -121,6 +123,7 @@ test('buildAuctionCreatePayload maps auction wizard state to backend payload', (
   assert.equal(payload.productId, 'product-1');
   assert.equal(payload.startPrice, 800);
   assert.equal(payload.minIncrement, 50.25);
+  assert.equal(payload.reservePrice, 1250);
   assert.equal(payload.auctionType, PRODUCT_CREATE_AUCTION_TYPES.REALTIME);
   assert.equal(payload.extensionSeconds, 60);
 });

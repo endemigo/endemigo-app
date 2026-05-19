@@ -4,15 +4,18 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationModule } from '../notification/notification.module';
 import { Order } from '../order/entities/order.entity';
+import { User } from '../user/entities/user.entity';
+import { EmailModule } from '../../shared/email/email.module';
 import { CargoController } from './cargo.controller';
 import { CargoProcessor } from './cargo.processor';
 import { CargoService } from './cargo.service';
 import { CargoShipment } from './entities/cargo-shipment.entity';
+import { CargoShipmentEvent } from './entities/cargo-shipment-event.entity';
 import { MockCargoProvider } from './providers/mock-cargo.provider';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CargoShipment, Order]),
+    TypeOrmModule.forFeature([CargoShipment, CargoShipmentEvent, Order, User]),
     BullModule.registerQueue({
       name: 'cargo',
       defaultJobOptions: {
@@ -23,6 +26,7 @@ import { MockCargoProvider } from './providers/mock-cargo.provider';
       },
     }),
     NotificationModule,
+    EmailModule,
     ConfigModule,
   ],
   controllers: [CargoController],

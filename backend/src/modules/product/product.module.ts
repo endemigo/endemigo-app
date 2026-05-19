@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminSettingsModule } from '../admin-settings/admin-settings.module';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
@@ -14,6 +15,7 @@ import { UserModule } from '../user/user.module';
 import { AdsModule } from '../ads/ads.module';
 import { TrustModule } from '../trust/trust.module';
 import { MembershipModule } from '../membership/membership.module';
+import { OrderReview } from '../order/entities/order-review.entity';
 
 @Module({
   imports: [
@@ -25,7 +27,9 @@ import { MembershipModule } from '../membership/membership.module';
       VariantNumber,
       ProductVariantSku,
       Favorite,
+      OrderReview,
     ]),
+    AdminSettingsModule,
     UserModule,
     AdsModule,
     TrustModule,

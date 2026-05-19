@@ -218,6 +218,11 @@ export class SearchService {
         categoryName: a.product?.category?.name || null,
         startPrice: Number(a.startPrice),
         currentPrice: Number(a.currentPrice),
+        reservePrice:
+          a.reservePrice === null || a.reservePrice === undefined
+            ? null
+            : Number(a.reservePrice),
+        reserveMet: Boolean(a.reserveMet),
         bidCount: a.bidCount,
         status: a.status,
         startTime: a.startTime,

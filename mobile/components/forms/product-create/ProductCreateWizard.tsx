@@ -40,7 +40,10 @@ import {
 import { resolveApiErrorMessage } from '../../../utils/apiError';
 import { getCategoryIcon, getCategoryMockImage } from '../../../utils/productCreateCategoryPresentation.ts';
 import { AUCTION_DURATION_PRESETS, AUCTION_START_DELAY_PRESETS, buildAuctionSchedule } from '../../../utils/productCreateSchedule.ts';
-import { MAX_PRODUCT_IMAGE_COUNT, mapPickerAssetToProductImage } from '../../../utils/productImageUpload.ts';
+import {
+  DEFAULT_MAX_PRODUCT_IMAGE_COUNT,
+  mapPickerAssetToProductImage,
+} from '../../../utils/productImageUpload.ts';
 import { formatPriceInput } from '../../../utils/priceInputMask.ts';
 import { formatCurrency } from '../../../utils/transactionFormatters';
 import { submitProductCreateWizard } from '../../../services/productCreateService.ts';
@@ -231,10 +234,17 @@ export function ProductCreateWizard({
     () => recentProducts.find((item) => item.id === selectedExistingProductId) ?? null,
     [recentProducts, selectedExistingProductId],
   );
-  const hasSelectedExistingProductImages = Boolean(
-    selectedExistingProduct?.images?.length || selectedExistingProduct?.imageUrl || selectedExistingProduct?.thumbnail,
-  );
-  const effectiveImageCount = images.length > 0 || hasSelectedExistingProductImages ? 1 : 0;
+  const selectedExistingProductImageCount = useMemo(() => {
+    if (!selectedExistingProduct) return 0;
+    if (Array.isArray(selectedExistingProduct.images) && selectedExistingProduct.images.length > 0) {
+      return selectedExistingProduct.images.length;
+    }
+    if (selectedExistingProduct.imageUrl || selectedExistingProduct.thumbnail) {
+      return 1;
+    }
+    return 0;
+  }, [selectedExistingProduct]);
+  const effectiveImageCount = images.length > 0 ? images.length : selectedExistingProductImageCount;
   const listingFieldVisibility = useMemo<ListingFieldVisibilityOptions>(() => {
     const optionalFields = mobileConfigData?.listingCreate?.optionalFields;
     if (!Array.isArray(optionalFields) || optionalFields.length === 0) {
@@ -244,9 +254,24 @@ export function ProductCreateWizard({
   }, [mobileConfigData?.listingCreate?.optionalFields]);
   const isListingFieldVisible = (field: MobileListingCreateOptionalField): boolean =>
     listingFieldVisibility.optionalFields?.includes(field) ?? true;
+  const imageUploadLimits = mobileConfigData?.imageUploadLimits ?? {
+    min: 1,
+    max: DEFAULT_MAX_PRODUCT_IMAGE_COUNT,
+  };
 
-  const canContinue = canContinueProductCreateStep(currentStep, state, effectiveImageCount, listingFieldVisibility);
-  const canSubmit = isProductCreateReadyToSubmit(state, effectiveImageCount, listingFieldVisibility);
+  const canContinue = canContinueProductCreateStep(
+    currentStep,
+    state,
+    effectiveImageCount,
+    listingFieldVisibility,
+    imageUploadLimits.min,
+  );
+  const canSubmit = isProductCreateReadyToSubmit(
+    state,
+    effectiveImageCount,
+    listingFieldVisibility,
+    imageUploadLimits.min,
+  );
 
   useEffect(() => {
     if (!state.categoryId || rootCategories.length === 0) return;
@@ -352,11 +377,11 @@ export function ProductCreateWizard({
       return;
     }
 
-    const remainingSelectionCount = MAX_PRODUCT_IMAGE_COUNT - images.length;
+    const remainingSelectionCount = imageUploadLimits.max - images.length;
     if (remainingSelectionCount <= 0) {
       showModal({
         title: t('common.error'),
-        message: t('listing.maxImagesReached', { count: MAX_PRODUCT_IMAGE_COUNT }),
+        message: t('listing.maxImagesReached', { count: imageUploadLimits.max }),
         type: 'error',
       });
       return;
@@ -375,7 +400,7 @@ export function ProductCreateWizard({
 
     setImages((currentImages) => {
       const mappedImages = result.assets.map(mapPickerAssetToProductImage);
-      return [...currentImages, ...mappedImages].slice(0, MAX_PRODUCT_IMAGE_COUNT);
+      return [...currentImages, ...mappedImages].slice(0, imageUploadLimits.max);
     });
   }
 
@@ -492,6 +517,7 @@ export function ProductCreateWizard({
       categoryId: product.categoryId ?? '',
       directSalePrice: product.price ? formatPriceInput(String(product.price)) : '',
       auctionStartPrice: product.price ? formatPriceInput(String(product.price)) : '',
+      auctionReservePrice: '',
       description: product.description ?? '',
       askPriceEnabled: Boolean(product.askPriceEnabled),
       askPriceMinAmount: product.askPriceMinAmount ? formatPriceInput(String(product.askPriceMinAmount)) : '',
@@ -1214,7 +1240,10 @@ export function ProductCreateWizard({
             <Ionicons name="images-outline" size={26} color={Colors.primary} />
             <Text style={styles.imagePickerTitle}>{t('listing.addImages')}</Text>
             <Text style={styles.imagePickerSub}>
-              {t('listing.imagePickerHint', { count: MAX_PRODUCT_IMAGE_COUNT })}
+              {t('listing.imagePickerHint', {
+                count: imageUploadLimits.max,
+                minCount: imageUploadLimits.min,
+              })}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -1310,6 +1339,19 @@ export function ProductCreateWizard({
           />
         </View>
 
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{t('listing.reservePrice')}</Text>
+          <TextInput
+            style={styles.input}
+            value={state.auctionReservePrice}
+            onChangeText={(value) => updateField('auctionReservePrice', formatPriceInput(value))}
+            placeholder="0"
+            placeholderTextColor={Colors.slate400}
+            keyboardType="decimal-pad"
+          />
+          <Text style={styles.helperText}>{t('listing.reservePriceHint')}</Text>
+        </View>
+
         <TouchableOpacity
           style={styles.advancedToggle}
           activeOpacity={0.85}
@@ -1396,7 +1438,7 @@ export function ProductCreateWizard({
 
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>{t('listing.summaryImages')}</Text>
-          <Text style={styles.summaryValue}>{t('listing.imageCount', { count: images.length })}</Text>
+          <Text style={styles.summaryValue}>{t('listing.imageCount', { count: effectiveImageCount })}</Text>
         </View>
       </>
     );

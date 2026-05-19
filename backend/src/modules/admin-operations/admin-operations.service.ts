@@ -13,6 +13,7 @@ import {
   AdminAuditAction,
   AdminRole,
   AuctionStatus,
+  OrderSource,
   OrderStatus,
   PaymentStatus,
   PayoutRequestStatus,
@@ -24,6 +25,7 @@ import {
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { User } from '../user/entities/user.entity';
+import { Address } from '../user/entities/address.entity';
 import { SellerProfile, SellerStatus } from '../user/entities/seller-profile.entity';
 import { Product } from '../product/entities/product.entity';
 import { ProductImage } from '../product/entities/product-image.entity';
@@ -210,6 +212,8 @@ interface SellerAuctionRow {
   productId: string;
   status: string;
   currentPrice: number;
+  reservePrice: number | null;
+  reserveMet: boolean;
   bidCount: number;
   startTime: string;
   endTime: string;
@@ -244,6 +248,89 @@ interface SellerPaymentRow {
   currency: string;
   paidAt: string | null;
   createdAt: string;
+}
+
+interface SellerAddressRow {
+  id: string;
+  type: string;
+  title: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  neighborhood: string | null;
+  addressLine: string;
+  postalCode: string | null;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+interface BidAuctionListRow {
+  id: string;
+  auctionId: string;
+  auctionStatus: string;
+  lotNumber: string | null;
+  productId: string;
+  productTitle: string;
+  sellerId: string;
+  sellerName: string;
+  winnerId: string | null;
+  winnerName: string;
+  totalBidCount: number;
+  uniqueBidderCount: number;
+  highestBidAmount: number;
+  highestPremiumAmount: number;
+  currentPrice: number;
+  startPrice: number;
+  reservePrice: number | null;
+  reserveMet: boolean;
+  lastBidAt: string;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+interface BidAuctionParticipantRow {
+  bidderId: string;
+  bidderName: string;
+  bidderEmail: string;
+  bidCount: number;
+  highestBidAmount: number;
+  latestBidAt: string;
+}
+
+interface BidAuctionBidRow {
+  id: string;
+  bidderId: string;
+  bidderName: string;
+  bidderEmail: string;
+  amount: number;
+  maxAmount: number | null;
+  premiumAmount: number;
+  totalAmount: number;
+  status: string;
+  isWinningBid: boolean;
+  createdAt: string;
+}
+
+interface AdminOrderListRow {
+  id: string;
+  buyerId: string;
+  sellerId: string;
+  productId: string;
+  source: string;
+  sourceReferenceId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  escrowStatus: string;
+  paymentId: string | null;
+  autoConfirmAt: string | null;
+  deliveryConfirmedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ProductOrderRow {
@@ -292,6 +379,7 @@ interface ProductBidRow {
   bidderName: string;
   bidderEmail: string;
   amount: number;
+  maxAmount: number | null;
   premiumAmount: number;
   status: string;
   isWinningBid: boolean;
@@ -493,6 +581,12 @@ export class AdminOperationsService {
     if (resource === 'sellers') {
       return this.listSellers(query);
     }
+    if (resource === 'orders') {
+      return this.listOrdersSafe(query);
+    }
+    if (resource === 'bids') {
+      return this.listBidAuctions(query);
+    }
     const repo = this.getRepo(resource);
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
@@ -528,6 +622,12 @@ export class AdminOperationsService {
     if (resource === 'products') {
       return this.detailProduct(id);
     }
+    if (resource === 'bids') {
+      return this.detailBidAuction(id);
+    }
+    if (resource === 'orders') {
+      return this.detailOrderSafe(id);
+    }
 
     const repo = this.getRepo(resource);
     const item = await repo.findOne({ where: { id } });
@@ -551,6 +651,756 @@ export class AdminOperationsService {
       audit: {
         targetType: this.toTargetType(resource),
         targetId: id,
+      },
+    };
+  }
+
+  private async listOrdersSafe(query: AdminListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const status = query.status?.trim().toUpperCase();
+    const q = query.q?.trim().toLowerCase();
+
+    // Legacy ortamlarda orders tablosunda yeni iade kolonları henüz yoksa
+    // Order entity'nin tüm kolonlarını seçmek 500'e düşebilir. Bu yüzden
+    // sadece garantili temel kolonları seçiyoruz.
+    const countQb = this.orderRepo.createQueryBuilder('o');
+    if (status) {
+      countQb.andWhere('o.status = :status', { status });
+    }
+    if (q) {
+      countQb.andWhere(
+        `(
+          CAST(o.id AS text) LIKE :q
+          OR CAST(o."buyerId" AS text) LIKE :q
+          OR CAST(o."sellerId" AS text) LIKE :q
+          OR CAST(o."productId" AS text) LIKE :q
+          OR LOWER(CAST(o.source AS text)) LIKE :q
+        )`,
+        { q: `%${q}%` },
+      );
+    }
+
+    const [rows, total] = await Promise.all([
+      countQb
+        .clone()
+        .select([
+          'o.id as id',
+          'o."buyerId" as "buyerId"',
+          'o."sellerId" as "sellerId"',
+          'o."productId" as "productId"',
+          'o.source as source',
+          'o."sourceReferenceId" as "sourceReferenceId"',
+          'o.amount as amount',
+          'o.currency as currency',
+          'o.status as status',
+          'o."escrowStatus" as "escrowStatus"',
+          'o."paymentId" as "paymentId"',
+          'o."autoConfirmAt" as "autoConfirmAt"',
+          'o."deliveryConfirmedAt" as "deliveryConfirmedAt"',
+          'o."completedAt" as "completedAt"',
+          'o."createdAt" as "createdAt"',
+          'o."updatedAt" as "updatedAt"',
+        ])
+        .orderBy('o.createdAt', 'DESC')
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .getRawMany<{
+          id: string;
+          buyerId: string;
+          sellerId: string;
+          productId: string;
+          source: string;
+          sourceReferenceId: string;
+          amount: string | number;
+          currency: string;
+          status: string;
+          escrowStatus: string;
+          paymentId: string | null;
+          autoConfirmAt: Date | string | null;
+          deliveryConfirmedAt: Date | string | null;
+          completedAt: Date | string | null;
+          createdAt: Date | string;
+          updatedAt: Date | string;
+        }>(),
+      countQb.getCount(),
+    ]);
+
+    const items: AdminOrderListRow[] = rows.map((row) => ({
+      id: row.id,
+      buyerId: row.buyerId,
+      sellerId: row.sellerId,
+      productId: row.productId,
+      source: row.source,
+      sourceReferenceId: row.sourceReferenceId,
+      amount: Number(row.amount ?? 0),
+      currency: row.currency ?? 'TRY',
+      status: row.status,
+      escrowStatus: row.escrowStatus,
+      paymentId: row.paymentId,
+      autoConfirmAt: row.autoConfirmAt ? this.toIsoDate(row.autoConfirmAt) : null,
+      deliveryConfirmedAt: row.deliveryConfirmedAt ? this.toIsoDate(row.deliveryConfirmedAt) : null,
+      completedAt: row.completedAt ? this.toIsoDate(row.completedAt) : null,
+      createdAt: this.toIsoDate(row.createdAt),
+      updatedAt: this.toIsoDate(row.updatedAt),
+    }));
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin liste getirildi',
+      resource: 'orders',
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  private async detailOrderSafe(id: string) {
+    const row = await this.orderRepo
+      .createQueryBuilder('o')
+      .where('o.id = :id', { id })
+      .select([
+        'o.id as id',
+        'o."buyerId" as "buyerId"',
+        'o."sellerId" as "sellerId"',
+        'o."productId" as "productId"',
+        'o.source as source',
+        'o."sourceReferenceId" as "sourceReferenceId"',
+        'o.amount as amount',
+        'o.currency as currency',
+        'o.status as status',
+        'o."escrowStatus" as "escrowStatus"',
+        'o."paymentId" as "paymentId"',
+        'o."autoConfirmAt" as "autoConfirmAt"',
+        'o."deliveryConfirmedAt" as "deliveryConfirmedAt"',
+        'o."completedAt" as "completedAt"',
+        'o."createdAt" as "createdAt"',
+        'o."updatedAt" as "updatedAt"',
+      ])
+      .getRawOne<{
+        id: string;
+        buyerId: string;
+        sellerId: string;
+        productId: string;
+        source: string;
+        sourceReferenceId: string;
+        amount: string | number;
+        currency: string;
+        status: string;
+        escrowStatus: string;
+        paymentId: string | null;
+        autoConfirmAt: Date | string | null;
+        deliveryConfirmedAt: Date | string | null;
+        completedAt: Date | string | null;
+        createdAt: Date | string;
+        updatedAt: Date | string;
+      }>();
+
+    if (!row) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Admin kaydı bulunamadı',
+      });
+    }
+
+    const overview: AdminOrderListRow = {
+      id: row.id,
+      buyerId: row.buyerId,
+      sellerId: row.sellerId,
+      productId: row.productId,
+      source: row.source,
+      sourceReferenceId: row.sourceReferenceId,
+      amount: Number(row.amount ?? 0),
+      currency: row.currency ?? 'TRY',
+      status: row.status,
+      escrowStatus: row.escrowStatus,
+      paymentId: row.paymentId,
+      autoConfirmAt: row.autoConfirmAt ? this.toIsoDate(row.autoConfirmAt) : null,
+      deliveryConfirmedAt: row.deliveryConfirmedAt ? this.toIsoDate(row.deliveryConfirmedAt) : null,
+      completedAt: row.completedAt ? this.toIsoDate(row.completedAt) : null,
+      createdAt: this.toIsoDate(row.createdAt),
+      updatedAt: this.toIsoDate(row.updatedAt),
+    };
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin detay getirildi',
+      resource: 'orders',
+      overview,
+      timeline: [],
+      relatedRecords: {
+        resource: 'orders',
+        id,
+      },
+      audit: {
+        targetType: this.toTargetType('orders'),
+        targetId: id,
+      },
+    };
+  }
+
+  private async listBidAuctions(query: AdminListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const status = query.status?.trim().toUpperCase();
+    const q = query.q?.trim().toLowerCase();
+
+    const countQb = this.bidRepo
+      .createQueryBuilder('bid')
+      .leftJoin(Auction, 'auction', 'CAST(auction.id AS text) = CAST(bid.auctionId AS text)')
+      .leftJoin(Product, 'product', 'CAST(product.id AS text) = CAST(auction.productId AS text)')
+      .leftJoin(User, 'seller', 'CAST(seller.id AS text) = CAST(auction.sellerId AS text)');
+
+    if (status) {
+      countQb.andWhere('auction.status = :status', { status });
+    }
+    if (q) {
+      countQb.andWhere(
+        `(
+          LOWER(COALESCE(product.title, '')) LIKE :q
+          OR LOWER(COALESCE(seller.email, '')) LIKE :q
+          OR LOWER(COALESCE(seller.firstName, '') || ' ' || COALESCE(seller.lastName, '')) LIKE :q
+          OR LOWER(COALESCE(auction.lotNumber, '')) LIKE :q
+          OR CAST(auction.id AS text) LIKE :q
+        )`,
+        { q: `%${q}%` },
+      );
+    }
+
+    const totalRaw = await countQb
+      .select('COUNT(DISTINCT bid.auctionId)', 'value')
+      .getRawOne<{ value: string | number | null }>();
+    const total = Number(totalRaw?.value ?? 0);
+
+    const rows = await this.bidRepo
+      .createQueryBuilder('bid')
+      .leftJoin(Auction, 'auction', 'CAST(auction.id AS text) = CAST(bid.auctionId AS text)')
+      .leftJoin(Product, 'product', 'CAST(product.id AS text) = CAST(auction.productId AS text)')
+      .leftJoin(User, 'seller', 'CAST(seller.id AS text) = CAST(auction.sellerId AS text)')
+      .leftJoin(User, 'winner', 'CAST(winner.id AS text) = CAST(auction.winnerId AS text)')
+      .where(status ? 'auction.status = :status' : '1=1', status ? { status } : {})
+      .andWhere(
+        q
+          ? `(
+              LOWER(COALESCE(product.title, '')) LIKE :q
+              OR LOWER(COALESCE(seller.email, '')) LIKE :q
+              OR LOWER(COALESCE(seller.firstName, '') || ' ' || COALESCE(seller.lastName, '')) LIKE :q
+              OR LOWER(COALESCE(auction.lotNumber, '')) LIKE :q
+              OR CAST(auction.id AS text) LIKE :q
+            )`
+          : '1=1',
+        q ? { q: `%${q}%` } : {},
+      )
+      .select([
+        'auction.id as "auctionId"',
+        'auction.status as "auctionStatus"',
+        'auction."lotNumber" as "lotNumber"',
+        'auction."productId" as "productId"',
+        'auction."sellerId" as "sellerId"',
+        'auction."winnerId" as "winnerId"',
+        'auction."currentPrice" as "currentPrice"',
+        'auction."startPrice" as "startPrice"',
+        'auction."reservePrice" as "reservePrice"',
+        'auction."reserveMet" as "reserveMet"',
+        'auction."startTime" as "startTime"',
+        'auction."endTime" as "endTime"',
+        'auction."createdAt" as "auctionCreatedAt"',
+        'product.title as "productTitle"',
+        'seller.email as "sellerEmail"',
+        'seller.firstName as "sellerFirstName"',
+        'seller.lastName as "sellerLastName"',
+        'winner.email as "winnerEmail"',
+        'winner.firstName as "winnerFirstName"',
+        'winner.lastName as "winnerLastName"',
+        'COUNT(bid.id) as "totalBidCount"',
+        'COUNT(DISTINCT bid."bidderId") as "uniqueBidderCount"',
+        'COALESCE(MAX(bid.amount), 0) as "highestBidAmount"',
+        'COALESCE(MAX(bid."premiumAmount"), 0) as "highestPremiumAmount"',
+        'MAX(bid."createdAt") as "lastBidAt"',
+      ])
+      .groupBy('auction.id')
+      .addGroupBy('auction.status')
+      .addGroupBy('auction.lotNumber')
+      .addGroupBy('auction.productId')
+      .addGroupBy('auction.sellerId')
+      .addGroupBy('auction.winnerId')
+      .addGroupBy('auction.currentPrice')
+      .addGroupBy('auction.startPrice')
+      .addGroupBy('auction.reservePrice')
+      .addGroupBy('auction.reserveMet')
+      .addGroupBy('auction.startTime')
+      .addGroupBy('auction.endTime')
+      .addGroupBy('auction.createdAt')
+      .addGroupBy('product.title')
+      .addGroupBy('seller.email')
+      .addGroupBy('seller.firstName')
+      .addGroupBy('seller.lastName')
+      .addGroupBy('winner.email')
+      .addGroupBy('winner.firstName')
+      .addGroupBy('winner.lastName')
+      .orderBy('MAX(bid."createdAt")', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany<{
+        auctionId: string;
+        auctionStatus: string;
+        lotNumber: string | null;
+        productId: string;
+        sellerId: string;
+        winnerId: string | null;
+        currentPrice: string | number;
+        startPrice: string | number;
+        reservePrice: string | number | null;
+        reserveMet: boolean | string | number | null;
+        startTime: Date | string;
+        endTime: Date | string;
+        auctionCreatedAt: Date | string;
+        productTitle: string | null;
+        sellerEmail: string | null;
+        sellerFirstName: string | null;
+        sellerLastName: string | null;
+        winnerEmail: string | null;
+        winnerFirstName: string | null;
+        winnerLastName: string | null;
+        totalBidCount: string | number;
+        uniqueBidderCount: string | number;
+        highestBidAmount: string | number;
+        highestPremiumAmount: string | number;
+        lastBidAt: Date | string;
+      }>();
+
+    const items: BidAuctionListRow[] = rows.map((row) => ({
+      id: row.auctionId,
+      auctionId: row.auctionId,
+      auctionStatus: row.auctionStatus,
+      lotNumber: row.lotNumber,
+      productId: row.productId,
+      productTitle: row.productTitle ?? '',
+      sellerId: row.sellerId,
+      sellerName:
+        this.formatFullName(row.sellerFirstName, row.sellerLastName) ||
+        row.sellerEmail ||
+        row.sellerId,
+      winnerId: row.winnerId,
+      winnerName:
+        this.formatFullName(row.winnerFirstName, row.winnerLastName) ||
+        row.winnerEmail ||
+        (row.winnerId ?? ''),
+      totalBidCount: Number(row.totalBidCount ?? 0),
+      uniqueBidderCount: Number(row.uniqueBidderCount ?? 0),
+      highestBidAmount: Number(row.highestBidAmount ?? 0),
+      highestPremiumAmount: Number(row.highestPremiumAmount ?? 0),
+      currentPrice: Number(row.currentPrice ?? 0),
+      startPrice: Number(row.startPrice ?? 0),
+      reservePrice:
+        row.reservePrice === null || row.reservePrice === undefined
+          ? null
+          : Number(row.reservePrice),
+      reserveMet: this.toBooleanValue(row.reserveMet),
+      lastBidAt: this.toIsoDate(row.lastBidAt),
+      startTime: this.toIsoDate(row.startTime),
+      endTime: this.toIsoDate(row.endTime),
+      createdAt: this.toIsoDate(row.auctionCreatedAt),
+    }));
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin liste getirildi',
+      resource: 'bids',
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  private async detailBidAuction(id: string) {
+    let auctionId = id;
+    let auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    if (!auction) {
+      const bid = await this.bidRepo.findOne({
+        where: { id },
+        select: { id: true, auctionId: true },
+      });
+      if (bid) {
+        auctionId = bid.auctionId;
+        auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+      }
+    }
+    if (!auction) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Teklif veya müzayede kaydı bulunamadı',
+      });
+    }
+
+    const [product, seller, winner, bids, participants, order] = await Promise.all([
+      this.productRepo.findOne({
+        where: { id: auction.productId },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          price: true,
+          stockQuantity: true,
+          createdAt: true,
+        },
+      }),
+      this.userRepo.findOne({
+        where: { id: auction.sellerId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          isVerified: true,
+          createdAt: true,
+        },
+      }),
+      auction.winnerId
+        ? this.userRepo.findOne({
+            where: { id: auction.winnerId },
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              isActive: true,
+              isVerified: true,
+            },
+          })
+        : Promise.resolve(null),
+      this.bidRepo
+        .createQueryBuilder('bid')
+        .leftJoin(User, 'bidder', 'CAST(bidder.id AS text) = CAST(bid.bidderId AS text)')
+        .where('CAST(bid.auctionId AS text) = :auctionId', { auctionId })
+        .orderBy('bid.amount', 'DESC')
+        .addOrderBy('bid.createdAt', 'ASC')
+        .select([
+          'bid.id as id',
+          'bid.bidderId as "bidderId"',
+          'bid.amount as amount',
+          'bid."maxAmount" as "maxAmount"',
+          'bid.premiumAmount as "premiumAmount"',
+          'bid.status as status',
+          'bid.isWinningBid as "isWinningBid"',
+          'bid.createdAt as "createdAt"',
+          'bidder.email as "bidderEmail"',
+          'bidder.firstName as "bidderFirstName"',
+          'bidder.lastName as "bidderLastName"',
+        ])
+        .getRawMany<{
+          id: string;
+          bidderId: string;
+          amount: string | number;
+          maxAmount: string | number | null;
+          premiumAmount: string | number;
+          status: string;
+          isWinningBid: boolean;
+          createdAt: Date | string;
+          bidderEmail: string | null;
+          bidderFirstName: string | null;
+          bidderLastName: string | null;
+        }>(),
+      this.bidRepo
+        .createQueryBuilder('bid')
+        .leftJoin(User, 'bidder', 'CAST(bidder.id AS text) = CAST(bid.bidderId AS text)')
+        .where('CAST(bid.auctionId AS text) = :auctionId', { auctionId })
+        .groupBy('bid.bidderId')
+        .addGroupBy('bidder.email')
+        .addGroupBy('bidder.firstName')
+        .addGroupBy('bidder.lastName')
+        .orderBy('MAX(bid.amount)', 'DESC')
+        .addOrderBy('MAX(bid.createdAt)', 'DESC')
+        .select([
+          'bid.bidderId as "bidderId"',
+          'bidder.email as "bidderEmail"',
+          'bidder.firstName as "bidderFirstName"',
+          'bidder.lastName as "bidderLastName"',
+          'COUNT(bid.id) as "bidCount"',
+          'MAX(bid.amount) as "highestBidAmount"',
+          'MAX(bid.createdAt) as "latestBidAt"',
+        ])
+        .getRawMany<{
+          bidderId: string;
+          bidderEmail: string | null;
+          bidderFirstName: string | null;
+          bidderLastName: string | null;
+          bidCount: string | number;
+          highestBidAmount: string | number;
+          latestBidAt: Date | string;
+        }>(),
+      this.orderRepo.findOne({
+        where: { source: OrderSource.AUCTION, sourceReferenceId: auctionId },
+        select: {
+          id: true,
+          buyerId: true,
+          sellerId: true,
+          productId: true,
+          source: true,
+          sourceReferenceId: true,
+          amount: true,
+          currency: true,
+          status: true,
+          escrowStatus: true,
+          paymentId: true,
+          autoConfirmAt: true,
+          deliveryConfirmedAt: true,
+          completedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    const bidRows: BidAuctionBidRow[] = bids.map((bid) => {
+      const amount = Number(bid.amount ?? 0);
+      const premiumAmount = Number(bid.premiumAmount ?? 0);
+      return {
+        id: bid.id,
+        bidderId: bid.bidderId,
+        bidderName:
+          this.formatFullName(bid.bidderFirstName, bid.bidderLastName) ||
+          bid.bidderEmail ||
+          bid.bidderId,
+        bidderEmail: bid.bidderEmail ?? '',
+        amount,
+        maxAmount:
+          bid.maxAmount === null || bid.maxAmount === undefined
+            ? null
+            : Number(bid.maxAmount),
+        premiumAmount,
+        totalAmount: amount + premiumAmount,
+        status: bid.status,
+        isWinningBid: this.toBooleanValue(bid.isWinningBid),
+        createdAt: this.toIsoDate(bid.createdAt),
+      };
+    });
+
+    const participantRows: BidAuctionParticipantRow[] = participants.map((row) => ({
+      bidderId: row.bidderId,
+      bidderName:
+        this.formatFullName(row.bidderFirstName, row.bidderLastName) ||
+        row.bidderEmail ||
+        row.bidderId,
+      bidderEmail: row.bidderEmail ?? '',
+      bidCount: Number(row.bidCount ?? 0),
+      highestBidAmount: Number(row.highestBidAmount ?? 0),
+      latestBidAt: this.toIsoDate(row.latestBidAt),
+    }));
+
+    const highestBid = bidRows[0] ?? null;
+    const winningBid = bidRows.find((row) => row.isWinningBid) ?? null;
+
+    const payment = order?.paymentId
+      ? await this.paymentRepo.findOne({
+          where: { id: order.paymentId },
+          select: {
+            id: true,
+            buyerId: true,
+            orderId: true,
+            amount: true,
+            currency: true,
+            provider: true,
+            status: true,
+            paidAt: true,
+            refundedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : null;
+
+    const [orderBuyer, orderSeller] = await Promise.all([
+      order
+        ? this.userRepo.findOne({
+            where: { id: order.buyerId },
+            select: { id: true, email: true, firstName: true, lastName: true },
+          })
+        : Promise.resolve(null),
+      order
+        ? this.userRepo.findOne({
+            where: { id: order.sellerId },
+            select: { id: true, email: true, firstName: true, lastName: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const timeline = [
+      {
+        id: 'auction-created',
+        label: 'Müzayede oluşturuldu',
+        createdAt: auction.createdAt.toISOString(),
+      },
+      ...(highestBid
+        ? [{
+            id: `highest-bid-${highestBid.id}`,
+            label: `En yüksek teklif ${highestBid.bidderName} (${highestBid.amount} TRY)`,
+            createdAt: highestBid.createdAt,
+          }]
+        : []),
+      ...(winningBid
+        ? [{
+            id: `winning-bid-${winningBid.id}`,
+            label: `Kazanan teklif ${winningBid.bidderName}`,
+            createdAt: winningBid.createdAt,
+          }]
+        : []),
+      ...(order
+        ? [{
+            id: `auction-order-${order.id}`,
+            label: `Satış siparişi oluştu (#${order.id.slice(0, 8)})`,
+            createdAt: order.createdAt.toISOString(),
+          }]
+        : []),
+      ...(payment
+        ? [{
+            id: `auction-payment-${payment.id}`,
+            label: `Ödeme kaydı oluştu (#${payment.id.slice(0, 8)})`,
+            createdAt: payment.createdAt.toISOString(),
+          }]
+        : []),
+    ].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin detay getirildi',
+      resource: 'bids',
+      overview: {
+        id: auction.id,
+        auctionId: auction.id,
+        status: auction.status,
+        lotNumber: auction.lotNumber ?? null,
+        productId: auction.productId,
+        productTitle: product?.title ?? '',
+        sellerId: auction.sellerId,
+        sellerName: seller
+          ? this.formatFullName(seller.firstName, seller.lastName) || seller.email
+          : auction.sellerId,
+        winnerId: auction.winnerId ?? null,
+        winnerName: winner
+          ? this.formatFullName(winner.firstName, winner.lastName) || winner.email
+          : '',
+        startPrice: Number(auction.startPrice ?? 0),
+        currentPrice: Number(auction.currentPrice ?? 0),
+        reservePrice:
+          auction.reservePrice === null || auction.reservePrice === undefined
+            ? null
+            : Number(auction.reservePrice),
+        reserveMet: this.toBooleanValue(auction.reserveMet),
+        minIncrement: Number(auction.minIncrement ?? 0),
+        buyerPremiumRate: Number(auction.buyerPremiumRate ?? 0),
+        bidCount: Number(auction.bidCount ?? 0),
+        startTime: auction.startTime.toISOString(),
+        endTime: auction.endTime.toISOString(),
+        createdAt: auction.createdAt.toISOString(),
+      },
+      timeline,
+      relatedRecords: {
+        summary: {
+          totalBidCount: bidRows.length,
+          uniqueBidderCount: participantRows.length,
+          highestBidAmount: highestBid?.amount ?? 0,
+          highestPremiumAmount: highestBid?.premiumAmount ?? 0,
+          highestTotalAmount: highestBid?.totalAmount ?? 0,
+          winningBidAmount: winningBid?.amount ?? 0,
+          winningBidderName: winningBid?.bidderName ?? '',
+          lastBidAt: bidRows[0]?.createdAt ?? null,
+          hasOrder: Boolean(order),
+          hasPayment: Boolean(payment),
+        },
+        auction: {
+          id: auction.id,
+          status: auction.status,
+          lotNumber: auction.lotNumber,
+          startPrice: Number(auction.startPrice ?? 0),
+          currentPrice: Number(auction.currentPrice ?? 0),
+          reservePrice:
+            auction.reservePrice === null || auction.reservePrice === undefined
+              ? null
+              : Number(auction.reservePrice),
+          reserveMet: this.toBooleanValue(auction.reserveMet),
+          startTime: auction.startTime.toISOString(),
+          endTime: auction.endTime.toISOString(),
+        },
+        product: product
+          ? {
+              id: product.id,
+              title: product.title,
+              status: product.status,
+              price: Number(product.price ?? 0),
+              stockQuantity: Number(product.stockQuantity ?? 0),
+              createdAt: product.createdAt.toISOString(),
+            }
+          : null,
+        seller: seller
+          ? {
+              id: seller.id,
+              name: this.formatFullName(seller.firstName, seller.lastName),
+              email: seller.email,
+              isActive: seller.isActive,
+              isVerified: seller.isVerified,
+              createdAt: seller.createdAt.toISOString(),
+            }
+          : null,
+        winner: winner
+          ? {
+              id: winner.id,
+              name: this.formatFullName(winner.firstName, winner.lastName),
+              email: winner.email,
+              isActive: winner.isActive,
+              isVerified: winner.isVerified,
+            }
+          : null,
+        order: order
+          ? {
+              id: order.id,
+              buyerId: order.buyerId,
+              buyerName: orderBuyer
+                ? this.formatFullName(orderBuyer.firstName, orderBuyer.lastName) || orderBuyer.email
+                : order.buyerId,
+              sellerId: order.sellerId,
+              sellerName: orderSeller
+                ? this.formatFullName(orderSeller.firstName, orderSeller.lastName) || orderSeller.email
+                : order.sellerId,
+              amount: Number(order.amount ?? 0),
+              currency: order.currency,
+              status: order.status,
+              escrowStatus: order.escrowStatus,
+              paymentId: order.paymentId,
+              createdAt: order.createdAt.toISOString(),
+              completedAt: order.completedAt ? order.completedAt.toISOString() : null,
+              deliveryConfirmedAt: order.deliveryConfirmedAt
+                ? order.deliveryConfirmedAt.toISOString()
+                : null,
+            }
+          : null,
+        payment: payment
+          ? {
+              id: payment.id,
+              buyerId: payment.buyerId,
+              orderId: payment.orderId,
+              amount: Number(payment.amount ?? 0),
+              currency: payment.currency,
+              provider: payment.provider,
+              status: payment.status,
+              paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
+              refundedAt: payment.refundedAt ? payment.refundedAt.toISOString() : null,
+              createdAt: payment.createdAt.toISOString(),
+            }
+          : null,
+        participants: participantRows,
+        bids: bidRows,
+      },
+      audit: {
+        targetType: this.toTargetType('bids'),
+        targetId: auction.id,
       },
     };
   }
@@ -588,16 +1438,19 @@ export class AdminOperationsService {
 
     const initialPage = 1;
     const initialLimit = 25;
+    const addressRepo = this.userRepo.manager?.getRepository(Address);
     const [
       orderCount,
       salesCount,
       favoriteCount,
       cartLineCount,
       cartQuantityRaw,
+      addressCount,
       definedCouponCount,
       couponUsageCount,
       orderRows,
       salesRows,
+      addresses,
       favorites,
       cartItems,
       definedCoupons,
@@ -612,10 +1465,18 @@ export class AdminOperationsService {
         .select('COALESCE(SUM(cartItem.quantity), 0)', 'value')
         .where('cartItem.userId = :userId', { userId: id })
         .getRawOne<{ value: string | number | null }>(),
+      addressRepo ? addressRepo.count({ where: { userId: id } }) : Promise.resolve(0),
       this.couponRepo.count({ where: { sellerId: id } }),
       this.couponRedemptionRepo.count({ where: { userId: id } }),
       this.loadUserOrdersAsBuyer(id, initialPage, initialLimit),
       this.loadUserOrdersAsSeller(id, initialPage, initialLimit),
+      addressRepo
+        ? addressRepo.find({
+            where: { userId: id },
+            order: { isDefault: 'DESC', createdAt: 'DESC' },
+            take: initialLimit,
+          })
+        : Promise.resolve([]),
       this.favoriteRepo.find({
         where: { userId: id },
         relations: { product: true },
@@ -646,11 +1507,27 @@ export class AdminOperationsService {
         favoriteCount,
         cartLineCount,
         cartQuantityTotal: Number(cartQuantityRaw?.value ?? 0),
+        addressCount,
         definedCouponCount,
         couponUsageCount,
       },
       orders: orderRows,
       sales: salesRows,
+      addresses: addresses.map((address) => ({
+        id: address.id,
+        type: address.type,
+        title: address.title,
+        fullName: address.fullName,
+        phone: address.phone,
+        city: address.city,
+        district: address.district,
+        neighborhood: address.neighborhood,
+        addressLine: address.addressLine,
+        postalCode: address.postalCode,
+        country: address.country,
+        isDefault: address.isDefault,
+        createdAt: address.createdAt.toISOString(),
+      })),
       favorites: favorites.map((favorite) => ({
         id: favorite.id,
         productId: favorite.productId,
@@ -715,19 +1592,26 @@ export class AdminOperationsService {
     const sellerProfile = await this.findSellerProfileForDetail(id);
     const sellerUserId = sellerProfile.userId;
     const initialLimit = 10;
+    const addressRepo = this.userRepo.manager?.getRepository(Address);
 
     const [
       sellerUser,
       productCount,
       activeProductCount,
       draftProductCount,
+      reviewProductCount,
+      suspendedProductCount,
+      outOfStockProductCount,
       saleCount,
+      completedSaleCount,
+      uniqueBuyerCountRaw,
       auctionCount,
       activeAuctionCount,
       couponCount,
       payoutRequestCount,
       pendingPayoutCount,
       adminReviewPaymentCount,
+      addressCount,
       gmvRaw,
       products,
       sales,
@@ -735,6 +1619,7 @@ export class AdminOperationsService {
       payouts,
       coupons,
       payments,
+      addresses,
     ] = await Promise.all([
       this.userRepo.findOne({
         where: { id: sellerUserId },
@@ -755,7 +1640,16 @@ export class AdminOperationsService {
       this.productRepo.count({ where: { sellerId: sellerUserId } }),
       this.productRepo.count({ where: { sellerId: sellerUserId, status: ProductStatus.ACTIVE } }),
       this.productRepo.count({ where: { sellerId: sellerUserId, status: ProductStatus.DRAFT } }),
+      this.productRepo.count({ where: { sellerId: sellerUserId, status: ProductStatus.PENDING_REVIEW } }),
+      this.productRepo.count({ where: { sellerId: sellerUserId, status: ProductStatus.SUSPENDED } }),
+      this.productRepo.count({ where: { sellerId: sellerUserId, status: ProductStatus.OUT_OF_STOCK } }),
       this.orderRepo.count({ where: { sellerId: sellerUserId } }),
+      this.orderRepo.count({ where: { sellerId: sellerUserId, status: OrderStatus.COMPLETED } }),
+      this.orderRepo
+        .createQueryBuilder('order')
+        .select('COUNT(DISTINCT order.buyerId)', 'value')
+        .where('order.sellerId = :sellerUserId', { sellerUserId })
+        .getRawOne<{ value: string | number | null }>(),
       this.auctionRepo.count({ where: { sellerId: sellerUserId } }),
       this.auctionRepo.count({ where: { sellerId: sellerUserId, status: AuctionStatus.ACTIVE } }),
       this.couponRepo.count({ where: { sellerId: sellerUserId } }),
@@ -767,6 +1661,7 @@ export class AdminOperationsService {
         .where('sellerOrder.sellerId = :sellerUserId', { sellerUserId })
         .andWhere('payment.status = :status', { status: PaymentStatus.ADMIN_REVIEW })
         .getCount(),
+      addressRepo ? addressRepo.count({ where: { userId: sellerUserId } }) : Promise.resolve(0),
       this.orderRepo
         .createQueryBuilder('order')
         .select('COALESCE(SUM(order.amount), 0)', 'value')
@@ -817,6 +1712,13 @@ export class AdminOperationsService {
           paidAt: Date | string | null;
           createdAt: Date | string;
         }>(),
+      addressRepo
+        ? addressRepo.find({
+            where: { userId: sellerUserId },
+            order: { isDefault: 'DESC', createdAt: 'DESC' },
+            take: initialLimit,
+          })
+        : Promise.resolve([]),
     ]);
 
     const productRows: SellerProductRow[] = products.map((product) => ({
@@ -833,6 +1735,11 @@ export class AdminOperationsService {
       productId: auction.productId,
       status: auction.status,
       currentPrice: Number(auction.currentPrice ?? 0),
+      reservePrice:
+        auction.reservePrice === null || auction.reservePrice === undefined
+          ? null
+          : Number(auction.reservePrice),
+      reserveMet: this.toBooleanValue(auction.reserveMet),
       bidCount: Number(auction.bidCount ?? 0),
       startTime: auction.startTime.toISOString(),
       endTime: auction.endTime.toISOString(),
@@ -867,6 +1774,21 @@ export class AdminOperationsService {
       currency: payment.currency,
       paidAt: payment.paidAt ? this.toIsoDate(payment.paidAt) : null,
       createdAt: this.toIsoDate(payment.createdAt),
+    }));
+    const addressRows: SellerAddressRow[] = addresses.map((address) => ({
+      id: address.id,
+      type: address.type,
+      title: address.title,
+      fullName: address.fullName,
+      phone: address.phone,
+      city: address.city,
+      district: address.district,
+      neighborhood: address.neighborhood,
+      addressLine: address.addressLine,
+      postalCode: address.postalCode,
+      country: address.country,
+      isDefault: address.isDefault,
+      createdAt: address.createdAt.toISOString(),
     }));
 
     const timeline = [
@@ -910,6 +1832,12 @@ export class AdminOperationsService {
       resource: 'sellers',
       overview: {
         ...sellerProfile,
+        userEmail: sellerUser?.email ?? null,
+        userFirstName: sellerUser?.firstName ?? null,
+        userLastName: sellerUser?.lastName ?? null,
+        userIsActive: sellerUser?.isActive ?? null,
+        userIsVerified: sellerUser?.isVerified ?? null,
+        userCreatedAt: sellerUser?.createdAt ?? null,
         user: sellerUser
           ? {
               id: sellerUser.id,
@@ -929,7 +1857,12 @@ export class AdminOperationsService {
           productCount,
           activeProductCount,
           draftProductCount,
+          reviewProductCount,
+          suspendedProductCount,
+          outOfStockProductCount,
           saleCount,
+          completedSaleCount,
+          uniqueBuyerCount: Number(uniqueBuyerCountRaw?.value ?? 0),
           grossMerchandiseValue: Number(gmvRaw?.value ?? 0),
           auctionCount,
           activeAuctionCount,
@@ -937,6 +1870,7 @@ export class AdminOperationsService {
           payoutRequestCount,
           pendingPayoutCount,
           adminReviewPaymentCount,
+          addressCount,
         },
         products: productRows,
         sales,
@@ -944,6 +1878,7 @@ export class AdminOperationsService {
         payouts: payoutRows,
         coupons: couponRows,
         payments: paymentRows,
+        addresses: addressRows,
       },
       audit: {
         targetType: this.toTargetType('sellers'),
@@ -1049,6 +1984,11 @@ export class AdminOperationsService {
       productId: auction.productId,
       status: auction.status,
       currentPrice: Number(auction.currentPrice ?? 0),
+      reservePrice:
+        auction.reservePrice === null || auction.reservePrice === undefined
+          ? null
+          : Number(auction.reservePrice),
+      reserveMet: this.toBooleanValue(auction.reserveMet),
       bidCount: Number(auction.bidCount ?? 0),
       startTime: auction.startTime.toISOString(),
       endTime: auction.endTime.toISOString(),
@@ -1887,11 +2827,21 @@ export class AdminOperationsService {
     repo: Repository<T>,
     where: Partial<T>,
   ) {
-    const [latest, count] = await repo.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      take: 5,
-    } as FindManyOptions<T>);
+    // Queue kartlarında sadece id/tarih kullanılıyor. Legacy ortamlarda entity'de
+    // tanımlı ama DB'de henüz olmayan kolonlar (örn. returnReasonCode) nedeniyle
+    // tüm kolonu seçmek 500 üretebildiği için minimal select kullanıyoruz.
+    const [latest, count] = await Promise.all([
+      repo.find({
+        where,
+        select: {
+          id: true,
+          createdAt: true,
+        } as unknown as FindManyOptions<T>['select'],
+        order: { createdAt: 'DESC' },
+        take: 5,
+      } as FindManyOptions<T>),
+      repo.count({ where: where as FindOptionsWhere<T> }),
+    ]);
     return { count, latest };
   }
 
@@ -2178,6 +3128,7 @@ export class AdminOperationsService {
         'bid.auctionId as "auctionId"',
         'bid.bidderId as "bidderId"',
         'bid.amount as amount',
+        'bid."maxAmount" as "maxAmount"',
         'bid.premiumAmount as "premiumAmount"',
         'bid.status as status',
         'bid.isWinningBid as "isWinningBid"',
@@ -2191,6 +3142,7 @@ export class AdminOperationsService {
         auctionId: string;
         bidderId: string;
         amount: string | number;
+        maxAmount: string | number | null;
         premiumAmount: string | number;
         status: string;
         isWinningBid: boolean;
@@ -2207,9 +3159,13 @@ export class AdminOperationsService {
       bidderName: this.formatFullName(row.bidderFirstName, row.bidderLastName),
       bidderEmail: row.bidderEmail ?? '',
       amount: Number(row.amount ?? 0),
+      maxAmount:
+        row.maxAmount === null || row.maxAmount === undefined
+          ? null
+          : Number(row.maxAmount),
       premiumAmount: Number(row.premiumAmount ?? 0),
       status: row.status,
-      isWinningBid: Boolean(row.isWinningBid),
+      isWinningBid: this.toBooleanValue(row.isWinningBid),
       createdAt: this.toIsoDate(row.createdAt),
     }));
   }
@@ -3062,5 +4018,9 @@ export class AdminOperationsService {
       return value.toISOString();
     }
     return new Date(value).toISOString();
+  }
+
+  private toBooleanValue(value: unknown): boolean {
+    return value === true || value === 'true' || value === 1 || value === '1';
   }
 }

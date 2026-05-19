@@ -1,4 +1,4 @@
-import { EscrowStatus, OrderSource, OrderStatus } from '@endemigo/shared';
+import { EscrowStatus, OrderReturnReasonCode, OrderSource, OrderStatus } from '@endemigo/shared';
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../user/entities/user.entity';
@@ -52,4 +52,29 @@ export class Order extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   completedAt: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: OrderReturnReasonCode,
+    nullable: true,
+  })
+  returnReasonCode: OrderReturnReasonCode | null;
+
+  @Column({ type: 'text', nullable: true })
+  returnReasonNote: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  returnShipmentId: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  returnRequestedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  returnApprovedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  returnDeliveredAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  refundedAt: Date | null;
 }

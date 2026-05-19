@@ -32,6 +32,8 @@ export interface SearchAuctionItem {
   categoryName?: string | null;
   startPrice: number;
   currentPrice: number;
+  reservePrice?: number | null;
+  reserveMet?: boolean;
   bidCount: number;
   status: AuctionStatus | string;
   startTime: string;

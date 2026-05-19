@@ -63,6 +63,7 @@ export interface ProductCreateWizardState {
   askPriceMinAmount: string;
   auctionStartPrice: string;
   auctionMinIncrement: string;
+  auctionReservePrice: string;
   auctionStartTime: string;
   auctionEndTime: string;
   auctionType: ProductCreateAuctionType;

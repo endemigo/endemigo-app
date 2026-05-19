@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { storage } from './storage';
 import ENV from './config';
+import { useBackendConnectionStore } from '../store/backendConnectionStore';
 
 const api = axios.create({
   baseURL: ENV.API_URL,
@@ -54,9 +55,19 @@ api.interceptors.request.use(async (config) => {
  * arka planda kesintisiz (seamless) bir şekilde yeni token alarak API isteğine devam edecektir.
  */
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    useBackendConnectionStore.getState().clearConnectionIssue();
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const isNetworkFailure = !error.response && Boolean(error.request);
+
+    if (isNetworkFailure) {
+      const issueType = error.code === 'ECONNABORTED' ? 'timeout' : 'network';
+      useBackendConnectionStore.getState().setConnectionIssue(issueType);
+      return Promise.reject(error);
+    }
 
     // Zaten yenilenen bir endpoint (auth/refresh) ise veya retry edildiyse, recursive (sonsuz) döngüye girmeyi engelle.
     if (error.response?.status !== 401 || originalRequest._retry) {
@@ -102,6 +113,10 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       return api(originalRequest);
     } catch (refreshError) {
+      if (axios.isAxiosError(refreshError) && !refreshError.response && refreshError.request) {
+        const issueType = refreshError.code === 'ECONNABORTED' ? 'timeout' : 'network';
+        useBackendConnectionStore.getState().setConnectionIssue(issueType);
+      }
       processQueue(refreshError, null);
       await storage.clear();
       return Promise.reject(refreshError);

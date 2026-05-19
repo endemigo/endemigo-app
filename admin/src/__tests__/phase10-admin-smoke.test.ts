@@ -7,6 +7,7 @@ const routerSource = readFileSync(new URL('../router/index.ts', import.meta.url)
 const reportsSource = readFileSync(new URL('../views/reports/ReportsView.vue', import.meta.url), 'utf8');
 const mobileConfigSource = readFileSync(new URL('../views/mobile/MobileConfigView.vue', import.meta.url), 'utf8');
 const productFormSource = readFileSync(new URL('../views/products/ProductFormView.vue', import.meta.url), 'utf8');
+const campaignsSource = readFileSync(new URL('../views/monetization/CampaignsView.vue', import.meta.url), 'utf8');
 const contentStudioSource = readFileSync(new URL('../views/content/ContentStudioView.vue', import.meta.url), 'utf8');
 const newslettersSource = readFileSync(new URL('../views/content/NewslettersView.vue', import.meta.url), 'utf8');
 
@@ -28,6 +29,12 @@ test('admin reports and export paths are present', () => {
   assert.match(reportsSource, /adminApi\.get/);
   assert.match(reportsSource, /reports/);
   assert.match(reportsSource, /export/);
+});
+
+test('campaigns view exposes coupons tab and admin coupon endpoint anchors', () => {
+  for (const anchor of ['Kuponlar', 'admin/coupons', 'maxUses', 'perUserLimit', 'scopeType', 'scopeId', 'Düzenle', 'Pasif Yap', 'Aktif Yap', 'Kullanım', 'Kalan Hak']) {
+    assert.match(campaignsSource, new RegExp(anchor));
+  }
 });
 
 test('mobile config editor exposes draft, publish, preview and localized fields', () => {
