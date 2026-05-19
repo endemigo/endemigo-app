@@ -102,10 +102,7 @@ export class AuctionService {
       );
     }
 
-    if (
-      dto.reservePrice !== undefined
-      && dto.reservePrice < dto.startPrice
-    ) {
+    if (dto.reservePrice !== undefined && dto.reservePrice < dto.startPrice) {
       throw this.badRequest(
         RC.VALIDATION_ERROR,
         'Reserve price başlangıç fiyatından düşük olamaz',
@@ -162,7 +159,8 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
       throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
@@ -219,7 +217,8 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
       throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
@@ -279,7 +278,8 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.sellerId !== sellerId) {
       throw this.forbidden(RC.FORBIDDEN, 'Bu müzayede size ait değil');
     }
@@ -319,7 +319,11 @@ export class AuctionService {
       reason: 'Satıcı tarafından iptal edildi',
     });
 
-    return { code: RC.AUCTION_CANCELLED, message: 'Auction cancelled', auctionId };
+    return {
+      code: RC.AUCTION_CANCELLED,
+      message: 'Auction cancelled',
+      auctionId,
+    };
   }
 
   // ─── List ─────────────────────────────────────────────────
@@ -371,7 +375,8 @@ export class AuctionService {
       where: { id },
       relations: ['product', 'seller', 'winner'],
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     return this.toResponse(auction);
   }
 
@@ -390,7 +395,8 @@ export class AuctionService {
         where: { id: auctionId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+      if (!auction)
+        throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
 
       const bidder = await this.userService.findById(bidderId);
       if (!bidder?.isActive) {
@@ -461,9 +467,9 @@ export class AuctionService {
 
       // 8. Challenger loses immediately to existing proxy ceiling.
       if (
-        previousLeadBid
-        && previousLeadBid.bidderId !== bidderId
-        && submittedMaxAmount <= previousLeadMaxAmount
+        previousLeadBid &&
+        previousLeadBid.bidderId !== bidderId &&
+        submittedMaxAmount <= previousLeadMaxAmount
       ) {
         const effectiveCurrentPrice = this.calculateVisibleWinningAmount({
           leadingMaxAmount: previousLeadMaxAmount,
@@ -598,16 +604,16 @@ export class AuctionService {
         };
       }
 
-      const effectiveCurrentPrice = previousLeadBid
-        && previousLeadBid.bidderId !== bidderId
-        ? this.calculateVisibleWinningAmount({
-            leadingMaxAmount: submittedMaxAmount,
-            challengerMaxAmount: previousLeadMaxAmount,
-            requestedAmount: dto.amount,
-            minimumBid: minBid,
-            minIncrement,
-          })
-        : dto.amount;
+      const effectiveCurrentPrice =
+        previousLeadBid && previousLeadBid.bidderId !== bidderId
+          ? this.calculateVisibleWinningAmount({
+              leadingMaxAmount: submittedMaxAmount,
+              challengerMaxAmount: previousLeadMaxAmount,
+              requestedAmount: dto.amount,
+              minimumBid: minBid,
+              minIncrement,
+            })
+          : dto.amount;
 
       const premiumAmount =
         effectiveCurrentPrice * Number(auction.buyerPremiumRate);
@@ -688,14 +694,10 @@ export class AuctionService {
 
       // Notify previous leader they got outbid
       if (previousLeadBid && previousLeadBid.bidderId !== bidderId) {
-        this.auctionGateway.emitBidOutbid(
-          auctionId,
-          previousLeadBid.bidderId,
-          {
-            newAmount: Number(bid.amount),
-            yourBid: Number(previousLeadBid.amount),
-          },
-        );
+        this.auctionGateway.emitBidOutbid(auctionId, previousLeadBid.bidderId, {
+          newAmount: Number(bid.amount),
+          yourBid: Number(previousLeadBid.amount),
+        });
         await this.notificationService?.createFromEvent({
           eventId: `auction-outbid:${auctionId}:${previousLeadBid.bidderId}:${bid.id}`,
           userId: previousLeadBid.bidderId,
@@ -1020,9 +1022,9 @@ export class AuctionService {
       }
 
       if (
-        auction.reservePrice !== null
-        && auction.reservePrice !== undefined
-        && !auction.reserveMet
+        auction.reservePrice !== null &&
+        auction.reservePrice !== undefined &&
+        !auction.reserveMet
       ) {
         auction.status = AuctionStatus.FAILED;
         auction.winnerId = null;
@@ -1049,47 +1051,76 @@ export class AuctionService {
 
       auction.status = AuctionStatus.ENDED;
 
-      // Find winning bid (highest amount)
+      // Only the active leader can win. Cancelled, expired, or historical
+      // outbid rows stay in the audit trail but must never be promoted.
       const winningBid = await queryRunner.manager.findOne(Bid, {
-        where: { auctionId },
+        where: {
+          auctionId,
+          status: BidStatus.ACTIVE,
+          isWinningBid: true,
+        },
         order: { amount: 'DESC' },
       });
 
-      if (winningBid) {
-        auction.winnerId = winningBid.bidderId;
-        auction.winningBidId = winningBid.id;
-        auction.winnerPaymentStatus = AuctionPaymentStatus.PENDING;
-        auction.winnerPaymentDeadlineAt = this.buildWinnerPaymentDeadline();
+      if (!winningBid) {
+        auction.status = AuctionStatus.FAILED;
+        auction.winnerId = null;
+        auction.winnerPaymentStatus = AuctionPaymentStatus.NONE;
+        auction.winnerPaymentDeadlineAt = null;
         auction.winnerPaymentCompletedAt = null;
+        auction.winningBidId = null;
         auction.orderId = null;
         auction.fallbackRound = 0;
         auction.paymentAttemptCount = 0;
+        await queryRunner.manager.save(auction);
+        await queryRunner.commitTransaction();
+        transactionCommitted = true;
 
-        // BIZ-12: Mark winning bid as WON
-        winningBid.status = BidStatus.WON;
-        winningBid.isWinningBid = true;
-        await queryRunner.manager.save(winningBid);
+        await this.walletService.releaseAllHoldsForAuction(auctionId);
+        this.auctionGateway.emitAuctionEnded(auctionId, {
+          finalPrice: Number(auction.currentPrice),
+          winnerId: null,
+          bidCount: auction.bidCount,
+        });
+        this.auctionGateway.clearViewerCount(auctionId);
+        return auction;
+      }
 
-        // BIZ-12: Mark all other bids as OUTBID (bulk)
-        await queryRunner.manager
-          .createQueryBuilder()
-          .update(Bid)
-          .set({ status: BidStatus.OUTBID, isWinningBid: false })
-          .where('auctionId = :auctionId AND id != :winnerId', {
+      auction.winnerId = winningBid.bidderId;
+      auction.winningBidId = winningBid.id;
+      auction.winnerPaymentStatus = AuctionPaymentStatus.PENDING;
+      auction.winnerPaymentDeadlineAt = this.buildWinnerPaymentDeadline();
+      auction.winnerPaymentCompletedAt = null;
+      auction.orderId = null;
+      auction.fallbackRound = 0;
+      auction.paymentAttemptCount = 0;
+
+      // BIZ-12: Mark winning bid as WON
+      winningBid.status = BidStatus.WON;
+      winningBid.isWinningBid = true;
+      await queryRunner.manager.save(winningBid);
+
+      // BIZ-12: Keep cancelled/expired rows immutable while closing live bids.
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update(Bid)
+        .set({ status: BidStatus.OUTBID, isWinningBid: false })
+        .where(
+          'auctionId = :auctionId AND id != :winnerId AND status IN (:...statuses)',
+          {
             auctionId,
             winnerId: winningBid.id,
-          })
-          .execute();
-      }
+            statuses: [BidStatus.ACTIVE, BidStatus.OUTBID],
+          },
+        )
+        .execute();
 
       await queryRunner.manager.save(auction);
       await queryRunner.commitTransaction();
       transactionCommitted = true;
 
       // ─── Post-commit: Gateway events + wallet operations ───
-      if (winningBid) {
-        await this.runFinalizationSideEffects(auction, winningBid);
-      }
+      await this.runFinalizationSideEffects(auction, winningBid);
 
       // WR-03: Clean up viewer count for ended auction
       this.auctionGateway.clearViewerCount(auctionId);
@@ -1110,7 +1141,8 @@ export class AuctionService {
     auctionId: string,
     error: unknown,
   ): Promise<void> {
-    const message = error instanceof Error ? error.message : 'Unknown finalization error';
+    const message =
+      error instanceof Error ? error.message : 'Unknown finalization error';
     this.logger.error(
       `Auction finalization side effect failed for ${auctionId}: ${message}`,
       error instanceof Error ? error.stack : undefined,
@@ -1268,17 +1300,24 @@ export class AuctionService {
         );
       }
 
-      await this.walletService.releaseAllHoldsForAuction(auctionId, userId);
-
-      const orderResult = await this.orderService?.createFromAuction({
+      await this.walletService.releaseAllHoldsForAuction(
         auctionId,
-        buyerId: userId,
-        sellerId: auction.sellerId,
-        productId: auction.productId,
-        amount: Number(winningBid.amount),
-        currency: 'TRY',
-        paymentId: capturedHold.id ?? null,
-      });
+        userId,
+        queryRunner.manager,
+      );
+
+      const orderResult = await this.orderService?.createFromAuction(
+        {
+          auctionId,
+          buyerId: userId,
+          sellerId: auction.sellerId,
+          productId: auction.productId,
+          amount: Number(winningBid.amount),
+          currency: 'TRY',
+          paymentId: capturedHold.id ?? null,
+        },
+        queryRunner.manager,
+      );
 
       auction.status = AuctionStatus.COMPLETED;
       auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
@@ -1304,7 +1343,9 @@ export class AuctionService {
   }
 
   async sendWinnerPaymentReminder(auctionId: string) {
-    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
     if (!this.isWinnerPaymentPending(auction) || !auction?.winnerId) {
       return {
         code: RC.AUCTION_WINNER_PAYMENT_SKIPPED,
@@ -1517,9 +1558,7 @@ export class AuctionService {
   }
 
   private buildWinnerPaymentDeadline(): Date {
-    return new Date(
-      Date.now() + WINNER_PAYMENT_WINDOW_HOURS * 60 * 60 * 1000,
-    );
+    return new Date(Date.now() + WINNER_PAYMENT_WINDOW_HOURS * 60 * 60 * 1000);
   }
 
   private async scheduleWinnerPaymentJobs(
@@ -1558,10 +1597,10 @@ export class AuctionService {
   private isWinnerPaymentPending(auction?: Auction | null): boolean {
     return Boolean(
       auction &&
-        auction.status === AuctionStatus.ENDED &&
-        auction.winnerPaymentStatus === AuctionPaymentStatus.PENDING &&
-        auction.winnerId &&
-        auction.winningBidId,
+      auction.status === AuctionStatus.ENDED &&
+      auction.winnerPaymentStatus === AuctionPaymentStatus.PENDING &&
+      auction.winnerId &&
+      auction.winningBidId,
     );
   }
 
@@ -1630,7 +1669,8 @@ export class AuctionService {
       where: { id: auctionId },
       relations: ['product', 'winner'],
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
 
     return {
       code: RC.AUCTION_RESULT_FETCHED,
@@ -1751,7 +1791,8 @@ export class AuctionService {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
     });
-    if (!auction) throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     if (auction.status !== AuctionStatus.ENDED) {
       throw this.badRequest(
         RC.VALIDATION_ERROR,
@@ -1778,9 +1819,11 @@ export class AuctionService {
     reservePrice: number | null | undefined,
     leadingMaxAmount: number,
   ): boolean {
-    return reservePrice !== null
-      && reservePrice !== undefined
-      && leadingMaxAmount >= Number(reservePrice);
+    return (
+      reservePrice !== null &&
+      reservePrice !== undefined &&
+      leadingMaxAmount >= Number(reservePrice)
+    );
   }
 
   private calculateVisibleWinningAmount(input: {
@@ -1790,9 +1833,10 @@ export class AuctionService {
     minimumBid: number;
     minIncrement: number;
   }): number {
-    const challengerPressure = input.challengerMaxAmount !== undefined
-      ? input.challengerMaxAmount + input.minIncrement
-      : 0;
+    const challengerPressure =
+      input.challengerMaxAmount !== undefined
+        ? input.challengerMaxAmount + input.minIncrement
+        : 0;
     const nextVisibleAmount = Math.max(
       input.minimumBid,
       input.requestedAmount,

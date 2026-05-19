@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -46,7 +50,9 @@ export class AdminSettingsService {
     const items = await this.settingRepo.find({
       order: { key: 'ASC' },
     });
-    const filtered = items.filter((item) => MANAGED_SETTING_KEY_SET.has(item.key));
+    const filtered = items.filter((item) =>
+      MANAGED_SETTING_KEY_SET.has(item.key),
+    );
 
     return {
       code: RC.SUCCESS,
@@ -131,7 +137,8 @@ export class AdminSettingsService {
     ) {
       throw new ForbiddenException({
         code: RC.ADMIN_FORBIDDEN,
-        message: 'Komisyon ayarını sadece finans veya süper admin değiştirebilir',
+        message:
+          'Komisyon ayarını sadece finans veya süper admin değiştirebilir',
       });
     }
   }
@@ -152,7 +159,9 @@ export class AdminSettingsService {
     });
   }
 
-  private getDefaultValue(key: ManagedAdminSettingKey): Record<string, unknown> {
+  private getDefaultValue(
+    key: ManagedAdminSettingKey,
+  ): Record<string, unknown> {
     const defaults: Record<ManagedAdminSettingKey, Record<string, unknown>> = {
       [AdminSettingKey.COMMISSION_DEFAULT_RATE]: { rate: 0.1 },
       [AdminSettingKey.ESCROW_AUTO_CONFIRM_HOURS]: { hours: 72 },
@@ -160,8 +169,9 @@ export class AdminSettingsService {
       [AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES]: {},
       [AdminSettingKey.AD_SPONSORED_DENSITY]: { maxSponsoredPerPage: 3 },
       [AdminSettingKey.TRUST_GRACE_DAYS]: { days: 7 },
-      [AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS]:
-        DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
+      [AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS]: {
+        ...DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
+      },
     };
     return defaults[key];
   }
@@ -174,9 +184,9 @@ export class AdminSettingsService {
       [AdminSettingKey.CARGO_MOCK_ENABLED]: 'Mock kargo sağlayıcı anahtarı',
       [AdminSettingKey.NOTIFICATION_TEMPLATE_OVERRIDES]:
         'Bildirim şablonu operasyonel geçersiz kılmaları',
-      [AdminSettingKey.AD_SPONSORED_DENSITY]:
-        'Sponsorlu içerik yoğunluk ayarı',
-      [AdminSettingKey.TRUST_GRACE_DAYS]: 'Trust kısıtlamaları için grace süresi',
+      [AdminSettingKey.AD_SPONSORED_DENSITY]: 'Sponsorlu içerik yoğunluk ayarı',
+      [AdminSettingKey.TRUST_GRACE_DAYS]:
+        'Trust kısıtlamaları için grace süresi',
       [AdminSettingKey.PRODUCT_IMAGE_UPLOAD_LIMITS]:
         'İlan görsel min/max yükleme limiti',
     };

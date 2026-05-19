@@ -27,7 +27,7 @@ import {
   ProductStatus,
   RC,
 } from '@endemigo/shared';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { CargoService } from '../cargo/cargo.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../notification/notification.service';
@@ -251,20 +251,23 @@ export class OrderService {
     };
   }
 
-  async createFromAuction(input: AuctionOrderInput) {
-    return this.createFromSource({
-      buyerId: input.buyerId,
-      sellerId: input.sellerId,
-      productId: input.productId,
-      amount: input.amount,
-      currency: input.currency ?? 'TRY',
-      source: OrderSource.AUCTION,
-      sourceReferenceId: input.auctionId,
-      initialStatus: OrderStatus.ESCROW_HELD,
-      initialEscrowStatus: EscrowStatus.HELD,
-      paymentId: input.paymentId ?? null,
-      auditReason: 'auction_escrow_captured',
-    });
+  async createFromAuction(input: AuctionOrderInput, manager?: EntityManager) {
+    return this.createFromSource(
+      {
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        productId: input.productId,
+        amount: input.amount,
+        currency: input.currency ?? 'TRY',
+        source: OrderSource.AUCTION,
+        sourceReferenceId: input.auctionId,
+        initialStatus: OrderStatus.ESCROW_HELD,
+        initialEscrowStatus: EscrowStatus.HELD,
+        paymentId: input.paymentId ?? null,
+        auditReason: 'auction_escrow_captured',
+      },
+      manager,
+    );
   }
 
   async createFromAskPriceHook(input: AskPriceOrderInput) {
@@ -509,11 +512,8 @@ export class OrderService {
   }
 
   async createShipmentForOrder(orderId: string) {
-    const order = await this.orderRepository?.findOne({
-      where: { id: orderId },
-    });
+    const order = await this.requireOrder(orderId);
     if (
-      order &&
       ![OrderStatus.ESCROW_HELD, OrderStatus.PREPARING_SHIPMENT].includes(
         order.status,
       )
@@ -524,7 +524,7 @@ export class OrderService {
       });
     }
 
-    if (order && order.status === OrderStatus.ESCROW_HELD) {
+    if (order.status === OrderStatus.ESCROW_HELD) {
       await this.transitionOrder(
         orderId,
         OrderStatus.PREPARING_SHIPMENT,
@@ -697,7 +697,8 @@ export class OrderService {
       });
     }
 
-    const shipmentResponse = await this.cargoService?.getShipmentById(returnShipmentId);
+    const shipmentResponse =
+      await this.cargoService?.getShipmentById(returnShipmentId);
     if (shipmentResponse?.shipment?.status !== CargoStatus.DELIVERED) {
       throw new BadRequestException({
         code: RC.ORDER_INVALID_TRANSITION,
@@ -734,6 +735,13 @@ export class OrderService {
       });
     }
 
+    if (order.paymentId && !this.paymentService) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Refund payment service is unavailable',
+      });
+    }
+
     await this.persistStatusUpdate(
       order,
       OrderStatus.REFUND_PENDING,
@@ -761,7 +769,11 @@ export class OrderService {
     };
   }
 
-  async submitOrderReview(orderId: string, buyerId: string, dto: SubmitOrderReviewDto) {
+  async submitOrderReview(
+    orderId: string,
+    buyerId: string,
+    dto: SubmitOrderReviewDto,
+  ) {
     const order = await this.requireOrder(orderId);
 
     if (order.buyerId !== buyerId) {
@@ -798,9 +810,10 @@ export class OrderService {
       sellerRating: dto.sellerRating,
       sellerComment: dto.sellerComment?.trim() || null,
     });
-    const saved = review && this.orderReviewRepository
-      ? await this.orderReviewRepository.save(review)
-      : review;
+    const saved =
+      review && this.orderReviewRepository
+        ? await this.orderReviewRepository.save(review)
+        : review;
 
     return {
       code: RC.REVIEW_SUBMITTED,
@@ -835,7 +848,9 @@ export class OrderService {
     const shipments = shipmentResponse?.shipments
       ? await Promise.all(
           shipmentResponse.shipments.map(async (shipment) => {
-            const events = await this.cargoService?.getShipmentEvents(shipment.id);
+            const events = await this.cargoService?.getShipmentEvents(
+              shipment.id,
+            );
             return {
               ...shipment,
               events: events?.events ?? [],
@@ -917,10 +932,10 @@ export class OrderService {
       where: { id: orderId },
     });
     if (!order || !this.orderRepository) {
-      return {
-        code: RC.ORDER_TRANSITIONED,
-        message: 'Order transitioned',
-      };
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order not found',
+      });
     }
 
     if (
@@ -970,30 +985,40 @@ export class OrderService {
     };
   }
 
-  private async createFromSource(input: {
-    buyerId: string;
-    sellerId: string;
-    productId: string;
-    amount: number;
-    currency: string;
-    source: OrderSource;
-    sourceReferenceId: string;
-    discountResult?: DiscountEvaluationResult;
-    initialStatus?: OrderStatus;
-    initialEscrowStatus?: EscrowStatus;
-    paymentId?: string | null;
-    auditReason?: string;
-  }) {
-    const existing = await this.orderRepository?.findOne({
-      where: {
-        source: input.source,
-        sourceReferenceId: input.sourceReferenceId,
-      },
-    });
+  private async createFromSource(
+    input: {
+      buyerId: string;
+      sellerId: string;
+      productId: string;
+      amount: number;
+      currency: string;
+      source: OrderSource;
+      sourceReferenceId: string;
+      discountResult?: DiscountEvaluationResult;
+      initialStatus?: OrderStatus;
+      initialEscrowStatus?: EscrowStatus;
+      paymentId?: string | null;
+      auditReason?: string;
+    },
+    manager?: EntityManager,
+  ) {
+    if (!manager && !this.orderRepository) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Order repository is unavailable',
+      });
+    }
+
+    const where = {
+      source: input.source,
+      sourceReferenceId: input.sourceReferenceId,
+    };
+    const existing = manager
+      ? await manager.findOne(Order, { where })
+      : await this.orderRepository!.findOne({ where });
     if (existing) {
       if (
         input.initialStatus &&
-        this.orderRepository &&
         (existing.status !== input.initialStatus ||
           existing.escrowStatus !== input.initialEscrowStatus ||
           (input.paymentId && existing.paymentId !== input.paymentId))
@@ -1003,13 +1028,16 @@ export class OrderService {
         existing.escrowStatus =
           input.initialEscrowStatus ?? existing.escrowStatus;
         existing.paymentId = input.paymentId ?? existing.paymentId;
-        const savedExisting = await this.orderRepository.save(existing);
+        const savedExisting = manager
+          ? await manager.save(Order, existing)
+          : await this.orderRepository!.save(existing);
         await this.writeAuditEvent(
           savedExisting.id,
           previousStatus,
           savedExisting.status,
           input.buyerId,
           input.auditReason ?? 'order_updated',
+          manager,
         );
         return {
           code: RC.ORDER_CREATED,
@@ -1024,7 +1052,7 @@ export class OrderService {
       };
     }
 
-    const order = this.orderRepository?.create({
+    const orderPayload = {
       buyerId: input.buyerId,
       sellerId: input.sellerId,
       productId: input.productId,
@@ -1045,11 +1073,13 @@ export class OrderService {
       returnReasonCode: null,
       returnReasonNote: null,
       returnShipmentId: null,
-    });
-    const saved =
-      order && this.orderRepository
-        ? await this.orderRepository.save(order)
-        : order;
+    };
+    const order = manager
+      ? manager.create(Order, orderPayload)
+      : this.orderRepository!.create(orderPayload);
+    const saved = manager
+      ? await manager.save(Order, order)
+      : await this.orderRepository!.save(order);
 
     if (saved) {
       await this.writeAuditEvent(
@@ -1058,13 +1088,17 @@ export class OrderService {
         saved.status,
         input.buyerId,
         input.auditReason ?? 'order_created',
+        manager,
       );
     }
 
     const finalDiscounted = input.amount;
-    const commissionBase = input.discountResult?.commissionBase ?? finalDiscounted;
+    const commissionBase =
+      input.discountResult?.commissionBase ?? finalDiscounted;
     const commissionRate = await this.getSellerCommissionRate(input.sellerId);
-    const sellerCommission = Number((commissionBase * commissionRate).toFixed(2));
+    const sellerCommission = Number(
+      (commissionBase * commissionRate).toFixed(2),
+    );
 
     return {
       code: RC.ORDER_CREATED,
@@ -1173,7 +1207,20 @@ export class OrderService {
     toStatus: OrderStatus,
     actorId?: string | null,
     reason?: string,
+    manager?: EntityManager,
   ) {
+    if (manager) {
+      const audit = manager.create(OrderAuditEvent, {
+        orderId,
+        fromStatus,
+        toStatus,
+        actorId: actorId ?? null,
+        reason: reason ?? null,
+      });
+      await manager.save(OrderAuditEvent, audit);
+      return;
+    }
+
     if (!this.auditRepository) {
       return;
     }
@@ -1188,10 +1235,7 @@ export class OrderService {
     await this.auditRepository.save(audit);
   }
 
-  private async notifyOrderStatusChanged(
-    order: Order,
-    status: OrderStatus,
-  ) {
+  private async notifyOrderStatusChanged(order: Order, status: OrderStatus) {
     const recipients = [
       { userId: order.buyerId, role: 'buyer' as const },
       { userId: order.sellerId, role: 'seller' as const },
@@ -1367,7 +1411,8 @@ export class OrderService {
       return;
     }
 
-    const shipmentResponse = await this.cargoService.getShipmentForOrder(orderId);
+    const shipmentResponse =
+      await this.cargoService.getShipmentForOrder(orderId);
     let shipment = shipmentResponse?.shipment ?? null;
 
     if (!shipment) {
@@ -1399,7 +1444,10 @@ export class OrderService {
     }
 
     for (const status of pathByCurrent[shipment.status] ?? []) {
-      const result = await this.cargoService.transitionShipment(shipment.id, status);
+      const result = await this.cargoService.transitionShipment(
+        shipment.id,
+        status,
+      );
       if ('shipment' in result && result.shipment) {
         shipment = result.shipment;
       } else {

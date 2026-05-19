@@ -94,14 +94,17 @@ const createOrderReviewRepository = (
 ) =>
   ({
     create: jest.fn(
-      (input: Partial<OrderReview>) => ({ id: 'review-new', ...input }) as OrderReview,
+      (input: Partial<OrderReview>) =>
+        ({ id: 'review-new', ...input }) as OrderReview,
     ),
     findOne: jest.fn(({ where }: { where: Partial<OrderReview> }) => {
       if (!where.orderId) {
         return Promise.resolve(null);
       }
       return Promise.resolve(
-        Array.from(reviews.values()).find((review) => review.orderId === where.orderId) ?? null,
+        Array.from(reviews.values()).find(
+          (review) => review.orderId === where.orderId,
+        ) ?? null,
       );
     }),
     save: jest.fn((review: OrderReview) => {
@@ -315,7 +318,9 @@ describe('OrderService', () => {
     expect(result.finalDiscounted).toBe(100);
     expect(result.commissionRate).toBe(0.07);
     expect(result.sellerCommission).toBe(7);
-    expect(membershipService.getSellerBenefits).toHaveBeenCalledWith('seller-1');
+    expect(membershipService.getSellerBenefits).toHaveBeenCalledWith(
+      'seller-1',
+    );
   });
 
   it('marks an order escrow held only after payment confirmation', async () => {
@@ -343,6 +348,17 @@ describe('OrderService', () => {
     expect(result.order?.status).toBe(OrderStatus.ESCROW_HELD);
     expect(result.order?.escrowStatus).toBe(EscrowStatus.HELD);
     expect(result.order?.paymentId).toBe('payment-1');
+  });
+
+  it('throws not found when payment confirmation targets a missing order', async () => {
+    const service = new OrderService(
+      createOrderRepository(new Map()),
+      createAuditRepository(),
+    );
+
+    await expect(
+      service.markPaymentEscrowHeld('missing-order', 'payment-1', 'buyer-1'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('returns the completed fresh order after delivery confirmation and escrow release', async () => {
@@ -489,6 +505,23 @@ describe('OrderService', () => {
       'shipment-1',
       CargoStatus.IN_TRANSIT,
     );
+  });
+
+  it('throws not found before shipment creation for a missing order', async () => {
+    const cargoService = {
+      createShipmentForOrder: jest.fn(),
+    } as unknown as CargoService;
+    const service = new OrderService(
+      createOrderRepository(new Map()),
+      createAuditRepository(),
+      undefined,
+      cargoService,
+    );
+
+    await expect(
+      service.createShipmentForOrder('missing-order'),
+    ).rejects.toThrow(NotFoundException);
+    expect(cargoService.createShipmentForOrder).not.toHaveBeenCalled();
   });
 
   it('throws not found when transitioning a missing order', async () => {
@@ -655,6 +688,29 @@ describe('OrderService', () => {
     expect(result.code).toBe(RC.RETURN_REFUNDED);
     expect(result.order?.status).toBe(OrderStatus.REFUNDED);
     expect(paymentService.requestRefund).toHaveBeenCalledWith('payment-1');
+  });
+
+  it('does not mark a paid return as refunded when payment refund service is unavailable', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.RETURN_DELIVERED,
+          escrowStatus: EscrowStatus.HELD,
+          paymentId: 'payment-1',
+          returnDeliveredAt: new Date(),
+        }),
+      ],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+    );
+
+    await expect(
+      service.finalizeReturnRefund('order-1', 'seller-1'),
+    ).rejects.toThrow(BadRequestException);
+    expect(orders.get('order-1')?.status).toBe(OrderStatus.RETURN_DELIVERED);
   });
 
   it('accepts one review per completed order', async () => {

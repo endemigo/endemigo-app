@@ -130,7 +130,9 @@ describe('AuctionService', () => {
       getBalance: jest
         .fn()
         .mockResolvedValue({ balance: 10000, held: 0, available: 10000 }),
-      createHold: jest.fn().mockResolvedValue({ id: 'hold-1', status: HoldStatus.HELD }),
+      createHold: jest
+        .fn()
+        .mockResolvedValue({ id: 'hold-1', status: HoldStatus.HELD }),
       releaseHold: jest.fn().mockResolvedValue(null),
       captureHold: jest
         .fn()
@@ -356,7 +358,9 @@ describe('AuctionService', () => {
             startTime: new Date(Date.now() + 3600000),
           }),
         )
-        .mockResolvedValue(createMockAuction({ status: AuctionStatus.PUBLISHED }));
+        .mockResolvedValue(
+          createMockAuction({ status: AuctionStatus.PUBLISHED }),
+        );
 
       await service.publishAuction('auction-1', 'seller-1');
 
@@ -929,7 +933,10 @@ describe('AuctionService', () => {
   // ══════════════════════════════════════════════════════
   describe('finalizeAuction', () => {
     it('teklif yoksa FAILED (D-11)', async () => {
-      const auction = createMockAuction({ bidCount: 0, endTime: new Date(Date.now() - 1000) });
+      const auction = createMockAuction({
+        bidCount: 0,
+        endTime: new Date(Date.now() - 1000),
+      });
       mockQueryRunner.manager.findOne.mockResolvedValueOnce(auction);
 
       await service.finalizeAuction('auction-1');
@@ -945,7 +952,10 @@ describe('AuctionService', () => {
     });
 
     it('kazanan bid WON, diğerleri OUTBID (BIZ-12)', async () => {
-      const auction = createMockAuction({ bidCount: 3, endTime: new Date(Date.now() - 1000) });
+      const auction = createMockAuction({
+        bidCount: 3,
+        endTime: new Date(Date.now() - 1000),
+      });
       const winningBid = {
         id: 'winning-bid',
         bidderId: 'buyer-1',
@@ -954,7 +964,7 @@ describe('AuctionService', () => {
       };
 
       mockQueryRunner.manager.findOne
-        .mockResolvedValueOnce(auction)   // lock auction
+        .mockResolvedValueOnce(auction) // lock auction
         .mockResolvedValueOnce(winningBid); // winning bid
 
       // Mock createQueryBuilder for bulk OUTBID update
@@ -984,8 +994,55 @@ describe('AuctionService', () => {
       expect(mockQueryRunner.manager.createQueryBuilder).toHaveBeenCalled();
     });
 
+    it('sadece aktif lider teklifi kazanan secer; iptal/expired teklifleri dislar', async () => {
+      const auction = createMockAuction({
+        bidCount: 3,
+        endTime: new Date(Date.now() - 1000),
+      });
+      const activeLeader = {
+        id: 'active-leader',
+        bidderId: 'buyer-1',
+        amount: 1500,
+        status: BidStatus.ACTIVE,
+        isWinningBid: true,
+      };
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(activeLeader);
+      mockQueryRunner.manager.createQueryBuilder = jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({}),
+      });
+
+      await service.finalizeAuction('auction-1');
+
+      expect(mockQueryRunner.manager.findOne).toHaveBeenNthCalledWith(
+        2,
+        Bid,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            auctionId: 'auction-1',
+            status: BidStatus.ACTIVE,
+            isWinningBid: true,
+          }),
+        }),
+      );
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          winnerId: 'buyer-1',
+          winningBidId: 'active-leader',
+        }),
+      );
+    });
+
     it('gateway events emitlenmeli', async () => {
-      const auction = createMockAuction({ bidCount: 2, endTime: new Date(Date.now() - 1000) });
+      const auction = createMockAuction({
+        bidCount: 2,
+        endTime: new Date(Date.now() - 1000),
+      });
       const winningBid = {
         id: 'winning-bid',
         bidderId: 'buyer-1',
@@ -1016,7 +1073,10 @@ describe('AuctionService', () => {
     });
 
     it('post-commit side-effect failure schedules compensation without rollback', async () => {
-      const auction = createMockAuction({ bidCount: 2, endTime: new Date(Date.now() - 1000) });
+      const auction = createMockAuction({
+        bidCount: 2,
+        endTime: new Date(Date.now() - 1000),
+      });
       const winningBid = {
         id: 'winning-bid',
         bidderId: 'buyer-1',
@@ -1035,7 +1095,9 @@ describe('AuctionService', () => {
         new Error('wallet down'),
       );
 
-      await expect(service.finalizeAuction('auction-1')).rejects.toThrow('wallet down');
+      await expect(service.finalizeAuction('auction-1')).rejects.toThrow(
+        'wallet down',
+      );
 
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
@@ -1104,9 +1166,7 @@ describe('AuctionService', () => {
     });
 
     it('teklif varsa → BadRequest', async () => {
-      auctionRepo.findOne.mockResolvedValue(
-        createMockAuction({ bidCount: 3 }),
-      );
+      auctionRepo.findOne.mockResolvedValue(createMockAuction({ bidCount: 3 }));
 
       await expect(
         service.cancelAuction('auction-1', 'seller-1'),
@@ -1191,9 +1251,9 @@ describe('AuctionService', () => {
         .mockResolvedValueOnce(activeBid)
         .mockResolvedValueOnce(previousBid);
 
-      await expect(
-        service.withdrawBid('auction-1', 'buyer-1'),
-      ).rejects.toThrow(/geri cekilemez/);
+      await expect(service.withdrawBid('auction-1', 'buyer-1')).rejects.toThrow(
+        /geri cekilemez/,
+      );
       expect(walletService.releaseHold).not.toHaveBeenCalled();
     });
   });
@@ -1218,9 +1278,17 @@ describe('AuctionService', () => {
         .mockResolvedValueOnce(auction)
         .mockResolvedValueOnce(winningBid);
 
-      const result = await service.completeWinnerPayment('auction-1', 'buyer-1');
+      const result = await service.completeWinnerPayment(
+        'auction-1',
+        'buyer-1',
+      );
 
       expect(walletService.captureHold).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        mockQueryRunner.manager,
+      );
+      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalledWith(
         'auction-1',
         'buyer-1',
         mockQueryRunner.manager,
@@ -1231,6 +1299,7 @@ describe('AuctionService', () => {
           buyerId: 'buyer-1',
           amount: 1800,
         }),
+        mockQueryRunner.manager,
       );
       expect(result).toMatchObject({
         code: RC.AUCTION_WINNER_PAYMENT_COMPLETED,
@@ -1273,7 +1342,10 @@ describe('AuctionService', () => {
       mockQueryRunner.manager.findOne
         .mockResolvedValueOnce(auction)
         .mockResolvedValueOnce(winningBid);
-      mockQueryRunner.manager.find.mockResolvedValueOnce([winningBid, fallbackBid]);
+      mockQueryRunner.manager.find.mockResolvedValueOnce([
+        winningBid,
+        fallbackBid,
+      ]);
 
       const result = await service.processWinnerPaymentExpiry('auction-1');
 

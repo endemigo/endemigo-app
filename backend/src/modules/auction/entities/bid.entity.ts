@@ -1,10 +1,15 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Auction } from './auction.entity';
 import { User } from '../../user/entities/user.entity';
 import { BidStatus } from '../../../shared/types/bid-status.enum';
 
 @Entity('bids')
+@Index('IDX_bids_one_winning_per_auction', ['auctionId'], {
+  unique: true,
+  where: '"isWinningBid" = true',
+})
+@Index('IDX_bids_auction_status_amount', ['auctionId', 'status', 'amount'])
 export class Bid extends BaseEntity {
   @Column()
   auctionId: string;

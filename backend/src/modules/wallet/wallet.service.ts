@@ -91,7 +91,10 @@ export class WalletService {
   ): Promise<WalletHold> {
     await this.assertActiveUser(userId);
     return this.withOptionalTransaction(manager, async (transactionManager) => {
-      const wallet = await this.getOrCreateLockedWallet(userId, transactionManager);
+      const wallet = await this.getOrCreateLockedWallet(
+        userId,
+        transactionManager,
+      );
       const available = Number(wallet.balance) - Number(wallet.heldAmount);
 
       if (available < amount) {
@@ -168,7 +171,10 @@ export class WalletService {
         return null;
       }
 
-      const wallet = await this.getOrCreateLockedWallet(userId, transactionManager);
+      const wallet = await this.getOrCreateLockedWallet(
+        userId,
+        transactionManager,
+      );
       await this.postWalletMovement(
         transactionManager,
         {
@@ -349,15 +355,16 @@ export class WalletService {
   async releaseAllHoldsForAuction(
     auctionId: string,
     exceptUserId?: string,
+    manager?: EntityManager,
   ): Promise<void> {
-    await this.withTransaction(async (manager) => {
-      const holds = await manager.find(WalletHold, {
+    await this.withOptionalTransaction(manager, async (transactionManager) => {
+      const holds = await transactionManager.find(WalletHold, {
         where: { auctionId, status: HoldStatus.HELD },
       });
 
       for (const hold of holds) {
         if (hold.userId === exceptUserId) continue;
-        await this.releaseHold(auctionId, hold.userId, manager);
+        await this.releaseHold(auctionId, hold.userId, transactionManager);
       }
     });
   }
