@@ -111,11 +111,6 @@ export function AuctionHero({
               </Text>
             </View>
           </View>
-
-          <View style={styles.trustPill}>
-            <Ionicons name="shield-checkmark" size={16} color={Colors.secondaryContainer} />
-            <Text style={styles.trustText}>{t('auction.premiumTrustTitle')}</Text>
-          </View>
         </View>
       </View>
     </View>

@@ -16,7 +16,7 @@ export class Category extends BaseEntity {
   imageUrl: string;
 
   @Column({ nullable: true })
-  parentId: string;
+  parentId: string | null;
 
   @ManyToOne(() => Category, (cat) => cat.children, { nullable: true })
   @JoinColumn({ name: 'parentId' })
@@ -34,4 +34,7 @@ export class Category extends BaseEntity {
   // ─── Kültür Varlığı Flag (AUCT-18) ───────────────────
   @Column({ type: 'boolean', default: false })
   isCulturalAsset: boolean;
+
+  @Column({ type: 'jsonb', default: {} })
+  metadata: Record<string, unknown>;
 }

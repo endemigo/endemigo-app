@@ -166,6 +166,18 @@ const operationRoutes: RouteRecordRaw[] = [
     props: (route) => ({ resource: 'bids', id: String(route.params.id), title: 'Teklif Detayı', readOnly: true }),
   },
   {
+    path: 'negotiations',
+    name: 'negotiations',
+    component: AdminListView,
+    props: { resource: 'negotiations', title: 'Sohbetler', readOnly: true },
+  },
+  {
+    path: 'negotiations/:id',
+    name: 'negotiations-detail',
+    component: AdminDetailView,
+    props: (route) => ({ resource: 'negotiations', id: String(route.params.id), title: 'Sohbet Detayı', readOnly: true }),
+  },
+  {
     path: 'payouts',
     name: 'payouts',
     component: AdminListView,

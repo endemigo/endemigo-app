@@ -13,29 +13,22 @@
       "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
     },
     "orientation": "portrait",
-    "icon": "./assets/images/endemigo-logo.jpg",
+    "icon": "./assets/images/icon.png",
     "scheme": "endemigo",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0097d8"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0097d8",
-        "foregroundImage": "./assets/images/endemigo-logo.jpg"
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/endemigo-logo.jpg"
+      "favicon": "./assets/images/favicon.png"
     },
     "extra": {
       "eas": {
@@ -67,7 +60,9 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-localization",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

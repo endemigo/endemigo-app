@@ -95,7 +95,7 @@ export class ContentModerationService {
     if (/(^|\s)@[a-z0-9_.]{3,}/i.test(text)) {
       patterns.add(ViolationType.SOCIAL_HANDLE);
     }
-    if (/\b(whatsapp|telegram|instagram|facebook|signal|wp|watsap)\b/i.test(text)) {
+    if (/(whats?app|telegram|instagram|facebook|signal|(^|\s)wp(\s|$)|watsap)/i.test(text)) {
       patterns.add(ViolationType.PLATFORM_NAME);
     }
 

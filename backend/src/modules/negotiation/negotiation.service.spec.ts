@@ -16,6 +16,8 @@ import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
+import { TrustFlagType } from '../trust/entities/trust-flag.entity';
+import { TrustService } from '../trust/trust.service';
 import { ContentModerationService } from './content-moderation.service';
 import { Conversation } from './entities/conversation.entity';
 import { NegotiationMessage } from './entities/negotiation-message.entity';
@@ -35,6 +37,7 @@ describe('NegotiationService', () => {
   let orderService: Record<string, jest.Mock>;
   let notificationService: Record<string, jest.Mock>;
   let adminAuditService: Record<string, jest.Mock>;
+  let trustService: Record<string, jest.Mock>;
 
   const now = new Date('2026-04-29T10:00:00.000Z');
   const product = {
@@ -120,6 +123,7 @@ describe('NegotiationService', () => {
     violationRepo = {
       create: jest.fn((data) => ({ id: 'violation-1', createdAt: now, updatedAt: now, ...data })),
       save: jest.fn(async (entity) => entity),
+      count: jest.fn(async () => 0),
     };
     productRepo = {
       findOne: jest.fn(async () => product),
@@ -140,6 +144,9 @@ describe('NegotiationService', () => {
     adminAuditService = {
       recordAction: jest.fn(async () => undefined),
     };
+    trustService = {
+      createFlag: jest.fn(async () => ({ code: RC.TRUST_FLAG_CREATED, flag: { id: 'flag-1' } })),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -154,6 +161,7 @@ describe('NegotiationService', () => {
         { provide: OrderService, useValue: orderService },
         { provide: NotificationService, useValue: notificationService },
         { provide: AdminAuditService, useValue: adminAuditService },
+        { provide: TrustService, useValue: trustService },
         { provide: NegotiationGateway, useValue: { emitConversationEvent: jest.fn() } },
       ],
     }).compile();
@@ -206,6 +214,42 @@ describe('NegotiationService', () => {
           ViolationType.PLATFORM_NAME,
           ViolationType.PHONE,
         ]),
+        metadata: expect.objectContaining({
+          aiRiskScore: expect.any(Number),
+        }),
+      }),
+    );
+    expect(trustService.createFlag).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetUserId: 'buyer-1',
+        sellerId: 'seller-1',
+        flagType: TrustFlagType.OFF_PLATFORM,
+      }),
+      expect.objectContaining({
+        id: 'system',
+      }),
+    );
+  });
+
+  it('locks the negotiation after the third off-platform violation', async () => {
+    conversationRepo.findOne.mockResolvedValue(conversation());
+    violationRepo.count.mockResolvedValue(2);
+
+    await expect(
+      service.sendMessage('buyer-1', 'conversation-1', {
+        body: 'telegramdan yaz',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(conversationRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conversation-1',
+        metadata: expect.objectContaining({
+          policy: expect.objectContaining({
+            lockedByPolicy: true,
+            violationCount: 3,
+          }),
+        }),
       }),
     );
   });

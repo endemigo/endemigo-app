@@ -74,6 +74,11 @@ export class AuctionGateway
         const count = (this.viewerCounts.get(auctionId) || 1) - 1;
         if (count <= 0) this.viewerCounts.delete(auctionId);
         else this.viewerCounts.set(auctionId, count);
+        this.server.to(room).emit('auction:viewer_count', {
+          auctionId,
+          count: Math.max(0, count),
+          serverTime: new Date().toISOString(),
+        });
       }
     });
     this.logger.debug(`Client disconnected: ${client.id}`);
@@ -90,12 +95,23 @@ export class AuctionGateway
     client.join(room);
     const count = (this.viewerCounts.get(data.auctionId) || 0) + 1;
     this.viewerCounts.set(data.auctionId, count);
+    const serverTime = new Date().toISOString();
     this.logger.debug(
       `Client ${client.id} joined ${room} (viewers: ${count})`,
     );
+    this.server.to(room).emit('auction:viewer_count', {
+      auctionId: data.auctionId,
+      count,
+      serverTime,
+    });
+    client.emit('auction:joined', {
+      auctionId: data.auctionId,
+      viewerCount: count,
+      serverTime,
+    });
     return {
       event: 'auction:joined',
-      data: { auctionId: data.auctionId, viewerCount: count },
+      data: { auctionId: data.auctionId, viewerCount: count, serverTime },
     };
   }
 
@@ -112,9 +128,14 @@ export class AuctionGateway
     );
     if (count <= 0) this.viewerCounts.delete(data.auctionId);
     else this.viewerCounts.set(data.auctionId, count);
+    this.server.to(room).emit('auction:viewer_count', {
+      auctionId: data.auctionId,
+      count,
+      serverTime: new Date().toISOString(),
+    });
     return {
       event: 'auction:left',
-      data: { auctionId: data.auctionId },
+      data: { auctionId: data.auctionId, serverTime: new Date().toISOString() },
     };
   }
 
@@ -136,9 +157,10 @@ export class AuctionGateway
       serverTime: string;
     },
   ) {
+    const serverTime = payload.serverTime || new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('bid:new', { auctionId, ...payload });
+      .emit('bid:new', { auctionId, ...payload, serverTime });
   }
 
   emitBidOutbid(
@@ -147,13 +169,14 @@ export class AuctionGateway
     payload: { newAmount: number; yourBid: number },
   ) {
     const room = `auction:${auctionId}`;
+    const serverTime = new Date().toISOString();
     this.server
       .to(room)
       .fetchSockets()
       .then((sockets) => {
         sockets.forEach((s) => {
           if (s.data.userId === previousBidderId) {
-            s.emit('bid:outbid', { auctionId, ...payload });
+            s.emit('bid:outbid', { auctionId, ...payload, serverTime });
           }
         });
       });
@@ -163,27 +186,30 @@ export class AuctionGateway
     auctionId: string,
     payload: { startPrice: number },
   ) {
+    const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('auction:started', { auctionId, ...payload });
+      .emit('auction:started', { auctionId, ...payload, serverTime });
   }
 
   emitAuctionExtended(
     auctionId: string,
     payload: { newEndTime: string; extensionNumber: number },
   ) {
+    const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('auction:extended', { auctionId, ...payload });
+      .emit('auction:extended', { auctionId, ...payload, serverTime });
   }
 
   emitAuctionWarning(
     auctionId: string,
     payload: { minutesLeft: number },
   ) {
+    const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('auction:warning', { auctionId, ...payload });
+      .emit('auction:warning', { auctionId, ...payload, serverTime });
   }
 
   emitAuctionEnded(
@@ -194,9 +220,10 @@ export class AuctionGateway
       bidCount: number;
     },
   ) {
+    const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('auction:ended', { auctionId, ...payload });
+      .emit('auction:ended', { auctionId, ...payload, serverTime });
   }
 
   emitBidWinner(
@@ -205,13 +232,14 @@ export class AuctionGateway
     payload: { finalPrice: number; premiumAmount: number },
   ) {
     const room = `auction:${auctionId}`;
+    const serverTime = new Date().toISOString();
     this.server
       .to(room)
       .fetchSockets()
       .then((sockets) => {
         sockets.forEach((s) => {
           if (s.data.userId === winnerId) {
-            s.emit('bid:winner', { auctionId, ...payload });
+            s.emit('bid:winner', { auctionId, ...payload, serverTime });
           }
         });
       });
@@ -223,13 +251,14 @@ export class AuctionGateway
     payload: { finalPrice: number; holdReleased: boolean },
   ) {
     const room = `auction:${auctionId}`;
+    const serverTime = new Date().toISOString();
     this.server
       .to(room)
       .fetchSockets()
       .then((sockets) => {
         sockets.forEach((s) => {
           if (s.data.userId && s.data.userId !== winnerId) {
-            s.emit('bid:lost', { auctionId, ...payload });
+            s.emit('bid:lost', { auctionId, ...payload, serverTime });
           }
         });
       });
@@ -239,8 +268,9 @@ export class AuctionGateway
     auctionId: string,
     payload: { reason: string },
   ) {
+    const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
-      .emit('auction:cancelled', { auctionId, ...payload });
+      .emit('auction:cancelled', { auctionId, ...payload, serverTime });
   }
 }

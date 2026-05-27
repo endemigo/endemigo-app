@@ -37,7 +37,21 @@ export const PRODUCT_CREATE_PRODUCTION_SEASONS = {
 export type ProductCreateProductionSeason =
   (typeof PRODUCT_CREATE_PRODUCTION_SEASONS)[keyof typeof PRODUCT_CREATE_PRODUCTION_SEASONS];
 
-export type ProductCreateWizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+export type ProductCreateWizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export type ProductCreateEntryMode = 'MARKETPLACE' | 'AUCTION';
+
+export type ProductCreateDynamicFieldValue = string | number | boolean | string[];
+
+export interface ProductCreateVariantSkuDraft {
+  colorVariantNumberId?: string;
+  sizeVariantNumberId?: string;
+  skuCode?: string;
+  stockQuantity?: number;
+  priceOverride?: number;
+  imageUrl?: string;
+  isActive?: boolean;
+}
 
 export interface ProductCreateImageDraft {
   id: string;
@@ -101,6 +115,8 @@ export interface ProductCreateWizardState {
   dimensionWidth: string;
   dimensionHeight: string;
   dimensionDepth: string;
+  dynamicFieldValues: Record<string, ProductCreateDynamicFieldValue>;
+  variantSkus: ProductCreateVariantSkuDraft[];
 }
 
 export type ProductCreatePickerAsset = Pick<

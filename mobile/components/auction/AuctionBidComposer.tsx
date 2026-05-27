@@ -9,16 +9,22 @@ import { styles } from './AuctionBidComposer.styles';
 type AuctionBidComposerProps = {
   bidAmount: string;
   maxBidAmount: string;
-  quickBidOptions: Array<{ key: string; label: string; amount: string }>;
+  quickBidOptions: { key: string; label: string; amount: string }[];
+  feeEstimateRows: {
+    key: string;
+    label: string;
+    value: string;
+    tone?: 'default' | 'accent' | 'error';
+  }[];
   statusMessage?: string | null;
   proxyMessage?: string | null;
+  walletGateMessage?: string | null;
   onChangeText: (value: string) => void;
   onChangeMaxBidText: (value: string) => void;
   onSelectQuickBid: (amount: string) => void;
   placeholder: string;
   maxPlaceholder: string;
   minBidText: string;
-  premiumTotalText: string;
   disabled: boolean;
   isPending: boolean;
   onSubmit: () => void;
@@ -29,15 +35,16 @@ export function AuctionBidComposer({
   bidAmount,
   maxBidAmount,
   quickBidOptions,
+  feeEstimateRows,
   statusMessage,
   proxyMessage,
+  walletGateMessage,
   onChangeText,
   onChangeMaxBidText,
   onSelectQuickBid,
   placeholder,
   maxPlaceholder,
   minBidText,
-  premiumTotalText,
   disabled,
   isPending,
   onSubmit,
@@ -46,7 +53,7 @@ export function AuctionBidComposer({
   return (
     <View style={styles.shell}>
       <View style={styles.headerRow}>
-        <View>
+        <View style={styles.headerTextWrap}>
           <Text style={styles.title}>{t('auction.placeBid')}</Text>
           <Text style={styles.subtitle}>{t('auction.stickyBidSubtitle')}</Text>
         </View>
@@ -121,8 +128,32 @@ export function AuctionBidComposer({
         </View>
       ) : null}
 
+      <View style={styles.feeCard}>
+        {feeEstimateRows.map((row) => (
+          <View key={row.key} style={styles.feeRow}>
+            <Text style={styles.feeLabel}>{row.label}</Text>
+            <Text
+              style={[
+                styles.feeValue,
+                row.tone === 'accent' && styles.feeValueAccent,
+                row.tone === 'error' && styles.feeValueError,
+              ]}
+            >
+              {row.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {walletGateMessage ? (
+        <View style={styles.walletGateCard}>
+          <Ionicons name="wallet" size={17} color={Colors.error} />
+          <Text style={styles.walletGateText}>{walletGateMessage}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{premiumTotalText}</Text>
+        <Text style={styles.metaText}>{t('auction.bidComposerHint')}</Text>
         <Text style={styles.metaText}>{t('auction.maxBidHint')}</Text>
       </View>
     </View>

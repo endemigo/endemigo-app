@@ -80,6 +80,8 @@ export function createInitialProductCreateState(): ProductCreateWizardState {
     dimensionWidth: '',
     dimensionHeight: '',
     dimensionDepth: '',
+    dynamicFieldValues: {},
+    variantSkus: [],
   };
 }
 
@@ -101,7 +103,11 @@ export function canContinueProductCreateStep(
   minImageCount = 1,
 ): boolean {
   if (step === 1) {
-    const hasBasics = state.title.trim().length >= 3 && state.categoryId.length > 0;
+    return state.categoryId.length > 0;
+  }
+
+  if (step === 2) {
+    const hasBasics = state.title.trim().length >= 3;
     const hasPricing = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
       ? isPositiveNumber(state.auctionStartPrice)
       : isPositiveNumber(state.directSalePrice) && (!state.askPriceEnabled || isPositiveNumber(state.askPriceMinAmount));
@@ -109,11 +115,11 @@ export function canContinueProductCreateStep(
     return hasBasics && hasPricing && hasDetails;
   }
 
-  if (step === 2 || step === 3 || step === 4) {
+  if (step === 3 || step === 4 || step === 5) {
     return true;
   }
 
-  if (step === 5) {
+  if (step === 6) {
     if (!isOptionalFieldVisible('images', visibilityOptions)) {
       return true;
     }
@@ -145,6 +151,7 @@ export function isProductCreateReadyToSubmit(
     && canContinueProductCreateStep(4, state, imageCount, normalizedVisibilityOptions, minImageCount)
     && canContinueProductCreateStep(5, state, imageCount, normalizedVisibilityOptions, minImageCount)
     && canContinueProductCreateStep(6, state, imageCount, normalizedVisibilityOptions, minImageCount)
+    && canContinueProductCreateStep(7, state, imageCount, normalizedVisibilityOptions, minImageCount)
   );
 }
 

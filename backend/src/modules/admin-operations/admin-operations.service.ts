@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, FindOptionsWhere } from 'typeorm';
+import { Repository, FindManyOptions, FindOptionsWhere, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import {
   AdminAuditAction,
@@ -22,11 +22,16 @@ import {
   VariantNumberStatus,
   VariantOptionKind,
   parseUnknownMoney,
+  NegotiationStatus,
+  NegotiationMessageType,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { User } from '../user/entities/user.entity';
 import { Address } from '../user/entities/address.entity';
 import { SellerProfile, SellerStatus } from '../user/entities/seller-profile.entity';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { NegotiationMessage } from '../negotiation/entities/negotiation-message.entity';
+import { ViolationLog } from '../negotiation/entities/violation-log.entity';
 import { Product } from '../product/entities/product.entity';
 import { ProductImage } from '../product/entities/product-image.entity';
 import { VariantNumber } from '../product/entities/variant-number.entity';
@@ -74,7 +79,8 @@ type AdminResource =
   | 'orders'
   | 'payments'
   | 'bids'
-  | 'payout-requests';
+  | 'payout-requests'
+  | 'negotiations';
 
 interface CreatedEntity {
   id: string;
@@ -435,6 +441,12 @@ export class AdminOperationsService {
     private readonly couponRedemptionRepo: Repository<CouponRedemption>,
     @InjectRepository(PayoutRequest)
     private readonly payoutRequestRepo: Repository<PayoutRequest>,
+    @InjectRepository(Conversation)
+    private readonly conversationRepo: Repository<Conversation>,
+    @InjectRepository(NegotiationMessage)
+    private readonly messageRepo: Repository<NegotiationMessage>,
+    @InjectRepository(ViolationLog)
+    private readonly violationLogRepo: Repository<ViolationLog>,
     private readonly adminAuditService: AdminAuditService,
     @Optional()
     @Inject(STORAGE_SERVICE)
@@ -587,6 +599,12 @@ export class AdminOperationsService {
     if (resource === 'bids') {
       return this.listBidAuctions(query);
     }
+    if (resource === 'auctions') {
+      return this.listAuctions(query);
+    }
+    if (resource === 'negotiations') {
+      return this.listNegotiations(query);
+    }
     const repo = this.getRepo(resource);
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
@@ -622,11 +640,14 @@ export class AdminOperationsService {
     if (resource === 'products') {
       return this.detailProduct(id);
     }
-    if (resource === 'bids') {
+    if (resource === 'bids' || resource === 'auctions') {
       return this.detailBidAuction(id);
     }
     if (resource === 'orders') {
       return this.detailOrderSafe(id);
+    }
+    if (resource === 'negotiations') {
+      return this.detailNegotiation(id);
     }
 
     const repo = this.getRepo(resource);
@@ -638,12 +659,33 @@ export class AdminOperationsService {
       });
     }
 
+    const auditLogs = await this.adminAuditService.list({
+      targetId: id,
+      page: 1,
+      limit: 100,
+    });
+
+    const timeline = (auditLogs?.items ?? []).map((log) => {
+      let actionLabel = String(log.action);
+      if (log.action === 'CATEGORY_CREATED') actionLabel = 'Kategori Oluşturuldu';
+      else if (log.action === 'CATEGORY_UPDATED') actionLabel = 'Kategori Güncellendi';
+      else if (log.action === 'CATEGORY_DELETED') actionLabel = 'Kategori Silindi / Pasifleştirildi';
+      else if (log.action === 'BRAND_CREATED') actionLabel = 'Marka Oluşturuldu';
+      else if (log.action === 'BRAND_UPDATED') actionLabel = 'Marka Güncellendi';
+      else if (log.action === 'BRAND_DELETED') actionLabel = 'Marka Silindi';
+      
+      return {
+        label: `${actionLabel} • Sebep: ${log.reason || 'Belirtilmedi'}`,
+        createdAt: log.createdAt,
+      };
+    });
+
     return {
       code: RC.SUCCESS,
       message: 'Admin detay getirildi',
       resource,
       overview: item,
-      timeline: [],
+      timeline,
       relatedRecords: {
         resource,
         id,
@@ -838,6 +880,280 @@ export class AdminOperationsService {
       audit: {
         targetType: this.toTargetType('orders'),
         targetId: id,
+      },
+    };
+  }
+
+  private async listAuctions(query: AdminListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const status = query.status?.trim().toUpperCase();
+    const q = query.q?.trim().toLowerCase();
+
+    const qb = this.auctionRepo
+      .createQueryBuilder('auction')
+      .leftJoin(Product, 'product', 'CAST(product.id AS text) = CAST(auction.productId AS text)')
+      .leftJoin(User, 'seller', 'CAST(seller.id AS text) = CAST(auction.sellerId AS text)');
+
+    if (status) {
+      qb.andWhere('auction.status = :status', { status });
+    }
+    if (q) {
+      qb.andWhere(
+        `(
+          LOWER(COALESCE(product.title, '')) LIKE :q
+          OR LOWER(COALESCE(seller.email, '')) LIKE :q
+          OR LOWER(COALESCE(seller.firstName, '') || ' ' || COALESCE(seller.lastName, '')) LIKE :q
+          OR LOWER(COALESCE(auction.lotNumber, '')) LIKE :q
+          OR CAST(auction.id AS text) LIKE :q
+        )`,
+        { q: `%${q}%` },
+      );
+    }
+
+    const total = await qb.getCount();
+
+    const items = await qb
+      .select([
+        'auction.id as id',
+        'auction.productId as "productId"',
+        'auction.sellerId as "sellerId"',
+        'auction.winnerId as "winnerId"',
+        'auction.startPrice as "startPrice"',
+        'auction.currentPrice as "currentPrice"',
+        'auction.reservePrice as "reservePrice"',
+        'auction.reserveMet as "reserveMet"',
+        'auction.minIncrement as "minIncrement"',
+        'auction.buyerPremiumRate as "buyerPremiumRate"',
+        'auction.bidCount as "bidCount"',
+        'auction.lotNumber as "lotNumber"',
+        'auction.status as status',
+        'auction.startTime as "startTime"',
+        'auction.endTime as "endTime"',
+        'auction.createdAt as "createdAt"',
+        'auction.updatedAt as "updatedAt"',
+        'product.title as "productTitle"',
+        'seller.email as "sellerEmail"',
+        'seller.firstName as "sellerFirstName"',
+        'seller.lastName as "sellerLastName"',
+      ])
+      .orderBy('auction.createdAt', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany();
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin müzayede listesi getirildi',
+      resource: 'auctions',
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  private async listNegotiations(query: AdminListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const status = query.status?.trim().toUpperCase();
+    const q = query.q?.trim().toLowerCase();
+
+    const qb = this.conversationRepo
+      .createQueryBuilder('conv')
+      .leftJoin(Product, 'product', 'CAST(product.id AS text) = CAST(conv.productId AS text)')
+      .leftJoin(User, 'buyer', 'CAST(buyer.id AS text) = CAST(conv.buyerId AS text)')
+      .leftJoin(User, 'seller', 'CAST(seller.id AS text) = CAST(conv.sellerId AS text)');
+
+    if (status) {
+      qb.andWhere('conv.status = :status', { status });
+    }
+    if (q) {
+      qb.andWhere(
+        `(
+          LOWER(COALESCE(product.title, '')) LIKE :q
+          OR LOWER(COALESCE(buyer.email, '')) LIKE :q
+          OR LOWER(COALESCE(buyer.firstName, '') || ' ' || LOWER(COALESCE(buyer.lastName, ''))) LIKE :q
+          OR LOWER(COALESCE(seller.email, '')) LIKE :q
+          OR LOWER(COALESCE(seller.firstName, '') || ' ' || LOWER(COALESCE(seller.lastName, ''))) LIKE :q
+          OR CAST(conv.id AS text) LIKE :q
+        )`,
+        { q: `%${q}%` },
+      );
+    }
+
+    const total = await qb.getCount();
+
+    const itemsRaw = await qb
+      .select([
+        'conv.id as id',
+        'conv.productId as "productId"',
+        'conv.buyerId as "buyerId"',
+        'conv.sellerId as "sellerId"',
+        'conv.status as status',
+        'conv.metadata as metadata',
+        'conv.quantity as quantity',
+        'conv.createdAt as "createdAt"',
+        'conv.updatedAt as "updatedAt"',
+        'conv.lastActivityAt as "lastActivityAt"',
+        'product.title as "productTitle"',
+        'buyer.email as "buyerEmail"',
+        'buyer.firstName as "buyerFirstName"',
+        'buyer.lastName as "buyerLastName"',
+        'seller.email as "sellerEmail"',
+        'seller.firstName as "sellerFirstName"',
+        'seller.lastName as "sellerLastName"',
+      ])
+      .orderBy('conv.createdAt', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany();
+
+    const items = itemsRaw.map((row) => {
+      const metadata = row.metadata || {};
+      const policy = metadata.policy || {};
+      return {
+        id: row.id,
+        productId: row.productId,
+        productTitle: row.productTitle || 'Bilinmeyen Ürün',
+        buyerId: row.buyerId,
+        buyerName: [row.buyerFirstName, row.buyerLastName].filter(Boolean).join(' ') || row.buyerEmail || row.buyerId,
+        buyerEmail: row.buyerEmail || '',
+        sellerId: row.sellerId,
+        sellerName: [row.sellerFirstName, row.sellerLastName].filter(Boolean).join(' ') || row.sellerEmail || row.sellerId,
+        sellerEmail: row.sellerEmail || '',
+        status: row.status,
+        quantity: Number(row.quantity ?? 1),
+        violationCount: Number(policy.violationCount ?? 0),
+        lockedByPolicy: Boolean(policy.lockedByPolicy ?? false),
+        createdAt: row.createdAt,
+        updatedAt: row.lastActivityAt || row.updatedAt,
+      };
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin sohbet listesi getirildi',
+      resource: 'negotiations',
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  private async detailNegotiation(id: string) {
+    const conversation = await this.conversationRepo.findOne({
+      where: { id },
+      relations: ['product', 'buyer', 'seller'],
+    });
+    if (!conversation) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Sohbet kaydı bulunamadı',
+      });
+    }
+
+    const [messages, violationLogs] = await Promise.all([
+      this.messageRepo.find({
+        where: { conversationId: id },
+        order: { createdAt: 'ASC' },
+      }),
+      this.violationLogRepo.find({
+        where: { conversationId: id },
+        order: { createdAt: 'DESC' },
+      }),
+    ]);
+
+    const serializedMessages = messages.map((msg) => {
+      let isSystem = false;
+      let isViolation = false;
+      let displaySenderName = '';
+
+      if (!msg.senderId) {
+        isSystem = true;
+        displaySenderName = 'Sistem';
+      } else if (msg.senderId === conversation.buyerId) {
+        displaySenderName = [conversation.buyer.firstName, conversation.buyer.lastName].filter(Boolean).join(' ') || conversation.buyer.email || 'Alıcı';
+      } else if (msg.senderId === conversation.sellerId) {
+        displaySenderName = [conversation.seller.firstName, conversation.seller.lastName].filter(Boolean).join(' ') || conversation.seller.email || 'Satıcı';
+      }
+
+      if (msg.type === NegotiationMessageType.VIOLATION_BLOCKED) {
+        isViolation = true;
+      }
+
+      return {
+        id: msg.id,
+        senderId: msg.senderId,
+        senderName: displaySenderName,
+        type: msg.type,
+        content: msg.content,
+        isSystem,
+        isViolation,
+        metadata: msg.metadata || {},
+        createdAt: msg.createdAt.toISOString(),
+      };
+    });
+
+    const serializedViolations = violationLogs.map((log) => {
+      const meta = log.metadata || {};
+      return {
+        id: log.id,
+        userId: log.userId,
+        userName: log.userId === conversation.buyerId
+          ? ([conversation.buyer.firstName, conversation.buyer.lastName].filter(Boolean).join(' ') || conversation.buyer.email)
+          : ([conversation.seller.firstName, conversation.seller.lastName].filter(Boolean).join(' ') || conversation.seller.email),
+        attemptedContent: log.attemptedContent,
+        violationTypes: log.violationTypes || log.detectedPatterns || [],
+        ipAddress: log.ipAddress || '-',
+        deviceId: log.deviceId || '-',
+        aiRiskScore: Number(meta.aiRiskScore ?? 0),
+        aiReason: meta.aiReason || 'Politika İhlali',
+        aiShouldBlock: Boolean(meta.aiShouldBlock ?? true),
+        createdAt: log.createdAt.toISOString(),
+      };
+    });
+
+    const metadata = conversation.metadata || {};
+    const policy = (metadata.policy as {
+      violationCount?: number;
+      lockedByPolicy?: boolean;
+      lastViolationAt?: string;
+    }) || {};
+
+    const overview = {
+      id: conversation.id,
+      productId: conversation.productId,
+      productTitle: conversation.product?.title || 'Bilinmeyen Ürün',
+      buyerId: conversation.buyerId,
+      buyerName: [conversation.buyer.firstName, conversation.buyer.lastName].filter(Boolean).join(' ') || conversation.buyer.email,
+      buyerEmail: conversation.buyer.email,
+      sellerId: conversation.sellerId,
+      sellerName: [conversation.seller.firstName, conversation.seller.lastName].filter(Boolean).join(' ') || conversation.seller.email,
+      sellerEmail: conversation.seller.email,
+      status: conversation.status,
+      quantity: Number(conversation.quantity ?? 1),
+      violationCount: Number(policy.violationCount ?? 0),
+      lockedByPolicy: Boolean(policy.lockedByPolicy ?? false),
+      lastViolationAt: policy.lastViolationAt || null,
+      createdAt: conversation.createdAt.toISOString(),
+      updatedAt: (conversation.lastActivityAt || conversation.updatedAt).toISOString(),
+    };
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Admin sohbet detayı getirildi',
+      resource: 'negotiations',
+      overview,
+      timeline: [],
+      relatedRecords: {
+        messages: serializedMessages,
+        violations: serializedViolations,
       },
     };
   }
@@ -1238,20 +1554,11 @@ export class AdminOperationsService {
         label: 'Müzayede oluşturuldu',
         createdAt: auction.createdAt.toISOString(),
       },
-      ...(highestBid
-        ? [{
-            id: `highest-bid-${highestBid.id}`,
-            label: `En yüksek teklif ${highestBid.bidderName} (${highestBid.amount} TRY)`,
-            createdAt: highestBid.createdAt,
-          }]
-        : []),
-      ...(winningBid
-        ? [{
-            id: `winning-bid-${winningBid.id}`,
-            label: `Kazanan teklif ${winningBid.bidderName}`,
-            createdAt: winningBid.createdAt,
-          }]
-        : []),
+      ...bidRows.map((bid) => ({
+        id: `bid-${bid.id}`,
+        label: `Teklif verildi: ${bid.bidderName} (₺${Number(bid.amount).toFixed(2)})${bid.isWinningBid ? ' - Lider/Kazanan' : ''}`,
+        createdAt: bid.createdAt,
+      })),
       ...(order
         ? [{
             id: `auction-order-${order.id}`,
@@ -2280,7 +2587,7 @@ export class AdminOperationsService {
 
   async listVariantNumbers(query: AdminVariantNumberListQueryDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 10), 1), 1000);
     const qb = this.variantNumberRepo
       .createQueryBuilder('variant')
       .orderBy('variant.sortOrder', 'ASC')
@@ -2709,10 +3016,16 @@ export class AdminOperationsService {
     category.slug = payload.slug ?? this.slugify(category.name);
     if (payload.description !== undefined) category.description = payload.description;
     if (payload.imageUrl !== undefined) category.imageUrl = payload.imageUrl;
-    if (payload.parentId !== undefined) category.parentId = payload.parentId;
+    if (payload.parentId !== undefined) {
+      category.parentId = payload.parentId?.trim() ? payload.parentId : null;
+    }
     category.sortOrder = payload.sortOrder ?? 0;
     category.isActive = payload.isActive ?? true;
     category.isCulturalAsset = payload.isCulturalAsset ?? false;
+    category.metadata = await this.buildCategoryMetadata(
+      payload as unknown as Record<string, unknown>,
+      {},
+    );
     const saved = await this.categoryRepo.save(category);
     await this.record(actor, AdminAuditAction.CATEGORY_CREATED, 'CATEGORY', saved.id, dto, {}, this.toRecord(saved));
     return { code: RC.SUCCESS, message: 'Kategori oluşturuldu', category: saved };
@@ -2727,11 +3040,17 @@ export class AdminOperationsService {
       slug: payload.slug ?? category.slug,
       description: payload.description ?? category.description,
       imageUrl: payload.imageUrl ?? category.imageUrl,
-      parentId: payload.parentId ?? category.parentId,
+      parentId: payload.parentId !== undefined
+        ? (payload.parentId?.trim() ? payload.parentId : null)
+        : category.parentId,
       sortOrder: payload.sortOrder ?? category.sortOrder,
       isActive: payload.isActive ?? category.isActive,
       isCulturalAsset: payload.isCulturalAsset ?? category.isCulturalAsset,
     });
+    category.metadata = await this.buildCategoryMetadata(
+      payload as unknown as Record<string, unknown>,
+      category.metadata ?? {},
+    );
     const saved = await this.categoryRepo.save(category);
     await this.record(actor, AdminAuditAction.CATEGORY_UPDATED, 'CATEGORY', id, dto, before, this.toRecord(saved));
     return { code: RC.SUCCESS, message: 'Kategori güncellendi', category: saved };
@@ -3375,6 +3694,7 @@ export class AdminOperationsService {
       payments: this.paymentRepo as unknown as Repository<CreatedEntity>,
       bids: this.bidRepo as unknown as Repository<CreatedEntity>,
       'payout-requests': this.payoutRequestRepo as unknown as Repository<CreatedEntity>,
+      negotiations: this.conversationRepo as unknown as Repository<CreatedEntity>,
     };
     return repos[resource];
   }
@@ -3445,6 +3765,53 @@ export class AdminOperationsService {
       return {};
     }
     return metadata as Partial<T>;
+  }
+
+  private async buildCategoryMetadata(
+    payload: Record<string, unknown>,
+    previous: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const baseMetadata = this.toObject(payload.metadata) ?? previous;
+    const variationOptionIds = await this.resolveCategoryVariationOptionIds(
+      payload.variationOptionIds,
+    );
+    const merged = { ...baseMetadata };
+    if (payload.isCommunicationEnabled !== undefined) {
+      merged.isCommunicationEnabled =
+        payload.isCommunicationEnabled === true ||
+        payload.isCommunicationEnabled === 'true';
+    }
+    if (variationOptionIds !== undefined) {
+      merged.variationOptionIds = variationOptionIds;
+    }
+    return merged;
+  }
+
+  private async resolveCategoryVariationOptionIds(value: unknown): Promise<string[] | undefined> {
+    if (value === undefined || value === null) return undefined;
+
+    const ids = Array.from(
+      new Set(
+        (Array.isArray(value) ? value.map(String) : String(value).split(/[\n,\s]+/))
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0),
+      ),
+    );
+    if (ids.length === 0) return [];
+
+    const found = await this.variantNumberRepo.find({
+      where: { id: In(ids) },
+      select: { id: true },
+    });
+    const foundIds = new Set(found.map((item) => item.id));
+    const missing = ids.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: `Geçersiz varyasyon ID: ${missing.join(', ')}`,
+      });
+    }
+    return ids;
   }
 
   private applyProductPayload(

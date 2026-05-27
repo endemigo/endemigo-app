@@ -27,6 +27,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.base,
   },
+  headerTextWrap: {
+    flex: 1,
+  },
   title: {
     color: Colors.onSurface,
     fontSize: FontSize.bodyXl,
@@ -132,6 +135,54 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
   },
+  feeCard: {
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.base,
+  },
+  feeLabel: {
+    color: Colors.onSurfaceVariant,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+  },
+  feeValue: {
+    color: Colors.onSurface,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  feeValueAccent: {
+    color: Colors.auctionGreen,
+  },
+  feeValueError: {
+    color: Colors.error,
+  },
+  walletGateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: `${Colors.error}12`,
+    borderWidth: 1,
+    borderColor: `${Colors.error}24`,
+    padding: Spacing.base,
+  },
+  walletGateText: {
+    flex: 1,
+    color: Colors.error,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    fontWeight: '600',
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -139,6 +190,7 @@ export const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   metaText: {
+    flex: 1,
     color: Colors.onSurfaceVariant,
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,

@@ -14,6 +14,9 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { useRouter, useNavigation } from 'expo-router';
 import {
   MOBILE_LISTING_CREATE_OPTIONAL_FIELDS,
   type MobileListingCreateOptionalField,
@@ -34,6 +37,7 @@ import {
   PRODUCT_CREATE_AUCTION_TYPES,
   PRODUCT_CREATE_LISTING_TYPES,
   PRODUCT_CREATE_PRODUCTION_SEASONS,
+  type ProductCreateEntryMode,
   type ProductCreateImageDraft,
   type ProductCreateWizardStep,
 } from '../../../types/productCreate.ts';
@@ -46,7 +50,8 @@ import {
 } from '../../../utils/productImageUpload.ts';
 import { formatPriceInput } from '../../../utils/priceInputMask.ts';
 import { formatCurrency } from '../../../utils/transactionFormatters';
-import { submitProductCreateWizard } from '../../../services/productCreateService.ts';
+import { createListingDraft, updateListingDraft } from '../../../services/listingDraftService.ts';
+import { submitProductCreateWizard, generateAiContent } from '../../../services/productCreateService.ts';
 import { ProductCreateProgress } from './ProductCreateProgress';
 import { ProductTypeSegment } from './ProductTypeSegment';
 import { styles } from './ProductCreateWizard.styles';
@@ -57,15 +62,17 @@ interface ProductCreateWizardProps {
   totalProducts: number;
   isProductsLoading: boolean;
   onCreated: () => Promise<unknown> | void;
+  initialEntryMode?: ProductCreateEntryMode;
 }
 
 const STEP_TITLE_KEYS: Record<ProductCreateWizardStep, string> = {
-  1: 'listing.stepCore',
-  2: 'listing.stepShippingPayment',
-  3: 'listing.stepProductStory',
-  4: 'listing.stepProductDescriptions',
-  5: 'listing.stepProductDetails',
-  6: 'listing.stepReview',
+  1: 'listing.stepCategory',
+  2: 'listing.stepCore',
+  3: 'listing.stepShippingPayment',
+  4: 'listing.stepProductStory',
+  5: 'listing.stepProductDescriptions',
+  6: 'listing.stepProductDetails',
+  7: 'listing.stepReview',
 };
 
 const DELIVERY_TEMPLATE_OPTIONS = [
@@ -78,6 +85,19 @@ const DELIVERY_TEMPLATE_OPTIONS = [
 ] as const;
 
 const DESI_OPTIONS = ['0-1', '1-3', '3-5', '5-10', '10-15', '15-20', '20+'] as const;
+
+const ORIGIN_COUNTRY_OPTIONS = [
+  { code: 'TR', label: 'Türkiye' },
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'FR', label: 'France' },
+  { code: 'IT', label: 'Italy' },
+  { code: 'ES', label: 'Spain' },
+  { code: 'NL', label: 'Netherlands' },
+  { code: 'BE', label: 'Belgium' },
+  { code: 'GR', label: 'Greece' },
+] as const;
 
 const FEATURE_BADGE_OPTIONS = [
   'VEGAN',
@@ -105,16 +125,44 @@ const GEO_BADGE_OPTIONS = [
 ] as const;
 type DesiFieldTarget = 'domestic' | 'international';
 
-const ORIGIN_COUNTRY_OPTIONS = [
-  { code: 'TR', label: 'Türkiye' },
-  { code: 'DE', label: 'Almanya' },
-  { code: 'US', label: 'Amerika Birleşik Devletleri' },
-  { code: 'GB', label: 'Birleşik Krallık' },
-  { code: 'FR', label: 'Fransa' },
-  { code: 'IT', label: 'İtalya' },
-  { code: 'ES', label: 'İspanya' },
-  { code: 'NL', label: 'Hollanda' },
-] as const;
+const SEEDED_COLOR_VARIANTS = [
+  { id: 'eed3a041-f2e1-49b0-b624-97110d3faff8', nameTr: 'Yağ Yeşili', nameEn: 'Olive Green', hex: '#808000' },
+  { id: '257f383d-d4d1-437b-81bd-adce3bcb1e32', nameTr: 'Altın Sarısı', nameEn: 'Gold Yellow', hex: '#E6C200' },
+  { id: '1f40ff3f-2e02-42be-8c3d-317647c34b41', nameTr: 'Mor', nameEn: 'Purple', hex: '#6A0DAD' },
+  { id: 'ca1aa793-38a4-473b-9805-491ca9e710db', nameTr: 'Ofis Yeşili', nameEn: 'Office Green', hex: '#008A00' },
+  { id: '84f50e12-9763-45bb-9906-c2f4ee95cac9', nameTr: 'Berrak Mavi', nameEn: 'Limpid Blue', hex: '#1780A6' },
+  { id: '203e4259-7e1f-4448-8dcf-4d03568875ac', nameTr: 'Kırmızı Şarap', nameEn: 'Red Wine', hex: '#B10012' },
+  { id: '786bbbb3-0a70-45a1-bdea-c9d13b719a2c', nameTr: 'Koyu Patlıcan', nameEn: 'Dark Eggplant', hex: '#7C005A' },
+  { id: '2358fd16-faa5-43d6-9091-45348f956754', nameTr: 'Cam Göbeği', nameEn: 'Turquoise', hex: '#5EA3DC' },
+  { id: '68b68e39-b6c6-4875-ba4e-c64bb04217b7', nameTr: 'Turuncu', nameEn: 'Orange', hex: '#FF7A1C' },
+  { id: '9def1048-f928-434e-b81c-3110fb83bf77', nameTr: 'Kar', nameEn: 'Snow', hex: '#FFFFFF' },
+  { id: 'e125ac1e-bcf5-4c5c-b56c-a65c8c7fe7c5', nameTr: 'Siyah', nameEn: 'Black', hex: '#101010' },
+  { id: '66759bdf-2d36-4b6e-91b7-1bfa846dc90a', nameTr: 'Lacivert', nameEn: 'Navy Blue', hex: '#1F2A44' },
+  { id: 'fff5eb98-cf21-4d5d-a2d2-29117a5bc8ee', nameTr: 'Bordo', nameEn: 'Burgundy', hex: '#800020' },
+];
+
+const SEEDED_SIZE_VARIANTS = [
+  { id: '35e7c0ea-a191-4064-96f9-87fe4a1f39ae', nameTr: 'XS', nameEn: 'XS' },
+  { id: '752e4d47-5730-4951-9acf-6ab1947a3dcc', nameTr: 'S', nameEn: 'S' },
+  { id: '94e0157a-5b63-49bb-b06d-71b8252701ac', nameTr: 'M', nameEn: 'M' },
+  { id: '4c3684ef-5d2f-45ce-b6af-8547e6f593d8', nameTr: 'L', nameEn: 'L' },
+  { id: 'dd581770-0e63-4d98-84ff-c24b42768acd', nameTr: 'XL', nameEn: 'XL' },
+  { id: 'fc3baea0-1598-4f72-9074-8f11eb6d1360', nameTr: 'XXL', nameEn: 'XXL' },
+  { id: 'd5c412f3-a722-4bf9-bec8-5e78b65015bb', nameTr: 'XXXL', nameEn: 'XXXL' },
+  { id: 'f3961cd2-a49e-42e7-9165-33f4214e7ce7', nameTr: 'Standart', nameEn: 'Standard' },
+];
+
+const SEEDED_NUMBER_VARIANTS = [
+  { id: '3300727f-dc05-440d-8006-d3bf4d6e58bd', nameTr: '37', nameEn: '37' },
+  { id: '75e30968-823c-400d-ba32-c49190b44315', nameTr: '38', nameEn: '38' },
+  { id: '8cf7c233-6d0d-4825-a350-5e0fae4b89a4', nameTr: '39', nameEn: '39' },
+  { id: 'addf6419-c237-433c-8e26-7ef2c3ffc448', nameTr: '40', nameEn: '40' },
+  { id: 'e145bd31-e0b1-4e41-ba61-b851b1850c09', nameTr: '41', nameEn: '41' },
+  { id: 'd3b4335f-b3ed-45d4-9e65-66b0ba09a595', nameTr: '42', nameEn: '42' },
+  { id: '9dcbdddb-57b7-4e14-8972-db38d93839ca', nameTr: '43', nameEn: '43' },
+  { id: '3e4fef76-a108-4208-8cb5-a35488a38429', nameTr: '44', nameEn: '44' },
+  { id: 'e46ba6c6-5377-4ec3-9c46-5343a3db7742', nameTr: '45', nameEn: '45' },
+];
 
 export function ProductCreateWizard({
   categories,
@@ -122,14 +170,59 @@ export function ProductCreateWizard({
   totalProducts,
   isProductsLoading,
   onCreated,
+  initialEntryMode,
 }: ProductCreateWizardProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const { showModal } = useModalStore();
   const { state, updateField, patchState, reset } = useProductCreateWizard();
   const { data: mobileConfigData } = useMobileConfig();
+  const navigation = useNavigation();
+
   const [currentStep, setCurrentStep] = useState<ProductCreateWizardStep>(1);
   const [images, setImages] = useState<ProductCreateImageDraft[]>([]);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleTitleBlur = async () => {
+    if (!state.title || state.title.trim().length < 5) return;
+
+    const isDescriptionEmpty = !state.description || state.description.trim().length === 0;
+    const isStoryEmpty = !state.sellerNotes || state.sellerNotes.trim().length === 0;
+    const isContentEmpty = !state.productContent || state.productContent.trim().length === 0;
+
+    if (!isDescriptionEmpty && !isStoryEmpty && !isContentEmpty) return;
+
+    try {
+      setIsAiGenerating(true);
+      const selectedCategoryName = selectedCategory?.name;
+      const aiContent = await generateAiContent(state.title.trim(), selectedCategoryName);
+
+      patchState({
+        description: isDescriptionEmpty ? aiContent.description : state.description,
+        sellerNotes: isStoryEmpty ? aiContent.story : state.sellerNotes,
+        productContent: isContentEmpty ? aiContent.productContent : state.productContent,
+      });
+    } catch (error) {
+      console.warn('AI Content Generation failed:', error);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      reset();
+      setCurrentStep(1);
+      setImages([]);
+      setSelectedExistingProductId(null);
+      setEntryMode(initialEntryMode ?? null);
+    });
+
+    return unsubscribe;
+  }, [navigation, reset, initialEntryMode]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [entryMode, setEntryMode] = useState<ProductCreateEntryMode | null>(initialEntryMode ?? null);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
@@ -143,8 +236,26 @@ export function ProductCreateWizard({
   const [shippingProvinceSearch, setShippingProvinceSearch] = useState('');
   const [isShippingDistrictModalVisible, setShippingDistrictModalVisible] = useState(false);
   const [shippingDistrictSearch, setShippingDistrictSearch] = useState('');
+  const [isProductionProvinceModalVisible, setProductionProvinceModalVisible] = useState(false);
+  const [productionProvinceSearch, setProductionProvinceSearch] = useState('');
+  const [isProductionDistrictModalVisible, setProductionDistrictModalVisible] = useState(false);
+  const [productionDistrictSearch, setProductionDistrictSearch] = useState('');
   const [isDesiModalVisible, setDesiModalVisible] = useState(false);
   const [desiFieldTarget, setDesiFieldTarget] = useState<DesiFieldTarget | null>(null);
+  const [isProductsCollapsed, setIsProductsCollapsed] = useState(true);
+
+  // Variant States
+  const [hasVariants, setHasVariants] = useState(false);
+  const [isAddVariantModalVisible, setAddVariantModalVisible] = useState(false);
+  const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null);
+  const [variantSkuCode, setVariantSkuCode] = useState('');
+  const [variantStock, setVariantStock] = useState('1');
+  const [variantPriceOverride, setVariantPriceOverride] = useState('');
+  const [isColorSelectModalVisible, setColorSelectModalVisible] = useState(false);
+  const [isSizeSelectModalVisible, setSizeSelectModalVisible] = useState(false);
+  const [colorSearch, setColorSearch] = useState('');
+  const [sizeSearch, setSizeSearch] = useState('');
 
   const rootCategories = useMemo(
     () => categories.filter((category) => Boolean(category.id)),
@@ -160,6 +271,7 @@ export function ProductCreateWizard({
 
     return null;
   }, [rootCategories, state.categoryId]);
+  const selectedListingTemplate = selectedCategory?.listingTemplate ?? null;
 
   const selectedCategoryLabel = useMemo(() => {
     if (!selectedCategory) return t('listing.categoryPlaceholder');
@@ -230,6 +342,60 @@ export function ProductCreateWizard({
       district.toLocaleLowerCase('tr-TR').includes(query));
   }, [shippingDistrictOptions, shippingDistrictSearch]);
 
+  const productionDistrictOptions = useMemo(
+    () => getTurkishDistrictsByProvinceName(state.productionProvince),
+    [state.productionProvince],
+  );
+
+  const filteredProductionProvinces = useMemo(() => {
+    const query = productionProvinceSearch.trim().toLocaleLowerCase('tr-TR');
+    if (!query) return TURKISH_PROVINCES;
+    return TURKISH_PROVINCES.filter((province) =>
+      province.toLocaleLowerCase('tr-TR').includes(query));
+  }, [productionProvinceSearch]);
+
+  const filteredProductionDistricts = useMemo(() => {
+    const query = productionDistrictSearch.trim().toLocaleLowerCase('tr-TR');
+    if (!query) return productionDistrictOptions;
+    return productionDistrictOptions.filter((district) =>
+      district.toLocaleLowerCase('tr-TR').includes(query));
+  }, [productionDistrictOptions, productionDistrictSearch]);
+
+  const filteredColors = useMemo(() => {
+    const query = colorSearch.trim().toLocaleLowerCase('tr-TR');
+    if (!query) return SEEDED_COLOR_VARIANTS;
+    return SEEDED_COLOR_VARIANTS.filter((c) =>
+      c.nameTr.toLocaleLowerCase('tr-TR').includes(query) ||
+      c.nameEn.toLocaleLowerCase('tr-TR').includes(query)
+    );
+  }, [colorSearch]);
+
+  const variantAllowedKinds = selectedListingTemplate?.variant?.allowedKinds ?? [];
+
+  const activeSizeList = useMemo(() => {
+    if (variantAllowedKinds.includes('NUMBER')) {
+      return SEEDED_NUMBER_VARIANTS;
+    }
+    return SEEDED_SIZE_VARIANTS;
+  }, [variantAllowedKinds]);
+
+  const isColorVariantSupported = useMemo(() => {
+    return variantAllowedKinds.includes('COLOR');
+  }, [variantAllowedKinds]);
+
+  const isSizeVariantSupported = useMemo(() => {
+    return variantAllowedKinds.includes('SIZE') || variantAllowedKinds.includes('NUMBER');
+  }, [variantAllowedKinds]);
+
+  const filteredSizes = useMemo(() => {
+    const query = sizeSearch.trim().toLocaleLowerCase('tr-TR');
+    if (!query) return activeSizeList;
+    return activeSizeList.filter((s) =>
+      s.nameTr.toLocaleLowerCase('tr-TR').includes(query) ||
+      s.nameEn.toLocaleLowerCase('tr-TR').includes(query)
+    );
+  }, [activeSizeList, sizeSearch]);
+
   const selectedExistingProduct = useMemo(
     () => recentProducts.find((item) => item.id === selectedExistingProductId) ?? null,
     [recentProducts, selectedExistingProductId],
@@ -252,8 +418,39 @@ export function ProductCreateWizard({
     }
     return { optionalFields };
   }, [mobileConfigData?.listingCreate?.optionalFields]);
-  const isListingFieldVisible = (field: MobileListingCreateOptionalField): boolean =>
-    listingFieldVisibility.optionalFields?.includes(field) ?? true;
+  const isListingFieldVisible = (field: MobileListingCreateOptionalField): boolean => {
+    const enabledByConfig = listingFieldVisibility.optionalFields?.includes(field) ?? true;
+    if (!enabledByConfig) return false;
+
+    // Core global shipping, brand, production origin, media, and inventory specs bypass category templates
+    const isGlobalCoreField = [
+      // Step 3 (Core Shipping)
+      'shippingProvince',
+      'shippingDistrict',
+      'shippingAddress',
+      'deliveryTemplateDomestic',
+      'desiDomestic',
+      // Step 4 (Brand & Origin)
+      'brand',
+      'sellerNotes',
+      'productionProvince',
+      'productionDistrict',
+      // Step 5 (Description / Story)
+      'productContent',
+      // Step 6 (Media & Logistics Specs)
+      'sku',
+      'weight',
+      'dimensionWidth',
+      'dimensionHeight',
+      'dimensionDepth',
+      'images',
+    ].includes(field);
+
+    if (isGlobalCoreField) return true;
+
+    if (!selectedListingTemplate?.fields?.length) return true;
+    return selectedListingTemplate.fields.some((item) => item.key === field);
+  };
   const imageUploadLimits = mobileConfigData?.imageUploadLimits ?? {
     min: 1,
     max: DEFAULT_MAX_PRODUCT_IMAGE_COUNT,
@@ -285,7 +482,19 @@ export function ProductCreateWizard({
     if (matchedRootCategory && matchedRootCategory.id !== selectedRootCategoryId) {
       setSelectedRootCategoryId(matchedRootCategory.id);
     }
-  }, [rootCategories, state.categoryId]);
+  }, [rootCategories, selectedRootCategoryId, state.categoryId]);
+
+  useEffect(() => {
+    if (initialEntryMode) {
+      setEntryMode(initialEntryMode);
+      patchState({
+        listingType: initialEntryMode === 'AUCTION'
+          ? PRODUCT_CREATE_LISTING_TYPES.AUCTION
+          : PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE,
+        askPriceEnabled: false,
+      });
+    }
+  }, [initialEntryMode]);
 
   function handleOpenCategoryModal() {
     const matchedRootCategory = rootCategories.find(
@@ -356,6 +565,27 @@ export function ProductCreateWizard({
     setShippingDistrictModalVisible(false);
   }
 
+  function handleOpenProductionProvinceModal() {
+    setProductionProvinceSearch('');
+    setProductionProvinceModalVisible(true);
+  }
+
+  function handleCloseProductionProvinceModal() {
+    setProductionProvinceSearch('');
+    setProductionProvinceModalVisible(false);
+  }
+
+  function handleOpenProductionDistrictModal() {
+    if (!state.productionProvince) return;
+    setProductionDistrictSearch('');
+    setProductionDistrictModalVisible(true);
+  }
+
+  function handleCloseProductionDistrictModal() {
+    setProductionDistrictSearch('');
+    setProductionDistrictModalVisible(false);
+  }
+
   function handleOpenDesiModal(target: DesiFieldTarget) {
     setDesiFieldTarget(target);
     setDesiModalVisible(true);
@@ -364,6 +594,54 @@ export function ProductCreateWizard({
   function handleCloseDesiModal() {
     setDesiModalVisible(false);
     setDesiFieldTarget(null);
+  }
+
+  function handleSaveVariant() {
+    // Dynamic validation requirements depending on active category support
+    const isValidationFailed =
+      (isColorVariantSupported && isSizeVariantSupported && !selectedColorId && !selectedSizeId) ||
+      (isColorVariantSupported && !isSizeVariantSupported && !selectedColorId) ||
+      (!isColorVariantSupported && isSizeVariantSupported && !selectedSizeId);
+
+    if (isValidationFailed) {
+      showModal({
+        title: t('common.error'),
+        message: t('listing.variantSelectionRequired'),
+        type: 'error',
+      });
+      return;
+    }
+
+    const duplicate = state.variantSkus.some(
+      (v) => v.colorVariantNumberId === (selectedColorId || undefined) &&
+             v.sizeVariantNumberId === (selectedSizeId || undefined)
+    );
+    if (duplicate) {
+      showModal({
+        title: t('common.error'),
+        message: t('listing.variantDuplicateError'),
+        type: 'error',
+      });
+      return;
+    }
+
+    const priceOverride = parseFloat(variantPriceOverride.replace(/\./g, '').replace(',', '.'));
+    const newVariant = {
+      colorVariantNumberId: selectedColorId || undefined,
+      sizeVariantNumberId: selectedSizeId || undefined,
+      skuCode: variantSkuCode.trim() || undefined,
+      stockQuantity: parseInt(variantStock, 10) || 0,
+      priceOverride: Number.isFinite(priceOverride) && priceOverride > 0 ? priceOverride : undefined,
+      isActive: true,
+    };
+
+    const updated = [...state.variantSkus, newVariant];
+    patchState({ variantSkus: updated });
+    
+    const sum = updated.reduce((acc, v) => acc + (v.stockQuantity ?? 0), 0);
+    updateField('stockQuantity', sum.toString());
+
+    setAddVariantModalVisible(false);
   }
 
   async function handlePickImages() {
@@ -462,9 +740,36 @@ export function ProductCreateWizard({
     updateField('geoBadgeSelections', nextSelections);
   }
 
-  function handleGoNext() {
-    if (!canContinue || currentStep === 6) return;
-    setCurrentStep((step) => (step + 1) as ProductCreateWizardStep);
+  function handleSelectEntryMode(nextEntryMode: ProductCreateEntryMode) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setEntryMode(nextEntryMode);
+    patchState({
+      listingType: nextEntryMode === 'AUCTION'
+        ? PRODUCT_CREATE_LISTING_TYPES.AUCTION
+        : PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE,
+      askPriceEnabled: false,
+    });
+  }
+
+  async function persistDraft(nextStep: ProductCreateWizardStep) {
+    if (!entryMode) return;
+    try {
+      if (draftId) {
+        await updateListingDraft(draftId, state, entryMode, nextStep);
+        return;
+      }
+      const draft = await createListingDraft(state, entryMode, nextStep);
+      setDraftId(draft.id);
+    } catch {
+      // Draft autosave is best-effort; publishing still uses the normal create flow.
+    }
+  }
+
+  async function handleGoNext() {
+    if (!canContinue || currentStep === 7) return;
+    const nextStep = (currentStep + 1) as ProductCreateWizardStep;
+    await persistDraft(nextStep);
+    setCurrentStep(nextStep);
   }
 
   function handleGoBack() {
@@ -481,6 +786,8 @@ export function ProductCreateWizard({
       reset();
       setImages([]);
       setCurrentStep(1);
+      setEntryMode(null);
+      setDraftId(null);
       setCategorySearch('');
       setShowAuctionAdvanced(false);
       setSelectedExistingProductId(null);
@@ -523,7 +830,90 @@ export function ProductCreateWizard({
       askPriceMinAmount: product.askPriceMinAmount ? formatPriceInput(String(product.askPriceMinAmount)) : '',
     });
     setSelectedExistingProductId(product.id);
+    setEntryMode(listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION ? 'AUCTION' : 'MARKETPLACE');
     setCurrentStep(1);
+  }
+
+  function renderEntryModeSheet() {
+    return (
+      <Modal
+        visible={!entryMode}
+        transparent={true}
+        animationType="slide"
+        statusBarTranslucent
+      >
+        <View style={styles.entryModeModalBackdrop}>
+          <TouchableOpacity
+            style={styles.entryModeModalDismissArea}
+            activeOpacity={1}
+            onPress={() => router.back()}
+          />
+          <SafeAreaView style={styles.entryModeModalContainer} edges={['bottom']}>
+            <View style={styles.entryModeModalHandle} />
+
+            <View style={styles.entryModeHeaderArea}>
+              <Text style={styles.entryModeEyebrow}>{t('listing.entryModeEyebrow')}</Text>
+              <Text style={styles.entryModeTitle}>{t('listing.entryModeTitle')}</Text>
+              <Text style={styles.entryModeSubtitle}>{t('listing.entryModeSubtitle')}</Text>
+            </View>
+
+            <View style={styles.entryModeOptions}>
+              <Animated.View entering={FadeInUp.delay(100).duration(600)}>
+                <TouchableOpacity
+                  style={[styles.entryModeOption, styles.entryModeOptionMarketplace]}
+                  activeOpacity={0.7}
+                  onPress={() => handleSelectEntryMode('MARKETPLACE')}
+                >
+                  <View style={[styles.entryModeIconContainer, styles.entryModeIconContainerMarketplace]}>
+                    <Ionicons name="storefront-outline" size={24} color={Colors.primary} />
+                  </View>
+                  <View style={styles.entryModeOptionTextWrap}>
+                    <View style={styles.entryModeOptionHeaderRow}>
+                      <Text style={styles.entryModeOptionTitle}>{t('listing.entryModeMarketplace')}</Text>
+                      <View style={[styles.entryModeBadge, styles.entryModeBadgeMarketplace]}>
+                        <Text style={[styles.entryModeBadgeText, styles.entryModeBadgeTextMarketplace]}>
+                          {t('listing.popularTag')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.entryModeOptionBody}>{t('listing.entryModeMarketplaceBody')}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={styles.entryModeOptionChevron} />
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View entering={FadeInUp.delay(250).duration(600)}>
+                <TouchableOpacity
+                  style={[styles.entryModeOption, styles.entryModeOptionAuction]}
+                  activeOpacity={0.7}
+                  onPress={() => handleSelectEntryMode('AUCTION')}
+                >
+                  <View style={[styles.entryModeIconContainer, styles.entryModeIconContainerAuction]}>
+                    <Ionicons name="hammer-outline" size={24} color={Colors.secondary} />
+                  </View>
+                  <View style={styles.entryModeOptionTextWrap}>
+                    <View style={styles.entryModeOptionHeaderRow}>
+                      <Text style={styles.entryModeOptionTitle}>{t('listing.entryModeAuction')}</Text>
+                      <View style={[styles.entryModeBadge, styles.entryModeBadgeAuction]}>
+                        <Text style={[styles.entryModeBadgeText, styles.entryModeBadgeTextAuction]}>
+                          {t('listing.newTag')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.entryModeOptionBody}>{t('listing.entryModeAuctionBody')}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={styles.entryModeOptionChevron} />
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+
+            <View style={styles.entryModeFooter}>
+              <Text style={styles.entryModeFooterText}>{t('listing.sellerAssurance')}</Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+    );
   }
 
   function renderCoreStep() {
@@ -724,59 +1114,59 @@ export function ProductCreateWizard({
     );
   }
 
+  const renderCategorySelectionStep = () => {
+    return (
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>{t('listing.category')} *</Text>
+        <TouchableOpacity
+          style={styles.categorySelector}
+          activeOpacity={0.85}
+          onPress={handleOpenCategoryModal}
+        >
+          <View style={styles.categorySelectorLeft}>
+            {selectedCategory ? (
+              <View style={styles.categoryMediaWrap}>
+                <Image
+                  source={{ uri: getCategoryMockImage(selectedCategory.slug) }}
+                  style={styles.categoryMediaImage}
+                  contentFit="cover"
+                />
+              </View>
+            ) : null}
+            <Text
+              style={selectedCategory ? styles.categorySelectorText : styles.categorySelectorPlaceholder}
+              numberOfLines={1}
+            >
+              {selectedCategoryLabel}
+            </Text>
+          </View>
+          <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+        </TouchableOpacity>
+        <Text style={styles.helperText}>{t('listing.categoryHelp')}</Text>
+      </View>
+    );
+  };
+
   function renderBasicsStep() {
     return (
       <>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.productMode')} *</Text>
-          <ProductTypeSegment
-            value={state.listingType}
-            onChange={(value) => patchState({
-              listingType: value,
-              askPriceEnabled: value === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE ? state.askPriceEnabled : false,
-            })}
-          />
-        </View>
-
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{t('listing.title')} *</Text>
           <TextInput
             style={styles.input}
             value={state.title}
             onChangeText={(value) => updateField('title', value)}
+            onBlur={handleTitleBlur}
             placeholder={t('listing.titlePlaceholder')}
             placeholderTextColor={Colors.slate400}
             maxLength={200}
           />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.category')} *</Text>
-          <TouchableOpacity
-            style={styles.categorySelector}
-            activeOpacity={0.85}
-            onPress={handleOpenCategoryModal}
-          >
-            <View style={styles.categorySelectorLeft}>
-              {selectedCategory ? (
-                <View style={styles.categoryMediaWrap}>
-                  <Image
-                    source={{ uri: getCategoryMockImage(selectedCategory.slug) }}
-                    style={styles.categoryMediaImage}
-                    contentFit="cover"
-                  />
-                </View>
-              ) : null}
-              <Text
-                style={selectedCategory ? styles.categorySelectorText : styles.categorySelectorPlaceholder}
-                numberOfLines={1}
-              >
-                {selectedCategoryLabel}
-              </Text>
+          {isAiGenerating ? (
+            <View style={styles.aiLoadingBadge}>
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.aiLoadingText}>{t('listing.aiGenerating')}</Text>
             </View>
-            <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
-          </TouchableOpacity>
-          <Text style={styles.helperText}>{t('listing.categoryHelp')}</Text>
+          ) : null}
         </View>
       </>
     );
@@ -847,32 +1237,47 @@ export function ProductCreateWizard({
   }
 
   function renderDetailsStep() {
+    const isDescGenerating = isAiGenerating && (!state.description || state.description.trim().length === 0);
     return (
       <>
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{t('listing.description')} *</Text>
           <TextInput
-            style={[styles.input, styles.textareaInput]}
+            style={[
+              styles.input,
+              styles.textareaInput,
+              isDescGenerating && { opacity: 0.6, backgroundColor: Colors.slate50 }
+            ]}
             value={state.description}
             onChangeText={(value) => updateField('description', value)}
-            placeholder={t('listing.descriptionPlaceholder')}
+            placeholder={isDescGenerating ? t('listing.aiGenerating') : t('listing.descriptionPlaceholder')}
             placeholderTextColor={Colors.slate400}
             multiline
             maxLength={1200}
+            editable={!isDescGenerating}
           />
         </View>
 
         <View style={styles.inlineRow}>
           <View style={styles.inlineBlock}>
             <Text style={styles.inputLabel}>{t('listing.stock')} *</Text>
-            <TextInput
-              style={styles.input}
-              value={state.stockQuantity}
-              onChangeText={(value) => updateField('stockQuantity', value)}
-              placeholder="1"
-              placeholderTextColor={Colors.slate400}
-              keyboardType="number-pad"
-            />
+            {hasVariants ? (
+              <View style={[styles.input, { backgroundColor: Colors.slate50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }]}>
+                <Text style={{ color: Colors.slate600, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 }}>
+                  {state.stockQuantity}
+                </Text>
+                <Ionicons name="lock-closed" size={16} color={Colors.slate400} />
+              </View>
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={state.stockQuantity}
+                onChangeText={(value) => updateField('stockQuantity', value)}
+                placeholder="1"
+                placeholderTextColor={Colors.slate400}
+                keyboardType="number-pad"
+              />
+            )}
           </View>
           {isListingFieldVisible('originRegion') ? (
             <View style={styles.inlineBlock}>
@@ -897,20 +1302,130 @@ export function ProductCreateWizard({
     );
   }
 
+  function renderVariantSection() {
+    const isVariantEnabled = selectedListingTemplate?.variant?.enabled === true;
+    if (!isVariantEnabled) return null;
+
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.toggleCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            const nextVal = !hasVariants;
+            setHasVariants(nextVal);
+            if (!nextVal) {
+              patchState({ variantSkus: [] });
+              updateField('stockQuantity', '1');
+            } else {
+              patchState({ variantSkus: [] });
+              updateField('stockQuantity', '0');
+            }
+          }}
+        >
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.toggleTitle}>{t('listing.hasVariants')}</Text>
+            <Text style={styles.toggleSub}>{t('listing.hasVariantsHint')}</Text>
+          </View>
+          <View style={[styles.checkbox, hasVariants && styles.checkboxChecked]}>
+            {hasVariants ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
+          </View>
+        </TouchableOpacity>
+
+        {hasVariants ? (
+          <View style={{ marginTop: 8, marginBottom: 20 }}>
+            <Text style={[styles.inputLabel, { marginBottom: 10 }]}>{t('listing.variantListTitle')}</Text>
+            {state.variantSkus.length === 0 ? (
+              <View style={styles.variantEmptyState}>
+                <Ionicons name="options-outline" size={24} color={Colors.slate400} style={styles.variantEmptyIcon} />
+                <Text style={styles.variantEmptyText}>{t('listing.variantEmptyState')}</Text>
+              </View>
+            ) : (
+              <View style={styles.variantList}>
+                {state.variantSkus.map((variant, index) => {
+                  const colorNode = SEEDED_COLOR_VARIANTS.find((c) => c.id === variant.colorVariantNumberId);
+                  const sizeNode = activeSizeList.find((s) => s.id === variant.sizeVariantNumberId);
+                  const labelParts = [];
+                  if (colorNode) labelParts.push(colorNode.nameTr);
+                  if (sizeNode) labelParts.push(sizeNode.nameTr);
+                  const label = labelParts.join(' / ') || t('listing.variantItemFallback');
+
+                  return (
+                    <View key={`variant-item-${index}`} style={styles.variantItemCard}>
+                      <View style={styles.variantItemContent}>
+                        {colorNode?.hex ? <View style={[styles.variantSwatch, { backgroundColor: colorNode.hex }]} /> : null}
+                        <View style={styles.variantItemTextBlock}>
+                          <Text style={styles.variantItemTitle} numberOfLines={1}>
+                            {label}
+                          </Text>
+                          <Text style={styles.variantItemMeta}>
+                            {`${t('listing.variantStockMeta', { stock: variant.stockQuantity })}${
+                              variant.priceOverride
+                                ? t('listing.variantPriceMeta', { price: formatCurrency(variant.priceOverride) })
+                                : ''
+                            }${variant.skuCode ? t('listing.variantSkuMeta', { sku: variant.skuCode }) : ''}`}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          const updated = state.variantSkus.filter((_, idx) => idx !== index);
+                          patchState({ variantSkus: updated });
+                          const sum = updated.reduce((acc, v) => acc + (v.stockQuantity ?? 0), 0);
+                          updateField('stockQuantity', sum.toString());
+                        }}
+                        style={styles.variantDeleteButton}
+                      >
+                        <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.variantAddButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                setSelectedColorId(null);
+                setSelectedSizeId(null);
+                setVariantSkuCode('');
+                setVariantStock('1');
+                setVariantPriceOverride('');
+                setAddVariantModalVisible(true);
+              }}
+            >
+              <Ionicons name="add-circle" size={20} color={Colors.primary} />
+              <Text style={styles.variantAddButtonText}>{t('listing.addVariantButton')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </>
+    );
+  }
+
   function renderAdditionalStep() {
+    const isNotesGenerating = isAiGenerating && (!state.sellerNotes || state.sellerNotes.trim().length === 0);
     return (
       <>
         {isListingFieldVisible('sellerNotes') ? (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('listing.sellerNotes')}</Text>
             <TextInput
-              style={[styles.input, styles.textareaInput]}
+              style={[
+                styles.input,
+                styles.textareaInput,
+                isNotesGenerating && { opacity: 0.6, backgroundColor: Colors.slate50 }
+              ]}
               value={state.sellerNotes}
               onChangeText={(value) => updateField('sellerNotes', value)}
-              placeholder={t('listing.sellerNotesPlaceholder')}
+              placeholder={isNotesGenerating ? t('listing.aiGenerating') : t('listing.sellerNotesPlaceholder')}
               placeholderTextColor={Colors.slate400}
               multiline
               maxLength={600}
+              editable={!isNotesGenerating}
             />
           </View>
         ) : null}
@@ -948,25 +1463,37 @@ export function ProductCreateWizard({
           {isListingFieldVisible('productionProvince') ? (
             <View style={styles.inlineBlock}>
               <Text style={styles.inputLabel}>{t('listing.productionProvince')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.productionProvince}
-                onChangeText={(value) => updateField('productionProvince', value)}
-                placeholder={t('listing.productionProvincePlaceholder')}
-                placeholderTextColor={Colors.slate400}
-              />
+              <TouchableOpacity
+                style={styles.selectorInput}
+                activeOpacity={0.85}
+                onPress={handleOpenProductionProvinceModal}
+              >
+                <Text
+                  style={state.productionProvince ? styles.selectorInputText : styles.selectorInputPlaceholder}
+                  numberOfLines={1}
+                >
+                  {state.productionProvince || t('listing.productionProvincePlaceholder')}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+              </TouchableOpacity>
             </View>
           ) : null}
           {isListingFieldVisible('productionDistrict') ? (
             <View style={styles.inlineBlock}>
               <Text style={styles.inputLabel}>{t('listing.productionDistrict')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.productionDistrict}
-                onChangeText={(value) => updateField('productionDistrict', value)}
-                placeholder={t('listing.productionDistrictPlaceholder')}
-                placeholderTextColor={Colors.slate400}
-              />
+              <TouchableOpacity
+                style={[styles.selectorInput, !state.productionProvince && { opacity: 0.5 }]}
+                activeOpacity={0.85}
+                onPress={handleOpenProductionDistrictModal}
+              >
+                <Text
+                  style={state.productionDistrict ? styles.selectorInputText : styles.selectorInputPlaceholder}
+                  numberOfLines={1}
+                >
+                  {state.productionDistrict || t('listing.productionDistrictPlaceholder')}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+              </TouchableOpacity>
             </View>
           ) : null}
         </View>
@@ -976,19 +1503,25 @@ export function ProductCreateWizard({
   }
 
   function renderLogisticsStep() {
+    const isContentGenerating = isAiGenerating && (!state.productContent || state.productContent.trim().length === 0);
     return (
       <>
         {isListingFieldVisible('productContent') ? (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('listing.productContent')}</Text>
             <TextInput
-              style={[styles.input, styles.textareaInput]}
+              style={[
+                styles.input,
+                styles.textareaInput,
+                isContentGenerating && { opacity: 0.6, backgroundColor: Colors.slate50 }
+              ]}
               value={state.productContent}
               onChangeText={(value) => updateField('productContent', value)}
-              placeholder={t('listing.productContentPlaceholder')}
+              placeholder={isContentGenerating ? t('listing.aiGenerating') : t('listing.productContentPlaceholder')}
               placeholderTextColor={Colors.slate400}
               multiline
               maxLength={600}
+              editable={!isContentGenerating}
             />
           </View>
         ) : null}
@@ -1111,6 +1644,8 @@ export function ProductCreateWizard({
   function renderImagesStep() {
     return (
       <>
+        {renderVariantSection()}
+
         <View style={styles.inlineRow}>
           {isListingFieldVisible('sku') ? (
             <View style={styles.inlineBlock}>
@@ -1445,11 +1980,12 @@ export function ProductCreateWizard({
   }
 
   function renderCurrentStep() {
-    if (currentStep === 1) return renderCoreStep();
-    if (currentStep === 2) return renderGeoIndicationStep();
-    if (currentStep === 3) return renderAdditionalStep();
-    if (currentStep === 4) return renderLogisticsStep();
-    if (currentStep === 5) return renderImagesStep();
+    if (currentStep === 1) return renderCategorySelectionStep();
+    if (currentStep === 2) return renderCoreStep();
+    if (currentStep === 3) return renderGeoIndicationStep();
+    if (currentStep === 4) return renderAdditionalStep();
+    if (currentStep === 5) return renderLogisticsStep();
+    if (currentStep === 6) return renderImagesStep();
     return renderReviewStep();
   }
 
@@ -1460,74 +1996,77 @@ export function ProductCreateWizard({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {currentStep === 1 ? (
-            <View style={styles.heroCard}>
-              <View style={styles.heroTopRow}>
-                <Text style={styles.heroBadge}>{t('listing.heroBadge')}</Text>
-                <View style={styles.heroCountPill}>
-                  <Ionicons name="cube-outline" size={14} color={Colors.primary} />
-                  <Text style={styles.heroCountText}>
-                    {t('listing.totalProducts', { count: totalProducts })}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.heroTitle} numberOfLines={2}>{t('listing.wizardHeroTitle')}</Text>
-              <Text style={styles.heroSub} numberOfLines={2}>{t('listing.wizardHeroSub')}</Text>
-            </View>
-          ) : null}
+
+          <View style={styles.stepCard}>
+            <ProductCreateProgress
+              currentStep={currentStep}
+              totalSteps={7}
+              titleKey={STEP_TITLE_KEYS[currentStep]}
+              listingType={state.listingType}
+            />
+            {renderCurrentStep()}
+          </View>
 
           {currentStep === 1 ? (
             <View style={styles.productsCard}>
-              <View style={styles.productsCardHeader}>
+              <TouchableOpacity
+                style={[styles.productsCardHeader, isProductsCollapsed && { marginBottom: 0 }]}
+                activeOpacity={0.8}
+                onPress={() => setIsProductsCollapsed(!isProductsCollapsed)}
+              >
                 <View>
                   <Text style={styles.productsCardTitle}>{t('listing.myProductsTitle')}</Text>
                   <Text style={styles.productsCardSubtitle}>
                     {t('listing.totalProducts', { count: totalProducts })}
                   </Text>
                 </View>
-                {isProductsLoading ? <ActivityIndicator size="small" color={Colors.primary} /> : null}
-              </View>
-              {recentProducts.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.productRow,
-                    selectedExistingProductId === item.id && styles.productRowSelected,
-                  ]}
-                  activeOpacity={0.85}
-                  onPress={() => handleSelectExistingProduct(item)}
-                >
-                  <View style={styles.productRowInfo}>
-                    <Text style={styles.productRowTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.productRowSub}>
-                      {item.price ? formatCurrency(item.price) : formatCurrency(0)}
-                    </Text>
-                  </View>
-                  <View style={styles.statusPill}>
-                    <Text style={styles.statusPillText}>
-                      {t(`productStatuses.${(item.status || 'DRAFT') as ProductStatus}`, { defaultValue: item.status || 'DRAFT' })}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {recentProducts.length === 0 ? (
-                <View style={styles.emptyProductsCompact}>
-                  <Ionicons name="cube-outline" size={16} color={Colors.slate500} />
-                  <Text style={styles.emptyProductsText}>{t('listing.emptyProducts')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {isProductsLoading ? (
+                    <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 8 }} />
+                  ) : null}
+                  <Ionicons
+                    name={isProductsCollapsed ? 'chevron-down' : 'chevron-up'}
+                    size={18}
+                    color={Colors.slate500}
+                  />
                 </View>
+              </TouchableOpacity>
+
+              {!isProductsCollapsed ? (
+                <>
+                  {recentProducts.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.productRow,
+                        selectedExistingProductId === item.id && styles.productRowSelected,
+                      ]}
+                      activeOpacity={0.85}
+                      onPress={() => handleSelectExistingProduct(item)}
+                    >
+                      <View style={styles.productRowInfo}>
+                        <Text style={styles.productRowTitle} numberOfLines={1}>{item.title}</Text>
+                        <Text style={styles.productRowSub}>
+                          {item.price ? formatCurrency(item.price) : formatCurrency(0)}
+                        </Text>
+                      </View>
+                      <View style={styles.statusPill}>
+                        <Text style={styles.statusPillText}>
+                          {t(`productStatuses.${(item.status || 'DRAFT') as ProductStatus}`, { defaultValue: item.status || 'DRAFT' })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                  {recentProducts.length === 0 ? (
+                    <View style={styles.emptyProductsCompact}>
+                      <Ionicons name="cube-outline" size={16} color={Colors.slate500} />
+                      <Text style={styles.emptyProductsText}>{t('listing.emptyProducts')}</Text>
+                    </View>
+                  ) : null}
+                </>
               ) : null}
             </View>
           ) : null}
-
-          <View style={styles.stepCard}>
-            <ProductCreateProgress
-              currentStep={currentStep}
-              totalSteps={6}
-              titleKey={STEP_TITLE_KEYS[currentStep]}
-              listingType={state.listingType}
-            />
-            {renderCurrentStep()}
-          </View>
         </ScrollView>
 
         <View style={styles.navigationRow}>
@@ -1544,23 +2083,23 @@ export function ProductCreateWizard({
             style={[
               styles.primaryButton,
               state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.primaryButtonAuction,
-              ((!canContinue && currentStep !== 6) || (!canSubmit && currentStep === 6) || isSubmitting)
+              ((!canContinue && currentStep !== 7) || (!canSubmit && currentStep === 7) || isSubmitting)
                 && styles.primaryButtonDisabled,
             ]}
             activeOpacity={0.88}
-            onPress={currentStep === 6 ? handleSubmit : handleGoNext}
-            disabled={((!canContinue && currentStep !== 6) || (!canSubmit && currentStep === 6) || isSubmitting)}
+            onPress={currentStep === 7 ? handleSubmit : handleGoNext}
+            disabled={((!canContinue && currentStep !== 7) || (!canSubmit && currentStep === 7) || isSubmitting)}
           >
             {isSubmitting ? <ActivityIndicator color={Colors.white} /> : null}
             {!isSubmitting ? (
               <>
                 <Ionicons
-                  name={currentStep === 6 ? 'checkmark-circle-outline' : 'arrow-forward'}
+                  name={currentStep === 7 ? 'checkmark-circle-outline' : 'arrow-forward'}
                   size={18}
                   color={Colors.white}
                 />
                 <Text style={styles.primaryButtonText}>
-                  {t(currentStep === 6 ? 'listing.publish' : 'listing.next')}
+                  {t(currentStep === 7 ? 'listing.publish' : 'listing.next')}
                 </Text>
               </>
             ) : null}
@@ -2054,6 +2593,501 @@ export function ProductCreateWizard({
       </Modal>
 
       <Modal
+        visible={isProductionProvinceModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCloseProductionProvinceModal}
+      >
+        <View style={styles.bottomSheetBackdrop}>
+          <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={handleCloseProductionProvinceModal} />
+          <SafeAreaView style={styles.bottomSheetContainer} edges={['bottom']}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.categoryModalHeader}>
+              <View style={styles.categoryModalHeaderTextWrap}>
+                <Text style={styles.categoryModalTitle}>{t('listing.productionProvinceModalTitle')}</Text>
+                <Text style={styles.categoryModalSubtitle}>{t('listing.productionProvinceModalSubtitle')}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.categoryModalCloseButton}
+                onPress={handleCloseProductionProvinceModal}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categorySearchWrapper}>
+              <Ionicons name="search-outline" size={16} color={Colors.slate500} />
+              <TextInput
+                style={styles.categorySearchInput}
+                value={productionProvinceSearch}
+                onChangeText={setProductionProvinceSearch}
+                placeholder={t('listing.productionProvinceSearchPlaceholder')}
+                placeholderTextColor={Colors.slate400}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {productionProvinceSearch.trim().length > 0 ? (
+                <TouchableOpacity
+                  style={styles.categorySearchClearButton}
+                  onPress={() => setProductionProvinceSearch('')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close-circle" size={16} color={Colors.slate500} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <FlatList
+              data={filteredProductionProvinces}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.categoryListContent}
+              renderItem={({ item }) => {
+                const isSelected = item === state.productionProvince;
+                return (
+                  <TouchableOpacity
+                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      patchState({ productionProvince: item, productionDistrict: '' });
+                      handleCloseProductionProvinceModal();
+                    }}
+                  >
+                    <View style={styles.categoryListItemLeft}>
+                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
+                        <Ionicons name="business-outline" size={18} color={Colors.primary} />
+                      </View>
+                      <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
+                        {item}
+                      </Text>
+                    </View>
+                    {isSelected ? <Ionicons name="checkmark-circle" size={18} color={Colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={(
+                <View style={styles.categoryEmptyState}>
+                  <Text style={styles.categoryEmptyStateText}>{t('listing.productionProvinceEmpty')}</Text>
+                </View>
+              )}
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isProductionDistrictModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCloseProductionDistrictModal}
+      >
+        <View style={styles.bottomSheetBackdrop}>
+          <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={handleCloseProductionDistrictModal} />
+          <SafeAreaView style={styles.bottomSheetContainer} edges={['bottom']}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.categoryModalHeader}>
+              <View style={styles.categoryModalHeaderTextWrap}>
+                <Text style={styles.categoryModalTitle}>{t('listing.productionDistrictModalTitle')}</Text>
+                <Text style={styles.categoryModalSubtitle}>{t('listing.productionDistrictModalSubtitle')}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.categoryModalCloseButton}
+                onPress={handleCloseProductionDistrictModal}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categorySearchWrapper}>
+              <Ionicons name="search-outline" size={16} color={Colors.slate500} />
+              <TextInput
+                style={styles.categorySearchInput}
+                value={productionDistrictSearch}
+                onChangeText={setProductionDistrictSearch}
+                placeholder={t('listing.productionDistrictSearchPlaceholder')}
+                placeholderTextColor={Colors.slate400}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {productionDistrictSearch.trim().length > 0 ? (
+                <TouchableOpacity
+                  style={styles.categorySearchClearButton}
+                  onPress={() => setProductionDistrictSearch('')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close-circle" size={16} color={Colors.slate500} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <FlatList
+              data={filteredProductionDistricts}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.categoryListContent}
+              renderItem={({ item }) => {
+                const isSelected = item === state.productionDistrict;
+                return (
+                  <TouchableOpacity
+                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      patchState({ productionDistrict: item });
+                      handleCloseProductionDistrictModal();
+                    }}
+                  >
+                    <View style={styles.categoryListItemLeft}>
+                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
+                        <Ionicons name="business-outline" size={18} color={Colors.primary} />
+                      </View>
+                      <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
+                        {item}
+                      </Text>
+                    </View>
+                    {isSelected ? <Ionicons name="checkmark-circle" size={18} color={Colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={(
+                <View style={styles.categoryEmptyState}>
+                  <Text style={styles.categoryEmptyStateText}>{t('listing.productionDistrictEmpty')}</Text>
+                </View>
+              )}
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+
+      {/* Add Variant Modal */}
+      <Modal
+        visible={isAddVariantModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddVariantModalVisible(false)}
+      >
+        <View style={styles.bottomSheetBackdrop}>
+          <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={() => setAddVariantModalVisible(false)} />
+          <SafeAreaView style={styles.bottomSheetContainer} edges={['bottom']}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.categoryModalHeader}>
+              <View style={styles.categoryModalHeaderTextWrap}>
+                <Text style={styles.categoryModalTitle}>
+                  {t('listing.addVariantButton')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.categoryModalCloseButton}
+                onPress={() => setAddVariantModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Color Selection */}
+              {isColorVariantSupported ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>{t('listing.variantColorLabel')}</Text>
+                  <TouchableOpacity
+                    style={styles.selectorInput}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setColorSearch('');
+                      setColorSelectModalVisible(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {selectedColorId ? (
+                        <>
+                          <View 
+                            style={{ 
+                              width: 16, 
+                              height: 16, 
+                              borderRadius: 8, 
+                              backgroundColor: SEEDED_COLOR_VARIANTS.find(c => c.id === selectedColorId)?.hex || Colors.slate300,
+                              borderWidth: 1,
+                              borderColor: Colors.outlineVariant
+                            }} 
+                          />
+                          <Text style={styles.selectorInputText}>
+                            {SEEDED_COLOR_VARIANTS.find(c => c.id === selectedColorId)?.nameTr}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.selectorInputPlaceholder}>
+                          {t('listing.variantColorPlaceholder')}
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Size Selection */}
+              {isSizeVariantSupported ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>{t('listing.variantSizeLabel')}</Text>
+                  <TouchableOpacity
+                    style={styles.selectorInput}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setSizeSearch('');
+                      setSizeSelectModalVisible(true);
+                    }}
+                  >
+                    <Text
+                      style={selectedSizeId ? styles.selectorInputText : styles.selectorInputPlaceholder}
+                    >
+                      {selectedSizeId ? activeSizeList.find(s => s.id === selectedSizeId)?.nameTr : t('listing.variantSizePlaceholder')}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* SKU Code */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>{t('listing.skuCode', 'SKU Kodu')}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={variantSkuCode}
+                  onChangeText={setVariantSkuCode}
+                  placeholder={t('listing.variantSkuPlaceholder')}
+                  placeholderTextColor={Colors.slate400}
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              {/* Stock and Price Row */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>{t('listing.variantStockLabel')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={variantStock}
+                    onChangeText={setVariantStock}
+                    keyboardType="number-pad"
+                    placeholder="1"
+                    placeholderTextColor={Colors.slate400}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>{t('listing.variantPriceOverrideLabel')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={variantPriceOverride}
+                    onChangeText={(val) => setVariantPriceOverride(formatPriceInput(val))}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={Colors.slate400}
+                  />
+                </View>
+              </View>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginTop: 10,
+                }}
+                activeOpacity={0.9}
+                onPress={handleSaveVariant}
+              >
+                <Text style={{ color: Colors.white, fontFamily: 'PlusJakartaSans-Bold', fontSize: 16 }}>
+                  {t('listing.saveVariantButton')}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Color Selection Modal */}
+      <Modal
+        visible={isColorSelectModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setColorSelectModalVisible(false)}
+      >
+        <View style={styles.bottomSheetBackdrop}>
+          <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={() => setColorSelectModalVisible(false)} />
+          <SafeAreaView style={styles.bottomSheetContainer} edges={['bottom']}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.categoryModalHeader}>
+              <View style={styles.categoryModalHeaderTextWrap}>
+                <Text style={styles.categoryModalTitle}>
+                  {t('listing.variantColorModalTitle')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.categoryModalCloseButton}
+                onPress={() => setColorSelectModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categorySearchWrapper}>
+              <Ionicons name="search-outline" size={16} color={Colors.slate500} />
+              <TextInput
+                style={styles.categorySearchInput}
+                value={colorSearch}
+                onChangeText={setColorSearch}
+                placeholder={t('listing.variantColorSearchPlaceholder', 'Renk ara...')}
+                placeholderTextColor={Colors.slate400}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {colorSearch.trim().length > 0 ? (
+                <TouchableOpacity
+                  style={styles.categorySearchClearButton}
+                  onPress={() => setColorSearch('')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close-circle" size={16} color={Colors.slate500} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <FlatList
+              data={filteredColors}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.categoryListContent}
+              renderItem={({ item }) => {
+                const isSelected = item.id === selectedColorId;
+                return (
+                  <TouchableOpacity
+                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setSelectedColorId(item.id);
+                      setColorSelectModalVisible(false);
+                    }}
+                  >
+                    <View style={styles.categoryListItemLeft}>
+                      <View 
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          backgroundColor: item.hex,
+                          borderWidth: 1,
+                          borderColor: Colors.outlineVariant,
+                          marginRight: 8,
+                        }} 
+                      />
+                      <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
+                        {item.nameTr}
+                      </Text>
+                    </View>
+                    {isSelected ? <Ionicons name="checkmark-circle" size={18} color={Colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={(
+                <View style={styles.categoryEmptyState}>
+                  <Text style={styles.categoryEmptyStateText}>{t('listing.variantColorEmpty', 'Eşleşen renk bulunamadı')}</Text>
+                </View>
+              )}
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Size Selection Modal */}
+      <Modal
+        visible={isSizeSelectModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSizeSelectModalVisible(false)}
+      >
+        <View style={styles.bottomSheetBackdrop}>
+          <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={() => setSizeSelectModalVisible(false)} />
+          <SafeAreaView style={styles.bottomSheetContainer} edges={['bottom']}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.categoryModalHeader}>
+              <View style={styles.categoryModalHeaderTextWrap}>
+                <Text style={styles.categoryModalTitle}>
+                  {t('listing.variantSizeModalTitle')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.categoryModalCloseButton}
+                onPress={() => setSizeSelectModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={18} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categorySearchWrapper}>
+              <Ionicons name="search-outline" size={16} color={Colors.slate500} />
+              <TextInput
+                style={styles.categorySearchInput}
+                value={sizeSearch}
+                onChangeText={setSizeSearch}
+                placeholder={t('listing.variantSizeSearchPlaceholder', 'Beden / Numara ara...')}
+                placeholderTextColor={Colors.slate400}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {sizeSearch.trim().length > 0 ? (
+                <TouchableOpacity
+                  style={styles.categorySearchClearButton}
+                  onPress={() => setSizeSearch('')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close-circle" size={16} color={Colors.slate500} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <FlatList
+              data={filteredSizes}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.categoryListContent}
+              renderItem={({ item }) => {
+                const isSelected = item.id === selectedSizeId;
+                return (
+                  <TouchableOpacity
+                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setSelectedSizeId(item.id);
+                      setSizeSelectModalVisible(false);
+                    }}
+                  >
+                    <View style={styles.categoryListItemLeft}>
+                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
+                        <Ionicons name="resize-outline" size={18} color={Colors.primary} />
+                      </View>
+                      <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
+                        {item.nameTr}
+                      </Text>
+                    </View>
+                    {isSelected ? <Ionicons name="checkmark-circle" size={18} color={Colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={(
+                <View style={styles.categoryEmptyState}>
+                  <Text style={styles.categoryEmptyStateText}>{t('listing.variantSizeEmpty', 'Eşleşen beden/numara bulunamadı')}</Text>
+                </View>
+              )}
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+
+      <Modal
         visible={isDesiModalVisible}
         transparent
         animationType="slide"
@@ -2115,6 +3149,7 @@ export function ProductCreateWizard({
           </SafeAreaView>
         </View>
       </Modal>
+      {renderEntryModeSheet()}
     </>
   );
 }

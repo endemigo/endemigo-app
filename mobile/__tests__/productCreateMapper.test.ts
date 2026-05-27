@@ -58,6 +58,18 @@ test('buildProductCreatePayload maps direct-sale wizard state to backend payload
     dimensionWidth: '',
     dimensionHeight: '',
     dimensionDepth: '',
+    dynamicFieldValues: {
+      productContent: 'Arabica cekirdek',
+      brand: 'Endemigo',
+    },
+    variantSkus: [
+      {
+        colorVariantNumberId: 'color-1',
+        sizeVariantNumberId: 'size-1',
+        skuCode: 'SKU-1',
+        stockQuantity: 4,
+      },
+    ],
   });
 
   assert.equal(payload.listingType, PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE);
@@ -65,6 +77,9 @@ test('buildProductCreatePayload maps direct-sale wizard state to backend payload
   assert.equal(payload.askPriceEnabled, true);
   assert.equal(payload.askPriceMinAmount, 1000);
   assert.equal(payload.condition, PRODUCT_CREATE_CONDITIONS.GOOD);
+  assert.equal(payload.productContent, 'Arabica cekirdek');
+  assert.equal(payload.brand, 'Endemigo');
+  assert.equal(payload.variantSkus?.[0]?.skuCode, 'SKU-1');
 });
 
 test('buildAuctionCreatePayload maps auction wizard state to backend payload', () => {
@@ -118,6 +133,8 @@ test('buildAuctionCreatePayload maps auction wizard state to backend payload', (
     dimensionWidth: '',
     dimensionHeight: '',
     dimensionDepth: '',
+    dynamicFieldValues: {},
+    variantSkus: [],
   });
 
   assert.equal(payload.productId, 'product-1');

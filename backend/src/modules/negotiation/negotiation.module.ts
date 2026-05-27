@@ -8,7 +8,9 @@ import { AdminAuthModule } from '../admin-auth/admin-auth.module';
 import { NotificationModule } from '../notification/notification.module';
 import { OrderModule } from '../order/order.module';
 import { Product } from '../product/entities/product.entity';
+import { TrustModule } from '../trust/trust.module';
 import { User } from '../user/entities/user.entity';
+import { AiModerationService } from './ai-moderation.service';
 import { ContentModerationService } from './content-moderation.service';
 import { NegotiationController } from './negotiation.controller';
 import { NegotiationGateway } from './negotiation.gateway';
@@ -44,10 +46,12 @@ import { ViolationLog } from './entities/violation-log.entity';
     NotificationModule,
     AdminAuditModule,
     AdminAuthModule,
+    TrustModule,
   ],
   controllers: [NegotiationController],
   providers: [
     NegotiationService,
+    AiModerationService,
     ContentModerationService,
     NegotiationGateway,
     NegotiationProcessor,

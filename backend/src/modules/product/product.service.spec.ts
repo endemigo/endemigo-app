@@ -3,6 +3,7 @@ import { ProductService } from './product.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
+import { ProductDraft } from './entities/product-draft.entity';
 import { Category } from './entities/category.entity';
 import { VariantNumber } from './entities/variant-number.entity';
 import { ProductVariantSku } from './entities/product-variant-sku.entity';
@@ -11,6 +12,7 @@ import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
 import { ProductCondition } from '../../shared/types/product-condition.enum';
 import { ListingType } from '../../shared/types/listing-type.enum';
+import { ListingDraftEntryMode } from '../../shared/types/listing-draft-entry-mode.enum';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
 import { CreateProductDto } from './dto/create-product.dto';
 import {
@@ -21,17 +23,83 @@ import {
 import { RC } from '../../shared/constants/response-codes';
 import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 
+type MockProductRepository = {
+  findOne: jest.Mock;
+  findAndCount: jest.Mock;
+  createQueryBuilder: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  softDelete: jest.Mock;
+  update: jest.Mock;
+  manager: {
+    createQueryBuilder: jest.Mock;
+  };
+};
+
+type MockDraftRepository = {
+  create: jest.Mock;
+  save: jest.Mock;
+  findOne: jest.Mock;
+  find: jest.Mock;
+  softDelete: jest.Mock;
+};
+
+type MockImageRepository = {
+  findOne: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  softDelete: jest.Mock;
+  delete: jest.Mock;
+};
+
+type MockCategoryRepository = {
+  find: jest.Mock;
+  findOne: jest.Mock;
+  exist: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+};
+
+type MockVariantNumberRepository = {
+  findBy: jest.Mock;
+};
+
+type MockProductVariantSkuRepository = {
+  create: jest.Mock;
+  save: jest.Mock;
+  find: jest.Mock;
+  softDelete: jest.Mock;
+};
+
+type MockFavoriteRepository = {
+  findOne: jest.Mock;
+};
+
+type MockUserService = {
+  findById: jest.Mock;
+};
+
+type MockStorageService = {
+  upload: jest.Mock;
+  delete: jest.Mock;
+};
+
+type MockAdminSettingsService = {
+  getProductImageUploadLimits: jest.Mock;
+};
+
 describe('ProductService', () => {
   let service: ProductService;
-  let productRepo: any;
-  let imageRepo: any;
-  let categoryRepo: any;
-  let variantNumberRepo: any;
-  let productVariantSkuRepo: any;
-  let favoriteRepo: any;
-  let userService: any;
-  let storageService: any;
-  let adminSettingsService: any;
+  let productRepo: MockProductRepository;
+  let draftRepo: MockDraftRepository;
+  let imageRepo: MockImageRepository;
+  let categoryRepo: MockCategoryRepository;
+  let variantNumberRepo: MockVariantNumberRepository;
+  let productVariantSkuRepo: MockProductVariantSkuRepository;
+  let favoriteRepo: MockFavoriteRepository;
+  let userService: MockUserService;
+  let storageService: MockStorageService;
+  let adminSettingsService: MockAdminSettingsService;
 
   const mockSeller = {
     id: 'seller-1',
@@ -104,6 +172,14 @@ describe('ProductService', () => {
       },
     };
 
+    draftRepo = {
+      create: jest.fn((data) => ({ id: 'draft-1', createdAt: new Date(), updatedAt: new Date(), ...data })),
+      save: jest.fn(async (entity) => ({ ...entity, updatedAt: new Date() })),
+      findOne: jest.fn(),
+      find: jest.fn(),
+      softDelete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+
     imageRepo = {
       findOne: jest.fn(),
       create: jest.fn((data) => ({ id: 'img-1', ...data })),
@@ -115,6 +191,7 @@ describe('ProductService', () => {
     categoryRepo = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
+      exist: jest.fn().mockResolvedValue(false),
       create: jest.fn((data) => data),
       save: jest.fn((entity) => Promise.resolve({ id: 'cat-1', ...entity })),
     };
@@ -155,6 +232,7 @@ describe('ProductService', () => {
       providers: [
         ProductService,
         { provide: getRepositoryToken(Product), useValue: productRepo },
+        { provide: getRepositoryToken(ProductDraft), useValue: draftRepo },
         { provide: getRepositoryToken(ProductImage), useValue: imageRepo },
         { provide: getRepositoryToken(Category), useValue: categoryRepo },
         { provide: getRepositoryToken(VariantNumber), useValue: variantNumberRepo },
@@ -522,6 +600,29 @@ describe('ProductService', () => {
       });
     });
 
+    it('returns category listing templates from metadata', async () => {
+      categoryRepo.find.mockResolvedValue([
+        {
+          id: 'cat-1',
+          name: 'Food',
+          metadata: {
+            listingTemplate: {
+              fields: [{ key: 'productContent', type: 'text', required: true }],
+              variant: { enabled: false },
+            },
+          },
+          children: [],
+        },
+      ]);
+
+      const result = await service.findCategories();
+
+      expect(result.categories[0].listingTemplate).toMatchObject({
+        fields: [{ key: 'productContent', type: 'text', required: true }],
+        variant: { enabled: false },
+      });
+    });
+
     it('seeds category metadata with stable image urls', async () => {
       const categoryStore = new Map<string, Record<string, unknown>>([
         [
@@ -643,6 +744,62 @@ describe('ProductService', () => {
       expect(categoryStore.get('antika-koleksiyon')).toMatchObject({
         isCulturalAsset: true,
       });
+    });
+  });
+
+  describe('listing drafts', () => {
+    it('creates a backend listing draft for the seller', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+
+      const result = await service.createListingDraft('seller-1', {
+        entryMode: ListingDraftEntryMode.MARKETPLACE,
+        listingType: ListingType.DIRECT_SALE,
+        categoryId: 'cat-1',
+        currentStep: 2,
+        payload: { title: 'Taslak Ürün' },
+      });
+
+      expect(result.code).toBe(RC.LISTING_DRAFT_CREATED);
+      expect(draftRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sellerId: 'seller-1',
+          entryMode: ListingDraftEntryMode.MARKETPLACE,
+          listingType: ListingType.DIRECT_SALE,
+          status: 'DRAFT',
+        }),
+      );
+    });
+
+    it('publishes a listing draft into a product', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      draftRepo.findOne.mockResolvedValue({
+        id: 'draft-1',
+        sellerId: 'seller-1',
+        status: 'DRAFT',
+        entryMode: ListingDraftEntryMode.MARKETPLACE,
+        listingType: ListingType.DIRECT_SALE,
+        payload: {
+          title: 'Taslak Ürün',
+          price: 100,
+          categoryId: 'cat-1',
+          stockQuantity: 1,
+          listingType: ListingType.DIRECT_SALE,
+        },
+      });
+      categoryRepo.findOne.mockResolvedValue({ id: 'cat-1', isActive: true });
+      categoryRepo.exist = jest.fn(async () => false);
+      productRepo.save.mockResolvedValue({ ...mockProduct, id: 'product-from-draft' });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct, id: 'product-from-draft' });
+
+      const result = await service.publishListingDraft('seller-1', 'draft-1');
+
+      expect(result.code).toBe(RC.LISTING_DRAFT_PUBLISHED);
+      expect(draftRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'PUBLISHED',
+          productId: 'product-from-draft',
+        }),
+      );
     });
   });
 

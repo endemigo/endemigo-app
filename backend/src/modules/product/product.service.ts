@@ -9,16 +9,20 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, In } from 'typeorm';
 import { Product } from './entities/product.entity';
+import { ProductDraft } from './entities/product-draft.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
 import { VariantNumber } from './entities/variant-number.entity';
 import { ProductVariantSku } from './entities/product-variant-sku.entity';
 import { Favorite } from '../search/entities/favorite.entity';
 import { CreateProductDto, ProductVariantSkuInputDto } from './dto/create-product.dto';
+import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
 import { ListingType } from '../../shared/types/listing-type.enum';
+import { ListingDraftEntryMode } from '../../shared/types/listing-draft-entry-mode.enum';
+import { ListingDraftStatus } from '../../shared/types/listing-draft-status.enum';
 import { RC } from '../../shared/constants/response-codes';
 import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
 import type { IStorageService } from '../../shared/storage/storage.interface';
@@ -44,7 +48,30 @@ type SeedCategoryDefinition = {
   imageFileName: string;
   sortOrder: number;
   isCulturalAsset?: boolean;
+  metadata?: Record<string, unknown>;
   children?: SeedCategoryDefinition[];
+};
+
+interface ListingTemplateField {
+  key: string;
+  type: 'text' | 'number' | 'price' | 'select' | 'multiSelect' | 'boolean' | 'date' | 'dimension' | 'image';
+  required: boolean;
+  optionSource?: string;
+}
+
+interface ListingTemplate {
+  fields: ListingTemplateField[];
+  variant: {
+    enabled: boolean;
+    allowedKinds: VariantOptionKind[];
+    requiredKinds: VariantOptionKind[];
+    maxGroups: number;
+  };
+}
+
+type SerializedCategory = Omit<Category, 'children'> & {
+  listingTemplate: ListingTemplate;
+  children: SerializedCategory[];
 };
 
 const SEEDED_CATEGORIES: SeedCategoryDefinition[] = [
@@ -339,6 +366,8 @@ export class ProductService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(ProductDraft)
+    private readonly draftRepo: Repository<ProductDraft>,
     @InjectRepository(ProductImage)
     private readonly imageRepo: Repository<ProductImage>,
     @InjectRepository(Category)
@@ -399,6 +428,99 @@ export class ProductService {
     const full = await this.findProductResponse(saved.id);
 
     return { code: RC.PRODUCT_CREATED, message: 'Ürün oluşturuldu', ...full };
+  }
+
+  async createListingDraft(sellerId: string, dto: CreateListingDraftDto) {
+    await this.assertSellerCanManageListings(sellerId);
+    const draft = await this.draftRepo.save(
+      this.draftRepo.create({
+        sellerId,
+        entryMode: dto.entryMode,
+        listingType: dto.listingType,
+        categoryId: dto.categoryId ?? null,
+        currentStep: dto.currentStep,
+        payload: dto.payload,
+        status: ListingDraftStatus.DRAFT,
+        productId: null,
+      }),
+    );
+
+    return {
+      code: RC.LISTING_DRAFT_CREATED,
+      message: 'İlan taslağı oluşturuldu',
+      draft,
+    };
+  }
+
+  async listListingDrafts(sellerId: string) {
+    await this.assertSellerCanManageListings(sellerId);
+    const drafts = await this.draftRepo.find({
+      where: { sellerId, status: ListingDraftStatus.DRAFT },
+      order: { updatedAt: 'DESC' },
+    });
+
+    return {
+      code: RC.LISTING_DRAFT_LISTED,
+      message: 'İlan taslakları getirildi',
+      drafts,
+    };
+  }
+
+  async getListingDraft(sellerId: string, draftId: string) {
+    const draft = await this.findListingDraftForSeller(sellerId, draftId);
+    return {
+      code: RC.LISTING_DRAFT_FETCHED,
+      message: 'İlan taslağı getirildi',
+      draft,
+    };
+  }
+
+  async updateListingDraft(
+    sellerId: string,
+    draftId: string,
+    dto: UpdateListingDraftDto,
+  ) {
+    const draft = await this.findListingDraftForSeller(sellerId, draftId);
+    if (dto.entryMode !== undefined) draft.entryMode = dto.entryMode;
+    if (dto.listingType !== undefined) draft.listingType = dto.listingType;
+    if (dto.categoryId !== undefined) draft.categoryId = dto.categoryId;
+    if (dto.currentStep !== undefined) draft.currentStep = dto.currentStep;
+    if (dto.payload !== undefined) draft.payload = dto.payload;
+    const saved = await this.draftRepo.save(draft);
+
+    return {
+      code: RC.LISTING_DRAFT_UPDATED,
+      message: 'İlan taslağı güncellendi',
+      draft: saved,
+    };
+  }
+
+  async deleteListingDraft(sellerId: string, draftId: string) {
+    const draft = await this.findListingDraftForSeller(sellerId, draftId);
+    draft.status = ListingDraftStatus.DELETED;
+    await this.draftRepo.save(draft);
+    await this.draftRepo.softDelete(draftId);
+
+    return {
+      code: RC.LISTING_DRAFT_DELETED,
+      message: 'İlan taslağı silindi',
+    };
+  }
+
+  async publishListingDraft(sellerId: string, draftId: string) {
+    const draft = await this.findListingDraftForSeller(sellerId, draftId);
+    const payload = this.resolveDraftProductPayload(draft);
+    const productResult = await this.create(sellerId, payload);
+    draft.status = ListingDraftStatus.PUBLISHED;
+    draft.productId = productResult.id;
+    const saved = await this.draftRepo.save(draft);
+
+    return {
+      code: RC.LISTING_DRAFT_PUBLISHED,
+      message: 'İlan taslağı yayına hazır ürüne dönüştürüldü',
+      draft: saved,
+      product: productResult,
+    };
   }
 
   // ==========================================
@@ -879,13 +1001,7 @@ export class ProductService {
     return {
       code: RC.CATEGORY_LIST,
       message: 'Categories fetched',
-      categories: roots.map((root) => ({
-        ...root,
-        children:
-          root.children
-            ?.filter((c) => c.isActive)
-            .sort((a, b) => a.sortOrder - b.sortOrder) || [],
-      })),
+      categories: roots.map((root) => this.serializeCategory(root)),
     };
   }
 
@@ -929,12 +1045,125 @@ export class ProductService {
         sortOrder: definition.sortOrder,
         isActive: true,
         isCulturalAsset: definition.isCulturalAsset ?? false,
+        metadata: definition.metadata ?? this.buildListingTemplateMetadata(definition.slug),
       }),
     );
   }
 
   private buildSeedCategoryImageUrl(fileName: string) {
     return `${COMMONS_FILE_PATH_BASE_URL}${encodeURIComponent(fileName)}`;
+  }
+
+  private serializeCategory(category: Category): SerializedCategory {
+    const metadata = category.metadata ?? {};
+    const listingTemplate =
+      this.extractListingTemplate(metadata) ??
+      this.buildListingTemplate(category.slug ?? '');
+
+    return {
+      ...category,
+      listingTemplate,
+      children:
+        category.children
+          ?.filter((child) => child.isActive)
+          .sort((left, right) => left.sortOrder - right.sortOrder)
+          .map((child) => this.serializeCategory(child)) || [],
+    };
+  }
+
+  private buildListingTemplateMetadata(slug: string): Record<string, unknown> {
+    return {
+      listingTemplate: this.buildListingTemplate(slug),
+    };
+  }
+
+  private extractListingTemplate(metadata: Record<string, unknown>): ListingTemplate | null {
+    const template = metadata.listingTemplate;
+    if (!template || typeof template !== 'object' || Array.isArray(template)) {
+      return null;
+    }
+    return template as ListingTemplate;
+  }
+
+  private buildListingTemplate(slug: string): ListingTemplate {
+    if (this.isFoodCategory(slug)) {
+      return {
+        fields: [
+          { key: 'productContent', type: 'text', required: true },
+          { key: 'productionProvince', type: 'select', required: true, optionSource: 'turkishProvinces' },
+          { key: 'weight', type: 'number', required: false },
+          { key: 'additionalCertificates', type: 'text', required: false },
+          { key: 'images', type: 'image', required: true },
+        ],
+        variant: {
+          enabled: false,
+          allowedKinds: [],
+          requiredKinds: [],
+          maxGroups: 0,
+        },
+      };
+    }
+
+    if (slug.includes('hali') || slug.includes('kilim') || slug.includes('mobilya')) {
+      return {
+        fields: [
+          { key: 'material', type: 'text', required: false },
+          { key: 'dimensionWidth', type: 'dimension', required: true },
+          { key: 'dimensionHeight', type: 'dimension', required: true },
+          { key: 'condition', type: 'select', required: true },
+          { key: 'images', type: 'image', required: true },
+        ],
+        variant: {
+          enabled: true,
+          allowedKinds: [VariantOptionKind.COLOR, VariantOptionKind.SIZE],
+          requiredKinds: [],
+          maxGroups: 2,
+        },
+      };
+    }
+
+    if (slug.includes('tekstil') || slug.includes('ayakkabi')) {
+      return {
+        fields: [
+          { key: 'brand', type: 'text', required: false },
+          { key: 'condition', type: 'select', required: true },
+          { key: 'images', type: 'image', required: true },
+        ],
+        variant: {
+          enabled: true,
+          allowedKinds: [VariantOptionKind.COLOR, VariantOptionKind.SIZE, VariantOptionKind.NUMBER],
+          requiredKinds: slug.includes('ayakkabi') ? [VariantOptionKind.NUMBER] : [VariantOptionKind.SIZE],
+          maxGroups: 2,
+        },
+      };
+    }
+
+    return {
+      fields: [
+        { key: 'brand', type: 'text', required: false },
+        { key: 'condition', type: 'select', required: true },
+        { key: 'sku', type: 'text', required: false },
+        { key: 'images', type: 'image', required: true },
+      ],
+      variant: {
+        enabled: false,
+        allowedKinds: [],
+        requiredKinds: [],
+        maxGroups: 0,
+      },
+    };
+  }
+
+  private isFoodCategory(slug: string) {
+    return [
+      'gida',
+      'yoresel',
+      'zeytin',
+      'bal',
+      'kurutulmus',
+      'kahve',
+      'cay',
+    ].some((keyword) => slug.includes(keyword));
   }
 
   // ==========================================
@@ -1299,6 +1528,60 @@ export class ProductService {
         message: 'Auction products cannot enable Ask Price',
       });
     }
+  }
+
+  private async assertSellerCanManageListings(sellerId: string) {
+    const user = await this.userService.findById(sellerId);
+    if (!user || !user.isSeller) {
+      throw new ForbiddenException({
+        code: RC.SELLER_REQUIRED,
+        message: 'Sadece satıcılar ürün ekleyebilir',
+      });
+    }
+  }
+
+  private async findListingDraftForSeller(sellerId: string, draftId: string) {
+    const draft = await this.draftRepo.findOne({
+      where: {
+        id: draftId,
+        sellerId,
+        status: ListingDraftStatus.DRAFT,
+      },
+    });
+    if (!draft) {
+      throw new NotFoundException({
+        code: RC.LISTING_DRAFT_NOT_FOUND,
+        message: 'İlan taslağı bulunamadı',
+      });
+    }
+    return draft;
+  }
+
+  private resolveDraftProductPayload(draft: ProductDraft): CreateProductDto {
+    const nestedProduct = draft.payload.product;
+    const payload =
+      nestedProduct && typeof nestedProduct === 'object' && !Array.isArray(nestedProduct)
+        ? (nestedProduct as Record<string, unknown>)
+        : draft.payload;
+    const title = typeof payload.title === 'string' ? payload.title : '';
+    const price = Number(payload.price);
+    if (title.trim().length < 3 || !Number.isFinite(price) || price <= 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Taslak yayınlamak için başlık ve fiyat zorunludur',
+      });
+    }
+
+    return {
+      ...(payload as Partial<CreateProductDto>),
+      title,
+      price,
+      categoryId:
+        typeof payload.categoryId === 'string'
+          ? payload.categoryId
+          : draft.categoryId ?? undefined,
+      listingType: draft.listingType,
+    } as CreateProductDto;
   }
 
   private async validateLeafCategorySelection(categoryId?: string) {

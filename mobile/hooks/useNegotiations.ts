@@ -64,6 +64,12 @@ const MOCK_NEGOTIATIONS: Negotiation[] = [
     buyer: { id: 'user-mock', name: 'Demo Kullanıcı' },
     seller: { id: 'seller-4', name: 'Anadolu El Sanatları' },
     status: NegotiationStatus.OFFER_PENDING,
+    policy: {
+      hasViolation: false,
+      violationCount: 0,
+      lastViolationAt: null,
+      lockedByPolicy: false,
+    },
     unreadCount: 1,
     latestOffer: {
       id: 'offer-mock-1',

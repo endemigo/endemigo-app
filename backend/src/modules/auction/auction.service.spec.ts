@@ -21,16 +21,86 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+type MockAuctionRepository = {
+  findOne: jest.Mock;
+  find: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  createQueryBuilder: jest.Mock;
+  manager: {
+    findOne: jest.Mock;
+    query: jest.Mock;
+  };
+};
+
+type MockBidRepository = {
+  findOne: jest.Mock;
+  find: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  createQueryBuilder: jest.Mock;
+};
+
+type MockWalletService = {
+  getBalance: jest.Mock;
+  createHold: jest.Mock;
+  releaseHold: jest.Mock;
+  captureHold: jest.Mock;
+  releaseAllHoldsForAuction: jest.Mock;
+};
+
+type MockUserService = {
+  findById: jest.Mock;
+};
+
+type MockOrderService = {
+  createFromAuction: jest.Mock;
+};
+
+type MockAuctionQueue = {
+  add: jest.Mock;
+  getJob: jest.Mock;
+};
+
+type MockAuctionGateway = {
+  emitBidNew: jest.Mock;
+  emitBidOutbid: jest.Mock;
+  emitAuctionStarted: jest.Mock;
+  emitAuctionExtended: jest.Mock;
+  emitAuctionWarning: jest.Mock;
+  emitAuctionEnded: jest.Mock;
+  emitBidWinner: jest.Mock;
+  emitBidLost: jest.Mock;
+  emitAuctionCancelled: jest.Mock;
+  clearViewerCount: jest.Mock;
+};
+
+type MockQueryRunner = {
+  connect: jest.Mock;
+  startTransaction: jest.Mock;
+  commitTransaction: jest.Mock;
+  rollbackTransaction: jest.Mock;
+  release: jest.Mock;
+  manager: {
+    findOne: jest.Mock;
+    query: jest.Mock;
+    createQueryBuilder: jest.Mock;
+    create: jest.Mock;
+    find: jest.Mock;
+    save: jest.Mock;
+  };
+};
+
 describe('AuctionService', () => {
   let service: AuctionService;
-  let auctionRepo: any;
-  let bidRepo: any;
-  let walletService: any;
-  let userService: any;
-  let orderService: any;
-  let auctionQueue: any;
-  let auctionGateway: any;
-  let mockQueryRunner: any;
+  let auctionRepo: MockAuctionRepository;
+  let bidRepo: MockBidRepository;
+  let walletService: MockWalletService;
+  let userService: MockUserService;
+  let orderService: MockOrderService;
+  let auctionQueue: MockAuctionQueue;
+  let auctionGateway: MockAuctionGateway;
+  let mockQueryRunner: MockQueryRunner;
 
   const mockSeller = {
     id: 'seller-1',
@@ -47,7 +117,7 @@ describe('AuctionService', () => {
     lastName: 'Test',
   };
 
-  const createMockAuction = (overrides: any = {}) => ({
+  const createMockAuction = (overrides: Record<string, unknown> = {}) => ({
     id: 'auction-1',
     productId: 'product-1',
     sellerId: 'seller-1',
@@ -182,13 +252,13 @@ describe('AuctionService', () => {
           where: jest.fn().mockReturnThis(),
           getCount: jest.fn().mockResolvedValue(0),
         }),
-        create: jest.fn((EntityClass: any, data: any) => ({
+        create: jest.fn((_entityClass: unknown, data: Record<string, unknown>) => ({
           id: `new-${Date.now()}`,
           createdAt: new Date(),
           ...data,
         })),
         find: jest.fn().mockResolvedValue([]),
-        save: jest.fn((entityOrTarget: any, maybeEntity?: any) =>
+        save: jest.fn((entityOrTarget: unknown, maybeEntity?: unknown) =>
           Promise.resolve(maybeEntity ?? entityOrTarget),
         ),
       },
@@ -393,7 +463,9 @@ describe('AuctionService', () => {
   // PlaceBid — Transaction Lock (D-02)
   // ══════════════════════════════════════════════════════
   describe('placeBid', () => {
-    const setupBidTransaction = (auctionOverrides: any = {}) => {
+    const setupBidTransaction = (
+      auctionOverrides: Record<string, unknown> = {},
+    ) => {
       const auction = createMockAuction(auctionOverrides);
 
       mockQueryRunner.manager.findOne
@@ -423,6 +495,8 @@ describe('AuctionService', () => {
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();
       expect(result.bid.amount).toBe(1100);
+      expect(result.bid.buyerPremiumAmount).toBe(275);
+      expect(result.bid.estimatedTotal).toBe(1375);
     });
 
     it('max bid verilirse maxAmount saklanmali ama hold gorunur lider teklif uzerinden alinmali', async () => {
@@ -479,6 +553,8 @@ describe('AuctionService', () => {
         mockQueryRunner.manager,
       );
       expect(result.bid.isLeadingBid).toBe(false);
+      expect(result.bid.buyerPremiumAmount).toBe(350);
+      expect(result.bid.estimatedTotal).toBe(1750);
       expect(result.auction.currentPrice).toBe(1500);
       expect(result.auction.leadingBidderId).toBe('buyer-2');
     });

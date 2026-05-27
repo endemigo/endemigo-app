@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminSettingsModule } from '../admin-settings/admin-settings.module';
 import { Product } from './entities/product.entity';
+import { ProductDraft } from './entities/product-draft.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
 import { Brand } from './entities/brand.entity';
@@ -11,6 +12,7 @@ import { Favorite } from '../search/entities/favorite.entity';
 import { ProductService } from './product.service';
 import { ProductController, CategoryController } from './product.controller';
 import { DevProductBrandSeedService } from './dev-product-brand-seed.service';
+import { AiGeneratorService } from './ai-generator.service';
 import { UserModule } from '../user/user.module';
 import { AdsModule } from '../ads/ads.module';
 import { TrustModule } from '../trust/trust.module';
@@ -21,6 +23,7 @@ import { OrderReview } from '../order/entities/order-review.entity';
   imports: [
     TypeOrmModule.forFeature([
       Product,
+      ProductDraft,
       ProductImage,
       Category,
       Brand,
@@ -36,7 +39,7 @@ import { OrderReview } from '../order/entities/order-review.entity';
     MembershipModule,
   ],
   controllers: [ProductController, CategoryController],
-  providers: [ProductService, DevProductBrandSeedService],
-  exports: [ProductService],
+  providers: [ProductService, DevProductBrandSeedService, AiGeneratorService],
+  exports: [ProductService, AiGeneratorService],
 })
 export class ProductModule {}

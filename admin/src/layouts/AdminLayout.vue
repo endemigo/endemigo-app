@@ -180,6 +180,7 @@ const navGroups: NavGroup[] = [
       { label: 'Üyeler', to: '/users', icon: 'pi pi-users' },
       { label: 'Satıcılar', to: '/sellers', icon: 'pi pi-verified' },
       { label: 'Teklifler', to: '/bids', icon: 'pi pi-sort-amount-up' },
+      { label: 'Sohbetler', to: '/negotiations', icon: 'pi pi-comments' },
       { label: 'Denetim', to: '/audit', icon: 'pi pi-history' },
     ],
   },

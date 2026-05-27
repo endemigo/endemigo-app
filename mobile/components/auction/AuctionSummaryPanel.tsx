@@ -14,6 +14,7 @@ type AuctionSummaryPanelProps = {
   minBid: number;
   buyerPremiumRate: number;
   bidCount: number;
+  viewerCount: number;
   walletAvailable?: number;
   endTime: string;
   serverTime: string;
@@ -25,12 +26,12 @@ type AuctionSummaryPanelProps = {
   showResultButton: boolean;
   finalPrice?: number | null;
   lastBid?: { bidderName: string; amount: number } | null;
-  activityFeed?: Array<{
+  activityFeed?: {
     id: string;
     title: string;
     body: string;
     tone: 'accent' | 'error' | 'primary';
-  }>;
+  }[];
   onViewResult: () => void;
   t: TFunction;
 };
@@ -41,6 +42,7 @@ export function AuctionSummaryPanel({
   minBid,
   buyerPremiumRate,
   bidCount,
+  viewerCount,
   walletAvailable,
   endTime,
   serverTime,
@@ -116,6 +118,10 @@ export function AuctionSummaryPanel({
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{t('auction.bidCountLabel', { count: bidCount })}</Text>
           <Text style={styles.metricValue}>{bidCount}</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricLabel}>{t('auction.viewerCountMetric')}</Text>
+          <Text style={styles.metricValue}>{viewerCount}</Text>
         </View>
       </View>
 

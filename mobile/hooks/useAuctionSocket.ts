@@ -15,12 +15,12 @@ interface AuctionSocketState {
   viewerCount: number;
   isConnected: boolean;
   lastBid: { amount: number; bidderName: string } | null;
-  activityFeed: Array<{
+  activityFeed: {
     id: string;
     title: string;
     body: string;
     tone: 'accent' | 'error' | 'primary';
-  }>;
+  }[];
   wasOutbid: boolean;
   auctionEnded: boolean;
   isWinner: boolean;
@@ -91,6 +91,16 @@ export function useAuctionSocket(auctionId: string) {
         setState((s) => ({ ...s, isConnected: true }));
       }
 
+      socket.on('auction:joined', (data: { auctionId: string; viewerCount: number; serverTime?: string }) => {
+        if (data.auctionId === auctionId) {
+          setState((s) => ({
+            ...s,
+            viewerCount: data.viewerCount,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
+        }
+      });
+
       socket.on('bid:new', (data: { auctionId: string; currentPrice: number; bidCount: number; endTime: string; serverTime: string; amount: number; bidderName: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
@@ -112,10 +122,14 @@ export function useAuctionSocket(auctionId: string) {
         }
       });
 
-      socket.on('bid:outbid', (data: { auctionId: string; newAmount: number }) => {
+      socket.on('bid:outbid', (data: { auctionId: string; newAmount: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(200);
-          setState((s) => ({ ...s, wasOutbid: true }));
+          setState((s) => ({
+            ...s,
+            wasOutbid: true,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
           showModal({
             title: t('auction.outbidTitle'),
             message: t('auction.outbidMessage', {
@@ -133,7 +147,7 @@ export function useAuctionSocket(auctionId: string) {
         }
       });
 
-      socket.on('bid:winner', (data: { auctionId: string; finalPrice: number }) => {
+      socket.on('bid:winner', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate([0, 200, 100, 200]);
           setState((s) => ({
@@ -141,24 +155,30 @@ export function useAuctionSocket(auctionId: string) {
             isWinner: true,
             auctionEnded: true,
             finalPrice: data.finalPrice,
+            serverTime: data.serverTime ?? s.serverTime,
           }));
         }
       });
 
-      socket.on('bid:lost', (data: { auctionId: string; finalPrice: number }) => {
+      socket.on('bid:lost', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
             isWinner: false,
             auctionEnded: true,
             finalPrice: data.finalPrice,
+            serverTime: data.serverTime ?? s.serverTime,
           }));
         }
       });
 
-      socket.on('auction:extended', (data: { auctionId: string; newEndTime: string; extensionNumber: number }) => {
+      socket.on('auction:extended', (data: { auctionId: string; newEndTime: string; extensionNumber: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
-          setState((s) => ({ ...s, endTime: data.newEndTime }));
+          setState((s) => ({
+            ...s,
+            endTime: data.newEndTime,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
           showModal({
             title: t('auction.extendedTitle'),
             message: t('auction.extendedMessage', {
@@ -176,25 +196,35 @@ export function useAuctionSocket(auctionId: string) {
         }
       });
 
-      socket.on('auction:ended', (data: { auctionId: string; finalPrice: number }) => {
+      socket.on('auction:ended', (data: { auctionId: string; finalPrice: number; bidCount?: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
             auctionEnded: true,
             finalPrice: data.finalPrice,
+            bidCount: data.bidCount ?? s.bidCount,
+            serverTime: data.serverTime ?? s.serverTime,
           }));
         }
       });
 
-      socket.on('auction:viewer_count', (data: { auctionId: string; count: number }) => {
+      socket.on('auction:viewer_count', (data: { auctionId: string; count: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
-          setState((s) => ({ ...s, viewerCount: data.count }));
+          setState((s) => ({
+            ...s,
+            viewerCount: data.count,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
         }
       });
 
-      socket.on('auction:warning', (data: { auctionId: string }) => {
+      socket.on('auction:warning', (data: { auctionId: string; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(100);
+          setState((s) => ({
+            ...s,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
           appendActivity(
             t('auction.activityWarningTitle'),
             t('auction.activityWarningBody'),
@@ -203,9 +233,13 @@ export function useAuctionSocket(auctionId: string) {
         }
       });
 
-      socket.on('auction:cancelled', (data: { auctionId: string; reason: string }) => {
+      socket.on('auction:cancelled', (data: { auctionId: string; reason: string; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
-          setState((s) => ({ ...s, auctionEnded: true }));
+          setState((s) => ({
+            ...s,
+            auctionEnded: true,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
           showModal({
             title: t('auction.cancelledTitle'),
             message: data.reason || t('auction.cancelledMessage'),
@@ -224,6 +258,7 @@ export function useAuctionSocket(auctionId: string) {
         socket.emit('auction:leave', { auctionId });
         socket.off('connect');
         socket.off('disconnect');
+        socket.off('auction:joined');
         socket.off('bid:new');
         socket.off('bid:outbid');
         socket.off('bid:winner');

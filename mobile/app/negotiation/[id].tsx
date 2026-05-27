@@ -44,7 +44,11 @@ export default function NegotiationDetailScreen() {
   useNegotiationRealtime(id);
 
   const conversationClosed = useMemo(
-    () => Boolean(negotiation && CLOSED_STATUSES.includes(negotiation.status)),
+    () => Boolean(
+      negotiation &&
+        (CLOSED_STATUSES.includes(negotiation.status) ||
+          negotiation.policy?.lockedByPolicy),
+    ),
     [negotiation],
   );
 
@@ -123,6 +127,26 @@ export default function NegotiationDetailScreen() {
 
       <View style={styles.statusRow}>
         <NegotiationStatusBadge status={negotiation.status} />
+        {negotiation.policy?.hasViolation ? (
+          <View style={[
+            styles.policyBadge,
+            negotiation.policy.lockedByPolicy && styles.policyBadgeLocked,
+          ]}>
+            <Ionicons
+              name={negotiation.policy.lockedByPolicy ? 'lock-closed' : 'shield-checkmark'}
+              size={14}
+              color={Colors.error}
+            />
+            <Text style={styles.policyBadgeText}>
+              {t(
+                negotiation.policy.lockedByPolicy
+                  ? 'negotiation.policy.locked'
+                  : 'negotiation.policy.badge',
+                { count: negotiation.policy.violationCount },
+              )}
+            </Text>
+          </View>
+        ) : null}
         {negotiation.product.askPriceMinAmount ? (
           <Text style={styles.minimumHint}>
             {t('negotiation.askPrice.minimum', {

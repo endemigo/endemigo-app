@@ -31,6 +31,11 @@ const WINNER_PAYMENT_WINDOW_HOURS = 24;
 const WINNER_PAYMENT_REMINDER_HOURS = 1;
 const MAX_FALLBACK_ROUNDS = 1;
 
+type AuctionProductOwnership = {
+  id: string;
+  sellerId: string;
+};
+
 @Injectable()
 export class AuctionService {
   private readonly logger = new Logger(AuctionService.name);
@@ -66,7 +71,7 @@ export class AuctionService {
     // BIZ-03: Product ownership check
     const product = (await this.auctionRepo.manager.findOne('Product', {
       where: { id: dto.productId },
-    })) as any;
+    })) as AuctionProductOwnership | null;
     if (!product) {
       throw this.notFound(RC.PRODUCT_NOT_FOUND, 'Ürün bulunamadı');
     }
@@ -587,6 +592,9 @@ export class AuctionService {
             amount: Number(losingBid.amount),
             maxAmount: submittedMaxAmount,
             premiumAmount: Number(losingBid.premiumAmount),
+            buyerPremiumAmount: Number(losingBid.premiumAmount),
+            estimatedTotal:
+              Number(losingBid.amount) + Number(losingBid.premiumAmount),
             createdAt: losingBid.createdAt,
             isLeadingBid: false,
             outbidImmediately: true,
@@ -749,14 +757,16 @@ export class AuctionService {
       return {
         code: RC.BID_ACCEPTED,
         message: 'Bid accepted',
-        bid: {
-          id: bid.id,
-          amount: Number(bid.amount),
-          maxAmount: submittedMaxAmount,
-          premiumAmount: Number(bid.premiumAmount),
-          createdAt: bid.createdAt,
-          isLeadingBid: true,
-          outbidImmediately: false,
+          bid: {
+            id: bid.id,
+            amount: Number(bid.amount),
+            maxAmount: submittedMaxAmount,
+            premiumAmount: Number(bid.premiumAmount),
+            buyerPremiumAmount: Number(bid.premiumAmount),
+            estimatedTotal: Number(bid.amount) + Number(bid.premiumAmount),
+            createdAt: bid.createdAt,
+            isLeadingBid: true,
+            outbidImmediately: false,
         },
         auction: {
           currentPrice: Number(auction.currentPrice),

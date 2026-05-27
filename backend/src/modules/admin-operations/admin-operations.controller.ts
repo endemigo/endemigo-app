@@ -46,7 +46,8 @@ type AdminResource =
   | 'orders'
   | 'payments'
   | 'bids'
-  | 'payout-requests';
+  | 'payout-requests'
+  | 'negotiations';
 
 @ApiTags('Admin Operations')
 @Public()
@@ -266,6 +267,16 @@ export class AdminOperationsController {
   @Get('payout-requests/:id')
   async payoutRequest(@Param('id') id: string) {
     return this.adminOperationsService.detail('payout-requests', id);
+  }
+
+  @Get('negotiations')
+  async negotiations(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('negotiations', query);
+  }
+
+  @Get('negotiations/:id')
+  async negotiation(@Param('id') id: string) {
+    return this.adminOperationsService.detail('negotiations', id);
   }
 
   @Patch('sellers/:id/approve')

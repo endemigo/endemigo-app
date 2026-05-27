@@ -13,6 +13,7 @@ function read(relativePath: string) {
 
 test('auction detail premium screen exposes premium presentation building blocks', () => {
   const screenSource = read('app/auction/[id].tsx');
+  const composerSource = read('components/auction/AuctionBidComposer.tsx');
   const trSource = read('i18n/tr.json');
   const enSource = read('i18n/en.json');
 
@@ -25,6 +26,11 @@ test('auction detail premium screen exposes premium presentation building blocks
   assert.match(screenSource, /AuctionSummaryPanel/);
   assert.match(screenSource, /AuctionRulesPanel/);
   assert.match(screenSource, /AuctionBidHistory/);
+  assert.match(screenSource, /calculateAuctionBidEstimate/);
+  assert.match(composerSource, /feeEstimateRows/);
+  assert.match(composerSource, /walletGateMessage/);
   assert.match(trSource, /premiumTrustTitle/);
+  assert.match(trSource, /walletGateMessage/);
   assert.match(enSource, /premiumTrustTitle/);
+  assert.match(enSource, /walletGateMessage/);
 });

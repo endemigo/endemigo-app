@@ -94,7 +94,10 @@ test('mobile explore, favorites and product detail surfaces wire real catalog fl
   assert.match(auctionResultScreen, /paymentStatuses/);
   assert.match(auctionBidHistory, /proxyMaxLabel/);
   assert.match(auctionBidComposer, /quickBidMin/);
+  assert.match(auctionBidComposer, /feeEstimateRows/);
+  assert.match(auctionBidComposer, /walletGateMessage/);
   assert.match(auctionSummaryPanel, /activityFeedTitle/);
+  assert.match(auctionSummaryPanel, /viewerCountMetric/);
   assert.match(mobileConfigHooks, /imageUploadLimits/);
   assert.match(read('components/forms/product-create/ProductCreateWizard.tsx'), /imageUploadLimits/);
 });
@@ -102,4 +105,11 @@ test('mobile explore, favorites and product detail surfaces wire real catalog fl
 test('mobile negotiation detail surfaces API error messages for mutations', () => {
   assert.match(negotiationDetailScreen, /resolveApiErrorMessage/);
   assert.match(negotiationDetailScreen, /onError/);
+});
+
+test('mobile negotiation detail renders policy lock state', () => {
+  const types = read('types/index.ts');
+  assert.match(types, /NegotiationPolicy/);
+  assert.match(negotiationDetailScreen, /lockedByPolicy/);
+  assert.match(negotiationDetailScreen, /negotiation\.policy\.locked/);
 });

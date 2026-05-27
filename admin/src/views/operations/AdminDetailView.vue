@@ -367,7 +367,7 @@
                       <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
                       <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
                       <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
-                      <td><span class="status-pill">{{ bid.status }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
                     </tr>
                   </tbody>
@@ -553,26 +553,8 @@
                     <p class="overview-eyebrow">Ürün Genel Durum</p>
                     <h3 class="overview-title">{{ getString(overview, 'title') || shortId(id) }}</h3>
                   </div>
-                  <span class="status-pill">{{ getString(overview, 'status') || '-' }}</span>
+                  <span class="status-pill">{{ formatStatus(getString(overview, 'status')) || '-' }}</span>
                 </header>
-                <div class="overview-kpi-grid">
-                  <article class="overview-kpi">
-                    <p>Toplam Ciro</p>
-                    <strong>{{ formatMoney(productRelated.summary.grossSales, 'TRY') }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Toplam Sipariş</p>
-                    <strong>{{ productRelated.summary.orderCount }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Tamamlanan Sipariş</p>
-                    <strong>{{ productRelated.summary.completedOrderCount }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Benzersiz Alıcı</p>
-                    <strong>{{ productRelated.summary.buyerCount }}</strong>
-                  </article>
-                </div>
               </article>
 
               <article class="overview-card">
@@ -636,7 +618,7 @@
               </article>
             </section>
           </template>
-          <template v-else-if="isBidResource && bidRelated">
+          <template v-else-if="(isBidResource || isAuctionResource) && bidRelated">
             <section class="overview-grid">
               <article class="overview-hero-card">
                 <header class="overview-hero-header">
@@ -646,7 +628,7 @@
                       {{ getString(overview, 'lotNumber') || shortId(getString(overview, 'auctionId')) }}
                     </h3>
                   </div>
-                  <span class="status-pill">{{ getString(overview, 'status') || '-' }}</span>
+                  <span class="status-pill">{{ formatStatus(getString(overview, 'status')) }}</span>
                 </header>
                 <div class="overview-kpi-grid">
                   <article class="overview-kpi">
@@ -725,6 +707,118 @@
               </article>
             </section>
           </template>
+          <template v-else-if="isNegotiationResource && negotiationRelated">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div>
+                    <p class="overview-eyebrow">Sohbet No</p>
+                    <h3 class="overview-title">#{{ shortId(getString(overview, 'id')) }}</h3>
+                  </div>
+                  <span class="status-pill">{{ formatStatus(getString(overview, 'status')) }}</span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>AI İhlal Sayısı</p>
+                    <strong :class="{ 'text-danger': Number(getString(overview, 'violationCount')) > 0 }">
+                      {{ getString(overview, 'violationCount') || '0' }}
+                    </strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Politika Kilidi</p>
+                    <strong :class="{ 'text-danger': getString(overview, 'lockedByPolicy') === 'true' }">
+                      {{ getString(overview, 'lockedByPolicy') === 'true' ? 'KİLİTLİ' : 'TEMİZ' }}
+                    </strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Ürün</p>
+                    <strong>
+                      <button type="button" class="link-inline" @click="goToProductDetail(getString(overview, 'productId'))">
+                        {{ getString(overview, 'productTitle') || 'Ürün Detayı' }}
+                      </button>
+                    </strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Sohbet Bilgisi</h4>
+                <div class="metric-row">
+                  <span>Alıcı</span>
+                  <strong>
+                    <button type="button" class="link-inline" @click="goToUserDetail(getString(overview, 'buyerId'))">
+                      {{ getString(overview, 'buyerName') }}
+                    </button>
+                  </strong>
+                </div>
+                <div class="metric-row">
+                  <span>Satıcı</span>
+                  <strong>
+                    <button type="button" class="link-inline" @click="goToUserDetail(getString(overview, 'sellerId'))">
+                      {{ getString(overview, 'sellerName') }}
+                    </button>
+                  </strong>
+                </div>
+                <div class="metric-row">
+                  <span>Miktar</span>
+                  <strong>{{ getString(overview, 'quantity') || '1' }} Adet</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Başlangıç</span>
+                  <strong>{{ formatDate(getString(overview, 'createdAt')) }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Son İşlem</span>
+                  <strong>{{ formatDate(getString(overview, 'updatedAt')) }}</strong>
+                </div>
+              </article>
+            </section>
+
+            <section class="record-block chat-panel">
+              <h3>Sohbet Akışı & AI Denetimi</h3>
+              <div class="chat-container">
+                <div v-if="negotiationRelated.messages.length === 0" class="muted text-center py-4">
+                  Bu sohbette henüz mesaj kaydı yok.
+                </div>
+                <div v-else class="chat-stream">
+                  <div
+                    v-for="msg in negotiationRelated.messages"
+                    :key="msg.id"
+                    :class="[
+                      'chat-bubble-wrap',
+                      msg.isSystem ? 'system-wrap' : (msg.senderId === getString(overview, 'buyerId') ? 'buyer-wrap' : 'seller-wrap')
+                    ]"
+                  >
+                    <!-- Sistem Mesajı -->
+                    <div v-if="msg.isSystem" class="chat-bubble chat-bubble-system">
+                      <p>{{ msg.content }}</p>
+                      <small>{{ formatDate(msg.createdAt) }}</small>
+                    </div>
+
+                    <!-- AI Tarafından Engellenen / İhlal Mesajı -->
+                    <div v-else-if="msg.isViolation" class="chat-bubble chat-bubble-violation">
+                      <div class="violation-header">
+                        <i class="pi pi-shield-ban"></i>
+                        <strong>⚠️ AI ENGELLEDİ</strong>
+                      </div>
+                      <p class="violation-attempt"><strong>Gönderilmek istenen:</strong> "{{ msg.content }}"</p>
+                      <div class="violation-footer">
+                        <span>Güvenlik Politikası Tetiklendi</span>
+                        <small>{{ formatDate(msg.createdAt) }}</small>
+                      </div>
+                    </div>
+
+                    <!-- Normal Kullanıcı Mesajı -->
+                    <div v-else class="chat-bubble" :class="msg.senderId === getString(overview, 'buyerId') ? 'bubble-buyer' : 'bubble-seller'">
+                      <div class="bubble-sender">{{ msg.senderName }}</div>
+                      <p class="bubble-content">{{ msg.content }}</p>
+                      <small class="bubble-time">{{ formatDate(msg.createdAt) }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </template>
           <template v-else-if="isAuditResource">
             <section class="overview-grid">
               <article class="overview-hero-card">
@@ -773,6 +867,123 @@
                 <div class="metric-row">
                   <span>Yönetici ID</span>
                   <strong>{{ getString(overview, 'actorAdminId') || '-' }}</strong>
+                </div>
+              </article>
+            </section>
+          </template>
+          <template v-else-if="isCategoryResource">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div class="category-hero-title-area">
+                    <div v-if="getString(overview, 'imageUrl')" class="category-hero-img-wrap">
+                      <img :src="getString(overview, 'imageUrl')" class="category-hero-img" alt="Kategori Görseli" />
+                    </div>
+                    <div v-else class="category-hero-icon-wrap">
+                      <i class="pi pi-folder category-hero-icon"></i>
+                    </div>
+                    <div>
+                      <p class="overview-eyebrow">Kategori Genel Durum</p>
+                      <h3 class="overview-title">{{ getString(overview, 'name') }}</h3>
+                    </div>
+                  </div>
+                  <span class="status-pill" :class="{ 'is-success': getString(overview, 'isActive') === 'true' || getString(overview, 'isActive') === 'Aktif', 'is-muted': getString(overview, 'isActive') !== 'true' && getString(overview, 'isActive') !== 'Aktif' }">
+                    {{ getString(overview, 'isActive') === 'true' || getString(overview, 'isActive') === 'Aktif' ? 'AKTİF' : 'KAPALI' }}
+                  </span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>Sıralama Önceliği</p>
+                    <strong>{{ getString(overview, 'sortOrder') || '0' }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Kültürel Varlık</p>
+                    <strong>{{ getString(overview, 'isCulturalAsset') === 'true' || getString(overview, 'isCulturalAsset') === 'Evet' ? 'Evet' : 'Hayır' }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Alıcı/Satıcı İletişimi</p>
+                    <strong>
+                      <span class="badge-comm" :class="{ 'is-active': getCategoryCommunicationEnabled(overview) === 'true' }">
+                        {{ getCategoryCommunicationEnabled(overview) === 'true' ? 'Aktif' : 'Kapalı' }}
+                      </span>
+                    </strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Bağlı Varyasyon</p>
+                    <strong>{{ getCategoryVariationOptionIds(overview).length }}</strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Kategori Bilgileri</h4>
+                <div class="metric-row">
+                  <span>Kategori ID</span>
+                  <strong class="text-mono">{{ getString(overview, 'id') }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Kısa Ad (Slug)</span>
+                  <strong class="text-mono">{{ getString(overview, 'slug') || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Üst Kategori</span>
+                  <strong>{{ getCategoryParentPath(getString(overview, 'parentId')) }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Açıklama</span>
+                  <span class="category-desc">{{ getString(overview, 'description') || 'Açıklama girilmemiş.' }}</span>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Bağlı Varyasyonlar</h4>
+                <p v-if="getCategoryVariationOptionIds(overview).length === 0" class="muted">
+                  Bu kategoriye bağlı herhangi bir varyasyon tanımlanmamış.
+                </p>
+                <div v-else class="variant-tags-container">
+                  <span v-for="varId in getCategoryVariationOptionIds(overview)" :key="varId" class="variant-tag-badge">
+                    <i class="pi pi-tags tag-icon"></i> {{ getVariationName(varId) }}
+                  </span>
+                </div>
+              </article>
+
+              <article class="overview-card span-12" v-if="getCategoryListingFields(overview).length > 0">
+                <h4>Dinamik İlan Şablon Alanları</h4>
+                <div class="table-wrap">
+                  <table class="detail-table category-fields-table">
+                    <thead>
+                      <tr>
+                        <th>Alan Adı (Key)</th>
+                        <th>Veri Tipi (Type)</th>
+                        <th>Zorunlu mu? (Required)</th>
+                        <th>Seçenekler (Options)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="field in getCategoryListingFields(overview)" :key="field.key">
+                        <td class="text-mono-bold">
+                          <div class="field-label-tr">{{ getFieldLabel(field.key) }}</div>
+                          <div class="field-key-sub">{{ field.key }}</div>
+                        </td>
+                        <td>
+                          <span class="type-badge" :class="field.type">{{ field.type }}</span>
+                        </td>
+                        <td>
+                          <span class="required-badge" :class="{ 'is-required': field.required }">
+                            {{ field.required ? 'Zorunlu' : 'Opsiyonel' }}
+                          </span>
+                        </td>
+                        <td>
+                          <div v-if="field.options && field.options.length > 0" class="field-options-list">
+                            <span v-for="opt in field.options" :key="opt" class="field-option-pill">
+                              {{ opt }}
+                            </span>
+                          </div>
+                          <span v-else class="muted">-</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </article>
             </section>
@@ -1447,7 +1658,278 @@
               </div>
             </section>
           </template>
-          <template v-else-if="isBidResource && bidRelated">
+          <template v-else-if="isProductResource && productRelated">
+            <div class="summary-grid">
+              <article class="summary-card">
+                <p class="summary-label">Toplam Sipariş</p>
+                <strong>{{ productRelated.summary.orderCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Tamamlanan Sipariş</p>
+                <strong>{{ productRelated.summary.completedOrderCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Benzersiz Alıcı</p>
+                <strong>{{ productRelated.summary.buyerCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Toplam Ciro</p>
+                <strong>{{ formatMoney(productRelated.summary.grossSales, 'TRY') }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Favori</p>
+                <strong>{{ productRelated.summary.favoriteCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Sepet (Kalem/Adet)</p>
+                <strong>{{ productRelated.summary.cartLineCount }} / {{ productRelated.summary.cartQuantityTotal }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Müzayede (Aktif/Toplam)</p>
+                <strong>{{ productRelated.summary.activeAuctionCount }} / {{ productRelated.summary.auctionCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <p class="summary-label">Teklif / Ödeme</p>
+                <strong>{{ productRelated.summary.bidCount }} / {{ productRelated.summary.paymentCount }}</strong>
+              </article>
+            </div>
+
+            <section class="record-block">
+              <h3>Alıcılar</h3>
+              <p v-if="productRelated.buyers.length === 0" class="muted">Alıcı kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Alıcı</th>
+                      <th>E-posta</th>
+                      <th>Satın Alma Sayısı</th>
+                      <th>Son Satın Alma</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="buyer in productRelated.buyers" :key="buyer.buyerId">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(buyer.buyerId)">
+                          {{ buyer.buyerName || shortId(buyer.buyerId) }}
+                        </button>
+                      </td>
+                      <td>{{ buyer.buyerEmail || '-' }}</td>
+                      <td>{{ buyer.purchaseCount }}</td>
+                      <td>{{ buyer.latestPurchaseAt ? formatDate(buyer.latestPurchaseAt) : '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Siparişler</h3>
+              <p v-if="productRelated.orders.length === 0" class="muted">Sipariş kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Sipariş</th>
+                      <th>Alıcı</th>
+                      <th>Tutar</th>
+                      <th>Durum</th>
+                      <th>Emanet (Escrow)</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="order in productRelated.orders" :key="order.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToOrderDetail(order.id)">
+                          {{ shortId(order.id) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(order.buyerId)">
+                          {{ order.buyerName || shortId(order.buyerId) }}
+                        </button>
+                      </td>
+                      <td>{{ formatMoney(order.amount, order.currency) }}</td>
+                      <td><span class="status-pill">{{ formatStatus(order.status) }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(order.escrowStatus) }}</span></td>
+                      <td>{{ formatDate(order.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Favoriler</h3>
+              <p v-if="productRelated.favorites.length === 0" class="muted">Favoriye ekleyen üye yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Kullanıcı</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="favorite in productRelated.favorites" :key="favorite.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(favorite.userId)">
+                          {{ favorite.userEmail || shortId(favorite.userId) }}
+                        </button>
+                      </td>
+                      <td>{{ formatDate(favorite.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Alışveriş Sepetleri</h3>
+              <p v-if="productRelated.cart.length === 0" class="muted">Sepetinde tutan üye yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Kullanıcı</th>
+                      <th>Miktar</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in productRelated.cart" :key="item.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(item.userId)">
+                          {{ item.userEmail || shortId(item.userId) }}
+                        </button>
+                      </td>
+                      <td>{{ item.quantity }}</td>
+                      <td>{{ formatDate(item.updatedAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Müzayedeler</h3>
+              <p v-if="productRelated.auctions.length === 0" class="muted">Müzayede kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Müzayede</th>
+                      <th>Durum</th>
+                      <th>Başlangıç Fiyatı</th>
+                      <th>Anlık Fiyat</th>
+                      <th>Teklif Sayısı</th>
+                      <th>Bitiş Tarihi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="auction in productRelated.auctions" :key="auction.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToAuctionDetail(auction.id)">
+                          {{ auction.lotNumber ? `#${auction.lotNumber}` : shortId(auction.id) }}
+                        </button>
+                      </td>
+                      <td><span class="status-pill">{{ formatStatus(auction.status) }}</span></td>
+                      <td>{{ formatMoney(auction.startPrice, 'TRY') }}</td>
+                      <td>{{ formatMoney(auction.currentPrice, 'TRY') }}</td>
+                      <td>{{ auction.bidCount }}</td>
+                      <td>{{ formatDate(auction.endTime) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Teklifler</h3>
+              <p v-if="productRelated.bids.length === 0" class="muted">Teklif kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Teklif ID</th>
+                      <th>Müzayede</th>
+                      <th>Teklif Veren</th>
+                      <th>Tutar</th>
+                      <th>Maksimum Tutar</th>
+                      <th>Prim</th>
+                      <th>Durum</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="bid in productRelated.bids" :key="bid.id">
+                      <td>{{ shortId(bid.id) }}</td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToAuctionDetail(bid.auctionId)">
+                          {{ shortId(bid.auctionId) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(bid.bidderId)">
+                          {{ bid.bidderName || bid.bidderEmail || shortId(bid.bidderId) }}
+                        </button>
+                      </td>
+                      <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
+                      <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
+                      <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
+                      <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
+                      <td>{{ formatDate(bid.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>Ödemeler</h3>
+              <p v-if="productRelated.payments.length === 0" class="muted">Ödeme kaydı yok.</p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Ödeme ID</th>
+                      <th>Sipariş</th>
+                      <th>Alıcı</th>
+                      <th>Sağlayıcı</th>
+                      <th>Tutar</th>
+                      <th>Durum</th>
+                      <th>Tarih</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="payment in productRelated.payments" :key="payment.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToPaymentDetail(payment.id)">
+                          {{ shortId(payment.id) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToOrderDetail(payment.orderId)">
+                          {{ shortId(payment.orderId) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(payment.buyerId)">
+                          {{ payment.buyerEmail || shortId(payment.buyerId) }}
+                        </button>
+                      </td>
+                      <td>{{ payment.provider }}</td>
+                      <td>{{ formatMoney(payment.amount, payment.currency) }}</td>
+                      <td><span class="status-pill">{{ formatStatus(payment.status) }}</span></td>
+                      <td>{{ formatDate(payment.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </template>
+          <template v-else-if="(isBidResource || isAuctionResource) && bidRelated">
             <div class="summary-grid">
               <article class="summary-card">
                 <p class="summary-label">Toplam Teklif</p>
@@ -1496,8 +1978,8 @@
                       <td>{{ getString(bidRelated.order, 'buyerName') || shortId(getString(bidRelated.order, 'buyerId')) }}</td>
                       <td>{{ getString(bidRelated.order, 'sellerName') || shortId(getString(bidRelated.order, 'sellerId')) }}</td>
                       <td>{{ formatMoney(Number(getString(bidRelated.order, 'amount') || 0), getString(bidRelated.order, 'currency') || 'TRY') }}</td>
-                      <td><span class="status-pill">{{ getString(bidRelated.order, 'status') || '-' }}</span></td>
-                      <td><span class="status-pill">{{ getString(bidRelated.order, 'escrowStatus') || '-' }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(getString(bidRelated.order, 'status')) }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(getString(bidRelated.order, 'escrowStatus')) }}</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -1525,7 +2007,7 @@
                           {{ shortId(getString(bidRelated.payment, 'id')) }}
                         </button>
                       </td>
-                      <td><span class="status-pill">{{ getString(bidRelated.payment, 'status') || '-' }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(getString(bidRelated.payment, 'status')) || '-' }}</span></td>
                       <td>{{ formatMoney(Number(getString(bidRelated.payment, 'amount') || 0), getString(bidRelated.payment, 'currency') || 'TRY') }}</td>
                       <td>{{ getString(bidRelated.payment, 'provider') || '-' }}</td>
                       <td>{{ getString(bidRelated.payment, 'paidAt') ? formatDate(getString(bidRelated.payment, 'paidAt')) : '-' }}</td>
@@ -1593,8 +2075,65 @@
                       <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
                       <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
                       <td>{{ formatMoney(bid.totalAmount, 'TRY') }}</td>
-                      <td><span class="status-pill">{{ bid.status }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
+                      <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </template>
+          <template v-else-if="isNegotiationResource && negotiationRelated">
+            <section class="record-block">
+              <h3>AI Güvenlik & Politika İhlal Kayıtları</h3>
+              <p v-if="negotiationRelated.violations.length === 0" class="muted">
+                Bu sohbette güvenlik politikası ihlali veya AI engelleme kaydı bulunmuyor.
+              </p>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Tarih</th>
+                      <th>Kullanıcı</th>
+                      <th>Gönderilmek İstenen</th>
+                      <th>İhlal Türü</th>
+                      <th>IP / Cihaz</th>
+                      <th>Risk Skoru</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="violation in negotiationRelated.violations" :key="violation.id">
+                      <td>{{ formatDate(violation.createdAt) }}</td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(violation.userId)">
+                          {{ violation.userName || shortId(violation.userId) }}
+                        </button>
+                      </td>
+                      <td class="text-danger">"{{ violation.attemptedContent }}"</td>
+                      <td>
+                        <span
+                          v-for="vType in violation.violationTypes"
+                          :key="vType"
+                          class="status-pill is-danger"
+                          style="margin-right: 4px;"
+                        >
+                          {{ vType }}
+                        </span>
+                      </td>
+                      <td>
+                        <div style="font-size: 0.85em;">
+                          <div><strong>IP:</strong> {{ violation.ipAddress }}</div>
+                          <div><strong>Cihaz:</strong> {{ violation.deviceId }}</div>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          class="status-pill"
+                          :class="violation.aiRiskScore >= 0.8 ? 'is-danger' : 'is-warning'"
+                        >
+                          %{{ Math.round(violation.aiRiskScore * 100) }}
+                        </span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -1646,7 +2185,7 @@ import AdminDrawerForm, {
 } from '../../components/AdminDrawerForm.vue';
 import AdminAuditTimeline, { type AuditEvent } from '../../components/AdminAuditTimeline.vue';
 import type { AdminTableAction } from '../../components/AdminDataTable.vue';
-import { adminApi, toApiMessage, type ApiEnvelope } from '../../services/api';
+import { adminApi, toApiMessage, type ApiEnvelope, type ApiListResponse } from '../../services/api';
 
 type DetailTab = 'Genel Bakış' | 'Zaman Çizelgesi' | 'İlgili Kayıtlar' | 'Denetim';
 type ActionMethod = 'delete' | 'patch' | 'post';
@@ -2083,7 +2622,6 @@ const props = withDefaults(
 );
 
 const router = useRouter();
-const tabs: DetailTab[] = ['Genel Bakış', 'Zaman Çizelgesi', 'İlgili Kayıtlar', 'Denetim'];
 const activeTab = ref<DetailTab>('Genel Bakış');
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -2094,10 +2632,38 @@ const userRelated = ref<UserRelatedRecords | null>(null);
 const sellerRelated = ref<SellerRelatedRecords | null>(null);
 const productRelated = ref<ProductRelatedRecords | null>(null);
 const bidRelated = ref<BidAuctionRelatedRecords | null>(null);
+const negotiationRelated = ref<{
+  messages: Array<{
+    id: string;
+    senderId: string | null;
+    senderName: string;
+    type: string;
+    content: string;
+    isSystem: boolean;
+    isViolation: boolean;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+  }>;
+  violations: Array<{
+    id: string;
+    userId: string;
+    userName: string;
+    attemptedContent: string;
+    violationTypes: string[];
+    ipAddress: string;
+    deviceId: string;
+    aiRiskScore: number;
+    aiReason: string;
+    aiShouldBlock: boolean;
+    createdAt: string;
+  }>;
+} | null>(null);
 const auditTarget = ref<{ targetType: string; targetId: string } | null>(null);
 const auditEvents = ref<AuditEvent[]>([]);
 const drawerOpen = ref(false);
 const selectedAction = ref<ActionConfig | null>(null);
+const categoryParentOptions = ref<{ label: string; value: string }[]>([]);
+const variationOptions = ref<{ label: string; value: string; kind?: string }[]>([]);
 const relatedLoadings = ref<Record<UserRelatedSectionKey, boolean>>({
   orders: false,
   sales: false,
@@ -2121,8 +2687,31 @@ const categoryFields = (row: Record<string, unknown>): DrawerField[] => [
   { key: 'slug', label: 'Kısa ad', value: getString(row, 'slug') },
   { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
   { key: 'imageUrl', label: 'Görsel URL', value: getString(row, 'imageUrl') },
-  { key: 'parentId', label: 'Üst ID', value: getString(row, 'parentId') },
+  {
+    key: 'parentId',
+    label: 'Üst kategori',
+    type: 'select',
+    value: getString(row, 'parentId'),
+    options: categoryParentOptions.value,
+  },
+  {
+    key: 'isCommunicationEnabled',
+    label: 'İletişim Aktif mi?',
+    type: 'select',
+    value: getCategoryCommunicationEnabled(row),
+    options: [
+      { label: 'Evet (Alıcı ve satıcı mesajlaşabilir)', value: 'true' },
+      { label: 'Hayır (Mesajlaşma kapalı)', value: 'false' },
+    ],
+  },
   { key: 'sortOrder', label: 'Sıralama', type: 'number', value: getString(row, 'sortOrder') },
+  {
+    key: 'variationOptionIds',
+    label: 'Bağlı varyasyonlar',
+    type: 'multiselect',
+    value: getCategoryVariationOptionIds(row),
+    options: variationOptions.value,
+  },
 ];
 
 const productionSeasonOptions = [
@@ -2364,7 +2953,30 @@ const isUserResource = computed(() => props.resource === 'users');
 const isSellerResource = computed(() => props.resource === 'sellers');
 const isProductResource = computed(() => props.resource === 'products');
 const isBidResource = computed(() => props.resource === 'bids');
+const isAuctionResource = computed(() => props.resource === 'auctions');
 const isAuditResource = computed(() => props.resource === 'audit-logs');
+const isNegotiationResource = computed(() => props.resource === 'negotiations');
+const isCategoryResource = computed(() => props.resource === 'categories');
+const tabs = computed<DetailTab[]>(() => {
+  const list: DetailTab[] = ['Genel Bakış'];
+
+  if (timeline.value.length > 0) {
+    list.push('Zaman Çizelgesi');
+  }
+
+  const hasRelated = isUserResource.value ||
+                    isSellerResource.value ||
+                    isProductResource.value ||
+                    isAuctionResource.value ||
+                    isBidResource.value ||
+                    (isNegotiationResource.value && negotiationRelated.value && (negotiationRelated.value.messages.length > 0 || negotiationRelated.value.violations.length > 0));
+  if (hasRelated) {
+    list.push('İlgili Kayıtlar');
+  }
+
+  list.push('Denetim');
+  return list;
+});
 const userDisplayName = computed(() => {
   const firstName = getString(overview.value, 'firstName');
   const lastName = getString(overview.value, 'lastName');
@@ -2486,6 +3098,115 @@ function parseProductExtendedContent(value: string): {
   }
 }
 
+function getCategoryCommunicationEnabled(row: Record<string, unknown> | null): string {
+  const metadata = row?.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return 'false';
+  }
+  const enabled = (metadata as Record<string, unknown>).isCommunicationEnabled;
+  return enabled === true || enabled === 'true' ? 'true' : 'false';
+}
+
+function getCategoryVariationOptionIds(row: Record<string, unknown>): string[] {
+  const metadata = row.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return [];
+  }
+  const ids = (metadata as Record<string, unknown>).variationOptionIds;
+  if (!Array.isArray(ids)) return [];
+  return ids.map((item) => String(item ?? '').trim()).filter((item) => item.length > 0);
+}
+
+function getCategoryParentPath(parentId: string | null): string {
+  if (!parentId || parentId.trim() === '') return 'Yok (Kök Kategori)';
+  const found = categoryParentOptions.value.find(opt => opt.value === parentId);
+  return found ? found.label : parentId;
+}
+
+function getVariationName(varId: string): string {
+  const found = variationOptions.value.find(opt => opt.value === varId);
+  return found ? found.label : varId;
+}
+
+interface ListingField {
+  key: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+}
+
+function getCategoryListingFields(row: Record<string, unknown> | null): ListingField[] {
+  const metadata = row?.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return [];
+  }
+  const listingTemplate = (metadata as Record<string, unknown>).listingTemplate;
+  if (!listingTemplate || typeof listingTemplate !== 'object' || Array.isArray(listingTemplate)) {
+    return [];
+  }
+  const fields = (listingTemplate as Record<string, unknown>).fields;
+  if (!Array.isArray(fields)) return [];
+  return fields as ListingField[];
+}
+
+function getFieldLabel(key: string): string {
+  const translations: Record<string, string> = {
+    brand: 'Marka',
+    condition: 'Durum',
+    sku: 'Stok Kodu (SKU)',
+    price: 'Fiyat',
+    stock: 'Stok Adedi',
+    color: 'Renk',
+    size: 'Beden / Ebat',
+    material: 'Malzeme',
+    origin: 'Menşei',
+    weight: 'Ağırlık / Kütle',
+    dimensions: 'Boyutlar',
+    productiondate: 'Üretim Tarihi',
+    warranty: 'Garanti Süresi',
+    shipping: 'Kargo Detayı',
+    model: 'Model',
+    year: 'Yıl',
+    grade: 'Derece / Sınıf',
+    authenticity: 'Orijinallik Belgesi',
+    author: 'Yazar / Sanatçı',
+    medium: 'Yapım Tekniği',
+  };
+  return translations[key.toLowerCase()] ?? key;
+}
+
+function normalizeCategoryRows(loadedRows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  loadedRows.forEach((row) => {
+    const id = getString(row, 'id');
+    if (id) byId.set(id, row);
+  });
+
+  const buildPath = (row: Record<string, unknown>): string => {
+    const labels: string[] = [];
+    const visited = new Set<string>();
+    let cursor: Record<string, unknown> | undefined = row;
+    while (cursor) {
+      const cursorId = getString(cursor, 'id');
+      if (!cursorId || visited.has(cursorId)) break;
+      visited.add(cursorId);
+      labels.unshift(getString(cursor, 'name') || getString(cursor, 'slug') || cursorId);
+      const parentId = getString(cursor, 'parentId');
+      cursor = parentId ? byId.get(parentId) : undefined;
+    }
+    return labels.join(' > ');
+  };
+
+  return loadedRows
+    .map((row) => ({
+      ...row,
+      categoryPath: buildPath(row),
+    }))
+    .sort((left, right) =>
+      String(left.categoryPath ?? '').localeCompare(String(right.categoryPath ?? ''), 'tr'),
+    );
+}
+
 function openAction(action: AdminTableAction) {
   selectedAction.value = action as ActionConfig;
   drawerOpen.value = true;
@@ -2523,6 +3244,40 @@ async function confirmAction(payload: DrawerConfirmPayload) {
 
 function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function formatStatus(status: unknown): string {
+  const s = String(status ?? '').toUpperCase().trim();
+  const translations: Record<string, string> = {
+    DRAFT: 'TASLAK',
+    PUBLISHED: 'YAYINLANDI',
+    ACTIVE: 'AKTİF',
+    ENDED: 'BİTTİ',
+    COMPLETED: 'TAMAMLANDI',
+    CANCELLED: 'İPTAL EDİLDİ',
+    OUTBID: 'GEÇİLDİ',
+    WITHDRAWN: 'GERİ ÇEKİLDİ',
+    CREATED: 'OLUŞTURULDU',
+    PROCESSING: 'HAZIRLANIYOR',
+    SHIPPED: 'KARGODA',
+    DELIVERED: 'TESLİM EDİLDİ',
+    ADMIN_REVIEW: 'İNCELENİYOR',
+    HELD: 'BLOKEDE',
+    RELEASED: 'SERBEST',
+    CAPTURED: 'ÇEKİLDİ',
+    REFUNDED: 'İADE EDİLDİ',
+    PAID: 'ÖDENDİ',
+    PENDING: 'BEKLEMEDE',
+    FAILED: 'BAŞARISIZ',
+    NONE: 'YOK',
+    OPEN: 'AÇIK',
+    NEGOTIATING: 'GÖRÜŞÜLÜYOR',
+    OFFER_PENDING: 'TEKLİF BEKLİYOR',
+    ACCEPTED: 'KABUL EDİLDİ',
+    PAYMENT_PENDING: 'ÖDEME BEKLİYOR',
+    EXPIRED: 'SÜRESİ DOLDU',
+  };
+  return translations[s] ?? s;
 }
 
 function timelineKey(event: TimelineEvent): string {
@@ -2839,6 +3594,42 @@ async function loadAudit() {
   }
 }
 
+async function loadCategoryParentOptions() {
+  if (props.resource !== 'categories') return;
+  try {
+    const response = await adminApi.get<ApiListResponse>('/admin/categories', {
+      params: { page: 1, limit: 100 },
+    });
+    const categoryRows = Array.isArray(response.data.items) ? response.data.items : [];
+    const normalizedRows = normalizeCategoryRows(categoryRows);
+    categoryParentOptions.value = normalizedRows.map((item) => ({
+      label: String(item.categoryPath ?? item.name ?? item.slug ?? item.id ?? 'Kategori'),
+      value: String(item.id ?? ''),
+    }));
+  } catch {
+    categoryParentOptions.value = [];
+  }
+}
+
+async function loadVariationOptions() {
+  if (props.resource !== 'categories') return;
+  try {
+    const response = await adminApi.get<ApiListResponse>('/admin/variants/numbers', {
+      params: { page: 1, limit: 200 },
+    });
+    const items = Array.isArray(response.data.items) ? response.data.items : [];
+    variationOptions.value = items
+      .filter((item) => String(item.status ?? 'ACTIVE') === 'ACTIVE')
+      .map((item) => ({
+        label: `${String(item.nameTr ?? item.nameEn ?? item.id ?? 'Varyasyon')} (${String(item.kind ?? '-')})`,
+        value: String(item.id ?? ''),
+        kind: String(item.kind ?? ''),
+      }));
+  } catch {
+    variationOptions.value = [];
+  }
+}
+
 async function loadDetail() {
   loading.value = true;
   error.value = null;
@@ -2863,16 +3654,24 @@ async function loadDetail() {
       userRelated.value = null;
       sellerRelated.value = null;
       bidRelated.value = null;
-    } else if (isBidResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
+    } else if ((isBidResource.value || isAuctionResource.value) && relatedRecords.value && typeof relatedRecords.value === 'object') {
       bidRelated.value = normalizeBidRelated(relatedRecords.value as Partial<BidAuctionRelatedRecords>);
       userRelated.value = null;
       sellerRelated.value = null;
       productRelated.value = null;
+      negotiationRelated.value = null;
+    } else if (isNegotiationResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
+      negotiationRelated.value = relatedRecords.value as any;
+      userRelated.value = null;
+      sellerRelated.value = null;
+      productRelated.value = null;
+      bidRelated.value = null;
     } else {
       userRelated.value = null;
       sellerRelated.value = null;
       productRelated.value = null;
       bidRelated.value = null;
+      negotiationRelated.value = null;
     }
     auditTarget.value = response.data.audit ?? null;
     await loadAudit();
@@ -2895,11 +3694,15 @@ watch(
       couponDefinitions: false,
       couponUsage: false,
     };
+    void loadCategoryParentOptions();
+    void loadVariationOptions();
     void loadDetail();
   },
 );
 
 onMounted(loadDetail);
+onMounted(loadCategoryParentOptions);
+onMounted(loadVariationOptions);
 </script>
 
 <style scoped>
@@ -3154,5 +3957,381 @@ onMounted(loadDetail);
 
 .link-inline:hover {
   text-decoration: underline;
+}
+
+/* Category Specific Styles */
+.category-hero-title-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.category-hero-img-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--bg-soft);
+}
+
+.category-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.category-hero-img-wrap:hover .category-hero-img {
+  transform: scale(1.1);
+}
+
+.category-hero-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(234, 179, 8, 0.2));
+  border: 1px solid rgba(234, 179, 8, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-hero-icon {
+  font-size: 24px;
+  color: #eab308;
+}
+
+.badge-comm {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+.badge-comm.is-active {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.1);
+}
+
+.variant-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.variant-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-soft);
+  color: var(--text-body);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+.variant-tag-badge:hover {
+  background: var(--bg-elevated);
+  border-color: var(--brand-400);
+  transform: translateY(-1px);
+}
+
+.variant-tag-badge .tag-icon {
+  font-size: 10px;
+  color: var(--brand-500);
+}
+
+.text-mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.text-mono-bold {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.category-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-body);
+  max-width: 480px;
+}
+
+.span-12 {
+  grid-column: span 12 !important;
+}
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.type-badge.select {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.type-badge.number {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.type-badge.boolean {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #ffedd5;
+}
+
+.required-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.required-badge.is-required {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.field-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.field-option-pill {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.field-label-tr {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.field-key-sub {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Chat Panel & Container */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.chat-panel h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-container {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Bubble Wrappers */
+.chat-bubble-wrap {
+  display: flex;
+  width: 100%;
+}
+
+.system-wrap {
+  justify-content: center;
+}
+
+.buyer-wrap {
+  justify-content: flex-start;
+}
+
+.seller-wrap {
+  justify-content: flex-end;
+}
+
+/* Chat Bubbles Base */
+.chat-bubble {
+  max-width: 75%;
+  border-radius: 12px;
+  padding: 12px 16px;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* System Message Style */
+.chat-bubble-system {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  max-width: 90%;
+}
+
+.chat-bubble-system p {
+  margin: 0;
+}
+
+.chat-bubble-system small {
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+/* Normal Chat Bubbles */
+.bubble-buyer {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-bottom-left-radius: 2px;
+  border: 1px solid #e2e8f0;
+}
+
+.bubble-seller {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-bottom-right-radius: 2px;
+  border: 1px solid #bae6fd;
+}
+
+.bubble-sender {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.bubble-buyer .bubble-sender {
+  color: #475569;
+}
+
+.bubble-seller .bubble-sender {
+  color: #0284c7;
+}
+
+.bubble-content {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.bubble-time {
+  display: block;
+  font-size: 10px;
+  margin-top: 6px;
+  text-align: right;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* Violation Message Style (AI Blocked) */
+.chat-bubble-violation {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  border-bottom-left-radius: 2px;
+  max-width: 80%;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(153, 27, 27, 0.05);
+}
+
+.violation-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #dc2626;
+  margin-bottom: 8px;
+}
+
+.violation-header i {
+  font-size: 14px;
+}
+
+.violation-attempt {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed #f87171;
+  color: #7f1d1d;
+}
+
+.violation-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #b91c1c;
+  opacity: 0.9;
+  margin-top: 4px;
 }
 </style>

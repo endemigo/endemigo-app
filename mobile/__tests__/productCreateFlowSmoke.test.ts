@@ -13,6 +13,7 @@ test('product create wizard source anchors exist', () => {
   const wizardSource = read('components/forms/product-create/ProductCreateWizard.tsx');
   const segmentSource = read('components/forms/product-create/ProductTypeSegment.tsx');
   const serviceSource = read('services/productCreateService.ts');
+  const draftServiceSource = read('services/listingDraftService.ts');
 
   assert.match(wizardSource, /expo-image-picker/);
   assert.match(wizardSource, /ProductCreateProgress/);
@@ -21,4 +22,7 @@ test('product create wizard source anchors exist', () => {
   assert.match(serviceSource, /\/products/);
   assert.match(serviceSource, /\/auctions/);
   assert.match(serviceSource, /\/publish/);
+  assert.match(wizardSource, /entryMode/);
+  assert.match(wizardSource, /listing\.entryModeMarketplace/);
+  assert.match(draftServiceSource, /\/products\/drafts/);
 });

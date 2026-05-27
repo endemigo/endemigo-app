@@ -54,6 +54,7 @@
       @filter="setFilters"
       @action="openAction"
       @row-click="goToDetail"
+      @tree-toggle="toggleCategoryTree"
     >
       <template #toolbar>
         <div class="toolbar">
@@ -130,13 +131,16 @@ const props = withDefaults(
 const router = useRouter();
 const rows = ref<Record<string, unknown>[]>([]);
 const categoryParentOptions = ref<{ label: string; value: string }[]>([]);
+const variationOptions = ref<{ label: string; value: string; kind?: string }[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const activeFilters = ref<Record<string, string>>({});
 const pagination = ref<AdminPagination>({ page: 1, limit: 25, total: 0 });
+const collapsedCategoryIds = ref<Set<string>>(new Set());
 const drawerOpen = ref(false);
 const selectedRow = ref<Record<string, unknown> | null>(null);
 const selectedAction = ref<ActionConfig | null>(null);
+let categoryRequestInFlight: Promise<Record<string, unknown>[]> | null = null;
 
 const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
   { key: 'name', label: 'Ad', required: true, value: getString(row, 'name') },
@@ -150,7 +154,24 @@ const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
     value: getString(row, 'parentId'),
     options: categoryParentOptions.value,
   },
+  {
+    key: 'isCommunicationEnabled',
+    label: 'İletişim Aktif mi?',
+    type: 'select',
+    value: getCategoryCommunicationEnabled(row),
+    options: [
+      { label: 'Evet (Alıcı ve satıcı mesajlaşabilir)', value: 'true' },
+      { label: 'Hayır (Mesajlaşma kapalı)', value: 'false' },
+    ],
+  },
   { key: 'sortOrder', label: 'Sıralama', type: 'number', value: getString(row, 'sortOrder') },
+  {
+    key: 'variationOptionIds',
+    label: 'Bağlı varyasyonlar',
+    type: 'multiselect',
+    value: getCategoryVariationOptionIds(row),
+    options: variationOptions.value,
+  },
 ];
 
 const brandFields = (row: Record<string, unknown> | null): DrawerField[] => [
@@ -308,6 +329,7 @@ const createCategoryAction: ActionConfig = {
   path: () => '/admin/categories',
   fields: categoryFields,
   confirmLabel: 'Kategori oluştur',
+  presentation: 'modal',
 };
 
 const createBrandAction: ActionConfig = {
@@ -389,8 +411,8 @@ const resourceConfigs: Record<string, ResourceConfig> = {
   categories: {
     detailBase: 'categories',
     columns: [
-      { key: 'name', label: 'Ad' },
-      { key: 'slug', label: 'Kısa ad' },
+      { key: 'categoryTreeLabel', label: 'Kategori Ağacı', format: 'tree' },
+      { key: 'categoryVariationsSummary', label: 'Varyasyonlar' },
       { key: 'isActive', label: 'Aktif' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
     ],
@@ -403,15 +425,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
         path: (id) => `/admin/categories/${id}`,
         fields: categoryFields,
         confirmLabel: 'Kategori güncelle',
-      },
-      {
-        key: 'deleteCategory',
-        label: 'Devre dışı bırak',
-        icon: 'pi pi-trash',
-        tone: 'danger',
-        method: 'delete',
-        path: (id) => `/admin/categories/${id}`,
-        confirmLabel: 'Kategori devre dışı bırak',
+        presentation: 'modal',
       },
     ],
   },
@@ -447,7 +461,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
   auctions: {
     detailBase: 'auctions',
     columns: [
-      { key: 'productId', label: 'Ürün', format: 'id' },
+      { key: 'productTitle', label: 'Ürün', route: (row) => `/products/${String(row.productId ?? '')}` },
       { key: 'status', label: 'Durum', format: 'status' },
       { key: 'currentPrice', label: 'Anlık Fiyat', format: 'money' },
       { key: 'reservePriceLabel', label: 'Reserve' },
@@ -517,6 +531,19 @@ const resourceConfigs: Record<string, ResourceConfig> = {
     ],
     actions: [],
   },
+  negotiations: {
+    detailBase: 'negotiations',
+    columns: [
+      { key: 'idShort', label: 'Sohbet No', route: (row) => `/negotiations/${String(row.id ?? '')}` },
+      { key: 'productTitle', label: 'Ürün', route: (row) => `/products/${String(row.productId ?? '')}` },
+      { key: 'buyerName', label: 'Alıcı', route: (row) => `/users/${String(row.buyerId ?? '')}` },
+      { key: 'sellerName', label: 'Satıcı', route: (row) => `/sellers/${String(row.sellerId ?? '')}` },
+      { key: 'status', label: 'Durum', format: 'status' },
+      { key: 'violationLabel', label: 'AI Uyarı' },
+      { key: 'updatedAt', label: 'Son İşlem', format: 'date' },
+    ],
+    actions: [],
+  },
   'audit-logs': {
     detailBase: 'audit',
     columns: [
@@ -576,12 +603,22 @@ const config = computed(() => resourceConfigs[props.resource] ?? fallbackConfig)
 const columns = computed(() => config.value.columns);
 const rowActions = computed(() => (props.readOnly ? [] : config.value.actions));
 const displayedRows = computed(() => {
+  if (props.resource === 'categories') {
+    return rows.value.filter((row) => !hasCollapsedAncestor(row));
+  }
   if (props.resource !== 'users') return rows.value;
   const memberType = activeFilters.value.memberType?.toUpperCase();
   if (!memberType) return rows.value;
   return rows.value.filter((row) => resolveMemberType(row) === memberType);
 });
 const displayedPagination = computed<AdminPagination>(() => {
+  if (props.resource === 'categories') {
+    return {
+      ...pagination.value,
+      total: displayedRows.value.length,
+      limit: Math.max(displayedRows.value.length, 1),
+    };
+  }
   if (props.resource !== 'users' || !activeFilters.value.memberType) return pagination.value;
   return {
     ...pagination.value,
@@ -684,6 +721,25 @@ function parseProductExtendedContent(value: string): {
   }
 }
 
+function getCategoryCommunicationEnabled(row: Record<string, unknown> | null): string {
+  const metadata = row?.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return 'false';
+  }
+  const enabled = (metadata as Record<string, unknown>).isCommunicationEnabled;
+  return enabled === true || enabled === 'true' ? 'true' : 'false';
+}
+
+function getCategoryVariationOptionIds(row: Record<string, unknown> | null): string[] {
+  const metadata = row?.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return [];
+  }
+  const ids = (metadata as Record<string, unknown>).variationOptionIds;
+  if (!Array.isArray(ids)) return [];
+  return ids.map((item) => String(item ?? '').trim()).filter((item) => item.length > 0);
+}
+
 function resolveMemberType(row: Record<string, unknown>): MemberType {
   const role = String(row.role ?? row.memberType ?? '').trim().toUpperCase();
   if (role.includes('ADMIN')) return 'ADMIN';
@@ -726,6 +782,98 @@ function normalizeProductRow(row: Record<string, unknown>): Record<string, unkno
   };
 }
 
+function getCategoryVariationsSummary(row: Record<string, unknown>): string {
+  const ids = getCategoryVariationOptionIds(row);
+  if (ids.length === 0) return '-';
+  const kindsMap = new Map<string, string>();
+  ids.forEach((id) => {
+    const found = variationOptions.value.find((opt) => opt.value === id);
+    if (found) {
+      const kind = found.kind;
+      let groupName = '';
+      if (kind === 'COLOR') groupName = 'Renk';
+      else if (kind === 'SIZE') groupName = 'Beden';
+      else if (kind === 'NUMBER') groupName = 'Numara';
+      else if (kind === 'OPTION') groupName = 'Seçenek';
+      else if (kind === 'VARIATION') groupName = 'Varyasyon';
+      else groupName = kind;
+      kindsMap.set(kind, groupName);
+    }
+  });
+  if (kindsMap.size === 0) return '-';
+  return Array.from(kindsMap.values()).join(', ');
+}
+
+function normalizeCategoryRows(loadedRows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  const childrenByParentId = new Map<string, Record<string, unknown>[]>();
+  loadedRows.forEach((row) => {
+    const id = getString(row, 'id');
+    if (id) byId.set(id, row);
+    const parentId = getString(row, 'parentId');
+    if (!parentId) return;
+    const children = childrenByParentId.get(parentId) ?? [];
+    children.push(row);
+    childrenByParentId.set(parentId, children);
+  });
+
+  const buildPath = (row: Record<string, unknown>): string => {
+    const labels: string[] = [];
+    const visited = new Set<string>();
+    let cursor: Record<string, unknown> | undefined = row;
+    while (cursor) {
+      const cursorId = getString(cursor, 'id');
+      if (!cursorId || visited.has(cursorId)) break;
+      visited.add(cursorId);
+      labels.unshift(getString(cursor, 'name') || getString(cursor, 'slug') || cursorId);
+      const parentId = getString(cursor, 'parentId');
+      cursor = parentId ? byId.get(parentId) : undefined;
+    }
+    return labels.join(' > ');
+  };
+
+  const sortByName = (left: Record<string, unknown>, right: Record<string, unknown>) =>
+    (getString(left, 'name') || getString(left, 'slug')).localeCompare(
+      getString(right, 'name') || getString(right, 'slug'),
+      'tr',
+    );
+
+  const roots = loadedRows
+    .filter((row) => {
+      const parentId = getString(row, 'parentId');
+      return !parentId || !byId.has(parentId);
+    })
+    .sort(sortByName);
+
+  const ordered: Record<string, unknown>[] = [];
+  const visited = new Set<string>();
+
+  const walk = (node: Record<string, unknown>, depth: number) => {
+    const id = getString(node, 'id');
+    if (!id || visited.has(id)) return;
+    visited.add(id);
+    const treeLabel = getString(node, 'name') || getString(node, 'slug') || id;
+    const hasChildren = (childrenByParentId.get(id) ?? []).length > 0;
+    const collapsed = collapsedCategoryIds.value.has(id);
+    ordered.push({
+      ...node,
+      categoryPath: buildPath(node),
+      categoryTreeLabel: treeLabel,
+      categoryVariationsSummary: getCategoryVariationsSummary(node),
+      __treeDepth: depth,
+      __treeHasChildren: hasChildren,
+      __treeCollapsed: collapsed,
+    });
+    const children = (childrenByParentId.get(id) ?? []).sort(sortByName);
+    children.forEach((child) => walk(child, depth + 1));
+  };
+
+  roots.forEach((root) => walk(root, 0));
+  loadedRows.forEach((row) => walk(row, 0));
+
+  return ordered;
+}
+
 function normalizeBidRow(row: Record<string, unknown>): Record<string, unknown> {
   const productTitle = getString(row, 'productTitle');
   const lotNumber = getString(row, 'lotNumber');
@@ -743,10 +891,32 @@ function normalizeBidRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 function normalizeAuctionRow(row: Record<string, unknown>): Record<string, unknown> {
+  const productTitle = getString(row, 'productTitle');
+  const productId = getString(row, 'productId');
   return {
     ...row,
+    productTitle: productTitle || productId,
     reservePriceLabel: formatReservePriceLabel(row.reservePrice),
     reserveStatusLabel: formatReserveStatusLabel(row.reservePrice, row.reserveMet),
+  };
+}
+
+function normalizeNegotiationRow(row: Record<string, unknown>): Record<string, unknown> {
+  const id = getString(row, 'id');
+  const idShort = `#${id.slice(0, 8)}`;
+  const violationCount = Number(row.violationCount ?? 0);
+  const lockedByPolicy = row.lockedByPolicy === true;
+  let violationLabel = 'Temiz';
+  if (lockedByPolicy) {
+    violationLabel = '⚠️ KİLİTLİ (AI)';
+  } else if (violationCount > 0) {
+    violationLabel = `⚠️ ${violationCount} İhlal`;
+  }
+
+  return {
+    ...row,
+    idShort,
+    violationLabel,
   };
 }
 
@@ -886,6 +1056,7 @@ function getRowId(row: Record<string, unknown> | null): string | null {
 }
 
 function setPage(page: number) {
+  if (props.resource === 'categories') return;
   pagination.value = { ...pagination.value, page };
   void loadRows();
 }
@@ -894,6 +1065,36 @@ function setFilters(filtersValue: Record<string, string>) {
   activeFilters.value = filtersValue;
   pagination.value = { ...pagination.value, page: 1 };
   void loadRows();
+}
+
+function hasCollapsedAncestor(row: Record<string, unknown>): boolean {
+  const path = getString(row, 'categoryPath');
+  if (!path) return false;
+  const currentId = getString(row, 'id');
+  const currentDepth = Number(row.__treeDepth ?? 0);
+  if (currentDepth <= 0 || !currentId) return false;
+  let ancestorParentId = getString(row, 'parentId');
+  while (ancestorParentId) {
+    if (collapsedCategoryIds.value.has(ancestorParentId)) {
+      return true;
+    }
+    const ancestor = rows.value.find((item) => getString(item, 'id') === ancestorParentId);
+    if (!ancestor) break;
+    ancestorParentId = getString(ancestor, 'parentId');
+  }
+  return false;
+}
+
+function toggleCategoryTree(row: Record<string, unknown>) {
+  if (props.resource !== 'categories') return;
+  const id = getString(row, 'id');
+  if (!id) return;
+  if (collapsedCategoryIds.value.has(id)) {
+    collapsedCategoryIds.value.delete(id);
+  } else {
+    collapsedCategoryIds.value.add(id);
+  }
+  rows.value = normalizeCategoryRows(rows.value);
 }
 
 async function goToProductCreate() {
@@ -952,6 +1153,18 @@ async function loadRows() {
   error.value = null;
 
   try {
+    if (props.resource === 'categories') {
+      await loadVariationOptions();
+      const allRows = await loadAllCategoryRows();
+      rows.value = normalizeCategoryRows(allRows);
+      pagination.value = {
+        page: 1,
+        limit: Math.max(rows.value.length, 1),
+        total: rows.value.length,
+      };
+      return;
+    }
+
     const response = await adminApi.get<ApiListResponse>(endpoint.value, {
       params: buildListQueryParams(activeFilters.value),
     });
@@ -965,6 +1178,8 @@ async function loadRows() {
             ? loadedRows.map((row) => normalizeAuctionRow(row))
           : props.resource === 'bids'
             ? loadedRows.map((row) => normalizeBidRow(row))
+            : props.resource === 'negotiations'
+              ? loadedRows.map((row) => normalizeNegotiationRow(row))
             : props.resource === 'audit-logs'
               ? loadedRows.map((row) => normalizeAuditRow(row))
           : loadedRows;
@@ -977,19 +1192,67 @@ async function loadRows() {
   }
 }
 
+async function loadAllCategoryRows(): Promise<Record<string, unknown>[]> {
+  if (categoryRequestInFlight) {
+    return categoryRequestInFlight;
+  }
+  categoryRequestInFlight = (async () => {
+  const baseParams = buildListQueryParams(activeFilters.value);
+    const run = async () =>
+      adminApi.get<ApiListResponse>('/admin/categories', {
+        params: { ...baseParams, page: 1, limit: 1000 },
+      });
+
+    try {
+      const response = await run();
+      return Array.isArray(response.data.items) ? response.data.items : [];
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const retryResponse = await run();
+        return Array.isArray(retryResponse.data.items) ? retryResponse.data.items : [];
+      }
+      throw error;
+    }
+  })();
+  try {
+    return await categoryRequestInFlight;
+  } finally {
+    categoryRequestInFlight = null;
+  }
+}
+
 async function loadCategoryParentOptions() {
   if (props.resource !== 'categories') return;
   try {
-    const response = await adminApi.get<ApiListResponse>('/admin/categories', {
-      params: { page: 1, limit: 100 },
-    });
-    const categoryRows = Array.isArray(response.data.items) ? response.data.items : [];
-    categoryParentOptions.value = categoryRows.map((item) => ({
-      label: String(item.name ?? item.slug ?? item.id ?? 'Kategori'),
+    const categoryRows = await loadAllCategoryRows();
+    const normalizedRows = normalizeCategoryRows(categoryRows);
+    categoryParentOptions.value = normalizedRows.map((item) => ({
+      label: String(item.categoryPath ?? item.name ?? item.slug ?? item.id ?? 'Kategori'),
       value: String(item.id ?? ''),
     }));
   } catch {
     categoryParentOptions.value = [];
+  }
+}
+
+async function loadVariationOptions() {
+  if (props.resource !== 'categories') return;
+  try {
+    const response = await adminApi.get<ApiListResponse>('/admin/variants/numbers', {
+      params: { page: 1, limit: 200 },
+    });
+    const items = Array.isArray(response.data.items) ? response.data.items : [];
+    variationOptions.value = items
+      .filter((item) => String(item.status ?? 'ACTIVE') === 'ACTIVE')
+      .map((item) => ({
+        label: `${String(item.nameTr ?? item.nameEn ?? item.id ?? 'Varyasyon')} (${String(item.kind ?? '-')})`,
+        value: String(item.id ?? ''),
+        kind: String(item.kind ?? ''),
+      }));
+  } catch {
+    variationOptions.value = [];
   }
 }
 
@@ -999,10 +1262,12 @@ watch(
     activeFilters.value = {};
     pagination.value = { page: 1, limit: 25, total: 0 };
     void loadCategoryParentOptions();
+    void loadVariationOptions();
     void loadRows();
   },
 );
 
 onMounted(loadRows);
 onMounted(loadCategoryParentOptions);
+onMounted(loadVariationOptions);
 </script>

@@ -112,3 +112,10 @@ test('mobile negotiation composer shows and validates minimum offer amount', () 
   assert.match(negotiationComposer, /parsedAmount >= minimumOfferAmount/);
   assert.match(negotiationComposer, /negotiation\.askPrice\.minimum/);
 });
+
+test('mobile negotiation detail renders policy lock state', () => {
+  const types = read('types/index.ts');
+  assert.match(types, /NegotiationPolicy/);
+  assert.match(negotiationDetailScreen, /lockedByPolicy/);
+  assert.match(negotiationDetailScreen, /negotiation\.policy\.locked/);
+});

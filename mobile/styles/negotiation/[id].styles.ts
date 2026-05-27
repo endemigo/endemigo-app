@@ -78,6 +78,27 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.body,
     fontSize: FontSize.caption,
   },
+  policyBadge: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.surfaceContainerLow,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  policyBadgeLocked: {
+    backgroundColor: Colors.errorContainer,
+  },
+  policyBadgeText: {
+    color: Colors.error,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.caption,
+    fontWeight: '700',
+  },
   messages: {
     flex: 1,
   },

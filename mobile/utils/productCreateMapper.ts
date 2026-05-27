@@ -47,6 +47,7 @@ interface ProductCreatePayload {
   dimensionWidth?: number;
   dimensionHeight?: number;
   dimensionDepth?: number;
+  variantSkus?: ProductCreateWizardState['variantSkus'];
 }
 
 interface AuctionCreatePayload {
@@ -64,6 +65,18 @@ interface AuctionCreatePayload {
 
 function parseOptionalNumber(value: string): number | undefined {
   return parsePriceInput(value);
+}
+
+function resolveStringField(
+  key: keyof ProductCreateWizardState,
+  state: ProductCreateWizardState,
+): string | undefined {
+  const directValue = state[key];
+  const dynamicValue = state.dynamicFieldValues[String(key)];
+  const value = typeof dynamicValue === 'string' ? dynamicValue : directValue;
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : undefined;
 }
 
 export function buildProductCreatePayload(
@@ -85,11 +98,11 @@ export function buildProductCreatePayload(
     wholesalePrice: parsedWholesalePrice !== undefined ? normalizeMoneyScale(parsedWholesalePrice) : undefined,
     categoryId: state.categoryId,
     stockQuantity: Number(state.stockQuantity || '0'),
-    sku: state.sku.trim() || undefined,
-    barcodeNo: state.barcodeNo.trim() || undefined,
-    productContent: state.productContent.trim() || undefined,
-    sellerNotes: state.sellerNotes.trim() || undefined,
-    brand: state.brand.trim() || undefined,
+    sku: resolveStringField('sku', state),
+    barcodeNo: resolveStringField('barcodeNo', state),
+    productContent: resolveStringField('productContent', state),
+    sellerNotes: resolveStringField('sellerNotes', state),
+    brand: resolveStringField('brand', state),
     isEndemigoBrandCandidate: state.isEndemigoBrandCandidate,
     geoIndicationCertNo: state.geoIndicationCertNo.trim() || undefined,
     geoIndicationRegion: state.geoIndicationRegion.trim() || undefined,
@@ -121,6 +134,7 @@ export function buildProductCreatePayload(
     dimensionWidth: parseOptionalNumber(state.dimensionWidth),
     dimensionHeight: parseOptionalNumber(state.dimensionHeight),
     dimensionDepth: parseOptionalNumber(state.dimensionDepth),
+    variantSkus: state.variantSkus.length > 0 ? state.variantSkus : undefined,
   };
 }
 

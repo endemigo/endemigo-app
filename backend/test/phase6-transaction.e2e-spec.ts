@@ -161,12 +161,12 @@ describe('Phase 6 transaction platform E2E', () => {
     })),
   };
   const cargoService = {
-    createShipmentForOrder: jest.fn(() => ({
+    createShipmentForOrderForUser: jest.fn(() => ({
       code: RC.CARGO_TRACKING_CREATED,
       message: 'Cargo shipment created',
       shipment: { id: 'shipment-1', trackingNumber: 'TRK-1' },
     })),
-    getShipmentForOrder: jest.fn(() => ({
+    getShipmentForOrderForUser: jest.fn(() => ({
       code: RC.CARGO_TRACKING_FETCHED,
       message: 'Cargo shipment fetched',
       shipment: { id: 'shipment-1' },

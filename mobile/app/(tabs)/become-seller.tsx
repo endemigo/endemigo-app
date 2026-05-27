@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
@@ -27,6 +27,7 @@ export default function BecomeSellerScreen() {
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isSeller = Boolean(user?.isSeller);
 
   const { data: categories } = useCategories();
@@ -200,6 +201,7 @@ export default function BecomeSellerScreen() {
           totalProducts={myProductsData?.total || 0}
           isProductsLoading={isMyProductsLoading}
           onCreated={refetchMyProducts}
+          initialEntryMode={mode as never}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

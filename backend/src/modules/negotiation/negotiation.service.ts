@@ -18,13 +18,21 @@ import {
   OfferStatus,
   ProductStatus,
   RC,
+  RestrictionType,
+  ViolationType,
 } from '@endemigo/shared';
 import { In, Repository } from 'typeorm';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
+import { TrustFlagType } from '../trust/entities/trust-flag.entity';
+import { TrustService } from '../trust/trust.service';
 import { User } from '../user/entities/user.entity';
+import {
+  AiModerationResult,
+  AiModerationService,
+} from './ai-moderation.service';
 import { ContentModerationService } from './content-moderation.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -58,6 +66,14 @@ interface RequestContext {
   deviceId?: string | null;
 }
 
+interface NegotiationPolicyMetadata {
+  hasViolation?: boolean;
+  violationCount?: number;
+  lastViolationAt?: string | null;
+  lockedByPolicy?: boolean;
+  pendingRestrictionType?: RestrictionType | null;
+}
+
 @Injectable()
 export class NegotiationService {
   constructor(
@@ -81,6 +97,10 @@ export class NegotiationService {
     private readonly notificationService?: NotificationService,
     @Optional()
     private readonly adminAuditService?: AdminAuditService,
+    @Optional()
+    private readonly trustService?: TrustService,
+    @Optional()
+    private readonly aiModerationService?: AiModerationService,
   ) {}
 
   async createConversation(userId: string, dto: CreateConversationDto) {
@@ -205,23 +225,23 @@ export class NegotiationService {
     this.assertConversationOpen(conversation);
 
     const moderation = this.contentModerationService.checkContent(content);
-    if (!moderation.isClean) {
-      await this.violationLogRepository.save(
-        this.violationLogRepository.create({
-          conversationId,
-          userId,
-          attemptedContent: content,
-          violationTypes: moderation.detectedPatterns,
-          detectedPatterns: moderation.detectedPatterns,
-          ipAddress: context.ipAddress ?? null,
-          deviceId: context.deviceId ?? null,
-          metadata: { normalizedText: moderation.normalizedText },
-        }),
-      );
-
-      throw new BadRequestException({
-        code: RC.MESSAGE_BLOCKED,
-        message: moderation.message ?? 'Mesaj güvenlik politikası nedeniyle engellendi',
+    const aiResult = await this.reviewWithAi(
+      content,
+      moderation.normalizedText,
+      moderation.detectedPatterns,
+      'message',
+    );
+    if (!moderation.isClean || aiResult.shouldBlock) {
+      await this.handlePolicyViolation({
+        conversation,
+        userId,
+        content,
+        violationTypes: moderation.detectedPatterns,
+        normalizedText: moderation.normalizedText,
+        aiResult,
+        context,
+        source: 'message',
+        message: moderation.message,
       });
     }
 
@@ -285,23 +305,23 @@ export class NegotiationService {
     const note = dto.note?.trim();
     if (note) {
       const moderation = this.contentModerationService.checkContent(note);
-      if (!moderation.isClean) {
-        await this.violationLogRepository.save(
-          this.violationLogRepository.create({
-            conversationId,
-            userId,
-            attemptedContent: note,
-            violationTypes: moderation.detectedPatterns,
-            detectedPatterns: moderation.detectedPatterns,
-            ipAddress: null,
-            deviceId: null,
-            metadata: { normalizedText: moderation.normalizedText, source: 'offer_note' },
-          }),
-        );
-        throw new BadRequestException({
-          code: RC.MESSAGE_BLOCKED,
-          message:
-            moderation.message ?? 'Mesaj güvenlik politikası nedeniyle engellendi',
+      const aiResult = await this.reviewWithAi(
+        note,
+        moderation.normalizedText,
+        moderation.detectedPatterns,
+        'offer_note',
+      );
+      if (!moderation.isClean || aiResult.shouldBlock) {
+        await this.handlePolicyViolation({
+          conversation,
+          userId,
+          content: note,
+          violationTypes: moderation.detectedPatterns,
+          normalizedText: moderation.normalizedText,
+          aiResult,
+          context: {},
+          source: 'offer_note',
+          message: moderation.message,
         });
       }
     }
@@ -711,6 +731,13 @@ export class NegotiationService {
   }
 
   private assertConversationOpen(conversation: Conversation) {
+    const policy = this.getPolicyMetadata(conversation);
+    if (policy.lockedByPolicy) {
+      throw new BadRequestException({
+        code: RC.MESSAGE_BLOCKED,
+        message: 'Bu fiyat görüşmesi güvenlik politikası nedeniyle kilitlendi',
+      });
+    }
     if (!ACTIVE_NEGOTIATION_STATUSES.includes(conversation.status)) {
       throw new BadRequestException({
         code: RC.OFFER_INVALID_STATUS,
@@ -748,6 +775,138 @@ export class NegotiationService {
       status,
       lastActivityAt,
     });
+  }
+
+  private async reviewWithAi(
+    text: string,
+    normalizedText: string,
+    ruleViolations: ViolationType[],
+    source: 'message' | 'offer_note',
+  ): Promise<AiModerationResult> {
+    if (this.aiModerationService) {
+      return this.aiModerationService.analyze({
+        text,
+        normalizedText,
+        ruleViolations,
+        source,
+      });
+    }
+
+    const riskScore = ruleViolations.length > 0
+      ? Math.min(1, 0.72 + ruleViolations.length * 0.07)
+      : 0.08;
+    return {
+      riskScore: Number(riskScore.toFixed(2)),
+      reason:
+        ruleViolations.length > 0
+          ? 'Rule-based off-platform contact signal'
+          : 'No local off-platform contact signal',
+      provider: 'local',
+      reviewedAt: new Date().toISOString(),
+      shouldBlock: ruleViolations.length > 0,
+    };
+  }
+
+  private async handlePolicyViolation(input: {
+    conversation: Conversation;
+    userId: string;
+    content: string;
+    violationTypes: ViolationType[];
+    normalizedText: string;
+    aiResult: AiModerationResult;
+    context: RequestContext;
+    source: 'message' | 'offer_note';
+    message?: string;
+  }): Promise<never> {
+    const now = new Date();
+    const violationCount =
+      (await this.violationLogRepository.count({
+        where: { conversationId: input.conversation.id },
+      })) + 1;
+    const lockedByPolicy = violationCount >= 3;
+    const policy: NegotiationPolicyMetadata = {
+      hasViolation: true,
+      violationCount,
+      lastViolationAt: now.toISOString(),
+      lockedByPolicy,
+      pendingRestrictionType: lockedByPolicy
+        ? RestrictionType.SELLING_RESTRICTED
+        : null,
+    };
+
+    await this.violationLogRepository.save(
+      this.violationLogRepository.create({
+        conversationId: input.conversation.id,
+        userId: input.userId,
+        attemptedContent: input.content,
+        violationTypes: input.violationTypes,
+        detectedPatterns: input.violationTypes,
+        ipAddress: input.context.ipAddress ?? null,
+        deviceId: input.context.deviceId ?? null,
+        metadata: {
+          normalizedText: input.normalizedText,
+          source: input.source,
+          aiRiskScore: input.aiResult.riskScore,
+          aiReason: input.aiResult.reason,
+          aiProvider: input.aiResult.provider,
+          aiReviewedAt: input.aiResult.reviewedAt,
+          aiShouldBlock: input.aiResult.shouldBlock,
+        },
+      }),
+    );
+
+    input.conversation.metadata = {
+      ...(input.conversation.metadata ?? {}),
+      policy,
+    };
+    input.conversation.lastActivityAt = now;
+    await this.conversationRepository.save(input.conversation);
+    await this.createTrustFlag(input, policy);
+
+    this.negotiationGateway.emitConversationEvent(
+      input.conversation.id,
+      'negotiation:updated',
+      this.serializeConversation(input.conversation),
+    );
+
+    throw new BadRequestException({
+      code: RC.MESSAGE_BLOCKED,
+      message: input.message ?? 'Mesaj güvenlik politikası nedeniyle engellendi',
+    });
+  }
+
+  private async createTrustFlag(
+    input: {
+      conversation: Conversation;
+      userId: string;
+      content: string;
+      violationTypes: ViolationType[];
+      aiResult: AiModerationResult;
+      source: 'message' | 'offer_note';
+    },
+    policy: NegotiationPolicyMetadata,
+  ) {
+    await this.trustService?.createFlag(
+      {
+        targetUserId: input.userId,
+        sellerId: input.conversation.sellerId,
+        flagType: TrustFlagType.OFF_PLATFORM,
+        severity: policy.lockedByPolicy ? 4 : 3,
+        evidence: {
+          conversationId: input.conversation.id,
+          source: input.source,
+          attemptedContent: input.content,
+          violationTypes: input.violationTypes,
+          ai: input.aiResult,
+          policy,
+        },
+        reason: 'Off-platform contact attempt',
+      },
+      {
+        id: 'system',
+        roles: [AdminRole.SUPPORT],
+      },
+    );
   }
 
   private async createSystemMessage(
@@ -835,12 +994,32 @@ export class NegotiationService {
         name: this.displayName(conversation.seller),
       },
       status: conversation.status,
+      policy: this.serializePolicy(conversation),
       latestMessage,
       latestOffer,
       unreadCount: 0,
       createdAt: conversation.createdAt.toISOString(),
       updatedAt: (conversation.lastActivityAt ?? conversation.updatedAt).toISOString(),
     };
+  }
+
+  private serializePolicy(conversation: Conversation) {
+    const policy = this.getPolicyMetadata(conversation);
+    return {
+      hasViolation: Boolean(policy.hasViolation),
+      violationCount: Number(policy.violationCount ?? 0),
+      lastViolationAt: policy.lastViolationAt ?? null,
+      lockedByPolicy: Boolean(policy.lockedByPolicy),
+    };
+  }
+
+  private getPolicyMetadata(conversation: Conversation): NegotiationPolicyMetadata {
+    const metadata = conversation.metadata ?? {};
+    const policy = metadata.policy;
+    if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+      return {};
+    }
+    return policy as NegotiationPolicyMetadata;
   }
 
   private serializeMessage(message: NegotiationMessage, offers: Offer[] = []) {

@@ -18,6 +18,9 @@ import { Favorite } from '../search/entities/favorite.entity';
 import { SellerProfile } from '../user/entities/seller-profile.entity';
 import { User } from '../user/entities/user.entity';
 import { PayoutRequest } from '../wallet/entities/payout-request.entity';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { NegotiationMessage } from '../negotiation/entities/negotiation-message.entity';
+import { ViolationLog } from '../negotiation/entities/violation-log.entity';
 import { AdminOperationsController } from './admin-operations.controller';
 import { AdminOperationsService } from './admin-operations.service';
 
@@ -40,6 +43,9 @@ import { AdminOperationsService } from './admin-operations.service';
       Coupon,
       CouponRedemption,
       PayoutRequest,
+      Conversation,
+      NegotiationMessage,
+      ViolationLog,
     ]),
     AdminAuthModule,
     AdminAuditModule,

@@ -173,21 +173,4 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyBold,
     fontWeight: '700',
   },
-  trustPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    backgroundColor: `${Colors.secondary}26`,
-    borderWidth: 1,
-    borderColor: `${Colors.secondary}52`,
-  },
-  trustText: {
-    color: Colors.white,
-    fontSize: FontSize.caption,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-  },
 });

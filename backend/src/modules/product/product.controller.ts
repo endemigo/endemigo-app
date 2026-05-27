@@ -23,8 +23,11 @@ import {
 } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response.dto';
+import { GenerateListingContentDto } from './dto/generate-content.dto';
+import { AiGeneratorService } from './ai-generator.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -53,7 +56,26 @@ function parsePositiveIntQuery(
 @ApiTags('Products')
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly aiGeneratorService: AiGeneratorService,
+  ) {}
+
+  @Post('generate-content')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'AI ile ürün açıklaması ve hikayesi otomatik doldur (sadece satıcılar)' })
+  async generateContent(
+    @CurrentUser('id') userId: string,
+    @Body() dto: GenerateListingContentDto,
+  ) {
+    const result = await this.aiGeneratorService.generateListingContent(dto.title, dto.categoryName);
+    return {
+      code: RC.SUCCESS,
+      message: 'AI icerik basariyla uretildi',
+      ...result,
+    };
+  }
 
   @Post()
   @ApiBearerAuth()
@@ -65,6 +87,70 @@ export class ProductController {
     @Body() dto: CreateProductDto,
   ) {
     return this.productService.create(userId, dto);
+  }
+
+  @Post('drafts')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'İlan taslağı oluştur' })
+  async createDraft(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateListingDraftDto,
+  ) {
+    return this.productService.createListingDraft(userId, dto);
+  }
+
+  @Get('drafts')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Satıcının ilan taslakları' })
+  async listDrafts(@CurrentUser('id') userId: string) {
+    return this.productService.listListingDrafts(userId);
+  }
+
+  @Get('drafts/:id')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'İlan taslağı detay' })
+  async getDraft(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productService.getListingDraft(userId, id);
+  }
+
+  @Patch('drafts/:id')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'İlan taslağı güncelle' })
+  async updateDraft(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateListingDraftDto,
+  ) {
+    return this.productService.updateListingDraft(userId, id, dto);
+  }
+
+  @Delete('drafts/:id')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'İlan taslağı sil' })
+  async deleteDraft(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productService.deleteListingDraft(userId, id);
+  }
+
+  @Post('drafts/:id/publish')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'İlan taslağını ürüne dönüştür' })
+  async publishDraft(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.productService.publishListingDraft(userId, id);
   }
 
   @Patch(':id')

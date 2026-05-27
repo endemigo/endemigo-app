@@ -16,7 +16,8 @@ import { useWalletBalance, useWalletHolds } from '../../hooks/useWallet';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { resolveApiErrorMessage } from '../../utils/apiError';
-import { formatAmount } from '../../utils/transactionFormatters';
+import { formatAmount, formatCurrency } from '../../utils/transactionFormatters';
+import { calculateAuctionBidEstimate } from '../../utils/auctionBidConsole';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auction/_id.styles';
 import { useProduct } from '../../hooks/useProducts';
@@ -81,8 +82,20 @@ export default function AuctionDetailScreen() {
   useEffect(() => {
     if (auction?.minIncrement) {
       const nextBidAmount = currentPrice + Number(auction.minIncrement);
-      setBidAmount(nextBidAmount.toString());
-      setMaxBidAmount('');
+      setBidAmount((prev) => {
+        const parsedPrev = parseFloat(prev);
+        if (!prev || isNaN(parsedPrev) || parsedPrev < nextBidAmount) {
+          return nextBidAmount.toString();
+        }
+        return prev;
+      });
+      setMaxBidAmount((prev) => {
+        const parsedPrev = parseFloat(prev);
+        if (prev && !isNaN(parsedPrev) && parsedPrev < nextBidAmount) {
+          return '';
+        }
+        return prev;
+      });
     }
   }, [auction?.minIncrement, currentPrice]);
 
@@ -132,10 +145,45 @@ export default function AuctionDetailScreen() {
     : Number.isNaN(parsedBidAmount)
       ? 0
       : parsedBidAmount;
-  const premium = premiumBaseAmount * Number(auction.buyerPremiumRate);
   const showLoserState = isEnded && !socket.isWinner && socket.auctionEnded;
   const showResultButton = isEnded && !socket.auctionEnded;
-  const hasActiveHoldForAuction = walletHolds.some((hold) => hold.auctionId === id);
+  const activeHoldForAuction = walletHolds.find(
+    (hold) => hold.auctionId === id && !hold.releasedAt && !hold.capturedAt,
+  );
+  const hasActiveHoldForAuction = Boolean(activeHoldForAuction);
+  const walletAvailableForBid =
+    typeof wallet?.available === 'number'
+      ? wallet.available + (activeHoldForAuction?.amount ?? 0)
+      : undefined;
+  const bidEstimate = calculateAuctionBidEstimate({
+    bidAmount: premiumBaseAmount,
+    buyerPremiumRate: Number(auction.buyerPremiumRate),
+    walletAvailable: walletAvailableForBid,
+  });
+  const isWalletGateClosed = !bidEstimate.isWalletSufficient;
+  const feeEstimateRows = [
+    {
+      key: 'hammer',
+      label: t('auction.hammerPriceLabel'),
+      value: formatCurrency(bidEstimate.hammerAmount),
+    },
+    {
+      key: 'premium',
+      label: t('auction.buyerPremium'),
+      value: formatCurrency(bidEstimate.buyerPremiumAmount),
+    },
+    {
+      key: 'total',
+      label: t('auction.estimatedTotalLabel'),
+      value: formatCurrency(bidEstimate.estimatedTotal),
+      tone: isWalletGateClosed ? 'error' as const : 'accent' as const,
+    },
+  ];
+  const walletGateMessage = isWalletGateClosed
+    ? t('auction.walletGateMessage', {
+        shortfall: formatAmount(bidEstimate.walletShortfall),
+      })
+    : null;
   const quickBidOptions = [
     {
       key: 'min',
@@ -208,6 +256,18 @@ export default function AuctionDetailScreen() {
       showModal({
         title: t('common.error'),
         message: t('auction.maxBidError'),
+        type: 'error',
+      });
+      return;
+    }
+
+    if (isWalletGateClosed) {
+      showModal({
+        title: t('auction.walletGateTitle'),
+        message: t('auction.walletGateModalMessage', {
+          total: formatAmount(bidEstimate.estimatedTotal),
+          shortfall: formatAmount(bidEstimate.walletShortfall),
+        }),
         type: 'error',
       });
       return;
@@ -321,6 +381,7 @@ export default function AuctionDetailScreen() {
             minBid={minBid}
             buyerPremiumRate={Number(auction.buyerPremiumRate)}
             bidCount={bidCount}
+            viewerCount={socket.viewerCount}
             walletAvailable={wallet?.available}
             endTime={endTime}
             serverTime={serverTime}
@@ -364,8 +425,10 @@ export default function AuctionDetailScreen() {
             bidAmount={bidAmount}
             maxBidAmount={maxBidAmount}
             quickBidOptions={quickBidOptions}
+            feeEstimateRows={feeEstimateRows}
             statusMessage={bidStatusMessage}
             proxyMessage={proxyMessage}
+            walletGateMessage={walletGateMessage}
             onChangeText={setBidAmount}
             onChangeMaxBidText={setMaxBidAmount}
             onSelectQuickBid={setBidAmount}
@@ -374,10 +437,7 @@ export default function AuctionDetailScreen() {
             minBidText={t('auction.minBid', {
               amount: formatAmount(minBid),
             })}
-            premiumTotalText={t('auction.premiumTotal', {
-              amount: formatAmount(premiumBaseAmount + premium),
-            })}
-            disabled={placeBid.isPending || isBidInvalid}
+            disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
             isPending={placeBid.isPending}
             onSubmit={handleBid}
             t={t}

@@ -36,6 +36,34 @@ export interface User {
   isSeller?: boolean;
 }
 
+export type ProductListingTemplateFieldType =
+  | 'text'
+  | 'number'
+  | 'price'
+  | 'select'
+  | 'multiSelect'
+  | 'boolean'
+  | 'date'
+  | 'dimension'
+  | 'image';
+
+export interface ProductListingTemplateField {
+  key: string;
+  type: ProductListingTemplateFieldType;
+  required: boolean;
+  optionSource?: string;
+}
+
+export interface ProductListingTemplate {
+  fields: ProductListingTemplateField[];
+  variant: {
+    enabled: boolean;
+    allowedKinds: ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[];
+    requiredKinds: ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[];
+    maxGroups: number;
+  };
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -44,6 +72,7 @@ export interface Category {
   icon?: string;
   color?: string;
   productCount?: number;
+  listingTemplate?: ProductListingTemplate;
   children?: Category[];
 }
 
@@ -235,6 +264,13 @@ export interface NegotiationMessage {
   createdAt: string;
 }
 
+export interface NegotiationPolicy {
+  hasViolation: boolean;
+  violationCount: number;
+  lastViolationAt?: string | null;
+  lockedByPolicy: boolean;
+}
+
 export interface Negotiation {
   id: string;
   product: NegotiationProductSummary;
@@ -243,6 +279,7 @@ export interface Negotiation {
   status: NegotiationStatus;
   latestMessage?: NegotiationMessage | null;
   latestOffer?: NegotiationOffer | null;
+  policy?: NegotiationPolicy;
   unreadCount?: number;
   createdAt: string;
   updatedAt: string;
