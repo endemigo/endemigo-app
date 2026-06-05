@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
+import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionService } from './auction.service';
 import { AuctionController } from './auction.controller';
 import { AuctionProcessor } from './auction.processor';
@@ -16,7 +17,7 @@ import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Auction, Bid]),
+    TypeOrmModule.forFeature([Auction, Bid, AuctionEvent]),
     BullModule.registerQueue({
       name: 'auction',
       defaultJobOptions: {

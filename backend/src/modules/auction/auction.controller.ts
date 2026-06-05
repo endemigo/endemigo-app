@@ -24,7 +24,7 @@ import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { RC } from '@endemigo/shared';
+import { RC, AuctionEventStatus } from '@endemigo/shared';
 
 function parsePositiveIntQuery(
   value: unknown,
@@ -62,6 +62,19 @@ export class AuctionController {
     @Body() dto: CreateAuctionDto,
   ) {
     return this.auctionService.create(userId, dto);
+  }
+
+  @Post('events/:eventId/apply')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Müzayede etkinliğine ürün başvurusu yap (sadece satıcılar)' })
+  @ApiResponse({ status: 201, description: 'Müzayede etkinliği başvurusu alındı' })
+  async applyToEvent(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateAuctionDto,
+  ) {
+    return this.auctionService.applyToEvent(userId, eventId, dto);
   }
 
   @Patch(':id/publish')
@@ -104,6 +117,14 @@ export class AuctionController {
     @CurrentUser('id') userId: string,
   ) {
     return this.auctionService.cancelAuction(id, userId);
+  }
+
+  @Public()
+  @Get('events')
+  @ApiOperation({ summary: 'Müzayede etkinlikleri listesi' })
+  @ApiQuery({ name: 'status', required: false, enum: AuctionEventStatus })
+  async findEvents(@Query('status') status?: AuctionEventStatus) {
+    return this.auctionService.findEvents(status);
   }
 
   @Public()

@@ -1,0 +1,8 @@
+export enum AuctionEventStatus {
+  DRAFT = 'DRAFT',
+  APPLICATION = 'APPLICATION',
+  UPCOMING = 'UPCOMING',
+  ACTIVE = 'ACTIVE',
+  ENDED = 'ENDED',
+  CANCELLED = 'CANCELLED',
+}

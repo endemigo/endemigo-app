@@ -5,6 +5,7 @@
     :fields="fields"
     :reason-required="reasonRequired"
     :confirm-label="confirmLabel"
+    :presentation="presentation"
     @close="emit('close')"
     @confirm="emit('confirm', $event)"
   />

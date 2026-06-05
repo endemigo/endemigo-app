@@ -148,44 +148,78 @@
             </section>
           </template>
           <template v-else-if="isProductResource && productRelated">
-            <div class="summary-grid">
-              <article class="summary-card">
-                <p class="summary-label">Toplam Sipariş</p>
-                <strong>{{ productRelated.summary.orderCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Tamamlanan Sipariş</p>
-                <strong>{{ productRelated.summary.completedOrderCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Benzersiz Alıcı</p>
-                <strong>{{ productRelated.summary.buyerCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Toplam Ciro</p>
-                <strong>{{ formatMoney(productRelated.summary.grossSales, 'TRY') }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Favori</p>
-                <strong>{{ productRelated.summary.favoriteCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Sepet (Kalem/Adet)</p>
-                <strong>{{ productRelated.summary.cartLineCount }} / {{ productRelated.summary.cartQuantityTotal }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Müzayede (Aktif/Toplam)</p>
-                <strong>{{ productRelated.summary.activeAuctionCount }} / {{ productRelated.summary.auctionCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Teklif / Ödeme</p>
-                <strong>{{ productRelated.summary.bidCount }} / {{ productRelated.summary.paymentCount }}</strong>
-              </article>
-            </div>
+             <div class="summary-grid">
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-shopping-bag" /></span>
+                   <p class="summary-label">Toplam Sipariş</p>
+                 </div>
+                 <strong>{{ productRelated.summary.orderCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-check-circle" /></span>
+                   <p class="summary-label">Tamamlanan Sipariş</p>
+                 </div>
+                 <strong>{{ productRelated.summary.completedOrderCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-users" /></span>
+                   <p class="summary-label">Benzersiz Alıcı</p>
+                 </div>
+                 <strong>{{ productRelated.summary.buyerCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-money-bill" /></span>
+                   <p class="summary-label">Toplam Ciro</p>
+                 </div>
+                 <strong>{{ formatMoney(productRelated.summary.grossSales, 'TRY') }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-heart" /></span>
+                   <p class="summary-label">Favori</p>
+                 </div>
+                 <strong>{{ productRelated.summary.favoriteCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-shopping-cart" /></span>
+                   <p class="summary-label">Sepet (Kalem/Adet)</p>
+                 </div>
+                 <strong>{{ productRelated.summary.cartLineCount }} / {{ productRelated.summary.cartQuantityTotal }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-clock" /></span>
+                   <p class="summary-label">Müzayede (Aktif/Toplam)</p>
+                 </div>
+                 <strong>{{ productRelated.summary.activeAuctionCount }} / {{ productRelated.summary.auctionCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-tag" /></span>
+                   <p class="summary-label">Teklif / Ödeme</p>
+                 </div>
+                 <strong>{{ productRelated.summary.bidCount }} / {{ productRelated.summary.paymentCount }}</strong>
+               </article>
+               <article class="summary-card">
+                 <div class="summary-card-header">
+                   <span class="summary-icon-wrap"><i class="pi pi-comments" /></span>
+                   <p class="summary-label">Sohbetler</p>
+                 </div>
+                 <strong>{{ productRelated.summary.negotiationCount || 0 }}</strong>
+               </article>
+             </div>
 
             <section class="record-block">
               <h3>Satın Alanlar</h3>
-              <p v-if="productRelated.buyers.length === 0" class="muted">Alıcı kaydı yok.</p>
+              <div v-if="productRelated.buyers.length === 0" class="empty-state">
+                <i class="pi pi-users empty-icon" />
+                <p>Kayıtlı alıcı bulunamadı.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -214,7 +248,10 @@
 
             <section class="record-block">
               <h3>Sipariş Geçmişi</h3>
-              <p v-if="productRelated.orders.length === 0" class="muted">Sipariş kaydı yok.</p>
+              <div v-if="productRelated.orders.length === 0" class="empty-state">
+                <i class="pi pi-shopping-bag empty-icon" />
+                <p>Sipariş geçmişi bulunamadı.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -251,9 +288,10 @@
 
             <section class="record-block">
               <h3>Favori ve Sepet Hareketleri</h3>
-              <p v-if="productRelated.favorites.length === 0 && productRelated.cart.length === 0" class="muted">
-                Favori veya sepet hareketi yok.
-              </p>
+              <div v-if="productRelated.favorites.length === 0 && productRelated.cart.length === 0" class="empty-state">
+                <i class="pi pi-heart empty-icon" />
+                <p>Favori veya sepet hareketi bulunamadı.</p>
+              </div>
               <div v-if="productRelated.favorites.length > 0" class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -304,9 +342,10 @@
 
             <section class="record-block">
               <h3>Müzayedeler ve Teklifler</h3>
-              <p v-if="productRelated.auctions.length === 0 && productRelated.bids.length === 0" class="muted">
-                Müzayede/teklif kaydı yok.
-              </p>
+              <div v-if="productRelated.auctions.length === 0 && productRelated.bids.length === 0" class="empty-state">
+                <i class="pi pi-clock empty-icon" />
+                <p>Ürünle ilgili müzayede veya teklif kaydı bulunamadı.</p>
+              </div>
               <div v-if="productRelated.auctions.length > 0" class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -377,7 +416,10 @@
 
             <section class="record-block">
               <h3>Ödeme Kayıtları</h3>
-              <p v-if="productRelated.payments.length === 0" class="muted">Ödeme kaydı yok.</p>
+              <div v-if="productRelated.payments.length === 0" class="empty-state">
+                <i class="pi pi-credit-card empty-icon" />
+                <p>Ödeme kaydı bulunamadı.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -418,6 +460,50 @@
                       <td>{{ formatMoney(payment.amount, payment.currency) }}</td>
                       <td><span class="status-pill">{{ payment.status }}</span></td>
                       <td>{{ payment.paidAt ? formatDate(payment.paidAt) : '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="record-block">
+              <h3>İlişkili Sohbetler / Pazarlıklar</h3>
+              <div v-if="productRelated.negotiations.length === 0" class="empty-state">
+                <i class="pi pi-comments empty-icon" />
+                <p>Bu ürünle ilgili sohbet kaydı bulunamadı.</p>
+              </div>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Sohbet No</th>
+                      <th>Alıcı</th>
+                      <th>Satıcı</th>
+                      <th>Adet</th>
+                      <th>Durum</th>
+                      <th>Son Aktivite</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="neg in productRelated.negotiations" :key="neg.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToNegotiationDetail(neg.id)">
+                          #{{ shortId(neg.id) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(neg.buyerId)">
+                          {{ neg.buyerName }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(neg.sellerId)">
+                          {{ neg.sellerName }}
+                        </button>
+                      </td>
+                      <td>{{ neg.quantity }}</td>
+                      <td><span class="status-pill">{{ formatStatus(neg.status) }}</span></td>
+                      <td>{{ formatDate(neg.updatedAt) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -966,7 +1052,7 @@
                           <div class="field-key-sub">{{ field.key }}</div>
                         </td>
                         <td>
-                          <span class="type-badge" :class="field.type">{{ field.type }}</span>
+                          <span class="type-badge" :class="field.type">{{ getFieldTypeLabel(field.type) }}</span>
                         </td>
                         <td>
                           <span class="required-badge" :class="{ 'is-required': field.required }">
@@ -991,7 +1077,10 @@
           <pre v-else class="json-box">{{ pretty(overview) }}</pre>
         </div>
         <div v-else-if="activeTab === 'Zaman Çizelgesi'" class="timeline">
-          <p v-if="timeline.length === 0" class="muted">Zaman çizelgesi kaydı yok.</p>
+          <div v-if="timeline.length === 0" class="empty-state">
+            <i class="pi pi-clock empty-icon" />
+            <p>Zaman çizelgesi kaydı yok.</p>
+          </div>
           <article v-for="event in timeline" :key="timelineKey(event)" class="timeline-item">
             <strong>{{ event.label }}</strong>
             <p class="muted">{{ formatDate(event.createdAt) }}</p>
@@ -999,44 +1088,12 @@
         </div>
         <div v-else-if="activeTab === 'İlgili Kayıtlar'" class="related-section">
           <template v-if="isUserResource && userRelated">
-            <div class="summary-grid">
-              <article class="summary-card">
-                <p class="summary-label">Toplam Sipariş</p>
-                <strong>{{ userRelated.summary.orderCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Toplam Satış</p>
-                <strong>{{ userRelated.summary.salesCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Favoriler</p>
-                <strong>{{ userRelated.summary.favoriteCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Sepet Kalemi</p>
-                <strong>{{ userRelated.summary.cartLineCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Sepette Ürün Adedi</p>
-                <strong>{{ userRelated.summary.cartQuantityTotal }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Adres Sayısı</p>
-                <strong>{{ userRelated.summary.addressCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Tanımlı Kupon</p>
-                <strong>{{ userRelated.summary.definedCouponCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Kupon Kullanımı</p>
-                <strong>{{ userRelated.summary.couponUsageCount }}</strong>
-              </article>
-            </div>
-
             <section class="record-block">
               <h3>Adresler</h3>
-              <p v-if="userRelated.addresses.length === 0" class="muted">Adres kaydı yok.</p>
+              <div v-if="userRelated.addresses.length === 0" class="empty-state">
+                <i class="pi pi-map-marker empty-icon" />
+                <p>Adres kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1073,7 +1130,10 @@
 
             <section class="record-block">
               <h3>Geçmiş Siparişler</h3>
-              <p v-if="userRelated.orders.length === 0" class="muted">Sipariş kaydı yok.</p>
+              <div v-if="userRelated.orders.length === 0" class="empty-state">
+                <i class="pi pi-shopping-bag empty-icon" />
+                <p>Sipariş kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1120,7 +1180,10 @@
 
             <section class="record-block">
               <h3>Geçmiş Satışlar</h3>
-              <p v-if="userRelated.sales.length === 0" class="muted">Satış kaydı yok.</p>
+              <div v-if="userRelated.sales.length === 0" class="empty-state">
+                <i class="pi pi-money-bill empty-icon" />
+                <p>Satış kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1167,7 +1230,10 @@
 
             <section class="record-block">
               <h3>Favoriye Eklenen Ürünler</h3>
-              <p v-if="userRelated.favorites.length === 0" class="muted">Favori kaydı yok.</p>
+              <div v-if="userRelated.favorites.length === 0" class="empty-state">
+                <i class="pi pi-heart empty-icon" />
+                <p>Favori kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1208,7 +1274,10 @@
 
             <section class="record-block">
               <h3>Sepet</h3>
-              <p v-if="userRelated.cart.length === 0" class="muted">Sepet boş.</p>
+              <div v-if="userRelated.cart.length === 0" class="empty-state">
+                <i class="pi pi-shopping-cart empty-icon" />
+                <p>Sepet boş.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1251,7 +1320,10 @@
 
             <section class="record-block">
               <h3>Tanımlanan Kuponlar</h3>
-              <p v-if="userRelated.coupons.defined.length === 0" class="muted">Tanımlı kupon yok.</p>
+              <div v-if="userRelated.coupons.defined.length === 0" class="empty-state">
+                <i class="pi pi-ticket empty-icon" />
+                <p>Tanımlı kupon yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1296,7 +1368,10 @@
 
             <section class="record-block">
               <h3>Kupon Kullanım Geçmişi</h3>
-              <p v-if="userRelated.coupons.usage.length === 0" class="muted">Kupon kullanım kaydı yok.</p>
+              <div v-if="userRelated.coupons.usage.length === 0" class="empty-state">
+                <i class="pi pi-percentage empty-icon" />
+                <p>Kupon kullanım kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1407,7 +1482,10 @@
 
             <section class="record-block">
               <h3>Adresler</h3>
-              <p v-if="sellerRelated.addresses.length === 0" class="muted">Adres kaydı yok.</p>
+              <div v-if="sellerRelated.addresses.length === 0" class="empty-state">
+                <i class="pi pi-map-marker empty-icon" />
+                <p>Adres kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1444,7 +1522,10 @@
 
             <section class="record-block">
               <h3>Son Ürünler</h3>
-              <p v-if="sellerRelated.products.length === 0" class="muted">Ürün kaydı yok.</p>
+              <div v-if="sellerRelated.products.length === 0" class="empty-state">
+                <i class="pi pi-box empty-icon" />
+                <p>Ürün kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1481,7 +1562,10 @@
 
             <section class="record-block">
               <h3>Son Satışlar</h3>
-              <p v-if="sellerRelated.sales.length === 0" class="muted">Satış kaydı yok.</p>
+              <div v-if="sellerRelated.sales.length === 0" class="empty-state">
+                <i class="pi pi-money-bill empty-icon" />
+                <p>Satış kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1518,7 +1602,10 @@
 
             <section class="record-block">
               <h3>Son Müzayedeler</h3>
-              <p v-if="sellerRelated.auctions.length === 0" class="muted">Müzayede kaydı yok.</p>
+              <div v-if="sellerRelated.auctions.length === 0" class="empty-state">
+                <i class="pi pi-clock empty-icon" />
+                <p>Müzayede kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1559,7 +1646,10 @@
 
             <section class="record-block">
               <h3>Son Kuponlar</h3>
-              <p v-if="sellerRelated.coupons.length === 0" class="muted">Kupon kaydı yok.</p>
+              <div v-if="sellerRelated.coupons.length === 0" class="empty-state">
+                <i class="pi pi-ticket empty-icon" />
+                <p>Kupon kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1586,7 +1676,10 @@
 
             <section class="record-block">
               <h3>Satış Ödemeleri</h3>
-              <p v-if="sellerRelated.payments.length === 0" class="muted">Ödeme kaydı yok.</p>
+              <div v-if="sellerRelated.payments.length === 0" class="empty-state">
+                <i class="pi pi-credit-card empty-icon" />
+                <p>Ödeme kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1629,7 +1722,10 @@
 
             <section class="record-block">
               <h3>Ödeme Talepleri</h3>
-              <p v-if="sellerRelated.payouts.length === 0" class="muted">Ödeme talebi kaydı yok.</p>
+              <div v-if="sellerRelated.payouts.length === 0" class="empty-state">
+                <i class="pi pi-wallet empty-icon" />
+                <p>Ödeme talebi kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1661,42 +1757,76 @@
           <template v-else-if="isProductResource && productRelated">
             <div class="summary-grid">
               <article class="summary-card">
-                <p class="summary-label">Toplam Sipariş</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-shopping-bag" /></span>
+                  <p class="summary-label">Toplam Sipariş</p>
+                </div>
                 <strong>{{ productRelated.summary.orderCount }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Tamamlanan Sipariş</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-check-circle" /></span>
+                  <p class="summary-label">Tamamlanan Sipariş</p>
+                </div>
                 <strong>{{ productRelated.summary.completedOrderCount }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Benzersiz Alıcı</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-users" /></span>
+                  <p class="summary-label">Benzersiz Alıcı</p>
+                </div>
                 <strong>{{ productRelated.summary.buyerCount }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Toplam Ciro</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-money-bill" /></span>
+                  <p class="summary-label">Toplam Ciro</p>
+                </div>
                 <strong>{{ formatMoney(productRelated.summary.grossSales, 'TRY') }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Favori</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-heart" /></span>
+                  <p class="summary-label">Favori</p>
+                </div>
                 <strong>{{ productRelated.summary.favoriteCount }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Sepet (Kalem/Adet)</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-shopping-cart" /></span>
+                  <p class="summary-label">Sepet (Kalem/Adet)</p>
+                </div>
                 <strong>{{ productRelated.summary.cartLineCount }} / {{ productRelated.summary.cartQuantityTotal }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Müzayede (Aktif/Toplam)</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-clock" /></span>
+                  <p class="summary-label">Müzayede (Aktif/Toplam)</p>
+                </div>
                 <strong>{{ productRelated.summary.activeAuctionCount }} / {{ productRelated.summary.auctionCount }}</strong>
               </article>
               <article class="summary-card">
-                <p class="summary-label">Teklif / Ödeme</p>
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-tag" /></span>
+                  <p class="summary-label">Teklif / Ödeme</p>
+                </div>
                 <strong>{{ productRelated.summary.bidCount }} / {{ productRelated.summary.paymentCount }}</strong>
+              </article>
+              <article class="summary-card">
+                <div class="summary-card-header">
+                  <span class="summary-icon-wrap"><i class="pi pi-comments" /></span>
+                  <p class="summary-label">Sohbetler</p>
+                </div>
+                <strong>{{ productRelated.summary.negotiationCount || 0 }}</strong>
               </article>
             </div>
 
             <section class="record-block">
               <h3>Alıcılar</h3>
-              <p v-if="productRelated.buyers.length === 0" class="muted">Alıcı kaydı yok.</p>
+              <div v-if="productRelated.buyers.length === 0" class="empty-state">
+                <i class="pi pi-users empty-icon" />
+                <p>Kayıtlı alıcı bulunamadı.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1725,7 +1855,10 @@
 
             <section class="record-block">
               <h3>Siparişler</h3>
-              <p v-if="productRelated.orders.length === 0" class="muted">Sipariş kaydı yok.</p>
+              <div v-if="productRelated.orders.length === 0" class="empty-state">
+                <i class="pi pi-shopping-bag empty-icon" />
+                <p>Sipariş kaydı bulunamadı.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1762,7 +1895,10 @@
 
             <section class="record-block">
               <h3>Favoriler</h3>
-              <p v-if="productRelated.favorites.length === 0" class="muted">Favoriye ekleyen üye yok.</p>
+              <div v-if="productRelated.favorites.length === 0" class="empty-state">
+                <i class="pi pi-heart empty-icon" />
+                <p>Favoriye ekleyen üye yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1787,7 +1923,10 @@
 
             <section class="record-block">
               <h3>Alışveriş Sepetleri</h3>
-              <p v-if="productRelated.cart.length === 0" class="muted">Sepetinde tutan üye yok.</p>
+              <div v-if="productRelated.cart.length === 0" class="empty-state">
+                <i class="pi pi-shopping-cart empty-icon" />
+                <p>Sepetinde tutan üye yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1814,7 +1953,10 @@
 
             <section class="record-block">
               <h3>Müzayedeler</h3>
-              <p v-if="productRelated.auctions.length === 0" class="muted">Müzayede kaydı yok.</p>
+              <div v-if="productRelated.auctions.length === 0" class="empty-state">
+                <i class="pi pi-clock empty-icon" />
+                <p>Müzayede kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1847,7 +1989,10 @@
 
             <section class="record-block">
               <h3>Teklifler</h3>
-              <p v-if="productRelated.bids.length === 0" class="muted">Teklif kaydı yok.</p>
+              <div v-if="productRelated.bids.length === 0" class="empty-state">
+                <i class="pi pi-tag empty-icon" />
+                <p>Teklif kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1888,7 +2033,10 @@
 
             <section class="record-block">
               <h3>Ödemeler</h3>
-              <p v-if="productRelated.payments.length === 0" class="muted">Ödeme kaydı yok.</p>
+              <div v-if="productRelated.payments.length === 0" class="empty-state">
+                <i class="pi pi-credit-card empty-icon" />
+                <p>Ödeme kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1928,6 +2076,50 @@
                 </table>
               </div>
             </section>
+
+            <section class="record-block">
+              <h3>İlişkili Sohbetler / Pazarlıklar</h3>
+              <div v-if="productRelated.negotiations.length === 0" class="empty-state">
+                <i class="pi pi-comments empty-icon" />
+                <p>Bu ürünle ilgili sohbet kaydı yok.</p>
+              </div>
+              <div v-else class="table-wrap">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Sohbet No</th>
+                      <th>Alıcı</th>
+                      <th>Satıcı</th>
+                      <th>Adet</th>
+                      <th>Durum</th>
+                      <th>Son Aktivite</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="neg in productRelated.negotiations" :key="neg.id">
+                      <td>
+                        <button type="button" class="link-inline" @click="goToNegotiationDetail(neg.id)">
+                          #{{ shortId(neg.id) }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(neg.buyerId)">
+                          {{ neg.buyerName }}
+                        </button>
+                      </td>
+                      <td>
+                        <button type="button" class="link-inline" @click="goToUserDetail(neg.sellerId)">
+                          {{ neg.sellerName }}
+                        </button>
+                      </td>
+                      <td>{{ neg.quantity }}</td>
+                      <td><span class="status-pill">{{ formatStatus(neg.status) }}</span></td>
+                      <td>{{ formatDate(neg.updatedAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </template>
           <template v-else-if="(isBidResource || isAuctionResource) && bidRelated">
             <div class="summary-grid">
@@ -1955,7 +2147,10 @@
 
             <section class="record-block">
               <h3>Satış Kaydı</h3>
-              <p v-if="!bidRelated.order" class="muted">Satış siparişi henüz oluşmamış.</p>
+              <div v-if="!bidRelated.order" class="empty-state">
+                <i class="pi pi-shopping-bag empty-icon" />
+                <p>Satış siparişi henüz oluşmamış.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -1988,7 +2183,10 @@
 
             <section class="record-block">
               <h3>Ödeme Kaydı</h3>
-              <p v-if="!bidRelated.payment" class="muted">Ödeme kaydı henüz oluşmamış.</p>
+              <div v-if="!bidRelated.payment" class="empty-state">
+                <i class="pi pi-credit-card empty-icon" />
+                <p>Ödeme kaydı henüz oluşmamış.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -2019,7 +2217,10 @@
 
             <section class="record-block">
               <h3>Katılımcılar</h3>
-              <p v-if="bidRelated.participants.length === 0" class="muted">Katılımcı yok.</p>
+              <div v-if="bidRelated.participants.length === 0" class="empty-state">
+                <i class="pi pi-users empty-icon" />
+                <p>Katılımcı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -2048,7 +2249,10 @@
 
             <section class="record-block">
               <h3>Teklif Geçmişi</h3>
-              <p v-if="bidRelated.bids.length === 0" class="muted">Teklif kaydı yok.</p>
+              <div v-if="bidRelated.bids.length === 0" class="empty-state">
+                <i class="pi pi-tag empty-icon" />
+                <p>Teklif kaydı yok.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -2086,9 +2290,10 @@
           <template v-else-if="isNegotiationResource && negotiationRelated">
             <section class="record-block">
               <h3>AI Güvenlik & Politika İhlal Kayıtları</h3>
-              <p v-if="negotiationRelated.violations.length === 0" class="muted">
-                Bu sohbette güvenlik politikası ihlali veya AI engelleme kaydı bulunmuyor.
-              </p>
+              <div v-if="negotiationRelated.violations.length === 0" class="empty-state">
+                <i class="pi pi-shield empty-icon" />
+                <p>Bu sohbette güvenlik politikası ihlali veya AI engelleme kaydı bulunmuyor.</p>
+              </div>
               <div v-else class="table-wrap">
                 <table class="detail-table">
                   <thead>
@@ -2507,6 +2712,20 @@ interface ProductPaymentItem {
   createdAt: string;
 }
 
+interface ProductNegotiationItem {
+  id: string;
+  buyerId: string;
+  buyerName: string;
+  buyerEmail: string;
+  sellerId: string;
+  sellerName: string;
+  sellerEmail: string;
+  status: string;
+  quantity: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface ProductRelatedRecords {
   summary: {
     orderCount: number;
@@ -2520,6 +2739,7 @@ interface ProductRelatedRecords {
     bidCount: number;
     paymentCount: number;
     grossSales: number;
+    negotiationCount: number;
   };
   orders: ProductOrderItem[];
   buyers: ProductBuyerItem[];
@@ -2528,6 +2748,7 @@ interface ProductRelatedRecords {
   auctions: SellerAuctionItem[];
   bids: ProductBidItem[];
   payments: ProductPaymentItem[];
+  negotiations: ProductNegotiationItem[];
 }
 
 interface BidAuctionOverview {
@@ -2664,6 +2885,7 @@ const drawerOpen = ref(false);
 const selectedAction = ref<ActionConfig | null>(null);
 const categoryParentOptions = ref<{ label: string; value: string }[]>([]);
 const variationOptions = ref<{ label: string; value: string; kind?: string }[]>([]);
+const listingTemplatesOptions = ref<{ label: string; value: string }[]>([]);
 const relatedLoadings = ref<Record<UserRelatedSectionKey, boolean>>({
   orders: false,
   sales: false,
@@ -2681,6 +2903,25 @@ const sectionApiKeyMap: Record<UserRelatedSectionKey, UserRelatedApiSection> = {
   couponDefinitions: 'coupon-definitions',
   couponUsage: 'coupon-usage',
 };
+
+function getCategoryListingTemplate(row: Record<string, unknown> | null): Record<string, unknown> {
+  if (!row) return { fields: [], variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 } };
+  const meta = row.metadata as Record<string, unknown> | undefined;
+  if (!meta || !meta.listingTemplate) return { fields: [], variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 } };
+  return meta.listingTemplate as Record<string, unknown>;
+}
+
+function getCategoryTemplateId(row: Record<string, unknown> | null): string {
+  if (!row) return '';
+  const meta = row.metadata as Record<string, unknown> | undefined;
+  return meta && typeof meta.templateId === 'string' ? meta.templateId : '';
+}
+
+function getCategoryIsCulturalAsset(row: Record<string, unknown> | null): string {
+  if (!row) return 'false';
+  const val = row.isCulturalAsset;
+  return val === true || val === 'true' ? 'true' : 'false';
+}
 
 const categoryFields = (row: Record<string, unknown>): DrawerField[] => [
   { key: 'name', label: 'Ad', required: true, value: getString(row, 'name') },
@@ -2704,6 +2945,16 @@ const categoryFields = (row: Record<string, unknown>): DrawerField[] => [
       { label: 'Hayır (Mesajlaşma kapalı)', value: 'false' },
     ],
   },
+  {
+    key: 'isCulturalAsset',
+    label: 'Kültürel Varlık mı?',
+    type: 'select',
+    value: getCategoryIsCulturalAsset(row),
+    options: [
+      { label: 'Evet (Kültürel Varlık Kapsamında)', value: 'true' },
+      { label: 'Hayır (Normal Kategori)', value: 'false' },
+    ],
+  },
   { key: 'sortOrder', label: 'Sıralama', type: 'number', value: getString(row, 'sortOrder') },
   {
     key: 'variationOptionIds',
@@ -2711,6 +2962,12 @@ const categoryFields = (row: Record<string, unknown>): DrawerField[] => [
     type: 'multiselect',
     value: getCategoryVariationOptionIds(row),
     options: variationOptions.value,
+  },
+  {
+    key: 'listingTemplate',
+    label: 'Dinamik İlan Şablon Alanları',
+    type: 'template_editor',
+    value: getCategoryListingTemplate(row),
   },
 ];
 
@@ -2875,6 +3132,7 @@ const actionConfigs: Record<string, ActionConfig[]> = {
       path: (id) => `/admin/categories/${id}`,
       fields: categoryFields,
       confirmLabel: 'Kategori güncelle',
+      presentation: 'modal',
     },
     {
       key: 'deleteCategory',
@@ -3149,6 +3407,19 @@ function getCategoryListingFields(row: Record<string, unknown> | null): ListingF
   return fields as ListingField[];
 }
 
+function getFieldTypeLabel(type: string): string {
+  const translations: Record<string, string> = {
+    text: 'Metin',
+    number: 'Sayı',
+    select: 'Seçim Kutusu',
+    dimension: 'Boyut / Ebat',
+    image: 'Görsel',
+    textarea: 'Uzun Metin',
+    date: 'Tarih',
+  };
+  return translations[type.toLowerCase()] ?? type.toUpperCase();
+}
+
 function getFieldLabel(key: string): string {
   const translations: Record<string, string> = {
     brand: 'Marka',
@@ -3159,6 +3430,10 @@ function getFieldLabel(key: string): string {
     color: 'Renk',
     size: 'Beden / Ebat',
     material: 'Malzeme',
+    fabric_type: 'Kumaş Türü',
+    fabrictype: 'Kumaş Türü',
+    material_type: 'Malzeme Türü',
+    materialtype: 'Malzeme Türü',
     origin: 'Menşei',
     weight: 'Ağırlık / Kütle',
     dimensions: 'Boyutlar',
@@ -3171,8 +3446,50 @@ function getFieldLabel(key: string): string {
     authenticity: 'Orijinallik Belgesi',
     author: 'Yazar / Sanatçı',
     medium: 'Yapım Tekniği',
+    publisher: 'Yayınevi',
+    isbn: 'ISBN',
+    page_count: 'Sayfa Sayısı',
+    pagecount: 'Sayfa Sayısı',
+    format: 'Format / Biçim',
+    language: 'Dil',
+    artist: 'Sanatçı',
+    height: 'Yükseklik',
+    width: 'Genişlik',
+    depth: 'Derinlik',
+    diameter: 'Çap',
+    thickness: 'Kalınlık',
+    volume: 'Hacim',
+    capacity: 'Kapasite',
+    power: 'Güç',
+    voltage: 'Voltaj',
+    fuel_type: 'Yakıt Tipi',
+    fueltype: 'Yakıt Tipi',
+    transmission: 'Şanzıman',
+    engine_power: 'Motor Gücü',
+    enginepower: 'Motor Gücü',
+    engine_size: 'Motor Hacmi',
+    enginesize: 'Motor Hacmi',
+    mileage: 'Kilometre (Km)',
+    body_type: 'Kasa Tipi',
+    bodytype: 'Kasa Tipi',
+    gear: 'Vites',
+    room_count: 'Oda Sayısı',
+    roomcount: 'Oda Sayısı',
+    square_meters: 'Metrekare (m²)',
+    squaremeters: 'Metrekare (m²)',
+    floor: 'Bulunduğu Kat',
+    heating: 'Isıtma',
+    furnished: 'Eşyalı mı?',
+    title_deed: 'Tapu Durumu',
+    titledeed: 'Tapu Durumu',
+    using_status: 'Kullanım Durumu',
+    usingstatus: 'Kullanım Durumu',
+    certifications: 'Sertifikalar / Belgeler',
+    certification: 'Sertifikalar / Belgeler',
   };
-  return translations[key.toLowerCase()] ?? key;
+  
+  const normalizedKey = key.toLowerCase().replace(/_/g, '').replace(/-/g, '');
+  return translations[key.toLowerCase()] ?? translations[normalizedKey] ?? key;
 }
 
 function normalizeCategoryRows(loadedRows: Record<string, unknown>[]): Record<string, unknown>[] {
@@ -3210,6 +3527,9 @@ function normalizeCategoryRows(loadedRows: Record<string, unknown>[]): Record<st
 function openAction(action: AdminTableAction) {
   selectedAction.value = action as ActionConfig;
   drawerOpen.value = true;
+  if (props.resource === 'categories' && variationOptions.value.length === 0) {
+    void loadVariationOptions();
+  }
 }
 
 async function goToProductEdit() {
@@ -3429,7 +3749,8 @@ function normalizeProductRelated(candidate: Partial<ProductRelatedRecords>): Pro
     !Array.isArray(candidate.cart) ||
     !Array.isArray(candidate.auctions) ||
     !Array.isArray(candidate.bids) ||
-    !Array.isArray(candidate.payments)
+    !Array.isArray(candidate.payments) ||
+    !Array.isArray(candidate.negotiations)
   ) {
     return null;
   }
@@ -3442,6 +3763,7 @@ function normalizeProductRelated(candidate: Partial<ProductRelatedRecords>): Pro
     auctions: candidate.auctions,
     bids: candidate.bids,
     payments: candidate.payments,
+    negotiations: candidate.negotiations,
   };
 }
 
@@ -3524,6 +3846,11 @@ function goToPaymentDetail(paymentId: string): void {
 function goToPayoutDetail(payoutId: string): void {
   if (!payoutId) return;
   void router.push(`/payouts/${payoutId}`);
+}
+
+function goToNegotiationDetail(negotiationId: string): void {
+  if (!negotiationId) return;
+  void router.push(`/negotiations/${negotiationId}`);
 }
 
 function couponUsageStateLabel(coupon: UserDefinedCouponItem): string {
@@ -3625,8 +3952,26 @@ async function loadVariationOptions() {
         value: String(item.id ?? ''),
         kind: String(item.kind ?? ''),
       }));
-  } catch {
+  } catch (err) {
+    console.error('Failed to load variation options:', err);
     variationOptions.value = [];
+  }
+}
+
+async function loadListingTemplatesOptions() {
+  if (props.resource !== 'categories') return;
+  try {
+    const response = await adminApi.get<ApiListResponse>('/admin/listing-templates', {
+      params: { page: 1, limit: 100 },
+    });
+    const items = Array.isArray(response.data.items) ? response.data.items : [];
+    listingTemplatesOptions.value = items.map((item) => ({
+      label: String(item.name ?? 'İsimsiz Şablon'),
+      value: String(item.id ?? ''),
+    }));
+  } catch (err) {
+    console.error('Failed to load listing template options:', err);
+    listingTemplatesOptions.value = [];
   }
 }
 
@@ -3696,6 +4041,7 @@ watch(
     };
     void loadCategoryParentOptions();
     void loadVariationOptions();
+    void loadListingTemplatesOptions();
     void loadDetail();
   },
 );
@@ -3703,6 +4049,7 @@ watch(
 onMounted(loadDetail);
 onMounted(loadCategoryParentOptions);
 onMounted(loadVariationOptions);
+onMounted(loadListingTemplatesOptions);
 </script>
 
 <style scoped>
@@ -3837,41 +4184,103 @@ onMounted(loadVariationOptions);
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .summary-card {
+  position: relative;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: var(--bg-elevated);
-  padding: 10px 12px;
-  display: grid;
-  gap: 4px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-500), #60a5fa);
+  opacity: 0.8;
+}
+
+.summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-color: var(--brand-500);
+}
+
+.summary-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.summary-icon-wrap {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--brand-100);
+  color: var(--brand-600);
+}
+
+.summary-icon-wrap i {
+  font-size: 14px;
 }
 
 .summary-label {
   margin: 0;
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .summary-card strong {
   color: var(--text-strong);
-  font-size: 18px;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Manrope', sans-serif;
 }
 
 .record-block {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 12px;
-  background: var(--bg-panel);
+  border-radius: 12px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
 }
 
 .record-block h3 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: var(--text-strong);
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.record-block h3::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: var(--brand-500);
+  border-radius: 2px;
 }
 
 .record-footer {

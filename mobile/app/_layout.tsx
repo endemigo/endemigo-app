@@ -237,7 +237,7 @@ export default function RootLayout() {
         <ErrorBoundary>
           <AuthGate>
             <View style={styles.flex1} onLayout={onLayoutRootView}>
-              <Stack screenOptions={{ headerShown: false }}>
+              <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen

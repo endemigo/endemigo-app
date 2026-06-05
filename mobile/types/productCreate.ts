@@ -65,6 +65,7 @@ export interface ProductCreateImageDraft {
 
 export interface ProductCreateWizardState {
   listingType: ProductCreateListingType;
+  selectedEventId?: string | null;
   title: string;
   categoryId: string;
   directSalePrice: string;

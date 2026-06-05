@@ -186,7 +186,8 @@ export const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.headlineBlack,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.primary,
   },
   summaryCard: {
@@ -227,7 +228,8 @@ export const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: FontSize.title,
-    fontFamily: FontFamily.headlineBlack,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
   summaryActions: {

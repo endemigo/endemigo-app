@@ -15,6 +15,9 @@ import { Category } from './entities/category.entity';
 import { VariantNumber } from './entities/variant-number.entity';
 import { ProductVariantSku } from './entities/product-variant-sku.entity';
 import { Favorite } from '../search/entities/favorite.entity';
+import { ListingTemplate as ListingTemplateEntity } from './entities/listing-template.entity';
+import { GeoIndication } from './entities/geo-indication.entity';
+import { FeatureBadge } from './entities/feature-badge.entity';
 import { CreateProductDto, ProductVariantSkuInputDto } from './dto/create-product.dto';
 import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -378,6 +381,12 @@ export class ProductService {
     private readonly productVariantSkuRepo: Repository<ProductVariantSku>,
     @InjectRepository(Favorite)
     private readonly favoriteRepo: Repository<Favorite>,
+    @InjectRepository(ListingTemplateEntity)
+    private readonly listingTemplateRepo: Repository<ListingTemplateEntity>,
+    @InjectRepository(GeoIndication)
+    private readonly geoIndicationRepo: Repository<GeoIndication>,
+    @InjectRepository(FeatureBadge)
+    private readonly featureBadgeRepo: Repository<FeatureBadge>,
     private readonly userService: UserService,
     @Inject(STORAGE_SERVICE)
     private readonly storage: IStorageService,
@@ -992,6 +1001,11 @@ export class ProductService {
   // ==========================================
 
   async findCategories() {
+    const templates = await this.listingTemplateRepo.find();
+    const templateMap = new Map<string, ListingTemplateEntity>(
+      templates.map((t) => [t.id, t]),
+    );
+
     const roots = await this.categoryRepo.find({
       where: { parentId: IsNull(), isActive: true },
       relations: ['children'],
@@ -1001,7 +1015,31 @@ export class ProductService {
     return {
       code: RC.CATEGORY_LIST,
       message: 'Categories fetched',
-      categories: roots.map((root) => this.serializeCategory(root)),
+      categories: roots.map((root) => this.serializeCategory(root, templateMap)),
+    };
+  }
+
+  async findGeoIndications() {
+    const items = await this.geoIndicationRepo.find({
+      where: { isActive: true },
+      order: { name: 'ASC' },
+    });
+    return {
+      code: RC.SUCCESS,
+      message: 'Geo indications fetched',
+      geoIndications: items,
+    };
+  }
+
+  async findFeatureBadges() {
+    const items = await this.featureBadgeRepo.find({
+      where: { isActive: true },
+      order: { name: 'ASC' },
+    });
+    return {
+      code: RC.SUCCESS,
+      message: 'Feature badges fetched',
+      features: items,
     };
   }
 
@@ -1054,11 +1092,23 @@ export class ProductService {
     return `${COMMONS_FILE_PATH_BASE_URL}${encodeURIComponent(fileName)}`;
   }
 
-  private serializeCategory(category: Category): SerializedCategory {
+  private serializeCategory(category: Category, templateMap?: Map<string, ListingTemplateEntity>): SerializedCategory {
     const metadata = category.metadata ?? {};
-    const listingTemplate =
-      this.extractListingTemplate(metadata) ??
-      this.buildListingTemplate(category.slug ?? '');
+    let listingTemplate = this.extractListingTemplate(metadata);
+
+    if (metadata?.templateId && templateMap) {
+      const template = templateMap.get(metadata.templateId as string);
+      if (template) {
+        listingTemplate = {
+          fields: template.fields ?? [],
+          variant: template.variant ?? { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 }
+        } as any;
+      }
+    }
+
+    if (!listingTemplate) {
+      listingTemplate = this.buildListingTemplate(category.slug ?? '');
+    }
 
     return {
       ...category,
@@ -1067,7 +1117,7 @@ export class ProductService {
         category.children
           ?.filter((child) => child.isActive)
           .sort((left, right) => left.sortOrder - right.sortOrder)
-          .map((child) => this.serializeCategory(child)) || [],
+          .map((child) => this.serializeCategory(child, templateMap)) || [],
     };
   }
 

@@ -36,20 +36,34 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    if (status >= 500) {
+    if (status >= 400) {
       this.logger.error(
         `[${code}] ${message}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     }
 
+    const errorResponse: Record<string, any> = {
+      code,
+      message,
+      statusCode: status,
+    };
+
+    if (exception instanceof HttpException) {
+      const res = exception.getResponse();
+      if (typeof res === 'object' && res !== null) {
+        const body = res as Record<string, unknown>;
+        for (const [key, val] of Object.entries(body)) {
+          if (key !== 'code' && key !== 'message' && key !== 'statusCode') {
+            errorResponse[key] = val;
+          }
+        }
+      }
+    }
+
     response.status(status).json({
       success: false,
-      error: {
-        code,
-        message,
-        statusCode: status,
-      },
+      error: errorResponse,
       timestamp: new Date().toISOString(),
     });
   }

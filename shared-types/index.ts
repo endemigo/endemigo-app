@@ -10,6 +10,8 @@ export {
   AuctionStatus,
   AuctionPaymentStatus,
   AuctionType,
+  AuctionEventStatus,
+  AuctionApprovalStatus,
   ProductStatus,
   ProductCondition,
   ProductProductionSeason,
@@ -59,6 +61,7 @@ export {
   VariantNumberStatus,
   VariantOptionKind,
   OrderReturnReasonCode,
+  BannerActionType,
 } from './enums';
 
 // Constants
@@ -159,3 +162,5 @@ export type {
   ContentStudioMetadataValue,
   PublicBlogItem,
 } from './content-studio';
+
+export type { BannerItem, Banner } from './banner';

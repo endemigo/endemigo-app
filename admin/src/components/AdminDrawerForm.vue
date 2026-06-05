@@ -27,7 +27,7 @@
             v-for="field in visibleFields"
             :key="field.key"
             class="field"
-            :class="{ 'field--full': field.type === 'textarea' || field.type === 'multiselect' }"
+            :class="{ 'field--full': field.type === 'textarea' || field.type === 'multiselect' || field.type === 'template_editor' }"
           >
             <span>{{ field.label }}</span>
             <textarea
@@ -105,12 +105,87 @@
                 </div>
               </div>
             </div>
+            <div v-else-if="field.type === 'template_editor'" class="template-editor-container">
+              <!-- Live Search Filter Bar -->
+              <div class="template-search-bar">
+                <i class="pi pi-search search-icon" aria-hidden="true" />
+                <input 
+                  type="text" 
+                  v-model="templateSearchQuery" 
+                  placeholder="İlan alanı ara (örnek: fiyat, kargo, desi)..." 
+                  class="input template-search-input"
+                />
+                <span class="template-search-badge" v-if="templateSearchQuery">
+                  {{ filteredPredefinedFields.length }} alan
+                </span>
+              </div>
+
+              <!-- Predefined Fields Checklist Grid -->
+              <div class="template-predefined-grid">
+                <div 
+                  v-for="pf in filteredPredefinedFields" 
+                  :key="pf.key" 
+                  class="predefined-field-card"
+                  :class="{ 'is-active': isFieldVisibleInTemplate(field.key, pf.key) }"
+                >
+                  <div class="predefined-field-meta">
+                    <strong class="predefined-field-label">{{ pf.label }}</strong>
+                    <span class="predefined-field-key">{{ pf.key }}</span>
+                    <span class="predefined-field-type-badge">{{ translateFieldType(pf.type) }}</span>
+                  </div>
+                  <div class="predefined-field-actions">
+                    <label class="toggle-switch-label">
+                      <input 
+                        type="checkbox" 
+                        :checked="isFieldVisibleInTemplate(field.key, pf.key)"
+                        @change="toggleFieldVisibility(field.key, pf.key, pf)"
+                      />
+                      <span class="action-text">Göster</span>
+                    </label>
+                    
+                    <label 
+                      v-if="isFieldVisibleInTemplate(field.key, pf.key)" 
+                      class="toggle-switch-label requirement-toggle"
+                    >
+                      <input 
+                        type="checkbox" 
+                        :checked="isFieldRequiredInTemplate(field.key, pf.key)"
+                        @change="toggleFieldRequirement(field.key, pf.key)"
+                      />
+                      <span class="action-text zorunlu-text" :class="{ 'is-required': isFieldRequiredInTemplate(field.key, pf.key) }">Zorunlu</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="field.type === 'image'" class="image-upload-wrap">
+              <div v-if="fieldValues[field.key]" class="image-preview-container">
+                <img :src="fieldValues[field.key]" alt="Kapak Görseli" class="image-preview" />
+                <button type="button" class="button danger ghost button--sm image-remove-btn" @click="fieldValues[field.key] = ''">
+                  <i class="pi pi-trash" aria-hidden="true" />
+                  Kaldır
+                </button>
+              </div>
+              <div v-else class="image-upload-dropzone" @click="triggerFileInput(field.key)">
+                <i class="pi pi-upload" aria-hidden="true" />
+                <span>{{ uploadState[field.key]?.uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
+                <small v-if="uploadState[field.key]?.error" class="image-upload-error">{{ uploadState[field.key]?.error }}</small>
+              </div>
+              <input
+                :ref="el => { if (el) fileInputRefs[field.key] = el }"
+                type="file"
+                accept="image/*"
+                class="hidden-file-input"
+                @change="handleImageUpload(field.key, $event)"
+              />
+            </div>
             <input
               v-else
               v-model="fieldValues[field.key]"
               class="input"
               :type="field.type ?? 'text'"
               :required="field.required"
+              @input="field.key === 'slug' ? onSlugInput() : null"
             />
           </label>
 
@@ -177,9 +252,9 @@ export interface DrawerFieldOption {
 export interface DrawerField {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'textarea' | 'select' | 'multiselect' | 'date' | 'url';
+  type?: 'text' | 'number' | 'textarea' | 'select' | 'multiselect' | 'date' | 'url' | 'image' | 'template_editor';
   required?: boolean;
-  value?: string | string[];
+  value?: any;
   options?: DrawerFieldOption[];
 }
 
@@ -188,12 +263,15 @@ export interface DrawerConfirmPayload {
   values: Record<string, string | string[]>;
 }
 
+import { adminApi } from '../services/api';
+
 const props = withDefaults(
   defineProps<{
     open: boolean;
     title: string;
     fields?: DrawerField[];
     reasonRequired?: boolean;
+    defaultReason?: string;
     confirmLabel?: string;
     presentation?: 'drawer' | 'modal';
     pageSize?: number;
@@ -201,6 +279,7 @@ const props = withDefaults(
   {
     fields: () => [],
     reasonRequired: true,
+    defaultReason: '',
     confirmLabel: 'Onayla',
     presentation: 'drawer',
     pageSize: 0,
@@ -213,9 +292,252 @@ const emit = defineEmits<{
 }>();
 
 const reason = ref('');
-const fieldValues = reactive<Record<string, string | string[]>>({});
+const fieldValues = reactive<Record<string, any>>({});
 const multiselectSearch = reactive<Record<string, string>>({});
 const hasReason = computed(() => reason.value.trim().length > 0);
+
+const templateEditorError = ref<string | null>(null);
+
+const templateSearchQuery = ref('');
+
+const PREDEFINED_TEMPLATE_FIELDS = [
+  { key: 'brand', label: 'Marka', type: 'text' },
+  { key: 'condition', label: 'Ürün Durumu', type: 'select' },
+  { key: 'productContent', label: 'Ürün İçeriği', type: 'text' },
+  { key: 'sku', label: 'Stok Kodu (SKU)', type: 'text' },
+  { key: 'barcodeNo', label: 'Barkod No', type: 'text' },
+  { key: 'weight', label: 'Ağırlık (kg)', type: 'number' },
+  { key: 'dimensionWidth', label: 'Genişlik (cm)', type: 'dimension' },
+  { key: 'dimensionHeight', label: 'Yükseklik (cm)', type: 'dimension' },
+  { key: 'dimensionDepth', label: 'Derinlik (cm)', type: 'dimension' },
+  { key: 'productionProvince', label: 'Üretim İli', type: 'select' },
+  { key: 'productionDistrict', label: 'Üretim İlçesi', type: 'select' },
+  { key: 'originCountry', label: 'Menşei Ülke', type: 'select' },
+  { key: 'originRegion', label: 'Menşei Bölge', type: 'text' },
+  { key: 'wholesalePrice', label: 'Toptan Fiyat', type: 'number' },
+  { key: 'retailPrice', label: 'Perakende Fiyat', type: 'number' },
+  { key: 'shippingProvince', label: 'Gönderim İli', type: 'select' },
+  { key: 'shippingDistrict', label: 'Gönderim İlçesi', type: 'select' },
+  { key: 'shippingAddress', label: 'Gönderim Adresi', type: 'textarea' },
+  { key: 'deliveryTemplateDomestic', label: 'Yurtiçi Teslimat Şablonu', type: 'select' },
+  { key: 'deliveryTemplateInternational', label: 'Yurtdışı Teslimat Şablonu', type: 'select' },
+  { key: 'desiDomestic', label: 'Yurtiçi Desi', type: 'text' },
+  { key: 'desiInternational', label: 'Yurtdışı Desi', type: 'text' },
+  { key: 'geoIndicationCertNo', label: 'Coğrafi İşaret Belge No', type: 'text' },
+  { key: 'geoIndicationRegion', label: 'Coğrafi İşaret Bölgesi', type: 'text' },
+  { key: 'geoIndicationReceivedAt', label: 'Coğrafi İşaret Tarihi', type: 'date' },
+  { key: 'additionalCertificates', label: 'Ek Belgeler', type: 'text' },
+  { key: 'featureBadges', label: 'Özellik Rozetleri', type: 'multiselect' },
+  { key: 'geoBadgeSelections', label: 'Coğrafi Rozet Seçimleri', type: 'multiselect' },
+  { key: 'productionSeasons', label: 'Üretim Sezonları', type: 'multiselect' },
+  { key: 'salesMonths', label: 'Satış Ayları', type: 'multiselect' },
+  { key: 'sellerNotes', label: 'Satıcı Notları', type: 'textarea' },
+  { key: 'images', label: 'Görseller', type: 'image' },
+].sort((a, b) => a.label.localeCompare(b.label, 'tr'));
+
+const filteredPredefinedFields = computed(() => {
+  const query = templateSearchQuery.value.trim().toLocaleLowerCase('tr-TR');
+  if (!query) return PREDEFINED_TEMPLATE_FIELDS;
+  return PREDEFINED_TEMPLATE_FIELDS.filter(
+    (f) =>
+      f.label.toLocaleLowerCase('tr-TR').includes(query) ||
+      f.key.toLowerCase().includes(query)
+  );
+});
+
+function translateFieldType(type: string): string {
+  const map: Record<string, string> = {
+    text: 'Metin',
+    number: 'Sayı',
+    select: 'Seçim Kutusu',
+    dimension: 'Boyut / Ebat',
+    image: 'Görsel',
+    textarea: 'Uzun Metin',
+    date: 'Tarih'
+  };
+  return map[type.toLowerCase()] ?? type.toUpperCase();
+}
+
+function getFieldLabel(key: string): string {
+  const translations: Record<string, string> = {
+    brand: 'Marka',
+    condition: 'Durum',
+    sku: 'Stok Kodu (SKU)',
+    price: 'Fiyat',
+    stock: 'Stok Adedi',
+    color: 'Renk',
+    size: 'Beden / Ebat',
+    material: 'Malzeme',
+    fabric_type: 'Kumaş Türü',
+    fabrictype: 'Kumaş Türü',
+    material_type: 'Malzeme Türü',
+    materialtype: 'Malzeme Türü',
+    origin: 'Menşei',
+    weight: 'Ağırlık / Kütle',
+    dimensions: 'Boyutlar',
+    productiondate: 'Üretim Tarihi',
+    warranty: 'Garanti Süresi',
+    shipping: 'Kargo Detayı',
+    model: 'Model',
+    year: 'Yıl',
+    grade: 'Derece / Sınıf',
+    authenticity: 'Orijinallik Belgesi',
+    author: 'Yazar / Sanatçı',
+    medium: 'Yapım Tekniği',
+    publisher: 'Yayınevi',
+    isbn: 'ISBN',
+    page_count: 'Sayfa Sayısı',
+    pagecount: 'Sayfa Sayısı',
+    format: 'Format / Biçim',
+    language: 'Dil',
+    artist: 'Sanatçı',
+    height: 'Yükseklik',
+    width: 'Genişlik',
+    depth: 'Derinlik',
+    diameter: 'Çap',
+    thickness: 'Kalınlık',
+    volume: 'Hacim',
+    capacity: 'Kapasite',
+    power: 'Güç',
+    voltage: 'Voltaj',
+    fuel_type: 'Yakıt Tipi',
+    fueltype: 'Yakıt Tipi',
+    transmission: 'Şanzıman',
+    engine_power: 'Motor Gücü',
+    enginepower: 'Motor Gücü',
+    engine_size: 'Motor Hacmi',
+    enginesize: 'Motor Hacmi',
+    mileage: 'Kilometre (Km)',
+    body_type: 'Kasa Tipi',
+    bodytype: 'Kasa Tipi',
+    gear: 'Vites',
+    room_count: 'Oda Sayısı',
+    roomcount: 'Oda Sayısı',
+    square_meters: 'Metrekare (m²)',
+    squaremeters: 'Metrekare (m²)',
+    floor: 'Bulunduğu Kat',
+    heating: 'Isıtma',
+    furnished: 'Eşyalı mı?',
+    title_deed: 'Tapu Durumu',
+    titledeed: 'Tapu Durumu',
+    using_status: 'Kullanım Durumu',
+    usingstatus: 'Kullanım Durumu',
+    certifications: 'Sertifikalar / Belgeler',
+    certification: 'Sertifikalar / Belgeler',
+  };
+  
+  const normalizedKey = key.toLowerCase().replace(/_/g, '').replace(/-/g, '');
+  return translations[key.toLowerCase()] ?? translations[normalizedKey] ?? key;
+}
+
+interface TemplateField {
+  key: string;
+  type: string;
+  required?: boolean;
+}
+
+interface TemplateObject {
+  fields?: TemplateField[];
+  variant?: Record<string, unknown>;
+}
+
+function getTemplateFields(key: string): TemplateField[] {
+  const current = fieldValues[key];
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return [];
+  const fields = (current as TemplateObject).fields;
+  return Array.isArray(fields) ? (fields as TemplateField[]) : [];
+}
+
+function isFieldVisibleInTemplate(key: string, fieldKey: string): boolean {
+  const fields = getTemplateFields(key);
+  return fields.some(f => f.key === fieldKey);
+}
+
+function isFieldRequiredInTemplate(key: string, fieldKey: string): boolean {
+  const fields = getTemplateFields(key);
+  const found = fields.find(f => f.key === fieldKey);
+  return found ? found.required === true : false;
+}
+
+function toggleFieldVisibility(key: string, fieldKey: string, predefinedField: any) {
+  let current = fieldValues[key];
+  if (!current || typeof current !== 'object' || Array.isArray(current)) {
+    current = {
+      fields: [],
+      variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 }
+    };
+  }
+  const templateObj = current as TemplateObject;
+  const fields = Array.isArray(templateObj.fields) ? [...templateObj.fields] : [];
+  
+  const existingIdx = fields.findIndex(f => f.key === fieldKey);
+  if (existingIdx >= 0) {
+    // Remove the field
+    fields.splice(existingIdx, 1);
+  } else {
+    // Add the field
+    fields.push({
+      key: fieldKey,
+      type: predefinedField.type,
+      required: false
+    });
+  }
+  
+  fieldValues[key] = {
+    ...templateObj,
+    fields
+  };
+}
+
+function toggleFieldRequirement(key: string, fieldKey: string) {
+  const current = fieldValues[key];
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return;
+  
+  const templateObj = current as TemplateObject;
+  const fields = Array.isArray(templateObj.fields) ? [...templateObj.fields] : [];
+  
+  const existingIdx = fields.findIndex(f => f.key === fieldKey);
+  if (existingIdx >= 0) {
+    fields[existingIdx] = {
+      ...fields[existingIdx],
+      required: !fields[existingIdx].required
+    };
+  }
+  
+  fieldValues[key] = {
+    ...templateObj,
+    fields
+  };
+}
+
+// Image Upload Logic & Refs
+const uploadState = reactive<Record<string, { uploading: boolean; error: string | null }>>({});
+const fileInputRefs = reactive<Record<string, any>>({});
+
+function triggerFileInput(key: string) {
+  fileInputRefs[key]?.click();
+}
+
+async function handleImageUpload(key: string, event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  uploadState[key] = { uploading: true, error: null };
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await adminApi.post('/admin/uploads/images?kind=auction', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    fieldValues[key] = response.data.url;
+    uploadState[key].uploading = false;
+  } catch (e) {
+    uploadState[key].uploading = false;
+    uploadState[key].error = 'Görsel yüklenemedi. Lütfen tekrar deneyin.';
+  }
+}
 const currentPage = ref(0);
 const effectivePageSize = computed(() => Math.max(0, Number(props.pageSize ?? 0)));
 const fieldPages = computed<DrawerField[][]>(() => {
@@ -230,20 +552,30 @@ const totalPages = computed(() => fieldPages.value.length);
 const isLastPage = computed(() => currentPage.value >= totalPages.value - 1);
 const visibleFields = computed(() => fieldPages.value[currentPage.value] ?? []);
 
+let wasOpen = false;
+
 watch(
-  () => [props.open, props.fields] as const,
-  () => {
-    reason.value = '';
-    currentPage.value = 0;
-    Object.keys(fieldValues).forEach((key) => {
-      delete fieldValues[key];
-    });
-    Object.keys(multiselectSearch).forEach((key) => {
-      delete multiselectSearch[key];
-    });
-    props.fields.forEach((field) => {
-      fieldValues[field.key] = field.value ?? (field.type === 'multiselect' ? [] : '');
-      if (field.type === 'multiselect') {
+  () => [props.open, props.fields, props.defaultReason] as const,
+  ([isOpen, fields, defReason]) => {
+    const openedJustNow = isOpen && !wasOpen;
+    wasOpen = isOpen;
+
+    if (openedJustNow) {
+      reason.value = defReason ?? '';
+      currentPage.value = 0;
+      Object.keys(fieldValues).forEach((key) => {
+        delete fieldValues[key];
+      });
+      Object.keys(multiselectSearch).forEach((key) => {
+        delete multiselectSearch[key];
+      });
+    }
+
+    fields.forEach((field) => {
+      if (openedJustNow || fieldValues[field.key] === undefined) {
+        fieldValues[field.key] = field.value ?? (field.type === 'multiselect' ? [] : '');
+      }
+      if (field.type === 'multiselect' && multiselectSearch[field.key] === undefined) {
         multiselectSearch[field.key] = '';
       }
     });
@@ -288,6 +620,7 @@ function getSelectedCount(key: string): number {
 
 function getGroups(field: DrawerField) {
   const options = field.options ?? [];
+  console.log('getGroups field key:', field.key, 'options length:', options.length, 'options:', JSON.stringify(options));
   const groupsMap = new Map<string, { label: string; kind: string; optionIds: string[]; optionLabels: string[] }>();
   
   options.forEach((opt) => {
@@ -350,6 +683,49 @@ function goPrevPage() {
   if (currentPage.value === 0) return;
   currentPage.value -= 1;
 }
+
+const isSlugManuallyEdited = ref(false);
+
+function onSlugInput() {
+  isSlugManuallyEdited.value = true;
+}
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      isSlugManuallyEdited.value = false;
+    }
+  }
+);
+
+watch(
+  () => fieldValues['name'],
+  (newName) => {
+    if (fieldValues['slug'] !== undefined && typeof newName === 'string' && !isSlugManuallyEdited.value) {
+      fieldValues['slug'] = newName
+        .trim()
+        .toLowerCase()
+        .replace(/ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/ş/g, 's')
+        .replace(/ı/g, 'i')
+        .replace(/ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+  }
+);
+
+watch(
+  () => fieldValues['slug'],
+  (newSlug) => {
+    if (newSlug === '') {
+      isSlugManuallyEdited.value = false;
+    }
+  }
+);
 </script>
 
 <style scoped>
@@ -587,6 +963,73 @@ function goPrevPage() {
   transform: scale(0.95) translateY(12px);
   opacity: 0;
 }
+
+/* Image Upload Component Styles */
+.image-upload-wrap {
+  width: 100%;
+  margin-top: 4px;
+  grid-column: 1 / -1;
+}
+.image-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 12px;
+  background: var(--bg-soft);
+}
+.image-preview {
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+}
+.image-upload-dropzone {
+  width: 100%;
+  min-height: 100px;
+  border: 2px dashed var(--border-strong);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg-soft);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.image-upload-dropzone:hover {
+  border-color: var(--brand-500);
+  background: var(--brand-50);
+}
+.image-upload-dropzone i {
+  font-size: 24px;
+  color: var(--text-muted);
+}
+.image-upload-dropzone span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.image-upload-error {
+  color: var(--danger-500);
+  font-size: 11px;
+  font-weight: 600;
+}
+.hidden-file-input {
+  display: none;
+}
+.image-remove-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
 </style>
 
 <style scoped>
@@ -761,5 +1204,174 @@ function goPrevPage() {
   text-align: center;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Premium Dynamic Template Editor Styles */
+.template-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: 1 / -1;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  padding: 14px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+  margin-top: 4px;
+}
+
+.template-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--bg-soft);
+  padding: 2px 10px;
+  margin-bottom: 4px;
+}
+
+.template-search-bar .search-icon {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.template-search-input {
+  border: none !important;
+  background: transparent !important;
+  font-size: 13px;
+  color: var(--text-strong);
+  padding: 8px 4px !important;
+  box-shadow: none !important;
+  flex: 1;
+}
+
+.template-search-input:focus {
+  outline: none !important;
+}
+
+.template-search-badge {
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--border-soft);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.template-predefined-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.predefined-field-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.predefined-field-card:hover {
+  border-color: var(--border-strong);
+}
+
+.predefined-field-card.is-active {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+}
+
+.predefined-field-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.predefined-field-label {
+  font-size: 13px;
+  color: var(--text-strong);
+  font-weight: 700;
+  text-align: left;
+}
+
+.predefined-field-key {
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: left;
+  text-transform: none !important;
+}
+
+.predefined-field-type-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--border-soft);
+  color: var(--text-muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-top: 3px;
+}
+
+.predefined-field-card.is-active .predefined-field-type-badge {
+  background: var(--brand-100);
+  color: var(--brand-700);
+}
+
+.predefined-field-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px dashed var(--border-soft);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.toggle-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch-label input {
+  accent-color: var(--brand-500);
+  width: 14px;
+  height: 14px;
+}
+
+.toggle-switch-label.requirement-toggle {
+  margin-left: auto;
+}
+
+.action-text {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+}
+
+.zorunlu-text {
+  color: var(--text-muted);
+}
+
+.zorunlu-text.is-required {
+  color: #d97706; /* Amber */
+  font-weight: 800;
 }
 </style>

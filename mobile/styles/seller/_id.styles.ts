@@ -252,8 +252,8 @@ export const styles = StyleSheet.create({
   },
   productPrice: {
     fontSize: FontSize.subheading,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.primary,
   },
   quickActionButtonBase: {

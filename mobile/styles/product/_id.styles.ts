@@ -437,9 +437,9 @@ export const styles = StyleSheet.create({
   },
   purchasePrice: {
     color: Colors.onSurfaceVariant,
-    fontFamily: FontFamily.bodySemiBold,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     fontSize: FontSize.subheading,
-    fontWeight: '600',
   },
   purchaseUnitText: {
     color: Colors.onSurfaceVariant,

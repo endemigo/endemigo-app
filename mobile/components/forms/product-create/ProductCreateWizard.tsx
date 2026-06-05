@@ -52,6 +52,8 @@ import { formatPriceInput } from '../../../utils/priceInputMask.ts';
 import { formatCurrency } from '../../../utils/transactionFormatters';
 import { createListingDraft, updateListingDraft } from '../../../services/listingDraftService.ts';
 import { submitProductCreateWizard, generateAiContent } from '../../../services/productCreateService.ts';
+import api from '../../../lib/api';
+import ENV from '../../../lib/config';
 import { ProductCreateProgress } from './ProductCreateProgress';
 import { ProductTypeSegment } from './ProductTypeSegment';
 import { styles } from './ProductCreateWizard.styles';
@@ -99,21 +101,7 @@ const ORIGIN_COUNTRY_OPTIONS = [
   { code: 'GR', label: 'Greece' },
 ] as const;
 
-const FEATURE_BADGE_OPTIONS = [
-  'VEGAN',
-  'BIO',
-  'NATURAL',
-  'ECO',
-  'PARABEN_FREE',
-  'ORGANIC',
-  'HALAL',
-  'ADDITIVE_FREE',
-  'SUGAR_FREE',
-  'GLUTEN_FREE',
-  'HANDMADE',
-  'SLOW_FOOD',
-  'COLD_DELIVERY',
-] as const;
+
 
 const GEO_BADGE_OPTIONS = [
   'PDO_RED_TR',
@@ -172,7 +160,7 @@ export function ProductCreateWizard({
   onCreated,
   initialEntryMode,
 }: ProductCreateWizardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { showModal } = useModalStore();
   const { state, updateField, patchState, reset } = useProductCreateWizard();
@@ -182,6 +170,84 @@ export function ProductCreateWizard({
   const [currentStep, setCurrentStep] = useState<ProductCreateWizardStep>(1);
   const [images, setImages] = useState<ProductCreateImageDraft[]>([]);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const [auctionEvents, setAuctionEvents] = useState<any[]>([]);
+  const [isEventsLoading, setIsEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [geoIndications, setGeoIndications] = useState<Array<{ id: string; name: string; code: string; logoUrl: string }>>([]);
+  const [isGeoLoading, setIsGeoLoading] = useState(false);
+  const [featureBadges, setFeatureBadges] = useState<Array<{ id: string; name: string; nameEn: string; code: string; logoUrl: string }>>([]);
+  const [isFeaturesLoading, setIsFeaturesLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchEvents() {
+      setIsEventsLoading(true);
+      setEventsError(null);
+      try {
+        if (ENV.USE_MOCK) {
+          setAuctionEvents([
+            {
+              id: 'event-1',
+              title: 'Osmanlı Dönemi Eserleri ve Antika Müzayedesi',
+              description: 'Osmanlı dönemi fermanlar, gümüş eşyalar ve el yazması eserler için ürün başvuru süreci aktif.',
+              coverImageUrl: 'https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?w=800&auto=format&fit=crop&q=80',
+              status: 'APPLICATION',
+              submissionDeadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+            }
+          ]);
+        } else {
+          const { data } = await api.get('/auctions/events?status=APPLICATION');
+          setAuctionEvents(data.items || []);
+        }
+      } catch (err) {
+        console.error('Error fetching auction events:', err);
+        setEventsError('Müzayede etkinlikleri yüklenemedi.');
+      } finally {
+        setIsEventsLoading(false);
+      }
+    }
+    async function fetchGeoIndications() {
+      setIsGeoLoading(true);
+      try {
+        if (ENV.USE_MOCK) {
+          setGeoIndications([
+            { id: '1', name: 'Kırmızı (TR)', code: 'PDO_RED_TR', logoUrl: '' },
+            { id: '2', name: 'Yeşil (TR)', code: 'PGI_GREEN_TR', logoUrl: '' },
+            { id: '3', name: 'Mavi (TR)', code: 'TSG_BLUE_TR', logoUrl: '' },
+          ]);
+        } else {
+          const { data } = await api.get('/products/geo-indications');
+          setGeoIndications(data.geoIndications || []);
+        }
+      } catch (err) {
+        console.error('Error fetching geo indications:', err);
+      } finally {
+        setIsGeoLoading(false);
+      }
+    }
+    async function fetchFeatureBadges() {
+      setIsFeaturesLoading(true);
+      try {
+        if (ENV.USE_MOCK) {
+          setFeatureBadges([
+            { id: '1', name: 'Vegan', nameEn: 'Vegan', code: 'VEGAN', logoUrl: '' },
+            { id: '2', name: 'Bio', nameEn: 'Bio', code: 'BIO', logoUrl: '' },
+            { id: '3', name: 'Organik', nameEn: 'Organic', code: 'ORGANIC', logoUrl: '' },
+          ]);
+        } else {
+          const { data } = await api.get('/products/features');
+          setFeatureBadges(data.features || []);
+        }
+      } catch (err) {
+        console.error('Error fetching feature badges:', err);
+      } finally {
+        setIsFeaturesLoading(false);
+      }
+    }
+    fetchEvents();
+    fetchGeoIndications();
+    fetchFeatureBadges();
+  }, []);
 
   const handleTitleBlur = async () => {
     if (!state.title || state.title.trim().length < 5) return;
@@ -413,11 +479,21 @@ export function ProductCreateWizard({
   const effectiveImageCount = images.length > 0 ? images.length : selectedExistingProductImageCount;
   const listingFieldVisibility = useMemo<ListingFieldVisibilityOptions>(() => {
     const optionalFields = mobileConfigData?.listingCreate?.optionalFields;
+    const categoryFields = (mobileConfigData?.listingCreate as any)?.categoryFields;
+
+    if (state.categoryId && categoryFields && Array.isArray(categoryFields[state.categoryId])) {
+      return { optionalFields: categoryFields[state.categoryId] };
+    }
+
     if (!Array.isArray(optionalFields) || optionalFields.length === 0) {
       return { optionalFields: [...MOBILE_LISTING_CREATE_OPTIONAL_FIELDS] };
     }
     return { optionalFields };
-  }, [mobileConfigData?.listingCreate?.optionalFields]);
+  }, [
+    mobileConfigData?.listingCreate?.optionalFields,
+    (mobileConfigData?.listingCreate as any)?.categoryFields,
+    state.categoryId,
+  ]);
   const isListingFieldVisible = (field: MobileListingCreateOptionalField): boolean => {
     const enabledByConfig = listingFieldVisibility.optionalFields?.includes(field) ?? true;
     if (!enabledByConfig) return false;
@@ -1115,35 +1191,107 @@ export function ProductCreateWizard({
   }
 
   const renderCategorySelectionStep = () => {
+    const isAuction = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION;
+
     return (
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>{t('listing.category')} *</Text>
-        <TouchableOpacity
-          style={styles.categorySelector}
-          activeOpacity={0.85}
-          onPress={handleOpenCategoryModal}
-        >
-          <View style={styles.categorySelectorLeft}>
-            {selectedCategory ? (
-              <View style={styles.categoryMediaWrap}>
-                <Image
-                  source={{ uri: getCategoryMockImage(selectedCategory.slug) }}
-                  style={styles.categoryMediaImage}
-                  contentFit="cover"
-                />
+      <>
+        {isAuction ? (
+          <View style={[styles.inputGroup, { marginBottom: 20 }]}>
+            <Text style={styles.inputLabel}>Müzayede Etkinliği Seçin *</Text>
+            {isEventsLoading ? (
+              <ActivityIndicator color={Colors.primary} size="small" style={{ marginVertical: 12 }} />
+            ) : eventsError ? (
+              <Text style={{ color: Colors.danger, fontSize: 13, marginBottom: 8 }}>{eventsError}</Text>
+            ) : auctionEvents.length === 0 ? (
+              <Text style={{ color: Colors.slate500, fontSize: 13, marginVertical: 8 }}>
+                Şu anda başvuru sürecinde olan aktif bir müzayede etkinliği bulunmamaktadır.
+              </Text>
+            ) : (
+              <View style={{ gap: 8, marginVertical: 8 }}>
+                {auctionEvents.map((event) => {
+                  const isSelected = state.selectedEventId === event.id;
+                  return (
+                    <TouchableOpacity
+                      key={event.id}
+                      activeOpacity={0.85}
+                      onPress={() => updateField('selectedEventId', isSelected ? null : event.id)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: isSelected ? `${Colors.primary}08` : Colors.surface,
+                        borderWidth: 1.5,
+                        borderColor: isSelected ? Colors.primary : Colors.border,
+                        borderRadius: 12,
+                        padding: 12,
+                        gap: 12,
+                      }}
+                    >
+                      <Image
+                        source={{ uri: event.coverImageUrl }}
+                        style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: Colors.slate100 }}
+                        contentFit="cover"
+                      />
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.onSurface }}>
+                          {event.title}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: Colors.slate500 }} numberOfLines={1}>
+                          {event.description}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: '600' }}>
+                          Son Katılım: {new Date(event.submissionDeadline).toLocaleDateString('tr-TR')}
+                        </Text>
+                      </View>
+                      <View style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        borderWidth: 2,
+                        borderColor: isSelected ? Colors.primary : Colors.slate300,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}>
+                        {isSelected && (
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            ) : null}
-            <Text
-              style={selectedCategory ? styles.categorySelectorText : styles.categorySelectorPlaceholder}
-              numberOfLines={1}
-            >
-              {selectedCategoryLabel}
-            </Text>
+            )}
           </View>
-          <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
-        </TouchableOpacity>
-        <Text style={styles.helperText}>{t('listing.categoryHelp')}</Text>
-      </View>
+        ) : null}
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{t('listing.category')} *</Text>
+          <TouchableOpacity
+            style={styles.categorySelector}
+            activeOpacity={0.85}
+            onPress={handleOpenCategoryModal}
+          >
+            <View style={styles.categorySelectorLeft}>
+              {selectedCategory ? (
+                <View style={styles.categoryMediaWrap}>
+                  <Image
+                    source={{ uri: getCategoryMockImage(selectedCategory.slug) }}
+                    style={styles.categoryMediaImage}
+                    contentFit="cover"
+                  />
+                </View>
+              ) : null}
+              <Text
+                style={selectedCategory ? styles.categorySelectorText : styles.categorySelectorPlaceholder}
+                numberOfLines={1}
+              >
+                {selectedCategoryLabel}
+              </Text>
+            </View>
+            <Ionicons name="chevron-down" size={18} color={Colors.slate500} />
+          </TouchableOpacity>
+          <Text style={styles.helperText}>{t('listing.categoryHelp')}</Text>
+        </View>
+      </>
     );
   };
 
@@ -1599,42 +1747,53 @@ export function ProductCreateWizard({
         {isListingFieldVisible('featureBadges') ? (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('listing.featureBadges')}</Text>
-            <View style={styles.chipRow}>
-              {FEATURE_BADGE_OPTIONS.map((badge) => {
-                const isSelected = state.featureBadges.includes(badge);
-                return (
-                  <TouchableOpacity
-                    key={`feature-badge-${badge}`}
-                    style={[styles.chip, isSelected && styles.chipActive]}
-                    activeOpacity={0.85}
-                    onPress={() => handleToggleFeatureBadge(badge)}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{badge}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {isFeaturesLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 10 }} />
+            ) : (
+              <View style={styles.chipRow}>
+                {featureBadges.map((item) => {
+                  const val = item.code || item.id;
+                  const isSelected = state.featureBadges.includes(val);
+                  const displayName = i18n.language === 'en' ? item.nameEn : item.name;
+                  return (
+                    <TouchableOpacity
+                      key={`feature-badge-${val}`}
+                      style={[styles.chip, isSelected && styles.chipActive]}
+                      activeOpacity={0.85}
+                      onPress={() => handleToggleFeatureBadge(val)}
+                    >
+                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{displayName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         ) : null}
 
         {isListingFieldVisible('geoBadgeSelections') ? (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('listing.geoBadgeSelections')}</Text>
-            <View style={styles.chipRow}>
-              {GEO_BADGE_OPTIONS.map((badge) => {
-                const isSelected = state.geoBadgeSelections.includes(badge);
-                return (
-                  <TouchableOpacity
-                    key={`geo-badge-${badge}`}
-                    style={[styles.chip, isSelected && styles.chipActive]}
-                    activeOpacity={0.85}
-                    onPress={() => handleToggleGeoBadgeSelection(badge)}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{badge}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {isGeoLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 10 }} />
+            ) : (
+              <View style={styles.chipRow}>
+                {geoIndications.map((item) => {
+                  const val = item.code || item.id;
+                  const isSelected = state.geoBadgeSelections.includes(val);
+                  return (
+                    <TouchableOpacity
+                      key={`geo-badge-${item.id}`}
+                      style={[styles.chip, isSelected && styles.chipActive]}
+                      activeOpacity={0.85}
+                      onPress={() => handleToggleGeoBadgeSelection(val)}
+                    >
+                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{item.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         ) : null}
       </>
@@ -1804,63 +1963,135 @@ export function ProductCreateWizard({
   }
 
   function renderAuctionReviewFields() {
+    const selectedEvent = auctionEvents.find((e) => e.id === state.selectedEventId);
+
     return (
       <>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.auctionStartsWhen')} *</Text>
-          <View style={styles.chipRow}>
-            {AUCTION_START_DELAY_PRESETS.map((hours) => (
-              <TouchableOpacity
-                key={`auction-start-${hours}`}
-                style={[styles.chip, state.selectedAuctionStartDelayHours === hours && styles.chipActive]}
-                activeOpacity={0.85}
-                onPress={() => handleApplyAuctionPreset(hours)}
-              >
-                <Text style={[styles.chipText, state.selectedAuctionStartDelayHours === hours && styles.chipTextActive]}>
-                  {t('listing.hoursLater', { count: hours })}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.auctionDuration')} *</Text>
-          <View style={styles.chipRow}>
-            {AUCTION_DURATION_PRESETS.map((hours) => (
-              <TouchableOpacity
-                key={`auction-duration-${hours}`}
-                style={[styles.chip, state.selectedAuctionDurationHours === hours && styles.chipActive]}
-                activeOpacity={0.85}
-                onPress={() => handleApplyAuctionDuration(hours)}
-              >
-                <Text style={[styles.chipText, state.selectedAuctionDurationHours === hours && styles.chipTextActive]}>
-                  {t('listing.durationHours', { count: hours })}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.inlineRow}>
-          <View style={styles.inlineBlock}>
-            <Text style={styles.inputLabel}>{t('listing.auctionType')}</Text>
-            <View style={styles.chipRow}>
-              {[PRODUCT_CREATE_AUCTION_TYPES.REALTIME, PRODUCT_CREATE_AUCTION_TYPES.TIMED].map((auctionType) => (
-                <TouchableOpacity
-                  key={auctionType}
-                  style={[styles.chip, state.auctionType === auctionType && styles.chipActive]}
-                  activeOpacity={0.85}
-                  onPress={() => updateField('auctionType', auctionType)}
-                >
-                  <Text style={[styles.chipText, state.auctionType === auctionType && styles.chipTextActive]}>
-                    {t(`listing.auctionTypes.${auctionType}`)}
+          <Text style={styles.inputLabel}>{t('listing.auctionType')}</Text>
+          {selectedEvent ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: `${Colors.primary}08`,
+                borderWidth: 1.5,
+                borderColor: Colors.primary,
+                borderRadius: 12,
+                padding: 12,
+                gap: 12,
+                marginTop: 8,
+              }}
+            >
+              <Image
+                source={{ uri: selectedEvent.coverImageUrl }}
+                style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: Colors.slate100 }}
+                contentFit="cover"
+              />
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.onSurface }} numberOfLines={1}>
+                    {selectedEvent.title}
                   </Text>
-                </TouchableOpacity>
-              ))}
+                  <View style={{
+                    backgroundColor: Colors.primary,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                  }}>
+                    <Text style={{ fontSize: 8, fontWeight: '700', color: Colors.white }}>
+                      {t('listing.eventBadge')}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 11, color: Colors.slate500 }} numberOfLines={1}>
+                  {selectedEvent.description}
+                </Text>
+                <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: '600' }}>
+                  Son Katılım: {new Date(selectedEvent.submissionDeadline).toLocaleDateString('tr-TR')}
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View
+              style={{
+                backgroundColor: Colors.slate50,
+                borderWidth: 1,
+                borderColor: Colors.slate200,
+                borderRadius: 12,
+                padding: 12,
+                marginTop: 8,
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>
+                {t('listing.standaloneAuctionLabel')}
+              </Text>
+              <Text style={{ fontSize: 12, color: Colors.slate500, marginTop: 4 }}>
+                {t('listing.standaloneAuctionDesc')}
+              </Text>
+            </View>
+          )}
         </View>
+
+        {!state.selectedEventId ? (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{t('listing.auctionStartsWhen')} *</Text>
+              <View style={styles.chipRow}>
+                {AUCTION_START_DELAY_PRESETS.map((hours) => (
+                  <TouchableOpacity
+                    key={`auction-start-${hours}`}
+                    style={[styles.chip, state.selectedAuctionStartDelayHours === hours && styles.chipActive]}
+                    activeOpacity={0.85}
+                    onPress={() => handleApplyAuctionPreset(hours)}
+                  >
+                    <Text style={[styles.chipText, state.selectedAuctionStartDelayHours === hours && styles.chipTextActive]}>
+                      {t('listing.hoursLater', { count: hours })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{t('listing.auctionDuration')} *</Text>
+              <View style={styles.chipRow}>
+                {AUCTION_DURATION_PRESETS.map((hours) => (
+                  <TouchableOpacity
+                    key={`auction-duration-${hours}`}
+                    style={[styles.chip, state.selectedAuctionDurationHours === hours && styles.chipActive]}
+                    activeOpacity={0.85}
+                    onPress={() => handleApplyAuctionDuration(hours)}
+                  >
+                    <Text style={[styles.chipText, state.selectedAuctionDurationHours === hours && styles.chipTextActive]}>
+                      {t('listing.durationHours', { count: hours })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inlineRow}>
+              <View style={styles.inlineBlock}>
+                <Text style={styles.inputLabel}>{t('listing.auctionType')}</Text>
+                <View style={styles.chipRow}>
+                  {[PRODUCT_CREATE_AUCTION_TYPES.REALTIME, PRODUCT_CREATE_AUCTION_TYPES.TIMED].map((auctionType) => (
+                    <TouchableOpacity
+                      key={auctionType}
+                      style={[styles.chip, state.auctionType === auctionType && styles.chipActive]}
+                      activeOpacity={0.85}
+                      onPress={() => updateField('auctionType', auctionType)}
+                    >
+                      <Text style={[styles.chipText, state.auctionType === auctionType && styles.chipTextActive]}>
+                        {t(`listing.auctionTypes.${auctionType}`)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </>
+        ) : null}
 
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{t('listing.minIncrement')} *</Text>
@@ -1887,60 +2118,66 @@ export function ProductCreateWizard({
           <Text style={styles.helperText}>{t('listing.reservePriceHint')}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.advancedToggle}
-          activeOpacity={0.85}
-          onPress={() => setShowAuctionAdvanced(!showAuctionAdvanced)}
-        >
-          <Ionicons name={showAuctionAdvanced ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.primary} />
-          <Text style={styles.advancedToggleText}>{t('listing.moreAuctionSettings')}</Text>
-        </TouchableOpacity>
-
-        {showAuctionAdvanced ? (
+        {!state.selectedEventId ? (
           <>
             <TouchableOpacity
-              style={styles.toggleCard}
+              style={styles.advancedToggle}
               activeOpacity={0.85}
-              onPress={() => updateField('antiSnipingEnabled', !state.antiSnipingEnabled)}
+              onPress={() => setShowAuctionAdvanced(!showAuctionAdvanced)}
             >
-              <View>
-                <Text style={styles.toggleTitle}>{t('listing.antiSnipingEnabled')}</Text>
-                <Text style={styles.toggleSub}>{t('listing.antiSnipingHint')}</Text>
-              </View>
-              <View style={[styles.checkbox, state.antiSnipingEnabled && styles.checkboxChecked]}>
-                {state.antiSnipingEnabled ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
-              </View>
+              <Ionicons name={showAuctionAdvanced ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.primary} />
+              <Text style={styles.advancedToggleText}>{t('listing.moreAuctionSettings')}</Text>
             </TouchableOpacity>
 
-            <View style={styles.inlineRow}>
-              <View style={styles.inlineBlock}>
-                <Text style={styles.inputLabel}>{t('listing.extensionSeconds')}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={state.extensionSeconds}
-                  onChangeText={(value) => updateField('extensionSeconds', value)}
-                  placeholder="60"
-                  placeholderTextColor={Colors.slate400}
-                  keyboardType="number-pad"
-                />
-              </View>
-              <View style={styles.inlineBlock}>
-                <Text style={styles.inputLabel}>{t('listing.maxExtensions')}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={state.maxExtensions}
-                  onChangeText={(value) => updateField('maxExtensions', value)}
-                  placeholder="5"
-                  placeholderTextColor={Colors.slate400}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
+            {showAuctionAdvanced ? (
+              <>
+                <TouchableOpacity
+                  style={styles.toggleCard}
+                  activeOpacity={0.85}
+                  onPress={() => updateField('antiSnipingEnabled', !state.antiSnipingEnabled)}
+                >
+                  <View>
+                    <Text style={styles.toggleTitle}>{t('listing.antiSnipingEnabled')}</Text>
+                    <Text style={styles.toggleSub}>{t('listing.antiSnipingHint')}</Text>
+                  </View>
+                  <View style={[styles.checkbox, state.antiSnipingEnabled && styles.checkboxChecked]}>
+                    {state.antiSnipingEnabled ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.inlineRow}>
+                  <View style={styles.inlineBlock}>
+                    <Text style={styles.inputLabel}>{t('listing.extensionSeconds')}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={state.extensionSeconds}
+                      onChangeText={(value) => updateField('extensionSeconds', value)}
+                      placeholder="60"
+                      placeholderTextColor={Colors.slate400}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={styles.inlineBlock}>
+                    <Text style={styles.inputLabel}>{t('maxExtensions')}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={state.maxExtensions}
+                      onChangeText={(value) => updateField('maxExtensions', value)}
+                      placeholder="5"
+                      placeholderTextColor={Colors.slate400}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+              </>
+            ) : null}
           </>
         ) : null}
       </>
     );
   }
+
+
 
   function renderReviewStep() {
     return (

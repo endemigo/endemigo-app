@@ -43,6 +43,7 @@ function createRepo(): MockRepo {
       getRawOne: jest.fn().mockResolvedValue({ value: 0 }),
       getRawMany: jest.fn().mockResolvedValue([]),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      getOne: jest.fn().mockResolvedValue(null),
     })),
   };
 }
@@ -55,7 +56,7 @@ describe('AdminOperationsService', () => {
   let service: AdminOperationsService;
 
   beforeEach(() => {
-    repos = Array.from({ length: 16 }, createRepo);
+    repos = Array.from({ length: 23 }, createRepo);
     adminAuditService = {
       recordAction: jest.fn().mockResolvedValue({ id: 'audit-1' }),
     };
@@ -76,6 +77,13 @@ describe('AdminOperationsService', () => {
       repos[13] as never,
       repos[14] as never,
       repos[15] as never,
+      repos[16] as never,
+      repos[17] as never,
+      repos[18] as never,
+      repos[19] as never,
+      repos[20] as never,
+      repos[21] as never,
+      repos[22] as never,
       adminAuditService as unknown as AdminAuditService,
     );
   });
@@ -91,7 +99,7 @@ describe('AdminOperationsService', () => {
     expect(repos[1].count).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: SellerStatus.PENDING } }),
     );
-    expect(repos[15].findAndCount).toHaveBeenCalledWith(
+    expect(repos[16].findAndCount).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: PayoutRequestStatus.ADMIN_REVIEW } }),
     );
   });
@@ -199,6 +207,36 @@ describe('AdminOperationsService', () => {
     );
   });
 
+  it('creates category record and writes admin audit', async () => {
+    repos[3].save.mockResolvedValueOnce({
+      id: 'category-1',
+      name: 'Gıda',
+      slug: 'gida',
+      isActive: true,
+      metadata: {},
+      createdAt: new Date(),
+    });
+
+    const result = await service.createCategory(
+      {
+        reason: 'initial setup',
+        metadata: {
+          name: 'Gıda',
+          slug: 'gida',
+          isActive: 'true',
+          isCulturalAsset: 'false',
+          sortOrder: '',
+          listingTemplate: '',
+        },
+      },
+      { id: 'admin-1', roles: [AdminRole.OPERATIONS] },
+    );
+
+    expect(result.code).toBe(RC.SUCCESS);
+    expect(result.category.name).toBe('Gıda');
+  });
+
+
   it('creates member account with admin endpoint contract', async () => {
     repos[0].save.mockResolvedValueOnce({
       id: 'user-2',
@@ -271,9 +309,9 @@ describe('AdminOperationsService', () => {
       isVerified: true,
       isActive: true,
     });
-    repos[9].count.mockResolvedValue(0);
-    repos[11].count.mockResolvedValue(0);
+    repos[10].count.mockResolvedValue(0);
     repos[12].count.mockResolvedValue(0);
+    repos[13].count.mockResolvedValue(0);
     repos[7].count.mockResolvedValue(0);
 
     const result = await service.detail('products', 'product-1');
@@ -286,7 +324,7 @@ describe('AdminOperationsService', () => {
 
   it('loads user related section with pagination metadata', async () => {
     repos[0].findOne.mockResolvedValueOnce({ id: 'user-1' });
-    repos[9].count.mockResolvedValueOnce(3);
+    repos[10].count.mockResolvedValueOnce(3);
     const orderQb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
@@ -317,7 +355,7 @@ describe('AdminOperationsService', () => {
       ]),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
     };
-    repos[9].createQueryBuilder.mockReturnValue(orderQb);
+    repos[10].createQueryBuilder.mockReturnValue(orderQb);
 
     const result = await service.detailUserRelated('user-1', {
       section: 'orders',
@@ -342,11 +380,11 @@ describe('AdminOperationsService', () => {
       isSeller: true,
       isActive: true,
     });
-    repos[9].count.mockResolvedValueOnce(70).mockResolvedValueOnce(42);
-    repos[11].count.mockResolvedValueOnce(88);
-    repos[12].count.mockResolvedValueOnce(51);
-    repos[13].count.mockResolvedValueOnce(33);
-    repos[14].count.mockResolvedValueOnce(47);
+    repos[10].count.mockResolvedValueOnce(70).mockResolvedValueOnce(42);
+    repos[12].count.mockResolvedValueOnce(88);
+    repos[13].count.mockResolvedValueOnce(51);
+    repos[14].count.mockResolvedValueOnce(33);
+    repos[15].count.mockResolvedValueOnce(47);
 
     const result = await service.detail('users', 'user-2');
 

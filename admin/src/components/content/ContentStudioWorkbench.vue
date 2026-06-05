@@ -1,142 +1,264 @@
 <template>
   <section class="content-studio-workbench">
-    <div v-if="loading" class="panel loading-panel">İçerik stüdyosu yükleniyor...</div>
+    <div v-if="loading" class="panel loading-panel">
+      <i class="pi pi-spin pi-spinner spinner-icon" />
+      <span>İçerik stüdyosu yükleniyor...</span>
+    </div>
     <p v-else-if="error" class="error-text">{{ error }}</p>
-    <div v-else class="studio-grid">
-      <aside class="panel studio-sidebar">
-        <div class="panel-header">
-          <strong>Koleksiyonlar</strong>
-          <button class="button" type="button" @click="addItem">Yeni kayıt</button>
+    <div v-else class="studio-grid-three-col">
+      
+      <!-- Column 1: Collections Selector -->
+      <aside class="panel collections-panel">
+        <div class="panel-header-simple">
+          <span>Koleksiyonlar</span>
         </div>
-        <div class="panel-body">
-          <div v-if="availableCollections.length > 1" class="collection-tabs">
-            <button
-              v-for="collection in availableCollections"
-              :key="collection.key"
-              class="button ghost"
-              :class="{ active: selectedCollection === collection.key }"
-              type="button"
-              @click="selectCollection(collection.key)"
-            >
-              {{ collection.label }}
-            </button>
-          </div>
-
-          <div class="collection-list">
-            <button
-              v-for="item in selectedItems"
-              :key="item.id"
-              class="collection-item"
-              :class="{ active: selectedItem?.id === item.id }"
-              type="button"
-              @click="selectItem(item.id)"
-            >
-              <div>
-                <strong>{{ item.title || 'Başlıksız kayıt' }}</strong>
-                <small>{{ item.status }} · {{ item.category || 'Kategori yok' }}</small>
-              </div>
-              <span>#{{ item.order }}</span>
-            </button>
-            <p v-if="selectedItems.length === 0" class="muted">Bu koleksiyonda henüz kayıt yok.</p>
-          </div>
+        <div class="collections-list-vertical">
+          <button
+            v-for="collection in availableCollections"
+            :key="collection.key"
+            class="collection-tab-vertical"
+            :class="{ active: selectedCollection === collection.key }"
+            type="button"
+            @click="selectCollection(collection.key)"
+          >
+            <i :class="collection.icon" class="tab-icon" />
+            <span class="tab-label">{{ collection.label }}</span>
+          </button>
         </div>
       </aside>
 
-      <section class="panel studio-editor">
-        <div class="panel-header">
-          <strong>{{ selectedCollectionDefinition.label }}</strong>
+      <!-- Column 2: Items List -->
+      <aside class="panel items-panel">
+        <div class="panel-header-actions">
+          <div class="header-title">
+            <strong>{{ selectedCollectionDefinition.label }}</strong>
+            <span class="count-badge">{{ filteredItems.length }} Kayıt</span>
+          </div>
+          <button class="button primary add-new-btn" type="button" @click="addItem">
+            <i class="pi pi-plus" /> Yeni Kayıt
+          </button>
+        </div>
+        
+        <div class="search-bar-container">
+          <i class="pi pi-search search-icon" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Koleksiyonda ara..."
+            class="search-input"
+          />
+        </div>
+
+        <div class="items-scroll-list">
+          <button
+            v-for="item in filteredItems"
+            :key="item.id"
+            class="item-card-vertical"
+            :class="{ active: selectedItemId === item.id }"
+            type="button"
+            @click="selectItem(item.id)"
+          >
+            <div class="item-card-body">
+              <strong class="item-title">{{ item.title || 'Başlıksız kayıt' }}</strong>
+              <div class="item-meta-row">
+                <span class="status-badge" :class="item.status.toLowerCase()">
+                  {{ item.status === 'PUBLISHED' ? 'Yayında' : item.status === 'DRAFT' ? 'Taslak' : 'Arşiv' }}
+                </span>
+              </div>
+            </div>
+            <span class="order-badge">#{{ item.order }}</span>
+          </button>
+          <p v-if="filteredItems.length === 0" class="muted-empty">Bu koleksiyonda kayıt bulunamadı.</p>
+        </div>
+      </aside>
+
+      <!-- Column 3: Editor -->
+      <section class="panel editor-panel">
+        <div class="panel-header-editor">
+          <div class="editor-header-title">
+            <i :class="selectedCollectionDefinition.icon" class="title-icon" />
+            <strong>{{ selectedItem ? selectedItem.title || 'Yeni Kayıt Düzenleme' : 'Kayıt Seçin' }}</strong>
+          </div>
           <button
             v-if="selectedItem"
-            class="button danger"
+            class="button danger delete-btn-editor"
             type="button"
             @click="removeItem(selectedItem.id)"
           >
-            Sil
+            <i class="pi pi-trash" /> Sil
           </button>
         </div>
-        <div v-if="selectedItem" class="panel-body editor-grid">
-          <label class="field">
-            <span>Başlık</span>
-            <input v-model.trim="selectedItem.title" class="input" />
-          </label>
-          <label class="field">
-            <span>Alt başlık</span>
-            <input v-model.trim="selectedItem.subtitle" class="input" />
-          </label>
-          <label class="field">
-            <span>Kategori</span>
-            <input v-model.trim="selectedItem.category" class="input" />
-          </label>
-          <label class="field">
-            <span>Slug</span>
-            <input v-model.trim="selectedItem.slug" class="input" />
-          </label>
-          <label class="field">
-            <span>Görsel URL</span>
-            <input v-model.trim="selectedItem.imageUrl" class="input" />
-          </label>
-          <label class="field">
-            <span>Route</span>
-            <input v-model.trim="selectedItem.route" class="input" />
-          </label>
-          <label class="field">
-            <span>Sıra</span>
-            <input v-model.number="selectedItem.order" class="input" type="number" min="1" />
-          </label>
-          <label class="field">
-            <span>Durum</span>
-            <select v-model="selectedItem.status" class="input">
-              <option value="DRAFT">Taslak</option>
-              <option value="PUBLISHED">Yayında</option>
-              <option value="ARCHIVED">Arşiv</option>
-            </select>
-          </label>
-          <label class="field field-full">
-            <span>Özet</span>
-            <textarea v-model="selectedItem.excerpt" class="textarea" rows="3" />
-          </label>
-          <label class="field field-full">
-            <span>Metin</span>
-            <textarea v-model="selectedItem.body" class="textarea" rows="8" />
-          </label>
-          <label class="field field-full">
-            <span>Etiketler (virgülle)</span>
-            <input
-              :value="selectedItem.tags.join(', ')"
-              class="input"
-              @input="handleTagsInput"
-            />
-          </label>
-          <label class="field field-full">
-            <span>Metadata (JSON)</span>
-            <textarea
-              :value="selectedItemMetadataJson"
-              class="textarea code"
-              rows="6"
-              @input="handleMetadataInput"
-            />
-          </label>
-          <p v-if="metadataError" class="error-text">{{ metadataError }}</p>
+
+        <div v-if="selectedItem" class="editor-content-scroll">
+          
+          <!-- Language Tabs -->
+          <div class="field lang-selector-field">
+            <span>İçerik Dili</span>
+            <div class="content-lang-tabs">
+              <button
+                type="button"
+                class="content-lang-tab"
+                :class="{ active: contentLanguage === 'tr' }"
+                @click="contentLanguage = 'tr'"
+              >
+                Türkçe
+              </button>
+              <button
+                type="button"
+                class="content-lang-tab"
+                :class="{ active: contentLanguage === 'en' }"
+                @click="contentLanguage = 'en'"
+              >
+                İngilizce
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 1: Genel Bilgiler -->
+          <div class="editor-section-card">
+            <div class="section-card-title">Genel Bilgiler</div>
+            <div class="editor-fields-grid">
+              <label v-if="contentLanguage === 'tr'" class="field field-full">
+                <span>Başlık (TR)</span>
+                <input v-model.trim="selectedItem.title" class="input" placeholder="İçerik başlığı (Türkçe)" />
+              </label>
+              <label v-else class="field field-full">
+                <span>Başlık (EN)</span>
+                <input v-model.trim="selectedItem.titleEn" class="input" placeholder="İçerik başlığı (İngilizce)" />
+              </label>
+              <label class="field field-full">
+                <span>Slug (Benzersiz Kimlik)</span>
+                <input v-model.trim="selectedItem.slug" class="input" placeholder="Örn: yeni-duyuru" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 2: Görsel & Yönlendirme -->
+          <div class="editor-section-card">
+            <div class="section-card-title">Görsel & Yönlendirme</div>
+            <div class="editor-fields-grid">
+              <div class="field field-full">
+                <span>Görsel</span>
+                <div v-if="selectedItem.imageUrl" class="image-preview-container">
+                  <img :src="selectedItem.imageUrl" alt="Görsel önizleme" class="image-preview" />
+                  <button class="button danger image-remove-btn" type="button" @click="removeImage">
+                    <i class="pi pi-trash" /> Görseli Kaldır
+                  </button>
+                </div>
+                <div v-else class="image-upload-dropzone" @click="triggerFileInput">
+                  <i class="pi pi-upload" />
+                  <span>{{ uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
+                  <small v-if="uploadError" class="image-upload-error">{{ uploadError }}</small>
+                </div>
+                <input
+                  ref="fileInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden-file-input"
+                  @change="handleFileChange"
+                />
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Section 3: İçerik Detayları -->
+          <div class="editor-section-card">
+            <div class="section-card-title">İçerik Detayları</div>
+            <div class="editor-fields-grid">
+              <label v-if="contentLanguage === 'tr'" class="field field-full">
+                <span>Özet / Giriş Metni (TR)</span>
+                <textarea v-model="selectedItem.excerpt" class="textarea" rows="2" placeholder="Listelerde görünecek kısa Türkçe açıklama..." />
+              </label>
+              <label v-else class="field field-full">
+                <span>Özet / Giriş Metni (EN)</span>
+                <textarea v-model="selectedItem.excerptEn" class="textarea" rows="2" placeholder="Listelerde görünecek kısa İngilizce açıklama..." />
+              </label>
+              <label v-if="contentLanguage === 'tr'" class="field field-full">
+                <span>Ana İçerik Metni (TR)</span>
+                <textarea v-model="selectedItem.body" class="textarea body-textarea" rows="8" placeholder="Türkçe duyuru veya blog içeriğini buraya yazın..." />
+              </label>
+              <label v-else class="field field-full">
+                <span>Ana İçerik Metni (EN)</span>
+                <textarea v-model="selectedItem.bodyEn" class="textarea body-textarea" rows="8" placeholder="İngilizce duyuru veya blog içeriğini buraya yazın..." />
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 4: Ayarlar & Gelişmiş -->
+          <div class="editor-section-card">
+            <div class="section-card-title">Ayarlar & Gelişmiş</div>
+            <div class="editor-fields-grid">
+              <label class="field">
+                <span>Görüntüleme Sırası</span>
+                <input v-model.number="selectedItem.order" class="input" type="number" min="1" />
+              </label>
+              <label class="field">
+                <span>Yayın Durumu</span>
+                <select v-model="selectedItem.status" class="input select-input">
+                  <option value="DRAFT">Taslak (DRAFT)</option>
+                  <option value="PUBLISHED">Yayında (PUBLISHED)</option>
+                  <option value="ARCHIVED">Arşivlendi (ARCHIVED)</option>
+                </select>
+              </label>
+              <label class="field field-full">
+                <span>Etiketler (Virgülle ayırın)</span>
+                <input
+                  :value="selectedItem.tags.join(', ')"
+                  class="input"
+                  placeholder="kampanya, haber, yeni"
+                  @input="handleTagsInput"
+                />
+              </label>
+              <label v-if="selectedCollection === 'blogs'" class="field field-full">
+                <span>Okuma Süresi (Örn: 4 dk okuma)</span>
+                <input
+                  v-if="contentLanguage === 'tr'"
+                  v-model="selectedItem.readTime"
+                  type="text"
+                  class="input"
+                  placeholder="4 dk okuma"
+                />
+                <input
+                  v-else
+                  v-model="selectedItem.readTimeEn"
+                  type="text"
+                  class="input"
+                  placeholder="4 min read"
+                />
+              </label>
+            </div>
+          </div>
+
         </div>
-        <div v-else class="panel-body">
-          <p class="muted">Soldan bir kayıt seç veya yeni kayıt ekle.</p>
+        <div v-else class="editor-empty-state">
+          <i :class="selectedCollectionDefinition.icon" class="empty-state-icon animate-pulse" />
+          <p>Lütfen düzenlemek için listeden bir kayıt seçin veya yeni bir kayıt ekleyin.</p>
         </div>
       </section>
+
     </div>
 
-    <section v-if="!loading" class="panel studio-footer">
-      <div class="panel-header">
-        <strong>Kaydet</strong>
-      </div>
-      <div class="panel-body footer-grid">
-        <label class="field field-full">
-          <span>Gerekçe</span>
-          <textarea v-model.trim="reason" class="textarea" rows="3" placeholder="Bu değişiklik neden yapılıyor?" />
-        </label>
-        <div class="footer-actions">
-          <button class="button" type="button" @click="loadDocument">Yenile</button>
-          <button class="button primary" type="button" :disabled="saving || !canSave" @click="saveDocument">
-            {{ saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet' }}
+    <!-- Global Save Bar -->
+    <section v-if="!loading && documentRef" class="panel workbench-save-footer">
+      <div class="save-footer-content">
+        <div class="reason-input-wrapper">
+          <i class="pi pi-comment comment-icon" />
+          <input
+            v-model.trim="reason"
+            type="text"
+            class="reason-input"
+            placeholder="Değişiklik Gerekçesi Girin (Min. 3 karakter) *"
+          />
+        </div>
+        <div class="save-actions">
+          <button class="button secondary btn-reset" type="button" @click="loadDocument">
+            <i class="pi pi-refresh" /> Geri Yükle
+          </button>
+          <button class="button primary btn-save" type="button" :disabled="saving || !canSave" @click="saveDocument">
+            <i v-if="saving" class="pi pi-spin pi-spinner" />
+            <i v-else class="pi pi-save" />
+            <span>{{ saving ? 'Kaydediliyor...' : 'Değişiklikleri Canlıya Al' }}</span>
           </button>
         </div>
       </div>
@@ -145,7 +267,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi, toApiMessage } from '../../services/api';
 
 type CollectionKey =
@@ -165,18 +287,19 @@ type ItemStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 interface ContentStudioItem {
   id: string;
   title: string;
-  subtitle: string;
+  titleEn: string;
   body: string;
+  bodyEn: string;
   excerpt: string;
+  excerptEn: string;
   slug: string;
   imageUrl: string;
   status: ItemStatus;
   order: number;
-  category: string;
   tags: string[];
-  route: string;
   updatedAt: string;
-  metadata: Record<string, unknown>;
+  readTime: string;
+  readTimeEn: string;
 }
 
 interface ContentStudioDocument {
@@ -187,6 +310,7 @@ interface ContentStudioDocument {
 interface CollectionDefinition {
   key: CollectionKey;
   label: string;
+  icon: string;
 }
 
 interface ContentStudioResponse {
@@ -203,28 +327,80 @@ const props = withDefaults(
 );
 
 const collectionDefinitions: CollectionDefinition[] = [
-  { key: 'contents', label: 'İçerikler' },
-  { key: 'news', label: 'Haberler' },
-  { key: 'blogs', label: 'Bloglar' },
-  { key: 'faq', label: 'SSS' },
-  { key: 'discover', label: 'Keşif' },
-  { key: 'menuManagement', label: 'Menü Yönetimi' },
-  { key: 'banners', label: 'Bannerlar' },
-  { key: 'popups', label: 'Popuplar' },
-  { key: 'polls', label: 'Anketler' },
-  { key: 'newsletters', label: 'Bültenler' },
+  { key: 'contents', label: 'İçerikler', icon: 'pi pi-file' },
+  { key: 'news', label: 'Haberler / Duyuru', icon: 'pi pi-bell' },
+  { key: 'blogs', label: 'Bloglar', icon: 'pi pi-book' },
+  { key: 'faq', label: 'SSS', icon: 'pi pi-question-circle' },
+  { key: 'discover', label: 'Keşif', icon: 'pi pi-compass' },
+  { key: 'menuManagement', label: 'Menü Yönetimi', icon: 'pi pi-bars' },
+  { key: 'banners', label: 'Bannerlar', icon: 'pi pi-images' },
+  { key: 'popups', label: 'Popuplar', icon: 'pi pi-clone' },
+  { key: 'polls', label: 'Anketler', icon: 'pi pi-chart-bar' },
+  { key: 'newsletters', label: 'Bültenler', icon: 'pi pi-envelope' },
 ];
 
 const loading = ref(false);
 const saving = ref(false);
 const error = ref<string | null>(null);
 const reason = ref('');
-const metadataError = ref<string | null>(null);
+const searchQuery = ref('');
 const documentRef = ref<ContentStudioDocument | null>(null);
 const selectedCollection = ref<CollectionKey>(
   props.featuredCollection ?? 'blogs',
 );
+const contentLanguage = ref<'tr' | 'en'>('tr');
 const selectedItemId = ref<string | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const uploading = ref(false);
+const uploadError = ref<string | null>(null);
+
+function triggerFileInput() {
+  fileInput.value?.click();
+}
+
+async function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (!files || files.length === 0) return;
+
+  const file = files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  uploading.value = true;
+  uploadError.value = null;
+
+  try {
+    const response = await adminApi.post<{ url: string }>(
+      '/admin/uploads/images?kind=content',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    if (selectedItem.value) {
+      selectedItem.value.imageUrl = response.data.url;
+    }
+  } catch (err: any) {
+    console.error(err);
+    uploadError.value = toApiMessage(err) || 'Görsel yüklenemedi. Lütfen tekrar deneyin.';
+  } finally {
+    uploading.value = false;
+    if (fileInput.value) {
+      fileInput.value.value = '';
+    }
+  }
+}
+
+function removeImage() {
+  if (selectedItem.value) {
+    selectedItem.value.imageUrl = '';
+  }
+}
+
+
 
 const availableCollections = computed(() =>
   props.featuredCollection
@@ -245,17 +421,29 @@ const selectedItems = computed(
   () => documentRef.value?.collections[selectedCollection.value] ?? [],
 );
 
+const filteredItems = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  const items = selectedItems.value;
+  if (!query) return items;
+  return items.filter(
+    (item) =>
+      (item.title && item.title.toLowerCase().includes(query)) ||
+      (item.id && item.id.toLowerCase().includes(query))
+  );
+});
+
 const selectedItem = computed(() =>
   selectedItems.value.find((item) => item.id === selectedItemId.value) ?? null,
 );
 
-const selectedItemMetadataJson = computed(() =>
-  JSON.stringify(selectedItem.value?.metadata ?? {}, null, 2),
+const canSave = computed(
+  () => reason.value.trim().length > 2 && Boolean(documentRef.value),
 );
 
-const canSave = computed(
-  () => reason.value.trim().length > 2 && !metadataError.value && Boolean(documentRef.value),
-);
+// Reset search query when collection changes
+watch(selectedCollection, () => {
+  searchQuery.value = '';
+});
 
 function selectCollection(collection: CollectionKey) {
   selectedCollection.value = collection;
@@ -274,18 +462,19 @@ function addItem() {
   const nextItem: ContentStudioItem = {
     id: `${selectedCollection.value}-${timestamp}`,
     title: 'Yeni kayıt',
-    subtitle: '',
+    titleEn: '',
     body: '',
+    bodyEn: '',
     excerpt: '',
+    excerptEn: '',
     slug: `${selectedCollection.value}-${timestamp}`,
     imageUrl: '',
     status: 'DRAFT',
     order: collection.length + 1,
-    category: '',
     tags: [],
-    route: '',
     updatedAt: new Date().toISOString(),
-    metadata: {},
+    readTime: '',
+    readTimeEn: '',
   };
   collection.unshift(nextItem);
   selectedItemId.value = nextItem.id;
@@ -293,6 +482,9 @@ function addItem() {
 
 function removeItem(itemId: string) {
   if (!documentRef.value) return;
+  const confirmation = confirm('Bu kaydı silmek istediğinizden emin misiniz?');
+  if (!confirmation) return;
+  
   const collection = documentRef.value.collections[selectedCollection.value];
   documentRef.value.collections[selectedCollection.value] = collection.filter(
     (item) => item.id !== itemId,
@@ -309,23 +501,8 @@ function updateTags(rawValue: string) {
     .filter(Boolean);
 }
 
-function updateMetadata(rawValue: string) {
-  if (!selectedItem.value) return;
-  try {
-    const parsed = JSON.parse(rawValue) as Record<string, unknown>;
-    selectedItem.value.metadata = parsed;
-    metadataError.value = null;
-  } catch {
-    metadataError.value = 'Metadata JSON geçerli değil.';
-  }
-}
-
 function handleTagsInput(event: Event) {
   updateTags((event.target as HTMLInputElement).value);
-}
-
-function handleMetadataInput(event: Event) {
-  updateMetadata((event.target as HTMLTextAreaElement).value);
 }
 
 async function loadDocument() {
@@ -373,90 +550,616 @@ onMounted(loadDocument);
 <style scoped>
 .content-studio-workbench {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
+  max-width: 100%;
 }
 
-.studio-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
-}
-
-.studio-sidebar,
-.studio-editor,
-.studio-footer,
 .loading-panel {
-  min-height: 100%;
-}
-
-.collection-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 2rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  font-size: 1.1rem;
 }
 
-.collection-list {
+.spinner-icon {
+  font-size: 2rem;
+  color: #0284c7;
+}
+
+.studio-grid-three-col {
   display: grid;
-  gap: 0.75rem;
+  gap: 1.25rem;
+  grid-template-columns: 210px 300px 1fr;
+  align-items: start;
 }
 
-.collection-item {
+.panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+/* Column 1: Collections Vertical Menu */
+.collections-panel {
+  padding: 0.75rem;
+}
+
+.panel-header-simple {
+  padding: 0.5rem 0.75rem 0.75rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.5rem;
+}
+
+.collections-list-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.collection-tab-vertical {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-weight: 500;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collection-tab-vertical:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.collection-tab-vertical.active {
+  background: #f0f9ff;
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.tab-icon {
+  font-size: 1.1rem;
+}
+
+/* Column 2: Items List */
+.items-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 750px;
+  min-height: 600px;
+}
+
+.panel-header-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.header-title strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.count-badge {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.add-new-btn {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.search-bar-container {
+  position: relative;
+  margin: 0.75rem 1.25rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.search-input {
   width: 100%;
-  border: 1px solid var(--border-color, #d6dee8);
-  border-radius: 1rem;
-  background: #fff;
-  padding: 0.9rem 1rem;
+  padding: 0.5rem 0.75rem 0.5rem 2.2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.items-scroll-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item-card-vertical {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
   text-align: left;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.collection-item.active {
-  border-color: var(--primary-color, #2563eb);
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08);
+.item-card-vertical:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
-.collection-item small {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--muted-color, #64748b);
+.item-card-vertical.active {
+  border-color: #0284c7;
+  background: #ffffff;
+  box-shadow: 0 4px 12px -2px rgba(2, 132, 199, 0.1);
 }
 
-.editor-grid {
+.item-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-right: 0.5rem;
+}
+
+.item-title {
+  font-size: 0.9rem;
+  color: #1e293b;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.item-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge.published {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-badge.draft {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-badge.archived {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+
+
+.order-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  background: #e2e8f0;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+}
+
+.item-card-vertical.active .order-badge {
+  color: #0284c7;
+  background: #e0f2fe;
+}
+
+.muted-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+/* Column 3: Editor Panel */
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 750px;
+  min-height: 600px;
+}
+
+.panel-header-editor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.editor-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.title-icon {
+  font-size: 1.25rem;
+  color: #0284c7;
+}
+
+.editor-header-title strong {
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.delete-btn-editor {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+}
+
+.editor-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: #f8fafc;
+}
+
+.editor-section-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.section-card-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #0284c7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.5rem;
+}
+
+.editor-fields-grid {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.field-full {
-  grid-column: 1 / -1;
-}
-
-.footer-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.footer-actions {
+.field {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field span {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.input, .textarea, .select-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.input:focus, .textarea:focus, .select-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.body-textarea {
+  font-family: inherit;
+  line-height: 1.5;
 }
 
 .code {
-  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #0f172a;
+  color: #38bdf8;
+  border-color: #1e293b;
 }
 
-@media (max-width: 1080px) {
-  .studio-grid {
-    grid-template-columns: 1fr;
-  }
+.error-text-json {
+  font-size: 0.8rem;
+  color: #ef4444;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
 
-  .editor-grid {
+.editor-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 2rem;
+  color: #64748b;
+  text-align: center;
+  flex: 1;
+}
+
+.empty-state-icon {
+  font-size: 3.5rem;
+  color: #cbd5e1;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+/* Global Save Bar */
+.workbench-save-footer {
+  margin-top: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.save-footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+}
+
+.reason-input-wrapper {
+  position: relative;
+  flex: 1;
+  max-width: 500px;
+}
+
+.comment-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.reason-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem 0.55rem 2.2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.reason-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.save-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-reset {
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-save {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 1200px) {
+  .studio-grid-three-col {
+    grid-template-columns: 180px 240px 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .studio-grid-three-col {
     grid-template-columns: 1fr;
   }
+  
+  .items-panel, .editor-panel {
+    max-height: none;
+  }
+  
+  .save-footer-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .reason-input-wrapper {
+    max-width: none;
+  }
+}
+
+/* Image Upload Styles */
+.image-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 12px;
+  background: #f8fafc;
+  margin-top: 4px;
+}
+
+.image-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+
+.image-upload-dropzone {
+  width: 100%;
+  min-height: 120px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.image-upload-dropzone:hover {
+  border-color: #0284c7;
+  background: #f0f9ff;
+}
+
+.image-upload-dropzone i {
+  font-size: 24px;
+  color: #64748b;
+}
+
+.image-upload-dropzone span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.image-upload-error {
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.image-remove-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.lang-selector-field {
+  padding: 0 16px;
+}
+
+.content-lang-tabs {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.content-lang-tab {
+  border: 1px solid var(--border-strong);
+  background: #f6f8fd;
+  border-radius: 7px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.6;
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+.content-lang-tab.active {
+  opacity: 1;
+  border-color: var(--brand-600);
+  background: #e8efff;
+  color: #1f3f73;
 }
 </style>
+

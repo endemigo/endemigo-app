@@ -26,6 +26,11 @@ export const styles = StyleSheet.create({
   },
   squareBody: {
     padding: Spacing.md,
+    flex: 1,
+    minHeight: 84, // Ensure identical body height across cards for price alignment
+  },
+  squareFooter: {
+    marginTop: 'auto',
   },
   squareBadge: {
     alignSelf: 'flex-start',
@@ -48,8 +53,8 @@ export const styles = StyleSheet.create({
   },
   squarePrice: {
     fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
   squareCtaHint: {
@@ -99,6 +104,7 @@ export const styles = StyleSheet.create({
   gridBody: {
     padding: Spacing.lg,
     minHeight: 108,
+    flex: 1,
   },
   gridBadge: {
     alignSelf: 'flex-start',
@@ -132,11 +138,12 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 'auto',
   },
   gridPrice: {
     fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
   gridCtaHint: {

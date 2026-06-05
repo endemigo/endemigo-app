@@ -2,7 +2,8 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Product } from '../../product/entities/product.entity';
 import { User } from '../../user/entities/user.entity';
-import { AuctionPaymentStatus, AuctionStatus, AuctionType } from '@endemigo/shared';
+import { AuctionPaymentStatus, AuctionStatus, AuctionType, AuctionApprovalStatus } from '@endemigo/shared';
+import { AuctionEvent } from './auction-event.entity';
 
 @Entity('auctions')
 export class Auction extends BaseEntity {
@@ -105,6 +106,24 @@ export class Auction extends BaseEntity {
   // ─── Oda Kapasitesi (AUCT-13) ─────────────────────────
   @Column({ nullable: true })
   roomCapacity: number;
+
+  // ─── Ortak Müzayede Etkinliği (Model 2) ───────────────
+  @Column({ type: 'uuid', nullable: true })
+  eventId: string | null;
+
+  @ManyToOne(() => AuctionEvent, { nullable: true })
+  @JoinColumn({ name: 'eventId' })
+  event: AuctionEvent | null;
+
+  @Column({
+    type: 'enum',
+    enum: AuctionApprovalStatus,
+    default: AuctionApprovalStatus.APPROVED, // legacy/standalone is auto-approved, applications start as PENDING
+  })
+  approvalStatus: AuctionApprovalStatus;
+
+  @Column({ type: 'int', nullable: true })
+  sequenceNumber: number | null;
 
   // ─── Kültür Varlığı (AUCT-18) ─────────────────────────
   @Column({ default: false })

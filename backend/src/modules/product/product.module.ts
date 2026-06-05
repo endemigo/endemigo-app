@@ -18,6 +18,9 @@ import { AdsModule } from '../ads/ads.module';
 import { TrustModule } from '../trust/trust.module';
 import { MembershipModule } from '../membership/membership.module';
 import { OrderReview } from '../order/entities/order-review.entity';
+import { ListingTemplate } from './entities/listing-template.entity';
+import { GeoIndication } from './entities/geo-indication.entity';
+import { FeatureBadge } from './entities/feature-badge.entity';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { OrderReview } from '../order/entities/order-review.entity';
       ProductVariantSku,
       Favorite,
       OrderReview,
+      ListingTemplate,
+      GeoIndication,
+      FeatureBadge,
     ]),
     AdminSettingsModule,
     UserModule,

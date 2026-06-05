@@ -52,6 +52,11 @@ export default function SettingsScreen() {
       titleKey: 'settings.legalReturnTitle',
       metaKey: 'settings.legalReturnMeta',
     },
+    {
+      slug: 'auction-terms',
+      titleKey: 'settings.legalAuctionTermsTitle',
+      metaKey: 'settings.legalAuctionTermsMeta',
+    },
   ] as const;
 
   useEffect(() => {

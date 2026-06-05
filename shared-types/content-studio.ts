@@ -34,18 +34,19 @@ export type ContentStudioMetadataValue =
 export interface ContentStudioItem {
   id: string;
   title: string;
-  subtitle: string;
+  titleEn: string;
   body: string;
+  bodyEn: string;
   excerpt: string;
+  excerptEn: string;
   slug: string;
   imageUrl: string;
   status: ContentStudioItemStatus;
   order: number;
-  category: string;
   tags: string[];
-  route: string;
   updatedAt: string;
-  metadata: Record<string, ContentStudioMetadataValue>;
+  readTime: string;
+  readTimeEn: string;
 }
 
 export interface ContentStudioCollections {
@@ -69,12 +70,15 @@ export interface ContentStudioDocument {
 export interface PublicBlogItem {
   id: string;
   title: string;
-  category: string;
+  titleEn: string;
   excerpt: string;
+  excerptEn: string;
   readTime: string;
+  readTimeEn: string;
   image: string;
   slug: string;
   body: string;
+  bodyEn: string;
   publishedAt: string;
 }
 
@@ -84,18 +88,19 @@ function createCollectionItem(
   return {
     id: item.id,
     title: item.title,
-    subtitle: item.subtitle ?? '',
+    titleEn: item.titleEn ?? '',
     body: item.body ?? '',
+    bodyEn: item.bodyEn ?? '',
     excerpt: item.excerpt ?? '',
+    excerptEn: item.excerptEn ?? '',
     slug: item.slug ?? item.id,
     imageUrl: item.imageUrl ?? '',
     status: item.status ?? 'PUBLISHED',
     order: item.order ?? 1,
-    category: item.category ?? '',
     tags: item.tags ?? [],
-    route: item.route ?? '',
     updatedAt: item.updatedAt ?? '2026-05-15T00:00:00.000Z',
-    metadata: item.metadata ?? {},
+    readTime: item.readTime ?? '',
+    readTimeEn: item.readTimeEn ?? '',
   };
 }
 
@@ -107,139 +112,136 @@ export function getDefaultContentStudioDocument(): ContentStudioDocument {
         createCollectionItem({
           id: 'content-about-endemigo',
           title: 'Endemigo Hakkinda',
-          subtitle: 'Marka anlatimi',
+          titleEn: 'About Endemigo',
           body: 'Endemigo, yerel ureticileri guvenli ticaret akislariyla bulusturan bir pazar yeridir.',
+          bodyEn: 'Endemigo is a marketplace that connects local producers with secure trade flows.',
           excerpt: 'Marka anlatimi ve temel tanitim metni.',
+          excerptEn: 'Brand story and basic introduction text.',
           slug: 'about-endemigo',
-          category: 'Landing',
-          route: '/about',
         }),
       ],
       news: [
         createCollectionItem({
           id: 'news-community-update',
           title: 'Topluluk Guncellemesi',
-          subtitle: 'Haftalik operasyon bulteni',
+          titleEn: 'Community Update',
           body: 'Bu hafta yeni satici onboarding akisi ve kampanya alanlari yayina alindi.',
+          bodyEn: 'This week, new seller onboarding flow and campaign areas were launched.',
           excerpt: 'Haftalik topluluk duyurusu.',
+          excerptEn: 'Weekly community announcement.',
           slug: 'community-update',
-          category: 'Announcement',
-          route: '/news/community-update',
         }),
       ],
       blogs: [
         createCollectionItem({
           id: 'blog-siirt-fistigi',
           title: 'Anadolu’nun Kayip Lezzetleri: Siirt Fistiginin Sirri',
-          subtitle: 'Ureticiden sofraya',
+          titleEn: 'Lost Flavors of Anatolia: The Secret of Siirt Pistachio',
           body: 'Geleneksel tarim yontemleriyle hasat edilen Siirt fistiginin lezzet katmanlarini ve saklama tüyolarini bu yazida topladik.',
+          bodyEn: 'We collected the flavor profiles and storage tips of Siirt pistachio harvested with traditional farming methods in this article.',
           excerpt: 'Geleneksel tarim yontemleriyle hasat edilen gercek Siirt fistigini nasil anlarsiniz?',
+          excerptEn: 'How to recognize authentic Siirt pistachio harvested with traditional methods?',
           slug: 'siirt-fistiginin-sirri',
           imageUrl: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=800&q=80',
-          category: 'Lezzet Sirlari',
-          route: '/blog/siirt-fistiginin-sirri',
-          metadata: { readTime: '4 dk okuma' },
+          readTime: '4 dk okuma',
+          readTimeEn: '4 min read',
         }),
         createCollectionItem({
           id: 'blog-kilim-motifleri',
           title: 'El Dokumasi Kilimlerde Motiflerin Dili',
-          subtitle: 'Anadolu motif rehberi',
+          titleEn: 'The Language of Motifs in Handwoven Rugs',
           body: 'Her renk ve geometrik sekil bir hikaye tasir. Bu rehberde en yaygin motifleri ve anlamlarini bir araya getirdik.',
+          bodyEn: 'Every color and geometric shape carries a story. In this guide, we gathered the most common motifs and their meanings.',
           excerpt: 'Anadolu kilimlerindeki her bir geometrik seklin anlami burada.',
+          excerptEn: 'The meaning of each geometric shape in Anatolian rugs is here.',
           slug: 'kilim-motiflerinin-dili',
           imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80',
-          category: 'El Sanatlari',
-          route: '/blog/kilim-motiflerinin-dili',
-          metadata: { readTime: '6 dk okuma' },
+          readTime: '6 dk okuma',
+          readTimeEn: '6 min read',
         }),
       ],
       faq: [
         createCollectionItem({
           id: 'faq-secure-shopping',
           title: 'Guvenli Alisveris Nasil Calisir?',
-          subtitle: 'Sik sorulan sorular',
+          titleEn: 'How Secure Shopping Works?',
           body: 'Escrow, onay ve teslimat akislari siparisinizi korumak icin birlikte calisir.',
+          bodyEn: 'Escrow, approval, and delivery flows work together to protect your order.',
           excerpt: 'Guvenli alisveris akisinin ozeti.',
+          excerptEn: 'Summary of the secure shopping flow.',
           slug: 'guvenli-alisveris',
-          category: 'Security',
-          route: '/faq/guvenli-alisveris',
         }),
       ],
       discover: [
         createCollectionItem({
           id: 'discover-geo-route',
           title: 'Cografi Isaretli Urun Rotasi',
-          subtitle: 'Kesif koleksiyonu',
+          titleEn: 'Geographically Indicated Products Route',
           body: 'Cografi isaretli urunleri hikayeleriyle birlikte one cikaran editor secimi.',
+          bodyEn: 'Editor choice highlighting geographically indicated products along with their stories.',
           excerpt: 'Editor secimi cografi isaret rotasi.',
+          excerptEn: 'Editor choice geographical indication route.',
           slug: 'geo-route',
-          category: 'Discovery',
-          route: '/discover/geo-route',
         }),
       ],
       menuManagement: [
         createCollectionItem({
           id: 'menu-home-primary',
           title: 'Ana Navigasyon',
-          subtitle: 'Header menusu',
+          titleEn: 'Primary Navigation',
           body: 'Ana gezinme akisi: Ana Sayfa, Kesfet, Favoriler, Hemen Al, Muzayedeler.',
+          bodyEn: 'Main navigation flow: Home, Explore, Favorites, Buy Now, Auctions.',
           excerpt: 'Primary navigation menu definition.',
+          excerptEn: 'Primary navigation menu definition.',
           slug: 'home-primary',
-          category: 'Navigation',
-          route: '/menu/home-primary',
         }),
       ],
       banners: [
         createCollectionItem({
           id: 'banner-seasonal-home',
           title: 'Sezonluk Hero Banner',
-          subtitle: 'Ana sayfa ust alani',
+          titleEn: 'Seasonal Hero Banner',
           body: 'Yerel ureticilerin sezonluk secileri icin hero banner copy.',
+          bodyEn: 'Hero banner copy for local producers seasonal selections.',
           excerpt: 'Hero banner copy and image pair.',
-          imageUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
+          excerptEn: 'Hero banner copy and image pair.',
           slug: 'seasonal-home',
-          category: 'Homepage Hero',
-          route: '/banner/seasonal-home',
         }),
       ],
       popups: [
         createCollectionItem({
           id: 'popup-first-order',
           title: 'Ilk Siparis Popup',
-          subtitle: 'Donusum popup',
+          titleEn: 'First Order Popup',
           body: 'Ilk siparisini veren kullanicilara odul hatirlatmasi.',
+          bodyEn: 'Reward reminder for users placing their first order.',
           excerpt: 'First order popup copy.',
+          excerptEn: 'First order popup copy.',
           slug: 'first-order',
-          category: 'Growth',
-          route: '/popup/first-order',
         }),
       ],
       polls: [
         createCollectionItem({
           id: 'poll-campaign-interest',
           title: 'Kampanya Ilgi Anketi',
-          subtitle: 'Onboarding soru seti',
+          titleEn: 'Campaign Interest Poll',
           body: 'Kullanicilarin hangi kampanya tiplerine ilgi gosterdigini olcen mini anket.',
+          bodyEn: 'Mini poll measuring users interest in campaign types.',
           excerpt: 'Campaign interest poll.',
+          excerptEn: 'Campaign interest poll.',
           slug: 'campaign-interest',
-          category: 'Survey',
-          route: '/poll/campaign-interest',
         }),
       ],
       newsletters: [
         createCollectionItem({
           id: 'newsletter-weekly-highlights',
           title: 'Haftalik Kesif Ozetleri',
-          subtitle: 'E-bulten akisi',
+          titleEn: 'Weekly Discovery Highlights',
           body: 'Haftanin one cikan urunleri, muzayedeleri ve blog hikayelerini tek e-postada toplar.',
+          bodyEn: 'Gathers featured products, auctions, and blog stories of the week in a single email.',
           excerpt: 'Weekly editorial newsletter.',
+          excerptEn: 'Weekly editorial newsletter.',
           slug: 'weekly-highlights',
-          category: 'Email',
-          route: '/newsletter/weekly-highlights',
-          metadata: {
-            segment: 'buyers',
-            subject: 'Haftanin one cikan secileri',
-          },
         }),
       ],
     },
@@ -253,19 +255,19 @@ function isContentStudioItem(value: unknown): value is ContentStudioItem {
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.title === 'string' &&
-    typeof candidate.subtitle === 'string' &&
+    typeof candidate.titleEn === 'string' &&
     typeof candidate.body === 'string' &&
+    typeof candidate.bodyEn === 'string' &&
     typeof candidate.excerpt === 'string' &&
+    typeof candidate.excerptEn === 'string' &&
     typeof candidate.slug === 'string' &&
     typeof candidate.imageUrl === 'string' &&
     typeof candidate.status === 'string' &&
     typeof candidate.order === 'number' &&
-    typeof candidate.category === 'string' &&
     Array.isArray(candidate.tags) &&
-    typeof candidate.route === 'string' &&
     typeof candidate.updatedAt === 'string' &&
-    candidate.metadata !== null &&
-    typeof candidate.metadata === 'object'
+    typeof candidate.readTime === 'string' &&
+    typeof candidate.readTimeEn === 'string'
   );
 }
 

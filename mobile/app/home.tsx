@@ -11,10 +11,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMobileConfig } from '../hooks/useMobileConfig';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../hooks/useProducts';
 import { Colors, Spacing } from '../constants/theme';
-import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, HomeQuickTabBar } from '../components/ui';
+import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, HomeQuickTabBar, DynamicBannerWidget } from '../components/ui';
 import { storage } from '../lib/storage';
 import { useAuthStore } from '../store/authStore';
 import { useRoleModeStore } from '../store/roleModeStore';
@@ -92,6 +93,7 @@ const CATEGORY_MOCK_IMAGES: Record<string, string[]> = {
     'https://images.unsplash.com/photo-1463320726281-696a485928c7?w=700&q=80',
   ],
 };
+
 const LISTING_BANNER_ROWS = [
   [
     'https://images.unsplash.com/photo-1542838132-92c53300491e?w=900&q=80',
@@ -108,6 +110,7 @@ const LISTING_BANNER_ROWS = [
     'https://images.unsplash.com/photo-1528825871115-3581a5387919?w=900&q=80',
   ],
 ] as const;
+
 const TRUST_POINT_KEYS = [
   'home.trustPointGuarantee',
   'home.trustPointCertification',
@@ -146,14 +149,6 @@ const createFallbackHeroBanners = (t: (key: string) => string) => [
     image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
   },
   {
-    id: 'b2',
-    badge: t('home.fallbackBanner2Badge'),
-    title: t('home.fallbackBanner2Title'),
-    subtitle: t('home.fallbackBanner2Subtitle'),
-    bg: Colors.auctionGreen,
-    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80',
-  },
-  {
     id: 'b3',
     badge: t('home.fallbackBanner3Badge'),
     title: t('home.fallbackBanner3Title'),
@@ -190,8 +185,22 @@ const createFallbackPromoBanners = (t: (key: string) => string) => [
 export default function HomeScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const { data: mobileConfigData } = useMobileConfig();
-  const { data, isLoading, refetch, isRefetching } = useProducts(1);
+  const { data, isLoading, isRefetching } = useProducts(1);
   const { data: categories } = useCategories();
   const { data: discountedProducts } = useDiscountedProducts();
   const { data: mostLikedProducts } = useMostLikedProducts();
@@ -346,26 +355,22 @@ export default function HomeScreen() {
   );
 
   const orderedHomeModules = React.useMemo(() => {
-    const configuredModuleIds = homeSurfaceSlots
-      .map((slot) => slot.id)
-      .filter((id): id is MobileHomeSurfaceSlotId =>
-        (MOBILE_HOME_SURFACE_SLOT_IDS as readonly string[]).includes(id),
-      );
+    const configuredModuleIds = homeSurfaceSlots.map((slot) => slot.id);
     const missingDefaultModuleIds = MOBILE_HOME_SURFACE_SLOT_IDS.filter(
       (id) => !configuredModuleIds.includes(id),
     );
     return [...configuredModuleIds, ...missingDefaultModuleIds];
   }, [homeSurfaceSlots]);
 
-  function isHomeModuleVisible(moduleId: MobileHomeSurfaceSlotId): boolean {
+  function isHomeModuleVisible(moduleId: string): boolean {
     const slot = homeSurfaceSlotMap.get(moduleId);
     if (!slot) {
-      return true;
+      return (MOBILE_HOME_SURFACE_SLOT_IDS as readonly string[]).includes(moduleId);
     }
     return slot.enabled && isAudienceVisible(slot.audiences, audience);
   }
 
-  function renderHomeModule(moduleId: MobileHomeSurfaceSlotId): React.ReactNode {
+  function renderHomeModule(moduleId: string): React.ReactNode {
     if (!isHomeModuleVisible(moduleId)) {
       return null;
     }
@@ -537,24 +542,7 @@ export default function HomeScreen() {
               </Text>
               <Ionicons name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
-            {LISTING_BANNER_ROWS.map((row, rowIndex) => (
-              <ScrollView
-                key={`listing-banner-row-${rowIndex}`}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listingBannerRow}
-              >
-                {row.map((imageUri, bannerIndex) => (
-                  <TouchableOpacity
-                    key={`${rowIndex}-${bannerIndex}`}
-                    style={styles.listingBannerCard}
-                    activeOpacity={0.9}
-                  >
-                    <Image source={{ uri: imageUri }} style={styles.listingBannerImage} resizeMode="cover" />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            ))}
+
           </React.Fragment>
         ) : null;
       case 'home-categories':
@@ -901,8 +889,19 @@ export default function HomeScreen() {
         ) : null;
       case 'home-quick-tab-bar':
         return null;
-      default:
+      default: {
+        const slot = homeSurfaceSlotMap.get(moduleId);
+        if (slot && slot.bannerId) {
+          return (
+            <DynamicBannerWidget
+              key={moduleId}
+              bannerId={slot.bannerId}
+              title={resolveLocalizedText(slot.title, mobileLocale, '')}
+            />
+          );
+        }
         return null;
+      }
     }
   }
 
@@ -921,8 +920,8 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={refreshing || isRefetching}
+            onRefresh={onRefresh}
             tintColor={Colors.primary}
           />
         }

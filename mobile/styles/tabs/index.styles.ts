@@ -400,7 +400,8 @@ export const styles = StyleSheet.create({
   },
   recentPrice: {
     fontSize: FontSize.caption,
-    fontFamily: FontFamily.headlineBlack,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
 
@@ -472,7 +473,8 @@ export const styles = StyleSheet.create({
   },
   listingPrice: {
     fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.headlineBlack,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
   listingSeeAllButton: {
@@ -627,8 +629,8 @@ export const styles = StyleSheet.create({
   },
   productPrice: {
     fontSize: FontSize.body,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
 
@@ -1037,8 +1039,8 @@ export const styles = StyleSheet.create({
   },
   squareCardPrice: {
     fontSize: FontSize.body,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     color: Colors.onSurface,
   },
 });

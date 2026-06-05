@@ -24,12 +24,15 @@ type BlogListResponse = ApiResponseEnvelope & { items: ProductBlog[] };
 type ProductBlog = {
   id: string | number;
   title: string;
-  category: string;
+  titleEn?: string;
   excerpt: string;
+  excerptEn?: string;
   readTime: string;
+  readTimeEn?: string;
   image?: string;
   slug?: string;
   body?: string;
+  bodyEn?: string;
   publishedAt?: string;
 };
 

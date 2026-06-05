@@ -394,8 +394,7 @@ export const MOCK_BLOGS = [
     excerpt: 'Geleneksel tarım yöntemleriyle hasat edilen gerçek Siirt fıstığını nasıl anlarsınız? Ustalarından püf noktalar.',
     image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=800&q=80',
     date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    readTime: '4 dk okuma',
-    category: 'Lezzet Sırları'
+    readTime: '4 dk okuma'
   },
   {
     id: 'blog-2',
@@ -403,8 +402,7 @@ export const MOCK_BLOGS = [
     excerpt: 'Anadolu kilimlerindeki her bir geometrik şekil ve rengin bir hikayesi var. İşte en yaygın motifler ve anlamları.',
     image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80',
     date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    readTime: '6 dk okuma',
-    category: 'El Sanatları'
+    readTime: '6 dk okuma'
   },
   {
     id: 'blog-3',
@@ -412,8 +410,7 @@ export const MOCK_BLOGS = [
     excerpt: 'Piyasadaki sahte zeytinyağlarından korunmanın yolları ve evde yapabileceğiniz basit testler.',
     image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=800&q=80',
     date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    readTime: '5 dk okuma',
-    category: 'Rehber'
+    readTime: '5 dk okuma'
   }
 ];
 

@@ -24,6 +24,9 @@ import {
   parseUnknownMoney,
   NegotiationStatus,
   NegotiationMessageType,
+  AuctionEventStatus,
+  AuctionApprovalStatus,
+  AuctionType,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { User } from '../user/entities/user.entity';
@@ -37,8 +40,12 @@ import { ProductImage } from '../product/entities/product-image.entity';
 import { VariantNumber } from '../product/entities/variant-number.entity';
 import { Category } from '../product/entities/category.entity';
 import { Brand } from '../product/entities/brand.entity';
+import { ListingTemplate } from '../product/entities/listing-template.entity';
+import { GeoIndication } from '../product/entities/geo-indication.entity';
+import { FeatureBadge } from '../product/entities/feature-badge.entity';
 import { Auction } from '../auction/entities/auction.entity';
 import { Bid } from '../auction/entities/bid.entity';
+import { AuctionEvent } from '../auction/entities/auction-event.entity';
 import { Order } from '../order/entities/order.entity';
 import { Payment } from '../payment/entities/payment.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -80,7 +87,11 @@ type AdminResource =
   | 'payments'
   | 'bids'
   | 'payout-requests'
-  | 'negotiations';
+  | 'negotiations'
+  | 'listing-templates'
+  | 'auction-events'
+  | 'geo-indications'
+  | 'feature-badges';
 
 interface CreatedEntity {
   id: string;
@@ -431,6 +442,8 @@ export class AdminOperationsService {
     private readonly brandRepo: Repository<Brand>,
     @InjectRepository(Auction)
     private readonly auctionRepo: Repository<Auction>,
+    @InjectRepository(AuctionEvent)
+    private readonly auctionEventRepo: Repository<AuctionEvent>,
     @InjectRepository(Bid) private readonly bidRepo: Repository<Bid>,
     @InjectRepository(Order) private readonly orderRepo: Repository<Order>,
     @InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
@@ -447,6 +460,12 @@ export class AdminOperationsService {
     private readonly messageRepo: Repository<NegotiationMessage>,
     @InjectRepository(ViolationLog)
     private readonly violationLogRepo: Repository<ViolationLog>,
+    @InjectRepository(ListingTemplate)
+    private readonly listingTemplateRepo: Repository<ListingTemplate>,
+    @InjectRepository(GeoIndication)
+    private readonly geoIndicationRepo: Repository<GeoIndication>,
+    @InjectRepository(FeatureBadge)
+    private readonly featureBadgeRepo: Repository<FeatureBadge>,
     private readonly adminAuditService: AdminAuditService,
     @Optional()
     @Inject(STORAGE_SERVICE)
@@ -605,6 +624,9 @@ export class AdminOperationsService {
     if (resource === 'negotiations') {
       return this.listNegotiations(query);
     }
+    if (resource === 'auction-events') {
+      return this.listAuctionEvents(query);
+    }
     const repo = this.getRepo(resource);
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
@@ -648,6 +670,9 @@ export class AdminOperationsService {
     }
     if (resource === 'negotiations') {
       return this.detailNegotiation(id);
+    }
+    if (resource === 'auction-events') {
+      return this.detailAuctionEvent(id);
     }
 
     const repo = this.getRepo(resource);
@@ -2234,6 +2259,7 @@ export class AdminOperationsService {
       bidCount,
       paymentCount,
       grossSalesRaw,
+      negotiationCount,
       orders,
       buyers,
       favorites,
@@ -2241,6 +2267,7 @@ export class AdminOperationsService {
       auctions,
       bids,
       payments,
+      negotiations,
     ] = await Promise.all([
       this.orderRepo.count({ where: { productId: id } }),
       this.orderRepo.count({ where: { productId: id, status: OrderStatus.COMPLETED } }),
@@ -2273,6 +2300,7 @@ export class AdminOperationsService {
         .select('COALESCE(SUM(order.amount), 0)', 'value')
         .where('CAST(order.productId AS text) = :productId', { productId: id })
         .getRawOne<{ value: string | number | null }>(),
+      this.conversationRepo.count({ where: { productId: id } }),
       this.loadProductOrders(id, 1, initialLimit),
       this.loadProductBuyers(id, initialLimit),
       this.loadProductFavorites(id, initialLimit),
@@ -2284,6 +2312,7 @@ export class AdminOperationsService {
       }),
       this.loadProductBids(id, initialLimit),
       this.loadProductPayments(id, initialLimit),
+      this.loadProductNegotiations(id, initialLimit),
     ]);
 
     const auctionRows: SellerAuctionRow[] = auctions.map((auction) => ({
@@ -2380,6 +2409,7 @@ export class AdminOperationsService {
           bidCount,
           paymentCount,
           grossSales: Number(grossSalesRaw?.value ?? 0),
+          negotiationCount,
         },
         orders,
         buyers,
@@ -2388,6 +2418,7 @@ export class AdminOperationsService {
         auctions: auctionRows,
         bids,
         payments,
+        negotiations,
       },
       audit: {
         targetType: this.toTargetType('products'),
@@ -3013,15 +3044,16 @@ export class AdminOperationsService {
     const payload = this.actionPayload<Partial<Category>>(dto);
     const category = new Category();
     category.name = payload.name ?? 'Kategori';
-    category.slug = payload.slug ?? this.slugify(category.name);
+    const rawSlug = payload.slug?.trim() ? payload.slug : category.name;
+    category.slug = await this.generateUniqueSlug(this.categoryRepo, rawSlug);
     if (payload.description !== undefined) category.description = payload.description;
     if (payload.imageUrl !== undefined) category.imageUrl = payload.imageUrl;
     if (payload.parentId !== undefined) {
       category.parentId = payload.parentId?.trim() ? payload.parentId : null;
     }
-    category.sortOrder = payload.sortOrder ?? 0;
-    category.isActive = payload.isActive ?? true;
-    category.isCulturalAsset = payload.isCulturalAsset ?? false;
+    category.sortOrder = this.toNumber(payload.sortOrder, 0);
+    category.isActive = this.toBoolean(payload.isActive, true);
+    category.isCulturalAsset = this.toBoolean(payload.isCulturalAsset, false);
     category.metadata = await this.buildCategoryMetadata(
       payload as unknown as Record<string, unknown>,
       {},
@@ -3035,17 +3067,29 @@ export class AdminOperationsService {
     const payload = this.actionPayload<Partial<Category>>(dto);
     const category = await this.findOneOrFail(this.categoryRepo, id);
     const before = { ...category };
+    
+    const rawSlug = payload.slug !== undefined
+      ? (payload.slug?.trim() ? payload.slug : payload.name ?? category.name)
+      : category.slug;
+    const finalSlug = await this.generateUniqueSlug(this.categoryRepo, rawSlug, id);
+
     Object.assign(category, {
       name: payload.name ?? category.name,
-      slug: payload.slug ?? category.slug,
+      slug: finalSlug,
       description: payload.description ?? category.description,
       imageUrl: payload.imageUrl ?? category.imageUrl,
       parentId: payload.parentId !== undefined
         ? (payload.parentId?.trim() ? payload.parentId : null)
         : category.parentId,
-      sortOrder: payload.sortOrder ?? category.sortOrder,
-      isActive: payload.isActive ?? category.isActive,
-      isCulturalAsset: payload.isCulturalAsset ?? category.isCulturalAsset,
+      sortOrder: payload.sortOrder !== undefined
+        ? this.toNumber(payload.sortOrder, category.sortOrder)
+        : category.sortOrder,
+      isActive: payload.isActive !== undefined
+        ? this.toBoolean(payload.isActive, category.isActive)
+        : category.isActive,
+      isCulturalAsset: payload.isCulturalAsset !== undefined
+        ? this.toBoolean(payload.isCulturalAsset, category.isCulturalAsset)
+        : category.isCulturalAsset,
     });
     category.metadata = await this.buildCategoryMetadata(
       payload as unknown as Record<string, unknown>,
@@ -3071,7 +3115,8 @@ export class AdminOperationsService {
     const payload = this.actionPayload<Partial<Brand>>(dto);
     const brand = new Brand();
     brand.name = payload.name ?? 'Marka';
-    brand.slug = payload.slug ?? this.slugify(brand.name);
+    const rawSlug = payload.slug?.trim() ? payload.slug : brand.name;
+    brand.slug = await this.generateUniqueSlug(this.brandRepo, rawSlug);
     brand.isActive = this.toBoolean(payload.isActive, true);
     const saved = await this.brandRepo.save(brand);
     await this.record(actor, AdminAuditAction.BRAND_CREATED, 'CATEGORY', saved.id, dto, {}, this.toRecord(saved));
@@ -3082,9 +3127,15 @@ export class AdminOperationsService {
     const payload = this.actionPayload<Partial<Brand>>(dto);
     const brand = await this.findOneOrFail(this.brandRepo, id);
     const before = { ...brand };
+    
+    const rawSlug = payload.slug !== undefined
+      ? (payload.slug?.trim() ? payload.slug : payload.name ?? brand.name)
+      : brand.slug;
+    const finalSlug = await this.generateUniqueSlug(this.brandRepo, rawSlug, id);
+
     Object.assign(brand, {
       name: payload.name ?? brand.name,
-      slug: payload.slug ?? brand.slug,
+      slug: finalSlug,
       isActive:
         payload.isActive === undefined
           ? brand.isActive
@@ -3104,6 +3155,180 @@ export class AdminOperationsService {
       isActive: false,
     });
     return { code: RC.SUCCESS, message: 'Marka pasifleştirildi', brand };
+  }
+
+  async createGeoIndication(dto: AdminActionDto & Partial<GeoIndication>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<GeoIndication>>(dto);
+    const gi = new GeoIndication();
+    gi.name = payload.name ?? 'Yeni Coğrafi İşaret';
+    gi.nameEn = payload.nameEn ?? gi.name;
+    gi.type = payload.type ?? 'PDO';
+    gi.code = payload.code?.trim() || null;
+    gi.description = payload.description || null;
+    gi.descriptionEn = payload.descriptionEn || null;
+    gi.logoUrl = payload.logoUrl || null;
+    gi.issuer = payload.issuer || null;
+    gi.registrationUrl = payload.registrationUrl || null;
+    gi.isActive = this.toBoolean(payload.isActive, true);
+
+    const saved = await this.geoIndicationRepo.save(gi);
+    await this.record(actor, AdminAuditAction.CATEGORY_CREATED, 'CATEGORY', saved.id, dto, {}, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Coğrafi işaret oluşturuldu', geoIndication: saved };
+  }
+
+  async updateGeoIndication(id: string, dto: AdminActionDto & Partial<GeoIndication>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<GeoIndication>>(dto);
+    const gi = await this.findOneOrFail(this.geoIndicationRepo, id);
+    const before = { ...gi };
+
+    Object.assign(gi, {
+      name: payload.name ?? gi.name,
+      nameEn: payload.nameEn ?? gi.nameEn,
+      type: payload.type ?? gi.type,
+      code: payload.code !== undefined ? (payload.code?.trim() || null) : gi.code,
+      description: payload.description !== undefined ? payload.description : gi.description,
+      descriptionEn: payload.descriptionEn !== undefined ? payload.descriptionEn : gi.descriptionEn,
+      logoUrl: payload.logoUrl !== undefined ? payload.logoUrl : gi.logoUrl,
+      issuer: payload.issuer !== undefined ? payload.issuer : gi.issuer,
+      registrationUrl: payload.registrationUrl !== undefined ? payload.registrationUrl : gi.registrationUrl,
+      isActive: payload.isActive === undefined ? gi.isActive : this.toBoolean(payload.isActive, gi.isActive),
+    });
+
+    const saved = await this.geoIndicationRepo.save(gi);
+    await this.record(actor, AdminAuditAction.CATEGORY_UPDATED, 'CATEGORY', id, dto, before, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Coğrafi işaret güncellendi', geoIndication: saved };
+  }
+
+  async deleteGeoIndication(id: string, dto: AdminActionDto, actor: AdminActor) {
+    const gi = await this.findOneOrFail(this.geoIndicationRepo, id);
+    const before = { ...gi };
+    gi.isActive = false;
+    await this.geoIndicationRepo.save(gi);
+    await this.record(actor, AdminAuditAction.CATEGORY_DELETED, 'CATEGORY', id, dto, before, {
+      isActive: false,
+    });
+    return { code: RC.SUCCESS, message: 'Coğrafi işaret pasifleştirildi', geoIndication: gi };
+  }
+
+  async createFeatureBadge(dto: AdminActionDto & Partial<FeatureBadge>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<FeatureBadge>>(dto);
+    const fb = new FeatureBadge();
+    fb.name = payload.name ?? 'Yeni Özellik';
+    fb.nameEn = payload.nameEn ?? fb.name;
+    fb.code = payload.code?.trim() || null;
+    fb.logoUrl = payload.logoUrl || null;
+    fb.isActive = this.toBoolean(payload.isActive, true);
+
+    const saved = await this.featureBadgeRepo.save(fb);
+    await this.record(actor, AdminAuditAction.CATEGORY_CREATED, 'CATEGORY', saved.id, dto, {}, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Özellik rozeti oluşturuldu', featureBadge: saved };
+  }
+
+  async updateFeatureBadge(id: string, dto: AdminActionDto & Partial<FeatureBadge>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<FeatureBadge>>(dto);
+    const fb = await this.findOneOrFail(this.featureBadgeRepo, id);
+    const before = { ...fb };
+
+    Object.assign(fb, {
+      name: payload.name ?? fb.name,
+      nameEn: payload.nameEn ?? fb.nameEn,
+      code: payload.code !== undefined ? (payload.code?.trim() || null) : fb.code,
+      logoUrl: payload.logoUrl !== undefined ? payload.logoUrl : fb.logoUrl,
+      isActive: payload.isActive === undefined ? fb.isActive : this.toBoolean(payload.isActive, fb.isActive),
+    });
+
+    const saved = await this.featureBadgeRepo.save(fb);
+    await this.record(actor, AdminAuditAction.CATEGORY_UPDATED, 'CATEGORY', id, dto, before, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Özellik rozeti güncellendi', featureBadge: saved };
+  }
+
+  async deleteFeatureBadge(id: string, dto: AdminActionDto, actor: AdminActor) {
+    const fb = await this.findOneOrFail(this.featureBadgeRepo, id);
+    const before = { ...fb };
+    fb.isActive = false;
+    await this.featureBadgeRepo.save(fb);
+    await this.record(actor, AdminAuditAction.CATEGORY_DELETED, 'CATEGORY', id, dto, before, {
+      isActive: false,
+    });
+    return { code: RC.SUCCESS, message: 'Özellik rozeti pasifleştirildi', featureBadge: fb };
+  }
+
+  async createListingTemplate(dto: AdminActionDto & Partial<ListingTemplate>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<ListingTemplate>>(dto);
+    const template = new ListingTemplate();
+    template.name = payload.name ?? 'Yeni Şablon';
+    template.description = payload.description ?? '';
+    
+    let fields = payload.fields ?? [];
+    if (typeof fields === 'string') {
+      try {
+        fields = JSON.parse(fields);
+      } catch (e) {
+        fields = [];
+      }
+    }
+    template.fields = Array.isArray(fields) ? fields : [];
+
+    let variant = payload.variant ?? { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 };
+    if (typeof variant === 'string') {
+      try {
+        variant = JSON.parse(variant);
+      } catch (e) {
+        variant = { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 };
+      }
+    }
+    template.variant = variant;
+
+    const saved = await this.listingTemplateRepo.save(template);
+    await this.record(actor, AdminAuditAction.CATEGORY_CREATED, 'CATEGORY', saved.id, dto, {}, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'İlan şablonu oluşturuldu', listingTemplate: saved };
+  }
+
+  async updateListingTemplate(id: string, dto: AdminActionDto & Partial<ListingTemplate>, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<ListingTemplate>>(dto);
+    const template = await this.findOneOrFail(this.listingTemplateRepo, id);
+    const before = { ...template };
+
+    let fields = payload.fields;
+    if (fields !== undefined) {
+      if (typeof fields === 'string') {
+        try {
+          fields = JSON.parse(fields);
+        } catch (e) {
+          fields = [];
+        }
+      }
+      template.fields = Array.isArray(fields) ? fields : [];
+    }
+
+    let variant = payload.variant;
+    if (variant !== undefined) {
+      if (typeof variant === 'string') {
+        try {
+          variant = JSON.parse(variant);
+        } catch (e) {
+          // ignore
+        }
+      }
+      template.variant = typeof variant === 'object' ? variant : template.variant;
+    }
+
+    template.name = payload.name ?? template.name;
+    template.description = payload.description !== undefined ? payload.description : template.description;
+
+    const saved = await this.listingTemplateRepo.save(template);
+    await this.record(actor, AdminAuditAction.CATEGORY_UPDATED, 'CATEGORY', id, dto, before, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'İlan şablonu güncellendi', listingTemplate: saved };
+  }
+
+  async deleteListingTemplate(id: string, dto: AdminActionDto, actor: AdminActor) {
+    const template = await this.findOneOrFail(this.listingTemplateRepo, id);
+    const before = { ...template };
+    await this.listingTemplateRepo.softRemove(template);
+    await this.record(actor, AdminAuditAction.CATEGORY_DELETED, 'CATEGORY', id, dto, before, {
+      deletedAt: new Date(),
+    });
+    return { code: RC.SUCCESS, message: 'İlan şablonu silindi' };
   }
 
   private async reviewPayout(
@@ -3149,12 +3374,26 @@ export class AdminOperationsService {
     // Queue kartlarında sadece id/tarih kullanılıyor. Legacy ortamlarda entity'de
     // tanımlı ama DB'de henüz olmayan kolonlar (örn. returnReasonCode) nedeniyle
     // tüm kolonu seçmek 500 üretebildiği için minimal select kullanıyoruz.
+    const entityName = repo.metadata?.name;
+    const additionalSelect: Record<string, boolean> = {};
+    if (entityName === 'SellerProfile') {
+      additionalSelect.businessName = true;
+      additionalSelect.userId = true;
+    } else if (entityName === 'Order') {
+      additionalSelect.amount = true;
+      additionalSelect.currency = true;
+    } else if (entityName === 'Payment') {
+      additionalSelect.amount = true;
+      additionalSelect.currency = true;
+    }
+
     const [latest, count] = await Promise.all([
       repo.find({
         where,
         select: {
           id: true,
           createdAt: true,
+          ...additionalSelect,
         } as unknown as FindManyOptions<T>['select'],
         order: { createdAt: 'DESC' },
         take: 5,
@@ -3541,6 +3780,62 @@ export class AdminOperationsService {
     }));
   }
 
+  private async loadProductNegotiations(productId: string, limit = 25) {
+    const rows = await this.conversationRepo
+      .createQueryBuilder('conv')
+      .leftJoin(User, 'buyer', 'CAST(buyer.id AS text) = CAST(conv.buyerId AS text)')
+      .leftJoin(User, 'seller', 'CAST(seller.id AS text) = CAST(conv.sellerId AS text)')
+      .where('CAST(conv.productId AS text) = :productId', { productId })
+      .orderBy('conv.createdAt', 'DESC')
+      .take(limit)
+      .select([
+        'conv.id as id',
+        'conv.buyerId as "buyerId"',
+        'conv.sellerId as "sellerId"',
+        'conv.status as status',
+        'conv.quantity as quantity',
+        'conv.createdAt as "createdAt"',
+        'conv.lastActivityAt as "lastActivityAt"',
+        'conv.updatedAt as "updatedAt"',
+        'buyer.firstName as "buyerFirstName"',
+        'buyer.lastName as "buyerLastName"',
+        'buyer.email as "buyerEmail"',
+        'seller.firstName as "sellerFirstName"',
+        'seller.lastName as "sellerLastName"',
+        'seller.email as "sellerEmail"',
+      ])
+      .getRawMany<{
+        id: string;
+        buyerId: string;
+        sellerId: string;
+        status: string;
+        quantity: string | number;
+        createdAt: Date | string;
+        lastActivityAt: Date | string | null;
+        updatedAt: Date | string;
+        buyerFirstName: string | null;
+        buyerLastName: string | null;
+        buyerEmail: string | null;
+        sellerFirstName: string | null;
+        sellerLastName: string | null;
+        sellerEmail: string | null;
+      }>();
+
+    return rows.map((row) => ({
+      id: row.id,
+      buyerId: row.buyerId,
+      buyerName: this.formatFullName(row.buyerFirstName, row.buyerLastName) || row.buyerEmail || row.buyerId,
+      buyerEmail: row.buyerEmail ?? '',
+      sellerId: row.sellerId,
+      sellerName: this.formatFullName(row.sellerFirstName, row.sellerLastName) || row.sellerEmail || row.sellerId,
+      sellerEmail: row.sellerEmail ?? '',
+      status: row.status,
+      quantity: Number(row.quantity ?? 1),
+      createdAt: this.toIsoDate(row.createdAt),
+      updatedAt: this.toIsoDate(row.lastActivityAt || row.updatedAt),
+    }));
+  }
+
   private async loadCouponUsageMap(couponIds: string[]): Promise<Map<string, number>> {
     if (couponIds.length === 0) {
       return new Map();
@@ -3695,6 +3990,10 @@ export class AdminOperationsService {
       bids: this.bidRepo as unknown as Repository<CreatedEntity>,
       'payout-requests': this.payoutRequestRepo as unknown as Repository<CreatedEntity>,
       negotiations: this.conversationRepo as unknown as Repository<CreatedEntity>,
+      'auction-events': this.auctionEventRepo as unknown as Repository<CreatedEntity>,
+      'listing-templates': this.listingTemplateRepo as unknown as Repository<CreatedEntity>,
+      'geo-indications': this.geoIndicationRepo as unknown as Repository<CreatedEntity>,
+      'feature-badges': this.featureBadgeRepo as unknown as Repository<CreatedEntity>,
     };
     return repos[resource];
   }
@@ -3783,6 +4082,25 @@ export class AdminOperationsService {
     }
     if (variationOptionIds !== undefined) {
       merged.variationOptionIds = variationOptionIds;
+    }
+    if (payload.listingTemplate !== undefined && payload.listingTemplate !== null) {
+      if (typeof payload.listingTemplate === 'string') {
+        const trimmed = payload.listingTemplate.trim();
+        if (trimmed) {
+          try {
+            merged.listingTemplate = JSON.parse(trimmed);
+          } catch (e) {
+            merged.listingTemplate = trimmed;
+          }
+        }
+      } else {
+        merged.listingTemplate = payload.listingTemplate;
+      }
+    }
+    if (payload.templateId !== undefined) {
+      merged.templateId = typeof payload.templateId === 'string' && payload.templateId.trim()
+        ? payload.templateId
+        : null;
     }
     return merged;
   }
@@ -4346,6 +4664,45 @@ export class AdminOperationsService {
       .replace(/^-|-$/g, '');
   }
 
+  private async generateUniqueSlug(
+    repo: Repository<any>,
+    name: string,
+    excludeId?: string,
+  ): Promise<string> {
+    const baseSlug = name
+      .trim()
+      .toLowerCase()
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ı/g, 'i')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    let slug = baseSlug || 'name';
+    let counter = 1;
+    
+    while (true) {
+      const query = repo.createQueryBuilder('entity')
+        .where('entity.slug = :slug', { slug });
+        
+      if (excludeId) {
+        query.andWhere('entity.id != :excludeId', { excludeId });
+      }
+      
+      const exists = await query.getOne();
+      if (!exists) {
+        break;
+      }
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    return slug;
+  }
+
   private toRecord(entity: object): Record<string, unknown> {
     return { ...entity };
   }
@@ -4389,5 +4746,232 @@ export class AdminOperationsService {
 
   private toBooleanValue(value: unknown): boolean {
     return value === true || value === 'true' || value === 1 || value === '1';
+  }
+
+  // ─── Ortak Müzayede Etkinliği (Model 2) Servis Fonksiyonları ───
+
+  async createAuctionEvent(dto: AdminActionDto, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<AuctionEvent>>(dto);
+    if (!payload.title || !payload.startTime || !payload.endTime) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Başlık, başlangıç ve bitiş zamanı zorunludur',
+      });
+    }
+
+    const event = new AuctionEvent();
+    event.title = payload.title;
+    event.description = payload.description ?? null;
+    event.coverImageUrl = payload.coverImageUrl ?? null;
+    event.status = payload.status || AuctionEventStatus.DRAFT;
+    event.auctionType = payload.auctionType || AuctionType.REALTIME;
+    event.startTime = new Date(payload.startTime);
+    event.endTime = new Date(payload.endTime);
+    event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
+    event.activeLotId = null;
+
+    const saved = await this.auctionEventRepo.save(event);
+    await this.record(actor, AdminAuditAction.AUCTION_EVENT_CREATED, 'AUCTION_EVENT', saved.id, dto, {}, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Müzayede etkinliği oluşturuldu', event: saved };
+  }
+
+  async updateAuctionEvent(id: string, dto: AdminActionDto, actor: AdminActor) {
+    const payload = this.actionPayload<Partial<AuctionEvent>>(dto);
+    const event = await this.findOneOrFail(this.auctionEventRepo, id);
+    const before = { ...event };
+
+    if (payload.title !== undefined) event.title = payload.title;
+    if (payload.description !== undefined) event.description = payload.description;
+    if (payload.coverImageUrl !== undefined) event.coverImageUrl = payload.coverImageUrl;
+    if (payload.status !== undefined) event.status = payload.status;
+    if (payload.auctionType !== undefined) event.auctionType = payload.auctionType;
+    if (payload.startTime !== undefined) event.startTime = new Date(payload.startTime);
+    if (payload.endTime !== undefined) event.endTime = new Date(payload.endTime);
+    if (payload.submissionDeadline !== undefined) {
+      event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
+    }
+    if (payload.activeLotId !== undefined) event.activeLotId = payload.activeLotId;
+
+    const saved = await this.auctionEventRepo.save(event);
+    await this.record(actor, AdminAuditAction.AUCTION_EVENT_UPDATED, 'AUCTION_EVENT', id, dto, before, this.toRecord(saved));
+    return { code: RC.SUCCESS, message: 'Müzayede etkinliği güncellendi', event: saved };
+  }
+
+  private async listAuctionEvents(query: AdminListQueryDto) {
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const status = query.status?.trim().toUpperCase();
+    const q = query.q?.trim().toLowerCase();
+
+    const qb = this.auctionEventRepo.createQueryBuilder('e');
+
+    if (status) {
+      qb.andWhere('e.status = :status', { status });
+    }
+    if (q) {
+      qb.andWhere(
+        `(
+          LOWER(e.title) LIKE :q
+          OR LOWER(COALESCE(e.description, '')) LIKE :q
+        )`,
+        { q: `%${q}%` },
+      );
+    }
+
+    const [items, total] = await qb
+      .orderBy('e.startTime', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    // Etkinlik ID'lerine bağlı olan Müzayede (Lot) sayılarını toplu olarak çek
+    const eventIds = items.map((item) => item.id);
+    let lotCounts: { eventId: string; count: string }[] = [];
+    if (eventIds.length > 0) {
+      lotCounts = await this.auctionEventRepo.manager
+        .createQueryBuilder(Auction, 'a')
+        .select('a.eventId', 'eventId')
+        .addSelect('COUNT(*)', 'count')
+        .where('a.eventId IN (:...eventIds)', { eventIds })
+        .groupBy('a.eventId')
+        .getRawMany();
+    }
+
+    const countMap = new Map<string, number>();
+    lotCounts.forEach((c) => countMap.set(c.eventId, Number(c.count)));
+
+    const itemsWithCounts = items.map((item) => ({
+      ...item,
+      lotCount: countMap.get(item.id) || 0,
+    }));
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede etkinlikleri listelendi',
+      resource: 'auction-events',
+      items: itemsWithCounts,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  async detailAuctionEvent(id: string) {
+    const event = await this.findOneOrFail(this.auctionEventRepo, id);
+
+    // Etkinliğe kabul edilmiş ve sıralanmış Lot'lar
+    const approvedLots = await this.auctionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.product', 'product')
+      .leftJoinAndSelect('a.seller', 'seller')
+      .where('a.eventId = :id', { id })
+      .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+      .orderBy('a.sequenceNumber', 'ASC')
+      .getMany();
+
+    // Etkinliğe başvuru yapmış ve onay bekleyen müzayedeler
+    const pendingSubmissions = await this.auctionRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.product', 'product')
+      .leftJoinAndSelect('a.seller', 'seller')
+      .where('a.eventId = :id', { id })
+      .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.PENDING })
+      .orderBy('a.createdAt', 'ASC')
+      .getMany();
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede etkinliği detayları getirildi',
+      overview: event,
+      approvedLots,
+      pendingSubmissions,
+      relatedRecords: {
+        resource: 'auction-events',
+        id,
+      },
+    };
+  }
+
+  async reorderLots(eventId: string, sequenceMap: Record<string, number>, actor: AdminActor) {
+    const event = await this.findOneOrFail(this.auctionEventRepo, eventId);
+
+    // sequenceMap format: { "auctionId_1": 1, "auctionId_2": 2, ... }
+    const auctionIds = Object.keys(sequenceMap);
+    if (auctionIds.length === 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Katalog sıralaması için en az bir Lot belirtilmelidir',
+      });
+    }
+
+    const auctions = await this.auctionRepo.find({
+      where: { id: In(auctionIds), eventId },
+    });
+
+    for (const auction of auctions) {
+      const newSequence = sequenceMap[auction.id];
+      if (newSequence !== undefined) {
+        auction.sequenceNumber = newSequence;
+      }
+    }
+
+    await this.auctionRepo.save(auctions);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Katalog sıralaması güncellendi',
+      event,
+    };
+  }
+
+  async approveLot(auctionId: string, status: AuctionApprovalStatus, reason: string, actor: AdminActor) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+      relations: ['product', 'seller'],
+    });
+
+    if (!auction) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Müzayede başvurusu bulunamadı',
+      });
+    }
+
+    const before = { ...auction };
+    auction.approvalStatus = status;
+
+    if (status === AuctionApprovalStatus.APPROVED) {
+      // Varsayılan olarak sıranın sonuna ekle
+      const maxSequence = await this.auctionRepo
+        .createQueryBuilder('a')
+        .where('a.eventId = :eventId', { eventId: auction.eventId })
+        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .select('MAX(a.sequenceNumber)', 'max')
+        .getRawOne<{ max: number | null }>();
+
+      auction.sequenceNumber = (maxSequence?.max ?? 0) + 1;
+      auction.status = AuctionStatus.PUBLISHED; // Onaylanan müzayede yayına hazır hale gelir
+    } else if (status === AuctionApprovalStatus.REJECTED) {
+      auction.status = AuctionStatus.CANCELLED; // Reddedilen başvuru iptal sayılır
+    }
+
+    const saved = await this.auctionRepo.save(auction);
+    await this.record(
+      actor,
+      status === AuctionApprovalStatus.APPROVED ? AdminAuditAction.AUCTION_EVENT_UPDATED : AdminAuditAction.AUCTION_CANCELLED,
+      'AUCTION',
+      auctionId,
+      { reason, metadata: { status } },
+      before,
+      this.toRecord(saved)
+    );
+
+    return {
+      code: RC.SUCCESS,
+      message: status === AuctionApprovalStatus.APPROVED ? 'Başvuru onaylandı' : 'Başvuru reddedildi',
+      auction: saved,
+    };
   }
 }

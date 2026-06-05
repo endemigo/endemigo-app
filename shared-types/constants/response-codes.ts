@@ -362,6 +362,19 @@ export const MOBILE = {
 } as const;
 
 // ==========================================
+// Banner Management
+// ==========================================
+export const BANNER = {
+  BANNER_CREATED: 'BANNER_CREATED',
+  BANNER_UPDATED: 'BANNER_UPDATED',
+  BANNER_DELETED: 'BANNER_DELETED',
+  BANNER_FETCHED: 'BANNER_FETCHED',
+  BANNER_LISTED: 'BANNER_LISTED',
+  BANNER_NOT_FOUND: 'BANNER_NOT_FOUND',
+  DUPLICATE_BANNER_SLUG: 'DUPLICATE_BANNER_SLUG',
+} as const;
+
+// ==========================================
 // Content Studio
 // ==========================================
 export const CONTENT = {
@@ -408,6 +421,7 @@ export const RC = {
   ...MEMBERSHIP,
   ...TRUST,
   ...MOBILE,
+  ...BANNER,
   ...CONTENT,
   ...GENERIC,
 } as const;

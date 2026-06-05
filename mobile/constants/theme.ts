@@ -97,6 +97,7 @@ export const FontFamily = {
   bodySemiBold: 'OpenSans-SemiBold',
   bodyBold: 'Oxygen-Bold',
   label: 'Raleway-SemiBold',
+  price: 'Oxygen-Regular',
 } as const;
 
 export const FontSize = {

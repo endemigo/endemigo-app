@@ -1,6 +1,8 @@
 export { AuctionStatus } from './auction-status.enum';
 export { AuctionPaymentStatus } from './auction-payment-status.enum';
 export { AuctionType } from './auction-type.enum';
+export { AuctionEventStatus } from './auction-event-status.enum';
+export { AuctionApprovalStatus } from './auction-approval-status.enum';
 export { ProductStatus } from './product-status.enum';
 export { ProductCondition } from './product-condition.enum';
 export { ProductProductionSeason } from './product-production-season.enum';
@@ -50,3 +52,5 @@ export { GeoIndicationType } from './geo-indication-type.enum';
 export { VariantNumberStatus } from './variant-number-status.enum';
 export { VariantOptionKind } from './variant-option-kind.enum';
 export { OrderReturnReasonCode } from './order-return-reason-code.enum';
+export { BannerActionType } from './banner-action-type.enum';
+

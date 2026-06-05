@@ -145,8 +145,8 @@ export const styles = StyleSheet.create({
   price: {
     color: Colors.auctionGreen,
     fontSize: FontSize.body,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
   },
   bidButton: {
     backgroundColor: Colors.auctionGreen,

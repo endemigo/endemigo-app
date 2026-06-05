@@ -41,8 +41,8 @@ export const styles = StyleSheet.create({
   currentPriceValue: {
     color: Colors.onSurface,
     fontSize: FontSize.display,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     marginTop: Spacing.sm,
   },
   timerShell: {
@@ -94,8 +94,8 @@ export const styles = StyleSheet.create({
   metricValue: {
     color: Colors.onSurface,
     fontSize: FontSize.subheading,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '700',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
   },
   metricValueAccent: {
     color: Colors.auctionGreen,
@@ -190,8 +190,8 @@ export const styles = StyleSheet.create({
   walletValue: {
     color: Colors.secondary,
     fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '700',
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
   },
   calloutCard: {
     borderRadius: BorderRadius['2xl'],

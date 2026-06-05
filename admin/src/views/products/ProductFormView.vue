@@ -40,11 +40,13 @@
           <div class="owner-grid">
             <div class="field">
               <span>Satıcı *</span>
-              <div class="seller-picker">
-                <button class="button ghost" type="button" @click="openSellerModal">Satıcı Seç</button>
-                <div class="seller-chip" :class="{ empty: !selectedSellerLabel }">
-                  {{ selectedSellerLabel || 'Satıcı seçilmedi' }}
-                </div>
+              <div 
+                class="brand-select-trigger" 
+                :class="{ empty: !selectedSellerLabel }"
+                @click="openSellerModal"
+              >
+                <span>{{ selectedSellerLabel || 'Satıcı Seç' }}</span>
+                <i v-if="selectedSellerLabel" class="pi pi-pencil edit-icon" />
               </div>
             </div>
             <label class="field"><span>Ürün Adı *</span><input v-model="form.title" class="input" /></label>
@@ -53,10 +55,22 @@
             <label class="field">
               <span>Ürün Durumu</span>
               <select v-model="form.status" class="select">
-                <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+                <option v-for="status in statusOptions" :key="status.value" :value="status.value">
+                  {{ status.label }}
+                </option>
               </select>
             </label>
-            <label class="field"><span>Marka</span><input v-model="form.brand" class="input" /></label>
+            <div class="field">
+              <span>Marka</span>
+              <div 
+                class="brand-select-trigger" 
+                :class="{ empty: !form.brand }"
+                @click="openBrandModal"
+              >
+                <span>{{ form.brand || 'Marka Seç' }}</span>
+                <i v-if="form.brand" class="pi pi-pencil edit-icon" />
+              </div>
+            </div>
           </div>
 
           <template v-if="!isQuickMode">
@@ -270,7 +284,8 @@
                 :title="type.label"
                 @click="toggleGeoType(type.value)"
               >
-                <img :src="type.imageUrl" :alt="type.label" class="geo-badge-image" />
+                <img v-if="type.imageUrl" :src="type.imageUrl" :alt="type.label" class="geo-badge-image" />
+                <span v-else class="geo-badge-fallback">{{ type.label }}</span>
               </button>
             </div>
           </div>
@@ -493,6 +508,37 @@
           </div>
         </section>
       </div>
+
+      <div v-if="brandModalOpen" class="seller-modal-backdrop" role="presentation" @click.self="closeBrandModal">
+        <section class="seller-modal" role="dialog" aria-modal="true" aria-label="Marka seç">
+          <header class="seller-modal-header">
+            <strong>Marka Seç</strong>
+            <button class="button ghost tiny" type="button" @click="closeBrandModal">Kapat</button>
+          </header>
+
+          <div class="seller-modal-body">
+            <label class="field">
+              <span>Ara</span>
+              <input
+                v-model.trim="brandSearch"
+                class="input"
+                placeholder="Marka adı ara..."
+              />
+            </label>
+
+            <div class="seller-list">
+              <article v-for="brand in filteredBrands" :key="brand.id" class="seller-item">
+                <div class="seller-meta">
+                  <strong>{{ brand.name }}</strong>
+                  <small>ID: {{ brand.id }}</small>
+                </div>
+                <button class="button primary tiny" type="button" @click="selectBrand(brand)">Seç</button>
+              </article>
+              <p v-if="filteredBrands.length === 0" class="muted">Sonuç bulunamadı.</p>
+            </div>
+          </div>
+        </section>
+      </div>
     </Teleport>
   </section>
 </template>
@@ -710,6 +756,51 @@ const dragTarget = ref<'product' | 'certificate' | null>(null);
 const uploadingTarget = ref<'product' | 'certificate' | null>(null);
 const productImageList = ref<string[]>([]);
 const certificateImageList = ref<string[]>([]);
+const brandModalOpen = ref(false);
+const brandSearch = ref('');
+const brandRows = ref<Array<{ id: string; name: string }>>([]);
+
+const filteredBrands = computed(() => {
+  const q = brandSearch.value.trim().toLowerCase();
+  if (!q) return brandRows.value;
+  return brandRows.value.filter((brand) => {
+    return (
+      brand.name.toLowerCase().includes(q) ||
+      brand.id.toLowerCase().includes(q)
+    );
+  });
+});
+
+async function loadBrands(): Promise<void> {
+  const response = await adminApi.get<any>('/admin/brands', {
+    params: {
+      page: 1,
+      limit: 1000,
+    },
+  });
+  brandRows.value = (response.data.items ?? []).map((item: any) => ({
+    id: String(item.id ?? ''),
+    name: String(item.name ?? ''),
+  }));
+}
+
+async function openBrandModal(): Promise<void> {
+  brandModalOpen.value = true;
+  brandSearch.value = '';
+  if (brandRows.value.length === 0) {
+    await loadBrands();
+  }
+}
+
+function closeBrandModal(): void {
+  brandModalOpen.value = false;
+}
+
+function selectBrand(brand: { id: string; name: string }): void {
+  form.brand = brand.name;
+  closeBrandModal();
+}
+
 const sellerModalOpen = ref(false);
 const sellerSearch = ref('');
 const sellerPage = ref(1);
@@ -796,14 +887,14 @@ const shippingDistrictOptions = computed(() => {
 });
 
 const statusOptions = [
-  'DRAFT',
-  'PENDING_REVIEW',
-  'ACTIVE',
-  'UNDER_AUCTION',
-  'SOLD',
-  'OUT_OF_STOCK',
-  'ARCHIVED',
-  'SUSPENDED',
+  { label: 'Taslak', value: 'DRAFT' },
+  { label: 'İnceleme', value: 'PENDING_REVIEW' },
+  { label: 'Aktif', value: 'ACTIVE' },
+  { label: 'Müzayedede', value: 'UNDER_AUCTION' },
+  { label: 'Satıldı', value: 'SOLD' },
+  { label: 'Stok Yok', value: 'OUT_OF_STOCK' },
+  { label: 'Arşiv', value: 'ARCHIVED' },
+  { label: 'Askıda', value: 'SUSPENDED' },
 ];
 const deliveryTemplateOptions = [
   'Seçiniz',
@@ -828,29 +919,8 @@ const seasonOptions = [
 ];
 
 const monthOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-const geoTypeOptions: Array<{ value: string; label: string; imageUrl: string }> = [
-  { value: 'PDO_RED_TR', label: 'Kırmızı (TR)', imageUrl: 'https://endemigo.com/source/images/isaretkirmizi.webp' },
-  { value: 'PGI_GREEN_TR', label: 'Yeşil (TR)', imageUrl: 'https://endemigo.com/source/images/isaretyesil.webp' },
-  { value: 'TSG_BLUE_TR', label: 'Mavi (TR)', imageUrl: 'https://endemigo.com/source/images/isaretmavi.webp' },
-  { value: 'PDO_RED_EN', label: 'Kırmızı (EN)', imageUrl: 'https://endemigo.com/source/images/isaretkirmizien.webp' },
-  { value: 'PGI_GREEN_EN', label: 'Yeşil (EN)', imageUrl: 'https://endemigo.com/source/images/isaretyesilen.webp' },
-  { value: 'TSG_BLUE_EN', label: 'Mavi (EN)', imageUrl: 'https://endemigo.com/source/images/isaretmavien.webp' },
-];
-const featureOptions: Array<{ value: string; label: string; imageUrl: string }> = [
-  { value: 'VEGAN', label: 'Vegan', imageUrl: 'https://endemigo.com/source/images/vegan.png' },
-  { value: 'BIO', label: 'Bio', imageUrl: 'https://endemigo.com/source/images/bio.png' },
-  { value: 'NATURAL', label: 'Natural', imageUrl: 'https://endemigo.com/source/images/natural.png' },
-  { value: 'ECO', label: 'Eco', imageUrl: 'https://endemigo.com/source/images/eco.png' },
-  { value: 'PARABEN_FREE', label: 'Paraben', imageUrl: 'https://endemigo.com/source/images/paraben.png' },
-  { value: 'ORGANIC', label: 'Organik', imageUrl: 'https://endemigo.com/source/images/organik2.png' },
-  { value: 'HALAL', label: 'Helal', imageUrl: 'https://endemigo.com/source/images/helal.png' },
-  { value: 'ADDITIVE_FREE', label: 'Katkısız', imageUrl: 'https://endemigo.com/source/images/katkisiz.png' },
-  { value: 'SUGAR_FREE', label: 'Şekersiz', imageUrl: 'https://endemigo.com/source/images/sekersiz.png' },
-  { value: 'GLUTEN_FREE', label: 'Glutensiz', imageUrl: 'https://endemigo.com/source/images/glutensiz.png' },
-  { value: 'HANDMADE', label: 'HandMade', imageUrl: 'https://endemigo.com/source/images/hom.png' },
-  { value: 'SLOW_FOOD', label: 'Slow Food', imageUrl: 'https://endemigo.com/source/images/slo.png' },
-  { value: 'COLD_DELIVERY', label: 'Cold Delivery', imageUrl: 'https://endemigo.com/source/images/souk.png' },
-];
+const geoTypeOptions = ref<Array<{ value: string; label: string; imageUrl: string }>>([]);
+const featureOptions = ref<Array<{ value: string; label: string; imageUrl: string }>>([]);
 
 const categoryTree = ref<CategoryNode[]>([]);
 
@@ -1574,6 +1644,42 @@ async function loadCategoriesFromDb(): Promise<void> {
   categoryTree.value = roots;
 }
 
+async function loadGeoIndicationsFromDb(): Promise<void> {
+  try {
+    const response = await adminApi.get('/admin/geo-indications', {
+      params: { page: 1, limit: 150 },
+    });
+    const items = response.data.items ?? [];
+    geoTypeOptions.value = items
+      .filter((item: any) => item.isActive)
+      .map((item: any) => ({
+        value: item.code || item.id,
+        label: item.name,
+        imageUrl: item.logoUrl || '',
+      }));
+  } catch (err) {
+    console.error('Failed to load geo indications:', err);
+  }
+}
+
+async function loadFeaturesFromDb(): Promise<void> {
+  try {
+    const response = await adminApi.get('/admin/feature-badges', {
+      params: { page: 1, limit: 150 },
+    });
+    const items = response.data.items ?? [];
+    featureOptions.value = items
+      .filter((item: any) => item.isActive)
+      .map((item: any) => ({
+        value: item.code || item.id,
+        label: item.name,
+        imageUrl: item.logoUrl || '',
+      }));
+  } catch (err) {
+    console.error('Failed to load features:', err);
+  }
+}
+
 function sortCategoryNode(node: CategoryNode): void {
   node.children.sort((a, b) => a.label.localeCompare(b.label, 'tr'));
   node.children.forEach(sortCategoryNode);
@@ -1769,7 +1875,13 @@ async function submit(): Promise<void> {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadCategoriesFromDb(), loadVariationsFromDb(), loadSupplierOptions()]);
+    await Promise.all([
+      loadCategoriesFromDb(),
+      loadVariationsFromDb(),
+      loadSupplierOptions(),
+      loadGeoIndicationsFromDb(),
+      loadFeaturesFromDb(),
+    ]);
     if (!isEdit.value) {
       productImageList.value = [];
       certificateImageList.value = [];
@@ -1827,6 +1939,47 @@ onMounted(async () => {
 .seller-chip.empty {
   color: #6b7692;
   font-weight: 500;
+}
+
+.brand-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #bfd0ee;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #f5f8ff;
+  cursor: pointer;
+  font-weight: 600;
+  color: #2c487b;
+  min-height: 40px;
+  transition: all 0.2s ease;
+}
+
+.brand-select-trigger.empty {
+  border-style: dashed;
+  background: #fcfdfe;
+  color: #6b7692;
+}
+
+.brand-select-trigger:hover {
+  border-color: var(--brand-600);
+  background: #eef4ff;
+}
+
+.brand-select-trigger.empty:hover {
+  background: #f4f8ff;
+}
+
+.brand-select-trigger .edit-icon {
+  opacity: 0;
+  color: var(--brand-600);
+  transition: opacity 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.brand-select-trigger:hover .edit-icon {
+  opacity: 1;
 }
 
 .content-lang-tabs {
@@ -1973,6 +2126,23 @@ onMounted(async () => {
   height: 52px;
   object-fit: contain;
   display: block;
+}
+
+.geo-badge-fallback {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-soft, #f1f5f9);
+  color: var(--text-muted, #64748b);
+  border: 1px solid var(--border-soft, #cbd5e1);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.1;
+  padding: 4px;
 }
 
 .check-row {

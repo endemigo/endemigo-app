@@ -508,7 +508,11 @@
     "myProductsTitle": "My Products",
     "emptyProducts": "You do not have products yet.",
     "aiGenerating": "Generating description and story with AI...",
-    "aiGeneratedSuccess": "Description and Story successfully filled with AI!"
+    "aiGeneratedSuccess": "Description and Story successfully filled with AI!",
+    "selectedEventLabel": "Selected Auction Event",
+    "standaloneAuctionLabel": "Standalone Auction (Not part of any event)",
+    "standaloneAuctionDesc": "This auction will go live at your specified start and end times.",
+    "eventBadge": "EVENT"
   },
   "settings": {
     "title": "Settings",
@@ -520,6 +524,8 @@
     "legalDistanceSalesMeta": "Order, delivery, and support flow",
     "legalReturnTitle": "Return and refund policy",
     "legalReturnMeta": "Reverse logistics, approval, and payout flow",
+    "legalAuctionTermsTitle": "Auction Terms & Conditions",
+    "legalAuctionTermsMeta": "Auction rules, wallet holds, and bidding conditions",
     "dataProcessing": "Data Processing",
     "dataProcessingDesc": "Processing of your personal data (required)",
     "marketing": "Marketing",
@@ -599,6 +605,32 @@
           "title": "Refund flow",
           "body1": "The refund starts after the returned shipment is delivered and is tracked as a payment-provider and order-status transition.",
           "body2": "Risky or exceptional cases may be routed to admin review, and critical decisions are kept in the audit trail."
+        }
+      }
+    },
+    "auctionTerms": {
+      "title": "Auction Terms & Conditions",
+      "summary": "Participation in multi-seller and themed auctions organized on our platform, bidding, wallet hold processes, and rules are subject to these terms.",
+      "sections": {
+        "general": {
+          "title": "General Rules",
+          "body1": "Auctions are held as platform-organized themed events or individual lots.",
+          "body2": "Bids placed by participants are legally binding and cannot be withdrawn. Extending the auction duration or changing the lot sequence is under admin control."
+        },
+        "bidding": {
+          "title": "Bidding and Extensions",
+          "body1": "Bids must comply with the minimum increment set for each lot. Bids placed in the final seconds will automatically extend the lot duration.",
+          "body2": "Bidding sequence and active lot transitions are synchronized in real-time through the live interface."
+        },
+        "wallet": {
+          "title": "Wallet Holds and Payments",
+          "body1": "To participate and place bids, the estimated total amount (hammer price and premium) must be available in your wallet.",
+          "body2": "When you hold the leading bid, the bid amount is blocked in your wallet. If won, payment is captured from the hold; if lost, the hold is released."
+        },
+        "moderation": {
+          "title": "Live Moderation and Control",
+          "body1": "The auction administrator can pause, resume, or skip to the next lot at any moment.",
+          "body2": "Sale of cultural assets or registered geographical indication products is subject to special legal regulations and platform approval processes."
         }
       }
     }

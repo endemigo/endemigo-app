@@ -28,6 +28,7 @@ import { AdminVariantNumberListQueryDto } from './dto/admin-variant-number-list-
 import { CreateAdminVariantNumberDto } from './dto/create-admin-variant-number.dto';
 import { UpdateAdminVariantNumberDto } from './dto/update-admin-variant-number.dto';
 import { AdminOperationsService } from './admin-operations.service';
+import { AuctionService } from '../auction/auction.service';
 
 interface AdminOperationsRequest {
   adminUser: {
@@ -47,7 +48,11 @@ type AdminResource =
   | 'payments'
   | 'bids'
   | 'payout-requests'
-  | 'negotiations';
+  | 'negotiations'
+  | 'listing-templates'
+  | 'auction-events'
+  | 'geo-indications'
+  | 'feature-badges';
 
 @ApiTags('Admin Operations')
 @Public()
@@ -61,7 +66,10 @@ type AdminResource =
 @ApiBearerAuth()
 @Controller('admin')
 export class AdminOperationsController {
-  constructor(private readonly adminOperationsService: AdminOperationsService) {}
+  constructor(
+    private readonly adminOperationsService: AdminOperationsService,
+    private readonly auctionService: AuctionService,
+  ) {}
 
   @Get('queues')
   @ApiOperation({ summary: 'Öncelikli admin kuyrukları' })
@@ -217,6 +225,36 @@ export class AdminOperationsController {
   @Get('brands/:id')
   async brand(@Param('id') id: string) {
     return this.adminOperationsService.detail('brands', id);
+  }
+
+  @Get('listing-templates')
+  async listingTemplates(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('listing-templates', query);
+  }
+
+  @Get('geo-indications')
+  async geoIndications(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('geo-indications' as any, query);
+  }
+
+  @Get('geo-indications/:id')
+  async geoIndication(@Param('id') id: string) {
+    return this.adminOperationsService.detail('geo-indications' as any, id);
+  }
+
+  @Get('feature-badges')
+  async featureBadges(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('feature-badges' as any, query);
+  }
+
+  @Get('feature-badges/:id')
+  async featureBadge(@Param('id') id: string) {
+    return this.adminOperationsService.detail('feature-badges' as any, id);
+  }
+
+  @Get('listing-templates/:id')
+  async listingTemplate(@Param('id') id: string) {
+    return this.adminOperationsService.detail('listing-templates', id);
   }
 
   @Get('auctions')
@@ -427,5 +465,156 @@ export class AdminOperationsController {
     @Request() request: AdminOperationsRequest,
   ) {
     return this.adminOperationsService.deleteBrand(id, dto, request.adminUser);
+  }
+
+  @Post('geo-indications')
+  async createGeoIndication(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createGeoIndication(dto, request.adminUser);
+  }
+
+  @Patch('geo-indications/:id')
+  async updateGeoIndication(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateGeoIndication(id, dto, request.adminUser);
+  }
+
+  @Delete('geo-indications/:id')
+  async deleteGeoIndication(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.deleteGeoIndication(id, dto, request.adminUser);
+  }
+
+  @Post('feature-badges')
+  async createFeatureBadge(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createFeatureBadge(dto, request.adminUser);
+  }
+
+  @Patch('feature-badges/:id')
+  async updateFeatureBadge(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateFeatureBadge(id, dto, request.adminUser);
+  }
+
+  @Delete('feature-badges/:id')
+  async deleteFeatureBadge(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.deleteFeatureBadge(id, dto, request.adminUser);
+  }
+
+  @Post('listing-templates')
+  async createListingTemplate(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createListingTemplate(dto, request.adminUser);
+  }
+
+  @Patch('listing-templates/:id')
+  async updateListingTemplate(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateListingTemplate(id, dto, request.adminUser);
+  }
+
+  @Delete('listing-templates/:id')
+  async deleteListingTemplate(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.deleteListingTemplate(id, dto, request.adminUser);
+  }
+
+  // ─── Ortak Müzayede Etkinliği (Model 2) Endpoints ───
+
+  @Get('auction-events')
+  async auctionEvents(@Query() query: AdminListQueryDto) {
+    return this.adminOperationsService.list('auction-events', query);
+  }
+
+  @Get('auction-events/:id')
+  async auctionEvent(@Param('id') id: string) {
+    return this.adminOperationsService.detail('auction-events', id);
+  }
+
+  @Post('auction-events')
+  async createAuctionEvent(
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.createAuctionEvent(dto, request.adminUser);
+  }
+
+  @Patch('auction-events/:id')
+  async updateAuctionEvent(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateAuctionEvent(id, dto, request.adminUser);
+  }
+
+  @Patch('auction-events/:id/lots/sequence')
+  async reorderLots(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    const payload = dto.metadata as { sequenceMap: Record<string, number> };
+    return this.adminOperationsService.reorderLots(id, payload.sequenceMap, request.adminUser);
+  }
+
+  @Patch('auctions/:id/approve')
+  async approveLot(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    const payload = dto.metadata as { status: string };
+    return this.adminOperationsService.approveLot(id, payload.status as any, dto.reason, request.adminUser);
+  }
+
+  @Patch('auction-events/:id/pause')
+  @ApiOperation({ summary: 'Müzayede etkinliğini duraklatır' })
+  async pauseAuction(
+    @Param('id') id: string,
+  ) {
+    return this.auctionService.pauseAuction(id);
+  }
+
+  @Patch('auction-events/:id/resume')
+  @ApiOperation({ summary: 'Müzayede etkinliğini devam ettirir' })
+  async resumeAuction(
+    @Param('id') id: string,
+  ) {
+    return this.auctionService.resumeAuction(id);
+  }
+
+  @Patch('auction-events/:id/skip')
+  @ApiOperation({ summary: 'Sıradaki Lot\'a atlar' })
+  async skipLot(
+    @Param('id') id: string,
+  ) {
+    return this.auctionService.skipLot(id);
   }
 }

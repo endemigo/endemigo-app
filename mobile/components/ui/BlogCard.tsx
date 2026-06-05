@@ -12,7 +12,12 @@ interface Props {
 }
 
 export function BlogCard({ item, onPress }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language;
+
+  const title = currentLang === 'en' && item.titleEn ? item.titleEn : item.title;
+  const excerpt = currentLang === 'en' && item.excerptEn ? item.excerptEn : item.excerpt;
+  const readTime = currentLang === 'en' && item.readTimeEn ? item.readTimeEn : item.readTime;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
@@ -21,13 +26,13 @@ export function BlogCard({ item, onPress }: Props) {
         <View style={styles.metaRow}>
           <Text style={styles.category}>{item.category}</Text>
           <View style={styles.dot} />
-          <Text style={styles.metaText}>{item.readTime}</Text>
+          <Text style={styles.metaText}>{readTime}</Text>
         </View>
         <Text style={styles.title} numberOfLines={2}>
-          {item.title}
+          {title}
         </Text>
         <Text style={styles.excerpt} numberOfLines={2}>
-          {item.excerpt}
+          {excerpt}
         </Text>
         <View style={styles.footer}>
           <Text style={styles.readMore}>{t('home.readMore')}</Text>

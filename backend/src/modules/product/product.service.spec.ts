@@ -22,6 +22,17 @@ import {
 } from '@nestjs/common';
 import { RC } from '../../shared/constants/response-codes';
 import { AdminSettingsService } from '../admin-settings/admin-settings.service';
+import { ListingTemplate as ListingTemplateEntity } from './entities/listing-template.entity';
+import { GeoIndication } from './entities/geo-indication.entity';
+import { FeatureBadge } from './entities/feature-badge.entity';
+
+type MockListingTemplateRepository = {
+  find: jest.Mock;
+  findOne: jest.Mock;
+  exist: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+};
 
 type MockProductRepository = {
   findOne: jest.Mock;
@@ -100,6 +111,9 @@ describe('ProductService', () => {
   let userService: MockUserService;
   let storageService: MockStorageService;
   let adminSettingsService: MockAdminSettingsService;
+  let listingTemplateRepo: MockListingTemplateRepository;
+  let geoIndicationRepo: any;
+  let featureBadgeRepo: any;
 
   const mockSeller = {
     id: 'seller-1',
@@ -228,6 +242,26 @@ describe('ProductService', () => {
         .mockResolvedValue({ min: 1, max: 10 }),
     };
 
+    listingTemplateRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      exist: jest.fn().mockResolvedValue(false),
+      create: jest.fn((data) => data),
+      save: jest.fn((entity) => Promise.resolve({ id: 'template-1', ...entity })),
+    };
+
+    geoIndicationRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+    };
+
+    featureBadgeRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn(),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
@@ -238,6 +272,9 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(VariantNumber), useValue: variantNumberRepo },
         { provide: getRepositoryToken(ProductVariantSku), useValue: productVariantSkuRepo },
         { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
+        { provide: getRepositoryToken(ListingTemplateEntity), useValue: listingTemplateRepo },
+        { provide: getRepositoryToken(GeoIndication), useValue: geoIndicationRepo },
+        { provide: getRepositoryToken(FeatureBadge), useValue: featureBadgeRepo },
         { provide: UserService, useValue: userService },
         { provide: STORAGE_SERVICE, useValue: storageService },
         { provide: AdminSettingsService, useValue: adminSettingsService },

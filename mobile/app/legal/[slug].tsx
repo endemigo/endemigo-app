@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/legal/[slug].styles';
 
-type LegalSlug = 'privacy' | 'distance-sales' | 'return-policy';
+type LegalSlug = 'privacy' | 'distance-sales' | 'return-policy' | 'auction-terms';
 
 const LEGAL_KEYS: Record<
   LegalSlug,
@@ -97,10 +97,49 @@ const LEGAL_KEYS: Record<
       },
     ],
   },
+  'auction-terms': {
+    title: 'legal.auctionTerms.title',
+    summary: 'legal.auctionTerms.summary',
+    sections: [
+      {
+        title: 'legal.auctionTerms.sections.general.title',
+        paragraphs: [
+          'legal.auctionTerms.sections.general.body1',
+          'legal.auctionTerms.sections.general.body2',
+        ],
+      },
+      {
+        title: 'legal.auctionTerms.sections.bidding.title',
+        paragraphs: [
+          'legal.auctionTerms.sections.bidding.body1',
+          'legal.auctionTerms.sections.bidding.body2',
+        ],
+      },
+      {
+        title: 'legal.auctionTerms.sections.wallet.title',
+        paragraphs: [
+          'legal.auctionTerms.sections.wallet.body1',
+          'legal.auctionTerms.sections.wallet.body2',
+        ],
+      },
+      {
+        title: 'legal.auctionTerms.sections.moderation.title',
+        paragraphs: [
+          'legal.auctionTerms.sections.moderation.body1',
+          'legal.auctionTerms.sections.moderation.body2',
+        ],
+      },
+    ],
+  },
 };
 
 function isLegalSlug(value: string): value is LegalSlug {
-  return value === 'privacy' || value === 'distance-sales' || value === 'return-policy';
+  return (
+    value === 'privacy' ||
+    value === 'distance-sales' ||
+    value === 'return-policy' ||
+    value === 'auction-terms'
+  );
 }
 
 export default function LegalDocumentScreen() {

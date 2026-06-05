@@ -146,42 +146,49 @@ export class ContentStudioService {
     collectionKey: ContentStudioCollectionKey,
     index: number,
   ): ContentStudioItem {
+    const { category, subtitle, route, metadata, ...rest } = item as any;
     return {
-      ...item,
+      ...rest,
       id: item.id || `${collectionKey}-${index + 1}`,
       title: item.title || `${collectionKey}-${index + 1}`,
-      subtitle: item.subtitle ?? '',
+      titleEn: item.titleEn ?? '',
       body: item.body ?? '',
+      bodyEn: item.bodyEn ?? '',
       excerpt: item.excerpt ?? '',
+      excerptEn: item.excerptEn ?? '',
       slug: item.slug || item.id || `${collectionKey}-${index + 1}`,
       imageUrl: item.imageUrl ?? '',
-      category: item.category ?? '',
       tags: Array.isArray(item.tags) ? item.tags : [],
-      route: item.route ?? '',
       updatedAt: item.updatedAt || new Date().toISOString(),
       status: item.status ?? 'DRAFT',
       order: Number.isFinite(item.order) ? item.order : index + 1,
-      metadata:
-        item.metadata && typeof item.metadata === 'object' ? item.metadata : {},
+      readTime: item.readTime ?? '',
+      readTimeEn: item.readTimeEn ?? '',
     };
   }
 
   private toPublicBlog(item: ContentStudioItem): PublicBlogItem {
-    const readTimeRaw = item.metadata.readTime;
     const readTime =
-      typeof readTimeRaw === 'string' && readTimeRaw.trim().length > 0
-        ? readTimeRaw
+      typeof item.readTime === 'string' && item.readTime.trim().length > 0
+        ? item.readTime
         : '4 dk okuma';
+    const readTimeEn =
+      typeof item.readTimeEn === 'string' && item.readTimeEn.trim().length > 0
+        ? item.readTimeEn
+        : '4 min read';
 
     return {
       id: item.id,
       title: item.title,
-      category: item.category || 'Blog',
-      excerpt: item.excerpt || item.subtitle,
+      titleEn: item.titleEn ?? '',
+      excerpt: item.excerpt,
+      excerptEn: item.excerptEn ?? '',
       readTime,
+      readTimeEn,
       image: item.imageUrl,
       slug: item.slug,
       body: item.body,
+      bodyEn: item.bodyEn ?? '',
       publishedAt: item.updatedAt,
     };
   }

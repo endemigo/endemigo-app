@@ -24,67 +24,69 @@
           </tr>
           <tr v-for="row in rows" v-else :key="rowKey(row)" @click="selectRow(row)">
             <td v-for="column in columns" :key="column.key">
-              <StatusBadge v-if="column.format === 'status'" :value="row[column.key]" />
-              <div v-else-if="column.format === 'tree'" class="tree-cell">
-                <!-- Visual hierarchical guide lines -->
-                <span
-                  v-for="depth in Number(row.__treeDepth ?? 0)"
-                  :key="depth"
-                  class="tree-indent-spacer"
-                />
+              <slot :name="'cell-' + column.key" :row="row" :column="column" :value="row[column.key]">
+                <StatusBadge v-if="column.format === 'status'" :value="row[column.key]" />
+                <div v-else-if="column.format === 'tree'" class="tree-cell">
+                  <!-- Visual hierarchical guide lines -->
+                  <span
+                    v-for="depth in Number(row.__treeDepth ?? 0)"
+                    :key="depth"
+                    class="tree-indent-spacer"
+                  />
 
-                <!-- Toggle button for folders or spacer for leaf items -->
+                  <!-- Toggle button for folders or spacer for leaf items -->
+                  <button
+                    v-if="toBoolean(row.__treeHasChildren)"
+                    class="tree-toggle"
+                    type="button"
+                    :aria-label="toBoolean(row.__treeCollapsed) ? 'Genişlet' : 'Daralt'"
+                    @click.stop="toggleTree(row)"
+                  >
+                    <i
+                      :class="toBoolean(row.__treeCollapsed) ? 'pi pi-chevron-right' : 'pi pi-chevron-down'"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <span v-else class="tree-leaf-icon" aria-hidden="true">
+                    <span v-if="Number(row.__treeDepth ?? 0) > 0" class="tree-leaf-connector" />
+                  </span>
+
+                  <!-- Category Icon (Folder/File) for premium design -->
+                  <span class="tree-icon" aria-hidden="true">
+                    <i
+                      :class="[
+                        toBoolean(row.__treeHasChildren)
+                          ? toBoolean(row.__treeCollapsed)
+                            ? 'pi pi-folder'
+                            : 'pi pi-folder-open'
+                          : 'pi pi-tag'
+                      ]"
+                    />
+                  </span>
+
+                  <span class="tree-label">
+                    {{ formatCell(row[column.key], column) }}
+                  </span>
+                </div>
                 <button
-                  v-if="toBoolean(row.__treeHasChildren)"
-                  class="tree-toggle"
+                  v-else-if="column.route"
+                  class="table-cell-link"
                   type="button"
-                  :aria-label="toBoolean(row.__treeCollapsed) ? 'Genişlet' : 'Daralt'"
-                  @click.stop="toggleTree(row)"
+                  @click.stop="goToRoute(column, row)"
                 >
-                  <i
-                    :class="toBoolean(row.__treeCollapsed) ? 'pi pi-chevron-right' : 'pi pi-chevron-down'"
-                    aria-hidden="true"
-                  />
+                  {{ formatCell(row[column.key], column) }}
                 </button>
-                <span v-else class="tree-leaf-icon" aria-hidden="true">
-                  <span v-if="Number(row.__treeDepth ?? 0) > 0" class="tree-leaf-connector" />
-                </span>
-
-                <!-- Category Icon (Folder/File) for premium design -->
-                <span class="tree-icon" aria-hidden="true">
-                  <i
-                    :class="[
-                      toBoolean(row.__treeHasChildren)
-                        ? toBoolean(row.__treeCollapsed)
-                          ? 'pi pi-folder'
-                          : 'pi pi-folder-open'
-                        : 'pi pi-tag'
-                    ]"
-                  />
-                </span>
-
-                <span class="tree-label">
+                <span
+                  v-else
+                  :title="cellTitle(row[column.key], column)"
+                  :class="{
+                    'status-active': (column.key === 'isActive' || typeof row[column.key] === 'boolean') && toBoolean(row[column.key]),
+                    'status-passive': (column.key === 'isActive' || typeof row[column.key] === 'boolean') && !toBoolean(row[column.key])
+                  }"
+                >
                   {{ formatCell(row[column.key], column) }}
                 </span>
-              </div>
-              <button
-                v-else-if="column.route"
-                class="table-cell-link"
-                type="button"
-                @click.stop="goToRoute(column, row)"
-              >
-                {{ formatCell(row[column.key], column) }}
-              </button>
-              <span
-                v-else
-                :title="cellTitle(row[column.key], column)"
-                :class="{
-                  'status-active': (column.key === 'isActive' || typeof row[column.key] === 'boolean') && toBoolean(row[column.key]),
-                  'status-passive': (column.key === 'isActive' || typeof row[column.key] === 'boolean') && !toBoolean(row[column.key])
-                }"
-              >
-                {{ formatCell(row[column.key], column) }}
-              </span>
+              </slot>
             </td>
             <td v-if="actions.length > 0" @click.stop class="actions-cell">
               <div class="toolbar">

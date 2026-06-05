@@ -95,17 +95,19 @@ describe('ContentStudioService', () => {
     document.collections.blogs.push({
       id: 'blog-draft',
       title: 'Taslak',
-      subtitle: 'Yayinlanmamis',
+      titleEn: 'Draft',
       body: 'Taslak icerik',
+      bodyEn: 'Draft content',
       excerpt: 'Taslak icerik',
+      excerptEn: 'Draft content',
       slug: 'taslak',
       imageUrl: 'https://example.com/draft.jpg',
       status: 'DRAFT',
       order: 99,
-      category: 'Blog',
       tags: [],
-      route: '/blog/taslak',
       updatedAt: '2026-05-15T00:00:00.000Z',
+      readTime: '',
+      readTimeEn: '',
     });
     repo.find.mockResolvedValue([
       {

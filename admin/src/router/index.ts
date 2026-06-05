@@ -13,7 +13,6 @@ import TrustView from '../views/trust/TrustView.vue';
 import SettingsView from '../views/settings/SettingsView.vue';
 import ReportsView from '../views/reports/ReportsView.vue';
 import MobileConfigView from '../views/mobile/MobileConfigView.vue';
-import FeatureGapView from '../views/FeatureGapView.vue';
 import ProductFormView from '../views/products/ProductFormView.vue';
 import VariantNumbersView from '../views/variants/VariantNumbersView.vue';
 import ContentStudioView from '../views/content/ContentStudioView.vue';
@@ -108,6 +107,18 @@ const operationRoutes: RouteRecordRaw[] = [
       id: String(route.params.id),
       title: 'Kategori Detayı',
     }),
+  },
+  {
+    path: 'auction-events',
+    name: 'auction-events',
+    component: AdminListView,
+    props: { resource: 'auction-events', title: 'Müzayede Etkinlikleri' },
+  },
+  {
+    path: 'auction-events/:id',
+    name: 'auction-events-detail',
+    component: () => import('../views/operations/AuctionEventDetailView.vue'),
+    props: (route) => ({ id: String(route.params.id) }),
   },
   {
     path: 'auctions',
@@ -253,6 +264,21 @@ const routes: RouteRecordRaw[] = [
         component: MobileConfigView,
       },
       {
+        path: 'banners',
+        name: 'banners',
+        component: () => import('../views/settings/BannersView.vue'),
+      },
+      {
+        path: 'geo-indications',
+        name: 'geo-indications',
+        component: () => import('../views/settings/GeoIndicationsView.vue'),
+      },
+      {
+        path: 'feature-badges',
+        name: 'feature-badges',
+        component: () => import('../views/settings/FeatureBadgesView.vue'),
+      },
+      {
         path: 'content-management',
         name: 'content-management',
         component: ContentStudioView,
@@ -266,11 +292,6 @@ const routes: RouteRecordRaw[] = [
         path: 'reports',
         name: 'reports',
         component: ReportsView,
-      },
-      {
-        path: 'feature-gap',
-        name: 'feature-gap',
-        component: FeatureGapView,
       },
     ],
   },

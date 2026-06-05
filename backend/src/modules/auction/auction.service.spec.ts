@@ -790,11 +790,13 @@ describe('AuctionService', () => {
       expect(auctionGateway.emitBidNew).toHaveBeenCalledWith(
         'auction-1',
         expect.objectContaining({ amount: 1100 }),
+        undefined,
       );
       expect(auctionGateway.emitBidOutbid).toHaveBeenCalledWith(
         'auction-1',
         'buyer-2',
         expect.objectContaining({ newAmount: 1100, yourBid: 1000 }),
+        undefined,
       );
     });
   });
@@ -1557,6 +1559,88 @@ describe('AuctionService', () => {
         winner: null,
         paymentStatus: AuctionPaymentStatus.NONE,
       });
+    });
+  });
+
+  describe('applyToEvent', () => {
+    const mockDto = {
+      productId: 'product-1',
+      startPrice: 100,
+      reservePrice: 150,
+      durationHours: 24,
+      antiSnipingEnabled: true,
+      extensionSeconds: 60,
+      maxExtensions: 3,
+      minIncrement: 10,
+    };
+
+    it('should throw ForbiddenException if user is not a seller', async () => {
+      userService.findById.mockResolvedValue({ id: 'buyer-1', isSeller: false });
+
+      await expect(
+        service.applyToEvent('buyer-1', 'event-1', mockDto as any),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if event does not exist', async () => {
+      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      auctionRepo.manager.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.applyToEvent('seller-1', 'event-1', mockDto as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if event is not APPLICATION', async () => {
+      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      auctionRepo.manager.findOne.mockResolvedValueOnce({
+        id: 'event-1',
+        status: 'ACTIVE',
+        submissionDeadline: null,
+      });
+
+      await expect(
+        service.applyToEvent('seller-1', 'event-1', mockDto as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if submission deadline has passed', async () => {
+      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      auctionRepo.manager.findOne.mockResolvedValueOnce({
+        id: 'event-1',
+        status: 'APPLICATION',
+        submissionDeadline: new Date(Date.now() - 10000), // passed
+      });
+
+      await expect(
+        service.applyToEvent('seller-1', 'event-1', mockDto as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should apply successfully if deadline is in the future', async () => {
+      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      auctionRepo.manager.findOne
+        .mockResolvedValueOnce({
+          id: 'event-1',
+          status: 'APPLICATION',
+          submissionDeadline: new Date(Date.now() + 100000), // future
+        })
+        .mockResolvedValueOnce({
+          id: 'product-1',
+          sellerId: 'seller-1',
+        });
+
+      auctionRepo.createQueryBuilder.mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      });
+
+      auctionRepo.create.mockReturnValue({ id: 'auction-1' });
+      auctionRepo.save.mockResolvedValue({ id: 'auction-1' });
+
+      const result = await service.applyToEvent('seller-1', 'event-1', mockDto as any);
+      expect(result).toBeDefined();
     });
   });
 });

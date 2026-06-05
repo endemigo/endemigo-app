@@ -71,9 +71,6 @@ export default function BlogDetailScreen() {
           <Ionicons name="chevron-back" size={18} color={Colors.primary} />
           <Text style={styles.backText}>{t('blogDetail.back')}</Text>
         </TouchableOpacity>
-        <Text style={styles.category}>
-          {blog.category || t('blogDetail.categoryFallback')}
-        </Text>
         <Text style={styles.title}>{blog.title}</Text>
         <Text style={styles.meta}>
           {t('blogDetail.publishedAt')}:{' '}

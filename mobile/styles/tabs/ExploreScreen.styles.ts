@@ -167,7 +167,8 @@ export const styles = StyleSheet.create({
   },
   auctionPrice: {
     color: Colors.auctionGreen,
-    fontFamily: FontFamily.headlineBlack,
+    fontFamily: FontFamily.price,
+    fontWeight: '400',
     fontSize: FontSize.subheading,
   },
   reserveBadge: {

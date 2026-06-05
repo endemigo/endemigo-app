@@ -41,6 +41,24 @@
         <i class="pi pi-plus" aria-hidden="true" />
         Yeni marka
       </button>
+      <button
+        v-if="resource === 'auction-events'"
+        class="button primary"
+        type="button"
+        @click="openAction(createAuctionEventAction)"
+      >
+        <i class="pi pi-plus" aria-hidden="true" />
+        Yeni Etkinlik
+      </button>
+      <button
+        v-if="resource === 'listing-templates'"
+        class="button primary"
+        type="button"
+        @click="openAction(createListingTemplateAction)"
+      >
+        <i class="pi pi-plus" aria-hidden="true" />
+        Yeni şablon ekle
+      </button>
     </header>
 
     <AdminDataTable
@@ -73,6 +91,7 @@
       :title="drawerTitle"
       :fields="drawerFields"
       :reason-required="true"
+      :default-reason="defaultReasonValue"
       :confirm-label="drawerConfirmLabel"
       :presentation="drawerPresentation"
       :page-size="drawerPageSize"
@@ -132,6 +151,7 @@ const router = useRouter();
 const rows = ref<Record<string, unknown>[]>([]);
 const categoryParentOptions = ref<{ label: string; value: string }[]>([]);
 const variationOptions = ref<{ label: string; value: string; kind?: string }[]>([]);
+const listingTemplatesOptions = ref<{ label: string; value: string }[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const activeFilters = ref<Record<string, string>>({});
@@ -140,7 +160,33 @@ const collapsedCategoryIds = ref<Set<string>>(new Set());
 const drawerOpen = ref(false);
 const selectedRow = ref<Record<string, unknown> | null>(null);
 const selectedAction = ref<ActionConfig | null>(null);
+const defaultReasonValue = computed(() => {
+  if (selectedAction.value?.method === 'post') {
+    const term = props.title === 'Müzayede Etkinlikleri' ? 'müzayede etkinliği' : props.title.toLowerCase();
+    return `Yeni ${term} oluşturuldu`;
+  }
+  return '';
+});
 let categoryRequestInFlight: Promise<Record<string, unknown>[]> | null = null;
+
+function getCategoryListingTemplate(row: Record<string, unknown> | null): Record<string, unknown> {
+  if (!row) return { fields: [], variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 } };
+  const meta = row.metadata as Record<string, unknown> | undefined;
+  if (!meta || !meta.listingTemplate) return { fields: [], variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 } };
+  return meta.listingTemplate as Record<string, unknown>;
+}
+
+function getCategoryTemplateId(row: Record<string, unknown> | null): string {
+  if (!row) return '';
+  const meta = row.metadata as Record<string, unknown> | undefined;
+  return meta && typeof meta.templateId === 'string' ? meta.templateId : '';
+}
+
+function getCategoryIsCulturalAsset(row: Record<string, unknown> | null): string {
+  if (!row) return 'false';
+  const val = row.isCulturalAsset;
+  return val === true || val === 'true' ? 'true' : 'false';
+}
 
 const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
   { key: 'name', label: 'Ad', required: true, value: getString(row, 'name') },
@@ -164,6 +210,16 @@ const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
       { label: 'Hayır (Mesajlaşma kapalı)', value: 'false' },
     ],
   },
+  {
+    key: 'isCulturalAsset',
+    label: 'Kültürel Varlık mı?',
+    type: 'select',
+    value: getCategoryIsCulturalAsset(row),
+    options: [
+      { label: 'Evet (Kültürel Varlık Kapsamında)', value: 'true' },
+      { label: 'Hayır (Normal Kategori)', value: 'false' },
+    ],
+  },
   { key: 'sortOrder', label: 'Sıralama', type: 'number', value: getString(row, 'sortOrder') },
   {
     key: 'variationOptionIds',
@@ -171,6 +227,12 @@ const categoryFields = (row: Record<string, unknown> | null): DrawerField[] => [
     type: 'multiselect',
     value: getCategoryVariationOptionIds(row),
     options: variationOptions.value,
+  },
+  {
+    key: 'listingTemplate',
+    label: 'Dinamik İlan Şablon Alanları',
+    type: 'template_editor',
+    value: getCategoryListingTemplate(row),
   },
 ];
 
@@ -186,6 +248,25 @@ const brandFields = (row: Record<string, unknown> | null): DrawerField[] => [
       { label: 'Aktif', value: 'true' },
       { label: 'Pasif', value: 'false' },
     ],
+  },
+];
+
+const getListingTemplateFieldsValue = (row: Record<string, unknown> | null): Record<string, unknown> => {
+  if (!row) return { fields: [], variant: { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 } };
+  return {
+    fields: Array.isArray(row.fields) ? row.fields : [],
+    variant: row.variant ?? { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 },
+  };
+};
+
+const listingTemplateFields = (row: Record<string, unknown> | null): DrawerField[] => [
+  { key: 'name', label: 'Şablon Adı', required: true, value: getString(row, 'name') },
+  { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
+  {
+    key: 'fields',
+    label: 'Dinamik İlan Şablon Alanları',
+    type: 'template_editor',
+    value: getListingTemplateFieldsValue(row),
   },
 ];
 
@@ -344,6 +425,18 @@ const createBrandAction: ActionConfig = {
   presentation: 'modal',
 };
 
+const createListingTemplateAction: ActionConfig = {
+  key: 'createListingTemplate',
+  label: 'Oluştur',
+  icon: 'pi pi-plus',
+  tone: 'primary',
+  method: 'post',
+  path: () => '/admin/listing-templates',
+  fields: listingTemplateFields,
+  confirmLabel: 'Şablon oluştur',
+  presentation: 'modal',
+};
+
 const createMemberAction: ActionConfig = {
   key: 'createMember',
   label: 'Üye ekle',
@@ -353,6 +446,55 @@ const createMemberAction: ActionConfig = {
   path: () => '/admin/users',
   fields: memberFields,
   confirmLabel: 'Üye oluştur',
+  presentation: 'modal',
+};
+
+const auctionEventStatusOptions = [
+  { label: 'Taslak', value: 'DRAFT' },
+  { label: 'Başvuru Sürecinde', value: 'APPLICATION' },
+  { label: 'Yaklaşan', value: 'UPCOMING' },
+  { label: 'Aktif', value: 'ACTIVE' },
+  { label: 'Sonlandı', value: 'ENDED' },
+  { label: 'İptal Edildi', value: 'CANCELLED' },
+];
+
+const auctionTypeOptions = [
+  { label: 'Canlı (Realtime)', value: 'REALTIME' },
+  { label: 'Süreli (Timed)', value: 'TIMED' },
+];
+
+const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] => [
+  { key: 'title', label: 'Başlık', required: true, value: getString(row, 'title') },
+  { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
+  { key: 'coverImageUrl', label: 'Kapak Görseli', type: 'image', value: getString(row, 'coverImageUrl') },
+  {
+    key: 'status',
+    label: 'Durum',
+    type: 'select',
+    value: getString(row, 'status') || 'DRAFT',
+    options: auctionEventStatusOptions,
+  },
+  {
+    key: 'auctionType',
+    label: 'Müzayede Tipi',
+    type: 'select',
+    value: getString(row, 'auctionType') || 'REALTIME',
+    options: auctionTypeOptions,
+  },
+  { key: 'startTime', label: 'Başlangıç Tarihi', type: 'date', required: true, value: getString(row, 'startTime') },
+  { key: 'endTime', label: 'Bitiş Tarihi', type: 'date', required: true, value: getString(row, 'endTime') },
+  { key: 'submissionDeadline', label: 'Son Ürün Ekleme Tarihi (Opsiyonel)', type: 'date', value: getString(row, 'submissionDeadline') },
+];
+
+const createAuctionEventAction: ActionConfig = {
+  key: 'createAuctionEvent',
+  label: 'Oluştur',
+  icon: 'pi pi-plus',
+  tone: 'primary',
+  method: 'post',
+  path: () => '/admin/auction-events',
+  fields: auctionEventFields,
+  confirmLabel: 'Müzayede etkinliği oluştur',
   presentation: 'modal',
 };
 
@@ -455,6 +597,35 @@ const resourceConfigs: Record<string, ResourceConfig> = {
         method: 'delete',
         path: (id) => `/admin/brands/${id}`,
         confirmLabel: 'Marka devre dışı bırak',
+      },
+    ],
+  },
+  'listing-templates': {
+    detailBase: '', // Centralized templates do not have a dedicated detail view
+    columns: [
+      { key: 'name', label: 'Şablon Adı' },
+      { key: 'description', label: 'Açıklama' },
+      { key: 'fieldsCount', label: 'Alan Sayısı' },
+      { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },
+    ],
+    actions: [
+      {
+        key: 'updateListingTemplate',
+        label: 'Güncelle',
+        icon: 'pi pi-pencil',
+        method: 'patch',
+        path: (id) => `/admin/listing-templates/${id}`,
+        fields: listingTemplateFields,
+        confirmLabel: 'Şablonu güncelle',
+      },
+      {
+        key: 'deleteListingTemplate',
+        label: 'Sil',
+        icon: 'pi pi-trash',
+        tone: 'danger',
+        method: 'delete',
+        path: (id) => `/admin/listing-templates/${id}`,
+        confirmLabel: 'Şablonu sil',
       },
     ],
   },
@@ -584,6 +755,30 @@ const resourceConfigs: Record<string, ResourceConfig> = {
         tone: 'danger',
         method: 'patch',
         path: (id) => `/admin/payout-requests/${id}/reject`,
+      },
+    ],
+  },
+  'auction-events': {
+    detailBase: 'auction-events',
+    columns: [
+      { key: 'title', label: 'Başlık', route: (row) => `/auction-events/${String(row.id ?? '')}` },
+      { key: 'status', label: 'Durum', format: 'status' },
+      { key: 'auctionType', label: 'Müzayede Tipi' },
+      { key: 'lotCount', label: 'Lot Sayısı' },
+      { key: 'startTime', label: 'Başlangıç Tarihi', format: 'date' },
+      { key: 'endTime', label: 'Bitiş Tarihi', format: 'date' },
+      { key: 'submissionDeadline', label: 'Son Ürün Ekleme', format: 'date' },
+      { key: 'createdAt', label: 'Oluşturulma Tarihi', format: 'date' },
+    ],
+    actions: [
+      {
+        key: 'updateAuctionEvent',
+        label: 'Düzenle',
+        icon: 'pi pi-pencil',
+        method: 'patch',
+        path: (id) => `/admin/auction-events/${id}`,
+        fields: auctionEventFields,
+        confirmLabel: 'Etkinlik güncelle',
       },
     ],
   },
@@ -1038,6 +1233,24 @@ function normalizeAuditRow(row: Record<string, unknown>): Record<string, unknown
   };
 }
 
+function normalizeListingTemplateRow(row: Record<string, unknown>): Record<string, unknown> {
+  const fields = row.fields;
+  const fieldsCount = Array.isArray(fields) ? fields.length : 0;
+  return {
+    ...row,
+    fieldsCount,
+  };
+}
+
+function normalizeAuctionEventRow(row: Record<string, unknown>): Record<string, unknown> {
+  const type = getString(row, 'auctionType');
+  const auctionType = type === 'REALTIME' ? 'Canlı (Realtime)' : 'Süreli (Timed)';
+  return {
+    ...row,
+    auctionType,
+  };
+}
+
 function buildListQueryParams(filtersValue: Record<string, string>): Record<string, string | number> {
   const params: Record<string, string | number> = {
     page: pagination.value.page,
@@ -1112,6 +1325,10 @@ function openAction(action: AdminTableAction, row?: Record<string, unknown>) {
   selectedAction.value = actionConfig;
   selectedRow.value = row ?? null;
   drawerOpen.value = true;
+  
+  if (props.resource === 'categories' && variationOptions.value.length === 0) {
+    void loadVariationOptions();
+  }
 }
 
 function closeDrawer() {
@@ -1155,6 +1372,7 @@ async function loadRows() {
   try {
     if (props.resource === 'categories') {
       await loadVariationOptions();
+      await loadListingTemplatesOptions();
       const allRows = await loadAllCategoryRows();
       rows.value = normalizeCategoryRows(allRows);
       pagination.value = {
@@ -1182,6 +1400,10 @@ async function loadRows() {
               ? loadedRows.map((row) => normalizeNegotiationRow(row))
             : props.resource === 'audit-logs'
               ? loadedRows.map((row) => normalizeAuditRow(row))
+            : props.resource === 'listing-templates'
+              ? loadedRows.map((row) => normalizeListingTemplateRow(row))
+            : props.resource === 'auction-events'
+              ? loadedRows.map((row) => normalizeAuctionEventRow(row))
           : loadedRows;
     pagination.value = response.data.pagination ?? pagination.value;
   } catch (loadError) {
@@ -1251,8 +1473,26 @@ async function loadVariationOptions() {
         value: String(item.id ?? ''),
         kind: String(item.kind ?? ''),
       }));
-  } catch {
+  } catch (err) {
+    console.error('Failed to load variation options:', err);
     variationOptions.value = [];
+  }
+}
+
+async function loadListingTemplatesOptions() {
+  if (props.resource !== 'categories') return;
+  try {
+    const response = await adminApi.get<ApiListResponse>('/admin/listing-templates', {
+      params: { page: 1, limit: 100 },
+    });
+    const items = Array.isArray(response.data.items) ? response.data.items : [];
+    listingTemplatesOptions.value = items.map((item) => ({
+      label: String(item.name ?? 'İsimsiz Şablon'),
+      value: String(item.id ?? ''),
+    }));
+  } catch (err) {
+    console.error('Failed to load listing template options:', err);
+    listingTemplatesOptions.value = [];
   }
 }
 
@@ -1263,6 +1503,7 @@ watch(
     pagination.value = { page: 1, limit: 25, total: 0 };
     void loadCategoryParentOptions();
     void loadVariationOptions();
+    void loadListingTemplatesOptions();
     void loadRows();
   },
 );
@@ -1270,4 +1511,5 @@ watch(
 onMounted(loadRows);
 onMounted(loadCategoryParentOptions);
 onMounted(loadVariationOptions);
+onMounted(loadListingTemplatesOptions);
 </script>

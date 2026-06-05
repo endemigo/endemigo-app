@@ -196,6 +196,7 @@ export class MobileConfigService {
   private assertValidDraft(draft: unknown): asserts draft is MobileExperienceConfig {
     const errors = validateMobileExperienceConfig(draft);
     if (errors.length > 0) {
+      console.warn('MOBILE_CONFIG_VALIDATION_ERRORS:', JSON.stringify(errors, null, 2));
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Mobil uygulama konfigurasyonu gecersiz',
@@ -207,13 +208,14 @@ export class MobileConfigService {
   private toDocumentResponse(
     document: MobileConfigDocument,
     status: MobileConfigStatus,
-  ): MobileExperienceDocumentResponse {
+  ): any {
     return {
       status,
       version: document.version ?? 1,
       draft: sanitizeMobileExperienceConfig(document.draft),
       published: document.published ? sanitizeMobileExperienceConfig(document.published) : null,
       publishedAt: document.publishedAt?.toISOString() ?? null,
+      updatedAt: document.updatedAt?.toISOString() ?? null,
       updatedByAdminId: document.updatedByAdminId ?? null,
       publishedByAdminId: document.publishedByAdminId ?? null,
     };

@@ -89,7 +89,6 @@
       <section class="admin-coverage-strip">
         <span class="badge">Hazir {{ availableFeatureCount }} / {{ totalFeatureCount }}</span>
         <span class="badge warning">Eksik {{ missingFeatureCount }}</span>
-        <RouterLink class="button ghost" to="/feature-gap">Eksik Moduller</RouterLink>
       </section>
 
       <section class="admin-content">
@@ -167,70 +166,70 @@ const MOBILE_BREAKPOINT = 1024;
 const navGroups: NavGroup[] = [
   {
     key: 'dashboard',
-    title: 'Dashboard',
+    title: 'Dashboard & Raporlar',
     items: [
       { label: 'Panel', to: '/', icon: 'pi pi-home' },
-      { label: 'Kuyruklar', to: '/queues', icon: 'pi pi-list-check' },
-    ],
-  },
-  {
-    key: 'operations',
-    title: 'Operations',
-    items: [
-      { label: 'Üyeler', to: '/users', icon: 'pi pi-users' },
-      { label: 'Satıcılar', to: '/sellers', icon: 'pi pi-verified' },
-      { label: 'Teklifler', to: '/bids', icon: 'pi pi-sort-amount-up' },
-      { label: 'Sohbetler', to: '/negotiations', icon: 'pi pi-comments' },
+      { label: 'Raporlar', to: '/reports', icon: 'pi pi-chart-line' },
       { label: 'Denetim', to: '/audit', icon: 'pi pi-history' },
     ],
   },
   {
     key: 'catalog',
-    title: 'Catalog',
+    title: 'Katalog & Ticaret',
     collapsible: true,
     items: [
       { label: 'Ürünler', to: '/products', icon: 'pi pi-box' },
       { label: 'Kategoriler', to: '/categories', icon: 'pi pi-tags' },
-      { label: 'Müzayedeler', to: '/auctions', icon: 'pi pi-clock' },
       { label: 'Markalar', to: '/brands', icon: 'pi pi-bookmark' },
+      { label: 'Coğrafi İşaretler & Sertifikalar', to: '/geo-indications', icon: 'pi pi-certificate' },
+      { label: 'Özellik Rozetleri', to: '/feature-badges', icon: 'pi pi-check-square' },
+      { label: 'Müzayede Etkinlikleri', to: '/auction-events', icon: 'pi pi-calendar' },
+      { label: 'Teklifler', to: '/bids', icon: 'pi pi-sort-amount-up' },
+      { label: 'Sohbetler', to: '/negotiations', icon: 'pi pi-comments' },
       { label: 'Varyantlar', to: '/variants/numbers', icon: 'pi pi-sliders-h' },
     ],
   },
   {
+    key: 'operations',
+    title: 'Kullanıcı & Operasyon',
+    items: [
+      { label: 'Üyeler', to: '/users', icon: 'pi pi-users' },
+      { label: 'Satıcılar', to: '/sellers', icon: 'pi pi-verified' },
+      { label: 'Kuyruklar', to: '/queues', icon: 'pi pi-list-check' },
+      { label: 'Güvenlik & Risk', to: '/trust', icon: 'pi pi-shield' },
+    ],
+  },
+  {
     key: 'finance',
-    title: 'Finance',
+    title: 'Finans',
     items: [
       { label: 'Siparişler', to: '/orders', icon: 'pi pi-shopping-bag' },
       { label: 'Ödemeler', to: '/payments', icon: 'pi pi-credit-card' },
-      { label: 'Ödeme talepleri', to: '/payouts', icon: 'pi pi-wallet' },
+      { label: 'Ödeme Talepleri', to: '/payouts', icon: 'pi pi-wallet' },
       { label: 'Üyelik', to: '/membership', icon: 'pi pi-star' },
     ],
   },
   {
-    key: 'growth',
-    title: 'Growth',
+    key: 'marketing',
+    title: 'Pazarlama & İçerik',
     items: [
       { label: 'Reklamlar', to: '/ads', icon: 'pi pi-megaphone' },
       { label: 'Kampanyalar', to: '/campaigns', icon: 'pi pi-percentage' },
-      { label: 'Raporlar', to: '/reports', icon: 'pi pi-chart-line' },
+      { label: 'Banner Yönetimi', to: '/banners', icon: 'pi pi-images' },
       { label: 'İçerik Yönetimi', to: '/content-management', icon: 'pi pi-file-edit' },
-      { label: 'Bultenler', to: '/newsletters', icon: 'pi pi-envelope' },
+      { label: 'Bültenler', to: '/newsletters', icon: 'pi pi-envelope' },
     ],
   },
   {
-    key: 'risk',
-    title: 'Risk',
-    items: [{ label: 'Güven', to: '/trust', icon: 'pi pi-shield' }],
-  },
-  {
     key: 'settings',
-    title: 'Settings',
+    title: 'Ayarlar',
     items: [
-      { label: 'Ayarlar', to: '/settings', icon: 'pi pi-cog' },
+      { label: 'Genel Ayarlar', to: '/settings', icon: 'pi pi-cog' },
       { label: 'Mobil Uygulama', to: '/mobile-config', icon: 'pi pi-mobile' },
     ],
   },
 ];
+
 
 const allNavItems = computed(() => navGroups.flatMap((group) => group.items));
 const availableFeatureCount = computed(() => allNavItems.value.filter((item) => item.available !== false).length);
@@ -255,7 +254,6 @@ async function logout() {
 async function openNavItem(item: NavItem) {
   isSidebarOpen.value = false;
   if (item.available === false) {
-    await router.push({ path: '/feature-gap', query: { module: item.label } });
     closeCommandPalette();
     return;
   }

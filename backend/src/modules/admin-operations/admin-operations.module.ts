@@ -4,6 +4,7 @@ import { AdminAuditModule } from '../admin-audit/admin-audit.module';
 import { AdminAuthModule } from '../admin-auth/admin-auth.module';
 import { Auction } from '../auction/entities/auction.entity';
 import { Bid } from '../auction/entities/bid.entity';
+import { AuctionEvent } from '../auction/entities/auction-event.entity';
 import { Coupon } from '../campaign/entities/coupon.entity';
 import { CouponRedemption } from '../campaign/entities/coupon-redemption.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -21,8 +22,12 @@ import { PayoutRequest } from '../wallet/entities/payout-request.entity';
 import { Conversation } from '../negotiation/entities/conversation.entity';
 import { NegotiationMessage } from '../negotiation/entities/negotiation-message.entity';
 import { ViolationLog } from '../negotiation/entities/violation-log.entity';
+import { ListingTemplate } from '../product/entities/listing-template.entity';
+import { GeoIndication } from '../product/entities/geo-indication.entity';
+import { FeatureBadge } from '../product/entities/feature-badge.entity';
 import { AdminOperationsController } from './admin-operations.controller';
 import { AdminOperationsService } from './admin-operations.service';
+import { AuctionModule } from '../auction/auction.module';
 
 @Module({
   imports: [
@@ -36,6 +41,7 @@ import { AdminOperationsService } from './admin-operations.service';
       Brand,
       Auction,
       Bid,
+      AuctionEvent,
       Order,
       Payment,
       Favorite,
@@ -46,9 +52,13 @@ import { AdminOperationsService } from './admin-operations.service';
       Conversation,
       NegotiationMessage,
       ViolationLog,
+      ListingTemplate,
+      GeoIndication,
+      FeatureBadge,
     ]),
     AdminAuthModule,
     AdminAuditModule,
+    AuctionModule,
   ],
   controllers: [AdminOperationsController],
   providers: [AdminOperationsService],

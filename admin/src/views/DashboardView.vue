@@ -30,113 +30,132 @@
       </div>
     </header>
 
-    <section class="panel">
-      <div class="panel-header">
-        <strong>Analiz Özeti</strong>
-        <span class="muted">{{ activePeriodLabel }}</span>
-      </div>
-      <div class="panel-body metric-grid">
-        <article v-for="item in analysisCards" :key="item.key" class="metric-card">
-          <span class="muted">{{ item.label }}</span>
-          <strong class="metric-value">{{ item.value }}</strong>
-          <span :class="['trend-pill', item.delta >= 0 ? 'is-up' : 'is-down']">
-            {{ item.delta >= 0 ? '+' : '' }}{{ item.delta }}%
-          </span>
-        </article>
-      </div>
-    </section>
-
-    <section class="queue-grid" aria-label="Öncelikli kuyruklar">
-      <RouterLink
-        v-for="item in queueCards"
-        :key="item.key"
-        class="queue-card"
-        :class="item.severityClass"
-        :to="item.to"
+    <nav class="tabs">
+      <button
+        class="tab-button"
+        :class="{ 'is-active': activeTab === 'overview' }"
+        type="button"
+        @click="activeTab = 'overview'"
       >
-        <span class="muted">{{ item.label }}</span>
-        <strong class="queue-count">{{ item.count }}</strong>
-        <span>{{ item.summary }}</span>
-      </RouterLink>
-    </section>
+        Genel Bakış
+      </button>
+      <button
+        class="tab-button"
+        :class="{ 'is-active': activeTab === 'queues' }"
+        type="button"
+        @click="activeTab = 'queues'"
+      >
+        Onay Kuyrukları
+      </button>
+      <button
+        class="tab-button"
+        :class="{ 'is-active': activeTab === 'metrics' }"
+        type="button"
+        @click="activeTab = 'metrics'"
+      >
+        Detaylı Metrikler
+      </button>
+    </nav>
 
-    <AdminDataTable
-      :columns="queueColumns"
-      :rows="filteredQueueRows"
-      :loading="loading"
-      :pagination="queuePagination"
-      :filters="queueFilters"
-      @filter="setQueueFilters"
-      @row-click="openQueueRow"
-    >
-      <template #toolbar>
-        <span class="muted">Satır tıklayarak ilgili modüle geçiş yap.</span>
-      </template>
-    </AdminDataTable>
-
-    <section class="chart-grid" aria-label="Operasyon grafikleri">
-      <article class="panel chart-card">
+    <section v-if="activeTab === 'overview'" class="field-grid">
+      <section class="panel">
         <div class="panel-header">
-          <strong>Sipariş Trendi</strong>
-          <span class="muted">Seçili aralık</span>
+          <strong>Analiz Özeti</strong>
+          <span class="muted">{{ activePeriodLabel }}</span>
         </div>
-        <div class="panel-body chart-canvas-wrap">
-          <svg class="line-chart" viewBox="0 0 640 220" role="img" aria-label="Sipariş trend grafiği">
-            <path class="line-chart-area" :d="orderChart.areaPath" />
-            <path class="line-chart-stroke" :d="orderChart.path" />
-            <circle
-              v-for="point in orderChart.points"
-              :key="`order-${point.x}-${point.y}`"
-              class="line-chart-point"
-              :cx="point.x"
-              :cy="point.y"
-              r="3.5"
-            />
-          </svg>
-          <div class="chart-footer">
-            <span class="muted">{{ orderChart.leftLabel }}</span>
-            <span class="muted">{{ orderChart.rightLabel }}</span>
-          </div>
+        <div class="panel-body metric-grid">
+          <article v-for="item in analysisCards" :key="item.key" class="metric-card">
+            <span class="muted">{{ item.label }}</span>
+            <strong class="metric-value">{{ item.value }}</strong>
+            <span :class="['trend-pill', item.delta >= 0 ? 'is-up' : 'is-down']">
+              {{ item.delta >= 0 ? '+' : '' }}{{ item.delta }}%
+            </span>
+          </article>
         </div>
-      </article>
+      </section>
 
-      <article class="panel chart-card">
-        <div class="panel-header">
-          <strong>Kullanıcı Trendi</strong>
-          <span class="muted">Yeni kullanıcı akışı</span>
-        </div>
-        <div class="panel-body chart-canvas-wrap">
-          <svg class="line-chart alt" viewBox="0 0 640 220" role="img" aria-label="Kullanıcı trend grafiği">
-            <path class="line-chart-area" :d="userChart.areaPath" />
-            <path class="line-chart-stroke" :d="userChart.path" />
-            <circle
-              v-for="point in userChart.points"
-              :key="`user-${point.x}-${point.y}`"
-              class="line-chart-point"
-              :cx="point.x"
-              :cy="point.y"
-              r="3.5"
-            />
-          </svg>
-          <div class="chart-footer">
-            <span class="muted">{{ userChart.leftLabel }}</span>
-            <span class="muted">{{ userChart.rightLabel }}</span>
+      <section class="chart-grid" aria-label="Operasyon grafikleri">
+        <article class="panel chart-card">
+          <div class="panel-header">
+            <strong>Sipariş Trendi</strong>
+            <span class="muted">Seçili aralık</span>
           </div>
-        </div>
-      </article>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <strong>Operasyon Metrikleri</strong>
-        <span class="muted">{{ metricsLoadedLabel }}</span>
-      </div>
-      <div class="panel-body metric-grid">
-        <article v-for="metric in metricCards" :key="metric.key" class="metric-card">
-          <span class="muted">{{ metric.label }}</span>
-          <strong class="metric-value">{{ metric.value }}</strong>
+          <div class="panel-body chart-canvas-wrap">
+            <svg class="line-chart" viewBox="0 0 640 220" role="img" aria-label="Sipariş trend grafiği">
+              <path class="line-chart-area" :d="orderChart.areaPath" />
+              <path class="line-chart-stroke" :d="orderChart.path" />
+              <circle
+                v-for="point in orderChart.points"
+                :key="`order-${point.x}-${point.y}`"
+                class="line-chart-point"
+                :cx="point.x"
+                :cy="point.y"
+                r="3.5"
+              />
+            </svg>
+            <div class="chart-footer">
+              <span class="muted">{{ orderChart.leftLabel }}</span>
+              <span class="muted">{{ orderChart.rightLabel }}</span>
+            </div>
+          </div>
         </article>
-      </div>
+
+        <article class="panel chart-card">
+          <div class="panel-header">
+            <strong>Kullanıcı Trendi</strong>
+            <span class="muted">Yeni kullanıcı akışı</span>
+          </div>
+          <div class="panel-body chart-canvas-wrap">
+            <svg class="line-chart alt" viewBox="0 0 640 220" role="img" aria-label="Kullanıcı trend grafiği">
+              <path class="line-chart-area" :d="userChart.areaPath" />
+              <path class="line-chart-stroke" :d="userChart.path" />
+              <circle
+                v-for="point in userChart.points"
+                :key="`user-${point.x}-${point.y}`"
+                class="line-chart-point"
+                :cx="point.x"
+                :cy="point.y"
+                r="3.5"
+              />
+            </svg>
+            <div class="chart-footer">
+              <span class="muted">{{ userChart.leftLabel }}</span>
+              <span class="muted">{{ userChart.rightLabel }}</span>
+            </div>
+          </div>
+        </article>
+      </section>
+    </section>
+
+    <section v-if="activeTab === 'queues'" class="field-grid">
+      <AdminDataTable
+        :columns="queueColumns"
+        :rows="filteredQueueRows"
+        :loading="loading"
+        :pagination="queuePagination"
+        :filters="queueFilters"
+        @filter="setQueueFilters"
+        @row-click="openQueueRow"
+      >
+        <template #toolbar>
+          <span class="muted">Satır tıklayarak ilgili modüle geçiş yap.</span>
+        </template>
+      </AdminDataTable>
+    </section>
+
+    <section v-if="activeTab === 'metrics'" class="field-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <strong>Operasyon Metrikleri</strong>
+          <span class="muted">{{ metricsLoadedLabel }}</span>
+        </div>
+        <div class="panel-body metric-grid">
+          <article v-for="metric in metricCards" :key="metric.key" class="metric-card">
+            <span class="muted">{{ metric.label }}</span>
+            <strong class="metric-value">{{ metric.value }}</strong>
+          </article>
+        </div>
+      </section>
     </section>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -295,6 +314,7 @@ const queueFilterValues = ref<Record<string, string>>({});
 const selectedPeriod = ref<DashboardPeriod>('day');
 const customFrom = ref(formatDateInput(daysAgo(7)));
 const customTo = ref(formatDateInput(new Date()));
+const activeTab = ref<'overview' | 'queues' | 'metrics'>('overview');
 
 const periodOptions: Array<{ value: DashboardPeriod; label: string }> = [
   { value: 'day', label: 'Gunluk' },

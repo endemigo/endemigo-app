@@ -81,6 +81,18 @@ async function publishAuction(auctionId: string) {
   return api.patch(`/auctions/${auctionId}/publish`);
 }
 
+async function applyToEvent(eventId: string, productId: string, state: ProductCreateWizardState) {
+  if (ENV.USE_MOCK) {
+    return { id: 'mock-auction-id', code: 'SUCCESS', message: 'Başvuru alındı' };
+  }
+
+  const { data } = await api.post(
+    `/auctions/events/${eventId}/apply`,
+    buildAuctionCreatePayload(productId, state),
+  );
+  return data;
+}
+
 export async function submitProductCreateWizard(
   state: ProductCreateWizardState,
   images: ProductCreateImageDraft[],
@@ -99,8 +111,12 @@ export async function submitProductCreateWizard(
   await publishProduct(product.id);
 
   if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
-    const auction = await createAuction(product.id, state);
-    await publishAuction(auction.id);
+    if (state.selectedEventId) {
+      await applyToEvent(state.selectedEventId, product.id, state);
+    } else {
+      const auction = await createAuction(product.id, state);
+      await publishAuction(auction.id);
+    }
   }
 
   await Promise.all([

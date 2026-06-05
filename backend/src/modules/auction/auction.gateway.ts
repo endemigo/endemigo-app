@@ -139,6 +139,61 @@ export class AuctionGateway
     };
   }
 
+  private eventViewerCounts: Map<string, number> = new Map();
+
+  @SubscribeMessage('event:join')
+  handleJoinEventRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { eventId: string },
+  ) {
+    const room = `event:${data.eventId}`;
+    client.join(room);
+    const count = (this.eventViewerCounts.get(data.eventId) || 0) + 1;
+    this.eventViewerCounts.set(data.eventId, count);
+    const serverTime = new Date().toISOString();
+    this.logger.debug(
+      `Client ${client.id} joined ${room} (viewers: ${count})`,
+    );
+    this.server.to(room).emit('event:viewer_count', {
+      eventId: data.eventId,
+      count,
+      serverTime,
+    });
+    client.emit('event:joined', {
+      eventId: data.eventId,
+      viewerCount: count,
+      serverTime,
+    });
+    return {
+      event: 'event:joined',
+      data: { eventId: data.eventId, viewerCount: count, serverTime },
+    };
+  }
+
+  @SubscribeMessage('event:leave')
+  handleLeaveEventRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { eventId: string },
+  ) {
+    const room = `event:${data.eventId}`;
+    client.leave(room);
+    const count = Math.max(
+      0,
+      (this.eventViewerCounts.get(data.eventId) || 1) - 1,
+    );
+    if (count <= 0) this.eventViewerCounts.delete(data.eventId);
+    else this.eventViewerCounts.set(data.eventId, count);
+    this.server.to(room).emit('event:viewer_count', {
+      eventId: data.eventId,
+      count,
+      serverTime: new Date().toISOString(),
+    });
+    return {
+      event: 'event:left',
+      data: { eventId: data.eventId, serverTime: new Date().toISOString() },
+    };
+  }
+
   // WR-03: Clean up viewer count for ended auctions — prevents memory leak
   clearViewerCount(auctionId: string) {
     this.viewerCounts.delete(auctionId);
@@ -156,60 +211,95 @@ export class AuctionGateway
       endTime: string;
       serverTime: string;
     },
+    eventId?: string | null,
   ) {
     const serverTime = payload.serverTime || new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('bid:new', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('bid:new', { auctionId, ...payload, serverTime });
+    }
   }
 
   emitBidOutbid(
     auctionId: string,
     previousBidderId: string,
     payload: { newAmount: number; yourBid: number },
+    eventId?: string | null,
   ) {
-    const room = `auction:${auctionId}`;
     const serverTime = new Date().toISOString();
+    const sendToUser = (socket: any) => {
+      if (socket.data.userId === previousBidderId) {
+        socket.emit('bid:outbid', { auctionId, ...payload, serverTime });
+      }
+    };
+
     this.server
-      .to(room)
+      .to(`auction:${auctionId}`)
       .fetchSockets()
       .then((sockets) => {
-        sockets.forEach((s) => {
-          if (s.data.userId === previousBidderId) {
-            s.emit('bid:outbid', { auctionId, ...payload, serverTime });
-          }
-        });
+        sockets.forEach(sendToUser);
       });
+
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .fetchSockets()
+        .then((sockets) => {
+          sockets.forEach(sendToUser);
+        });
+    }
   }
 
   emitAuctionStarted(
     auctionId: string,
     payload: { startPrice: number },
+    eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('auction:started', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('auction:started', { auctionId, ...payload, serverTime });
+    }
   }
 
   emitAuctionExtended(
     auctionId: string,
     payload: { newEndTime: string; extensionNumber: number },
+    eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('auction:extended', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('auction:extended', { auctionId, ...payload, serverTime });
+    }
   }
 
   emitAuctionWarning(
     auctionId: string,
     payload: { minutesLeft: number },
+    eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('auction:warning', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('auction:warning', { auctionId, ...payload, serverTime });
+    }
   }
 
   emitAuctionEnded(
@@ -219,58 +309,120 @@ export class AuctionGateway
       winnerId: string | null;
       bidCount: number;
     },
+    eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('auction:ended', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('auction:ended', { auctionId, ...payload, serverTime });
+    }
   }
 
   emitBidWinner(
     auctionId: string,
     winnerId: string,
     payload: { finalPrice: number; premiumAmount: number },
+    eventId?: string | null,
   ) {
-    const room = `auction:${auctionId}`;
     const serverTime = new Date().toISOString();
+    const sendToWinner = (socket: any) => {
+      if (socket.data.userId === winnerId) {
+        socket.emit('bid:winner', { auctionId, ...payload, serverTime });
+      }
+    };
+
     this.server
-      .to(room)
+      .to(`auction:${auctionId}`)
       .fetchSockets()
       .then((sockets) => {
-        sockets.forEach((s) => {
-          if (s.data.userId === winnerId) {
-            s.emit('bid:winner', { auctionId, ...payload, serverTime });
-          }
-        });
+        sockets.forEach(sendToWinner);
       });
+
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .fetchSockets()
+        .then((sockets) => {
+          sockets.forEach(sendToWinner);
+        });
+    }
   }
 
   emitBidLost(
     auctionId: string,
     winnerId: string,
     payload: { finalPrice: number; holdReleased: boolean },
+    eventId?: string | null,
   ) {
-    const room = `auction:${auctionId}`;
     const serverTime = new Date().toISOString();
+    const sendToLosers = (socket: any) => {
+      if (socket.data.userId && socket.data.userId !== winnerId) {
+        socket.emit('bid:lost', { auctionId, ...payload, serverTime });
+      }
+    };
+
     this.server
-      .to(room)
+      .to(`auction:${auctionId}`)
       .fetchSockets()
       .then((sockets) => {
-        sockets.forEach((s) => {
-          if (s.data.userId && s.data.userId !== winnerId) {
-            s.emit('bid:lost', { auctionId, ...payload, serverTime });
-          }
-        });
+        sockets.forEach(sendToLosers);
       });
+
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .fetchSockets()
+        .then((sockets) => {
+          sockets.forEach(sendToLosers);
+        });
+    }
   }
 
   emitAuctionCancelled(
     auctionId: string,
     payload: { reason: string },
+    eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`auction:${auctionId}`)
       .emit('auction:cancelled', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('auction:cancelled', { auctionId, ...payload, serverTime });
+    }
+  }
+
+  // ─── Ortak Müzayede (Model 2) Event Yayınları ───
+
+  emitActiveLotChanged(
+    eventId: string,
+    payload: {
+      activeLotId: string | null;
+      lotNumber: string | null;
+      productTitle: string | null;
+      currentPrice: number;
+      endTime: string;
+    },
+  ) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`event:${eventId}`)
+      .emit('event:active_lot_changed', { eventId, ...payload, serverTime });
+  }
+
+  emitEventStatusChanged(
+    eventId: string,
+    payload: { status: string },
+  ) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`event:${eventId}`)
+      .emit('event:status_changed', { eventId, ...payload, serverTime });
   }
 }

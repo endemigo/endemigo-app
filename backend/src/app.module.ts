@@ -31,6 +31,7 @@ import { TrustModule } from './modules/trust/trust.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { MobileConfigModule } from './modules/mobile-config/mobile-config.module';
 import { ContentStudioModule } from './modules/content-studio/content-studio.module';
+import { BannerModule } from './modules/banner/banner.module';
 import { StorageModule } from './shared/storage/storage.module';
 import { EmailModule } from './shared/email/email.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -95,6 +96,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     TrustModule,
     MobileConfigModule,
     ContentStudioModule,
+    BannerModule,
     ReportsModule,
     HealthModule,
   ],

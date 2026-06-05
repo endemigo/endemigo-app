@@ -33,7 +33,7 @@ export class AuctionProcessor extends WorkerHost {
           if (auction) {
             this.auctionGateway.emitAuctionStarted(auctionId, {
               startPrice: Number(auction.startPrice),
-            });
+            }, (auction as any).eventId);
 
             // Schedule warning events (5min, 1min before end)
             const endMs = new Date(auction.endTime).getTime();

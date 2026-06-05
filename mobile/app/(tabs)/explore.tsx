@@ -86,7 +86,7 @@ export default function ExploreScreen() {
     if (!hasQuery) return items.slice(0, 5);
     const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR');
     return items.filter((item) =>
-      `${item.title} ${item.excerpt} ${item.category}`
+      `${item.title} ${item.excerpt}`
         .toLocaleLowerCase('tr-TR')
         .includes(normalizedQuery),
     );

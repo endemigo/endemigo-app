@@ -8,6 +8,7 @@ export default function AuthLayout() {
   return (
     <Stack
       screenOptions={{
+        gestureEnabled: true,
         headerStyle: {
           backgroundColor: Colors.primary,
         },

@@ -23,6 +23,7 @@ export {
   MEMBERSHIP,
   TRUST,
   MOBILE,
+  BANNER,
   CONTENT,
   GENERIC,
 } from './response-codes';

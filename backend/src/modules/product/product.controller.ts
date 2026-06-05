@@ -287,6 +287,20 @@ export class ProductController {
   }
 
   @Public()
+  @Get('geo-indications')
+  @ApiOperation({ summary: 'Tüm coğrafi işaret ve sertifikaları listele' })
+  async getGeoIndications() {
+    return this.productService.findGeoIndications();
+  }
+
+  @Public()
+  @Get('features')
+  @ApiOperation({ summary: 'Tüm özellik rozetlerini listele' })
+  async getFeatures() {
+    return this.productService.findFeatureBadges();
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Ürün detay' })
   @ApiResponse({ status: 200, type: ProductResponseDto })

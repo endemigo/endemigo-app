@@ -11,15 +11,19 @@
       </button>
     </header>
 
-    <section class="queue-grid">
-      <article v-for="queue in queueItems" :key="queue.key" class="panel">
+    <div v-if="activeQueues.length === 0" class="empty-state">
+      <i class="pi pi-check-circle empty-icon" aria-hidden="true" style="color: var(--brand-500);" />
+      <p>Harika! Bekleyen herhangi bir operasyonel iş veya onay kuyruğu bulunmuyor.</p>
+    </div>
+
+    <section v-else class="queue-grid">
+      <article v-for="queue in activeQueues" :key="queue.key" class="panel">
         <div class="panel-header">
           <strong>{{ queue.label }}</strong>
-          <span class="badge" :class="{ warning: queue.count > 0 }">{{ queue.count }}</span>
+          <span class="badge warning">{{ queue.count }}</span>
         </div>
         <div class="panel-body">
-          <p v-if="queue.latest.length === 0" class="muted">Bekleyen kayıt yok.</p>
-          <ul v-else class="timeline">
+          <ul class="timeline">
             <li v-for="item in queue.latest" :key="recordKey(item)" class="timeline-item">
               <strong>{{ recordLabel(queue.key, item) }}</strong>
               <p class="muted">{{ formatDate(item.createdAt) }}</p>
@@ -28,6 +32,30 @@
         </div>
       </article>
     </section>
+
+    <div v-if="emptyQueues.length > 0" class="empty-queues-section" style="margin-top: 16px;">
+      <button
+        class="button ghost"
+        type="button"
+        style="width: 100%; justify-content: space-between;"
+        @click="showEmptyQueues = !showEmptyQueues"
+      >
+        <span>Boş / Sağlıklı Kuyruklar ({{ emptyQueues.length }})</span>
+        <i :class="['pi', showEmptyQueues ? 'pi-chevron-up' : 'pi-chevron-down']" aria-hidden="true" />
+      </button>
+
+      <section v-if="showEmptyQueues" class="queue-grid" style="margin-top: 12px;">
+        <article v-for="queue in emptyQueues" :key="queue.key" class="panel" style="opacity: 0.85;">
+          <div class="panel-header">
+            <span class="muted">{{ queue.label }}</span>
+            <span class="badge neutral">0</span>
+          </div>
+          <div class="panel-body">
+            <p class="muted" style="font-size: 13px;">Bekleyen kayıt yok.</p>
+          </div>
+        </article>
+      </section>
+    </div>
 
     <p v-if="error" class="error-text">{{ error }}</p>
   </section>
@@ -66,6 +94,7 @@ const queues = ref<QueuesResponse>({
 });
 const loading = ref(false);
 const error = ref<string | null>(null);
+const showEmptyQueues = ref(false);
 
 const queueItems = computed(() => [
   { key: 'sellerApprovals', label: 'Satıcı onayları', ...queues.value.sellerApprovals },
@@ -77,9 +106,19 @@ const queueItems = computed(() => [
   { key: 'membershipGrace', label: 'Üyelik ek süresi', ...queues.value.membershipGrace },
 ]);
 
+const activeQueues = computed(() => queueItems.value.filter((q) => q.count > 0));
+const emptyQueues = computed(() => queueItems.value.filter((q) => q.count === 0));
+
 function recordKey(record: Record<string, unknown>): string {
   const id = record.id ?? record.userId ?? record.email ?? 'record';
   return String(id);
+}
+
+function formatUuid(val: string): string {
+  if (val.length > 10 && val.includes('-')) {
+    return val.substring(0, 8) + '...';
+  }
+  return val;
 }
 
 function recordLabel(queueKey: string, record: Record<string, unknown>): string {
@@ -96,7 +135,31 @@ function recordLabel(queueKey: string, record: Record<string, unknown>): string 
       return name;
     }
   }
-  return recordKey(record);
+  const amount = record.amount;
+  const currency = record.currency ?? 'TRY';
+  const idStr = formatUuid(String(record.id ?? record.userId ?? ''));
+
+  if (queueKey === 'orderReviews') {
+    if (amount !== undefined && amount !== null) {
+      return `Sipariş: ${amount} ${currency} (${idStr})`;
+    }
+    return `Sipariş (${idStr})`;
+  }
+  if (queueKey === 'paymentReviews') {
+    if (amount !== undefined && amount !== null) {
+      return `Ödeme: ${amount} ${currency} (${idStr})`;
+    }
+    return `Ödeme (${idStr})`;
+  }
+  if (queueKey === 'payoutReviews') {
+    if (amount !== undefined && amount !== null) {
+      return `Ödeme Talebi: ${amount} ${currency} (${idStr})`;
+    }
+    return `Ödeme Talebi (${idStr})`;
+  }
+
+  const label = record.id ?? record.userId ?? record.email ?? 'record';
+  return formatUuid(String(label));
 }
 
 function formatDate(value: unknown): string {

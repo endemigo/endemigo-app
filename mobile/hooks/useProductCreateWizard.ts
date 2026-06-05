@@ -30,6 +30,7 @@ function isOptionalFieldVisible(
 export function createInitialProductCreateState(): ProductCreateWizardState {
   return {
     listingType: PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE,
+    selectedEventId: null,
     title: '',
     categoryId: '',
     directSalePrice: '',
@@ -126,12 +127,17 @@ export function canContinueProductCreateStep(
     return imageCount >= minImageCount;
   }
 
-  return state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION
-    || (
-      state.auctionStartTime.length > 0
-      && state.auctionEndTime.length > 0
-      && isPositiveNumber(state.auctionMinIncrement)
-    );
+  if (state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
+    return true;
+  }
+  if (state.selectedEventId) {
+    return true;
+  }
+  return (
+    state.auctionStartTime.length > 0
+    && state.auctionEndTime.length > 0
+    && isPositiveNumber(state.auctionMinIncrement)
+  );
 }
 
 export function isProductCreateReadyToSubmit(

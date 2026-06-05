@@ -508,7 +508,11 @@
     "myProductsTitle": "Ürünlerim",
     "emptyProducts": "Henüz ürününüz yok.",
     "aiGenerating": "Yapay zeka ile açıklama ve hikaye oluşturuluyor...",
-    "aiGeneratedSuccess": "Açıklama ve Hikaye yapay zeka ile başarıyla dolduruldu!"
+    "aiGeneratedSuccess": "Açıklama ve Hikaye yapay zeka ile başarıyla dolduruldu!",
+    "selectedEventLabel": "Seçilen Müzayede Etkinliği",
+    "standaloneAuctionLabel": "Bireysel Müzayede (Herhangi bir etkinliğe dahil değil)",
+    "standaloneAuctionDesc": "Bu müzayede belirlediğiniz başlangıç ve bitiş saatlerinde yayına girecektir.",
+    "eventBadge": "ETKİNLİK"
   },
   "settings": {
     "title": "Ayarlar",
@@ -520,6 +524,8 @@
     "legalDistanceSalesMeta": "Sipariş, teslimat ve destek akışı",
     "legalReturnTitle": "İade ve refund politikası",
     "legalReturnMeta": "İade lojistiği, onay ve ödeme süreci",
+    "legalAuctionTermsTitle": "Müzayede Katılım Şartnamesi",
+    "legalAuctionTermsMeta": "Müzayede kuralları, cüzdan blokajı ve katılım şartları",
     "dataProcessing": "Veri İşleme",
     "dataProcessingDesc": "Kişisel verilerinizin işlenmesi (zorunlu)",
     "marketing": "Pazarlama",
@@ -599,6 +605,32 @@
           "title": "Refund süreci",
           "body1": "Refund işlemi iade tesliminden sonra başlatılır ve ödeme sağlayıcısı ile sipariş kaydında durum değişikliği olarak izlenir.",
           "body2": "Riskli veya istisnai durumlar admin inceleme akışına alınabilir; kritik kararlar audit trail içinde tutulur."
+        }
+      }
+    },
+    "auctionTerms": {
+      "title": "Müzayede Katılım Şartnamesi",
+      "summary": "Platformumuzda düzenlenen çoklu satıcılı ve tematik müzayedelere katılım, teklif verme, cüzdan blokaj süreçleri ve kurallar bu şartnameye tabidir.",
+      "sections": {
+        "general": {
+          "title": "Genel kurallar",
+          "body1": "Müzayedeler platform tarafından organize edilen tematik etkinlikler olarak veya münferit lotlar halinde gerçekleştirilir.",
+          "body2": "Katılımcıların verdikleri teklifler kanunen bağlayıcıdır ve geri çekilemez. Müzayede süresinin uzaması veya lotların sıralamasının değişmesi admin inisiyatifindedir."
+        },
+        "bidding": {
+          "title": "Teklif verme ve süre uzatımı",
+          "body1": "Her lot için belirlenen minimum artış tutarına uygun teklifler verilebilir. Son saniyelerde gelen teklifler müzayede süresini otomatik uzatır.",
+          "body2": "Teklif sırası ve aktif lot geçişleri canlı takip arayüzü üzerinden anlık senkronize edilir."
+        },
+        "wallet": {
+          "title": "Cüzdan blokajı ve ödemeler",
+          "body1": "Müzayedeye katılmak ve teklif vermek için tahmini toplam tutarın (çekiç fiyatı ve komisyon) cüzdanınızda bulunması gereklidir.",
+          "body2": "En yüksek teklif sahibi olduğunuzda teklif tutarınız cüzdanınızda bloke edilir. Müzayede kazanıldığında ödeme bloke tutardan tahsil edilir, kaybedildiğinde blokaj kaldırılır."
+        },
+        "moderation": {
+          "title": "Canlı yönetim ve yetkiler",
+          "body1": "Müzayede yöneticisi (admin) dilediği anda müzayedeyi durdurabilir, devam ettirebilir veya sıradaki lota geçiş yapabilir.",
+          "body2": "Kültür varlığı niteliğindeki veya tescilli coğrafi işaretli ürünlerin satışı özel yasal düzenlemelere ve platform onay süreçlerine tabidir."
         }
       }
     }
