@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getDefaultMobileExperienceConfig } from '@endemigo/shared';
@@ -72,13 +73,13 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
               uri: getProductImageUri(item, SQUARE_PLACEHOLDER),
             }}
             style={styles.squareImage}
-            resizeMode="cover"
+            contentFit="cover"
           />
           {hasGeoIndication ? (
             geoBadgeLogos.length > 0 ? (
               <View style={styles.geoBadgeLogosRow}>
                 {geoBadgeLogos.map((logo, index) => (
-                  <Image key={`geo-square-${index}`} source={logo} style={styles.geoBadgeLogo} resizeMode="contain" />
+                  <Image key={`geo-square-${index}`} source={logo} style={styles.geoBadgeLogo} contentFit="contain" />
                 ))}
               </View>
             ) : (
@@ -119,13 +120,13 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
             uri: getProductImageUri(item, GRID_PLACEHOLDER),
           }}
           style={styles.gridImage}
-          resizeMode="cover"
+          contentFit="cover"
         />
         {hasGeoIndication ? (
           geoBadgeLogos.length > 0 ? (
             <View style={styles.geoBadgeLogosRow}>
               {geoBadgeLogos.map((logo, index) => (
-                <Image key={`geo-grid-${index}`} source={logo} style={styles.geoBadgeLogo} resizeMode="contain" />
+                <Image key={`geo-grid-${index}`} source={logo} style={styles.geoBadgeLogo} contentFit="contain" />
               ))}
             </View>
           ) : (

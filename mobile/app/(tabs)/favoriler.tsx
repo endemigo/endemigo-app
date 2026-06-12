@@ -8,9 +8,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { ProductCard } from '../../components/ui';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import { useToggleFavorite, useFavorites } from '../../hooks/useSearch';
 import { useToastStore } from '../../store/toastStore';
 import { formatShortDate } from '../../utils/transactionFormatters';
@@ -19,6 +20,7 @@ import { styles } from '../../styles/tabs/FavoritesScreen.styles';
 export default function FavorilerScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const favorites = useFavorites();
   const toggleFavorite = useToggleFavorite();
   const showToast = useToastStore((state) => state.showToast);
@@ -87,7 +89,10 @@ export default function FavorilerScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.heroCard}>

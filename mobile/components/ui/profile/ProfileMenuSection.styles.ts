@@ -13,7 +13,8 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: Spacing.md,
-    padding: Spacing.base,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.base,
   },
   icon: {
     alignItems: 'center',

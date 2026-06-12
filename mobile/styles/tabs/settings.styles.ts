@@ -10,16 +10,18 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
-    paddingTop: 60,
     paddingBottom: Spacing.base,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surfaceContainerLow,
     alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate100,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    height: 40,
     justifyContent: 'center',
+    width: 40,
+    ...Shadows.sm,
   },
   headerTitle: {
     flex: 1,
@@ -63,6 +65,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   consentInfo: {
     flex: 1,
@@ -96,7 +99,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
     justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.lg,
   },
   linkButtonLeft: {
     alignItems: 'center',
@@ -128,7 +131,8 @@ export const styles = StyleSheet.create({
   dangerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.base,
     gap: Spacing.sm,
   },
   dangerButtonText: {
@@ -165,7 +169,7 @@ export const styles = StyleSheet.create({
   deleteConfirmBtn: {
     backgroundColor: Colors.error,
     borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.base,
     alignItems: 'center',
   },
   deleteConfirmBtnDisabled: {

@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMobileConfig } from '../hooks/useMobileConfig';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../hooks/useProducts';
 import { Colors, Spacing } from '../constants/theme';
-import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, HomeQuickTabBar, DynamicBannerWidget } from '../components/ui';
+import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, DynamicBannerWidget } from '../components/ui';
 import { storage } from '../lib/storage';
 import { useAuthStore } from '../store/authStore';
 import { useRoleModeStore } from '../store/roleModeStore';
@@ -335,6 +335,7 @@ export default function HomeScreen() {
   const recentlyViewedSection = homeSectionMap.get('recently-viewed');
   const listingsSection = homeSectionMap.get('listings');
   const categoriesSection = homeSectionMap.get('categories');
+  const categoryProductsSection = homeSectionMap.get('category-products');
   const discountedSection = homeSectionMap.get('discounted-products');
   const mostLikedSection = homeSectionMap.get('most-liked-products');
   const campaignsSection = homeSectionMap.get('campaigns');
@@ -590,6 +591,11 @@ export default function HomeScreen() {
                 );
               })}
             </ScrollView>
+          </React.Fragment>
+        ) : null;
+      case 'home-category-products':
+        return categoryProductsSection?.enabled ? (
+          <React.Fragment key={moduleId}>
             {(categories || []).map((cat) => {
               const catProducts = (data?.items || []).filter(
                 (p: Product) => p.categoryId === cat.id || p.categoryName === cat.name,
@@ -618,8 +624,8 @@ export default function HomeScreen() {
                   <SectionHeader
                     title={cat.name}
                     accentColor={getCategoryIcon(cat.slug).color}
-                    seeAllLabel={resolveLocalizedText(categoriesSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
-                    onSeeAll={() => router.push((categoriesSection.route || '/(tabs)/categories') as never)}
+                    seeAllLabel={resolveLocalizedText(categoryProductsSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
+                    onSeeAll={() => router.push((categoryProductsSection.route || '/(tabs)/categories') as never)}
                     style={styles.sectionMargin}
                   />
                   <ScrollView
@@ -932,9 +938,6 @@ export default function HomeScreen() {
         {/* Bottom spacing for tab bar */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      {isHomeModuleVisible('home-quick-tab-bar') ? (
-        <HomeQuickTabBar activeTab="home" />
-      ) : null}
     </SafeAreaView>
   );
 }

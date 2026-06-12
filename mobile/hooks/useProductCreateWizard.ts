@@ -9,6 +9,7 @@ import {
   PRODUCT_CREATE_LISTING_TYPES,
   type ProductCreateWizardState,
   type ProductCreateWizardStep,
+  type ProductCreateEntryMode,
 } from '../types/productCreate.ts';
 import { parsePriceInput } from '../utils/priceInputMask.ts';
 
@@ -175,8 +176,18 @@ export function useProductCreateWizard() {
     setState((currentState) => ({ ...currentState, ...patch }));
   }
 
-  function reset() {
-    setState(createInitialProductCreateState());
+  function reset(entryMode?: ProductCreateEntryMode | null, auctionType?: string) {
+    const initialState = createInitialProductCreateState();
+    if (entryMode) {
+      initialState.listingType = entryMode === 'AUCTION'
+        ? PRODUCT_CREATE_LISTING_TYPES.AUCTION
+        : PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE;
+      initialState.askPriceEnabled = false;
+      initialState.auctionType = auctionType === 'TIMED'
+        ? PRODUCT_CREATE_AUCTION_TYPES.TIMED
+        : PRODUCT_CREATE_AUCTION_TYPES.REALTIME;
+    }
+    setState(initialState);
   }
 
   return {

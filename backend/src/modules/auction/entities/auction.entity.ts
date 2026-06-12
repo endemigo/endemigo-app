@@ -101,7 +101,10 @@ export class Auction extends BaseEntity {
   currentExtensions: number;
 
   @Column({ default: 60 })
-  extensionSeconds: number; // kademeli: 60→45→30
+  extensionSeconds: number;
+
+  @Column({ default: 60 })
+  extensionDuration: number;
 
   // ─── Oda Kapasitesi (AUCT-13) ─────────────────────────
   @Column({ nullable: true })

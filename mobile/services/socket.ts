@@ -10,7 +10,7 @@ export async function getAuctionSocket(): Promise<Socket> {
   const token = (await storage.getToken()) || '';
 
   socket = io(`${ENV.API_URL}/auction`, {
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
     auth: { token },
     reconnection: true,
     reconnectionAttempts: 10,

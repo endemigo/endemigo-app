@@ -58,6 +58,19 @@ export function formatShortDateTime(value?: string | null) {
   });
 }
 
+export function formatDateTimeWithYear(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('tr-TR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
     const apiError = error as ApiErrorLike;

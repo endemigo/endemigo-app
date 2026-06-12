@@ -25,7 +25,7 @@ export function HorizontalProductGrid({ data, onPress, rows = 2 }: Props) {
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
-      snapToInterval={ITEM_WIDTH + Spacing.md}
+      snapToInterval={ITEM_WIDTH + Spacing.base}
       snapToAlignment="start"
       decelerationRate="fast"
     >
@@ -46,10 +46,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingLeft: Spacing.base,
     paddingRight: Spacing.base,
-    gap: Spacing.md,
+    gap: Spacing.base,
   },
   column: {
-    gap: Spacing.md,
+    gap: Spacing.base,
     width: ITEM_WIDTH,
   },
   cardWrapper: {

@@ -53,12 +53,14 @@ async function uploadProductImage(productId: string, image: ProductCreateImageDr
 
 async function publishProduct(productId: string) {
   if (ENV.USE_MOCK) {
-    return mockService.publishProduct(productId);
+    const mockRes = await mockService.publishProduct(productId);
+    return { status: ProductStatus.ACTIVE, ...mockRes };
   }
 
-  return api.patch(`/products/${productId}`, {
+  const { data } = await api.patch(`/products/${productId}`, {
     status: ProductStatus.ACTIVE,
   });
+  return data;
 }
 
 async function createAuction(productId: string, state: ProductCreateWizardState) {
@@ -98,8 +100,8 @@ export async function submitProductCreateWizard(
   images: ProductCreateImageDraft[],
   existingProductId?: string,
 ) {
-  const product = existingProductId
-    ? { id: existingProductId, code: 'EXISTING_PRODUCT_SELECTED', message: 'Existing product selected.' }
+  let product = existingProductId
+    ? { id: existingProductId, code: 'EXISTING_PRODUCT_SELECTED', message: 'Existing product selected.', status: ProductStatus.ACTIVE }
     : await createProduct(state);
 
   if (!existingProductId) {
@@ -108,7 +110,10 @@ export async function submitProductCreateWizard(
     }
   }
 
-  await publishProduct(product.id);
+  const published = await publishProduct(product.id);
+  if (published && published.status) {
+    product = { ...product, status: published.status };
+  }
 
   if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
     if (state.selectedEventId) {
@@ -130,13 +135,13 @@ export async function submitProductCreateWizard(
 export async function generateAiContent(
   title: string,
   categoryName?: string,
-): Promise<{ description: string; story: string }> {
+): Promise<{ description: string; story: string; productContent?: string }> {
   if (ENV.USE_MOCK) {
     await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network lag
     return mockAiContent(title, categoryName);
   }
 
-  const { data } = await api.post<{ description: string; story: string }>(
+  const { data } = await api.post<{ description: string; story: string; productContent?: string }>(
     '/products/generate-content',
     { title, categoryName },
   );

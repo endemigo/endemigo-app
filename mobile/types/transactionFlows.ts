@@ -138,6 +138,7 @@ export interface OrderListItem {
   amount: number;
   currency: string;
   status: OrderStatus;
+  createdAt: string;
   updatedAt: string;
   autoCompleteAt: string | null;
 }

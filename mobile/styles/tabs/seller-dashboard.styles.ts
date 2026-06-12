@@ -101,4 +101,17 @@ export const styles = StyleSheet.create({
     gap: Spacing.base,
     marginBottom: Spacing.base,
   },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+  },
+  retryText: {
+    color: Colors.white,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.body,
+    fontWeight: '700',
+  },
 });

@@ -45,7 +45,7 @@
         v-if="resource === 'auction-events'"
         class="button primary"
         type="button"
-        @click="openAction(createAuctionEventAction)"
+        @click="handleNewAuctionEventClick"
       >
         <i class="pi pi-plus" aria-hidden="true" />
         Yeni Etkinlik
@@ -98,6 +98,84 @@
       @close="closeDrawer"
       @confirm="confirmAction"
     />
+
+    <!-- Auction Type Selection Modal -->
+    <Teleport to="body">
+      <Transition name="drawer-fade">
+        <div
+          v-if="showAuctionTypeSelectionModal"
+          class="auction-type-modal-backdrop"
+          role="presentation"
+          @click.self="showAuctionTypeSelectionModal = false"
+        >
+          <div class="auction-type-modal" role="dialog" aria-modal="true">
+            <header class="modal-header">
+              <strong class="modal-title">Müzayede Tipi Seçimi</strong>
+              <button
+                class="button ghost close-btn"
+                type="button"
+                title="Kapat"
+                @click="showAuctionTypeSelectionModal = false"
+              >
+                <i class="pi pi-times" aria-hidden="true" />
+              </button>
+            </header>
+            
+            <div class="modal-body">
+              <p class="modal-subtitle">Oluşturmak istediğiniz müzayede tipini seçerek devam edin.</p>
+              
+              <div class="option-cards">
+                <button
+                  type="button"
+                  class="option-card option-card--realtime"
+                  @click="handleSelectAuctionType('REALTIME')"
+                >
+                  <div class="option-icon-container">
+                    <i class="pi pi-bolt" aria-hidden="true" />
+                  </div>
+                  <div class="option-text">
+                    <div class="option-header">
+                      <span class="option-title">Canlı Müzayede</span>
+                    </div>
+                    <p class="option-desc">
+                      Müzayede etkinliği bünyesinde, sıralı lotlar halinde ve gerçek zamanlı uzayan sürelerle canlı teklif toplama.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  class="option-card option-card--timed"
+                  @click="handleSelectAuctionType('TIMED')"
+                >
+                  <div class="option-icon-container">
+                    <i class="pi pi-clock" aria-hidden="true" />
+                  </div>
+                  <div class="option-text">
+                    <div class="option-header">
+                      <span class="option-title">Zamanlı Müzayede</span>
+                    </div>
+                    <p class="option-desc">
+                      Belirlediğiniz başlangıç ve bitiş saatlerinde gerçekleşen, son dakika teklifleriyle uzayan müzayede.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <footer class="modal-footer">
+              <button
+                class="button secondary"
+                type="button"
+                @click="showAuctionTypeSelectionModal = false"
+              >
+                İptal
+              </button>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>
 
@@ -108,6 +186,17 @@ import AdminDrawerForm, {
   type DrawerConfirmPayload,
   type DrawerField,
 } from '../../components/AdminDrawerForm.vue';
+
+const showAuctionTypeSelectionModal = ref(false);
+
+function handleNewAuctionEventClick() {
+  showAuctionTypeSelectionModal.value = true;
+}
+
+function handleSelectAuctionType(type: 'REALTIME' | 'TIMED') {
+  showAuctionTypeSelectionModal.value = false;
+  openAction(createAuctionEventAction, { auctionType: type });
+}
 import AdminDataTable, {
   type AdminColumn,
   type AdminFilter,
@@ -463,28 +552,73 @@ const auctionTypeOptions = [
   { label: 'Süreli (Timed)', value: 'TIMED' },
 ];
 
-const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] => [
-  { key: 'title', label: 'Başlık', required: true, value: getString(row, 'title') },
-  { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
-  { key: 'coverImageUrl', label: 'Kapak Görseli', type: 'image', value: getString(row, 'coverImageUrl') },
-  {
-    key: 'status',
-    label: 'Durum',
-    type: 'select',
-    value: getString(row, 'status') || 'DRAFT',
-    options: auctionEventStatusOptions,
-  },
-  {
-    key: 'auctionType',
-    label: 'Müzayede Tipi',
-    type: 'select',
-    value: getString(row, 'auctionType') || 'REALTIME',
-    options: auctionTypeOptions,
-  },
-  { key: 'startTime', label: 'Başlangıç Tarihi', type: 'date', required: true, value: getString(row, 'startTime') },
-  { key: 'endTime', label: 'Bitiş Tarihi', type: 'date', required: true, value: getString(row, 'endTime') },
-  { key: 'submissionDeadline', label: 'Son Ürün Ekleme Tarihi (Opsiyonel)', type: 'date', value: getString(row, 'submissionDeadline') },
-];
+const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] => {
+  const fields: DrawerField[] = [
+    { key: 'title', label: 'Başlık', required: true, value: getString(row, 'title'), fullWidth: true },
+    { key: 'description', label: 'Açıklama', type: 'textarea', value: getString(row, 'description') },
+    { key: 'coverImageUrl', label: 'Kapak Görseli', type: 'image', value: getString(row, 'coverImageUrl') },
+    {
+      key: 'status',
+      label: 'Durum',
+      type: 'select',
+      value: getString(row, 'status') || 'DRAFT',
+      options: auctionEventStatusOptions,
+    },
+  ];
+
+  if (row && row.id) {
+    fields.push({
+      key: 'auctionType',
+      label: 'Müzayede Tipi',
+      type: 'select',
+      value: getString(row, 'auctionType') || 'REALTIME',
+      options: auctionTypeOptions,
+    });
+  }
+
+  fields.push(
+    { key: 'startTime', label: 'Başlangıç Tarihi', type: 'date', required: true, value: getString(row, 'startTime') },
+    { key: 'endTime', label: 'Bitiş Tarihi', type: 'date', required: true, value: getString(row, 'endTime') },
+    { key: 'submissionDeadline', label: 'Son Ürün Ekleme Tarihi (Opsiyonel)', type: 'date', value: getString(row, 'submissionDeadline') },
+    {
+      key: 'antiSnipingEnabled',
+      label: 'Otomatik Süre Uzatma (Anti-Sniping)',
+      type: 'select',
+      value: row ? (row.antiSnipingEnabled === false ? 'false' : 'true') : 'true',
+      options: [
+        { label: 'Evet (Aktif)', value: 'true' },
+        { label: 'Hayır (Pasif)', value: 'false' },
+      ],
+      description: 'Yeni teklif geldiğinde müzayede süresinin otomatik uzayıp uzamayacağını belirler.',
+    },
+    {
+      key: 'maxExtensions',
+      label: 'Maksimum Uzatma Sayısı',
+      type: 'number',
+      required: true,
+      value: row ? String(row.maxExtensions ?? 5) : '5',
+      description: 'Bir müzayedenin en fazla kaç kere otomatik uzatılabileceğini sınırlar.',
+    },
+    {
+      key: 'extensionSeconds',
+      label: 'Tetikleme Süresi (Saniye)',
+      type: 'number',
+      required: true,
+      value: row ? String(row.extensionSeconds ?? 60) : '60',
+      description: 'Müzayede bitimine bu süreden daha az kaldığında gelen teklifler uzatmayı başlatır.',
+    },
+    {
+      key: 'extensionDuration',
+      label: 'Uzatma Süresi (Saniye)',
+      type: 'number',
+      required: true,
+      value: row ? String(row.extensionDuration ?? 60) : '60',
+      description: 'Tetiklenme gerçekleştiğinde bitiş süresine eklenecek saniye miktarı.',
+    }
+  );
+
+  return fields;
+};
 
 const createAuctionEventAction: ActionConfig = {
   key: 'createAuctionEvent',
@@ -1341,7 +1475,13 @@ async function confirmAction(payload: DrawerConfirmPayload) {
   if (!selectedAction.value) return;
 
   const id = getRowId(selectedRow.value);
-  const body: Record<string, unknown> = { reason: payload.reason, metadata: payload.values };
+  const body: Record<string, unknown> = {
+    reason: payload.reason,
+    metadata: {
+      ...payload.values,
+      ...(selectedRow.value && selectedRow.value.auctionType ? { auctionType: selectedRow.value.auctionType } : {}),
+    },
+  };
 
   try {
     if (selectedAction.value.method === 'delete') {
@@ -1513,3 +1653,191 @@ onMounted(loadCategoryParentOptions);
 onMounted(loadVariationOptions);
 onMounted(loadListingTemplatesOptions);
 </script>
+
+<style scoped>
+.auction-type-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  padding: 24px;
+}
+
+.auction-type-modal {
+  width: min(560px, 100vw - 32px);
+  background: var(--bg-panel, #ffffff);
+  border: 1px solid var(--border-soft, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft, #e2e8f0);
+  padding: 16px 20px;
+  background: var(--bg-soft, #f8fafc);
+}
+
+.modal-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-strong, #0f172a);
+}
+
+.close-btn {
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  border: none !important;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.modal-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-subtitle {
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 4px;
+}
+
+.option-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-soft, #e2e8f0);
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.option-card:hover {
+  border-color: var(--color-primary-light, #3b82f6);
+  background: var(--bg-hover, #f8fafc);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.option-card--realtime:hover {
+  border-color: #f59e0b;
+}
+
+.option-card--timed:hover {
+  border-color: #3b82f6;
+}
+
+.option-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--bg-soft, #f8fafc);
+  color: var(--text-strong, #0f172a);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.option-card--realtime .option-icon-container {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.option-card--timed .option-icon-container {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.option-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+}
+
+.badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.badge--popular {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.option-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted, #64748b);
+  margin: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-soft, #e2e8f0);
+  background: var(--bg-soft, #f8fafc);
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+</style>

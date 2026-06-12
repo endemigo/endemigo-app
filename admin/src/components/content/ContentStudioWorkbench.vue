@@ -72,170 +72,174 @@
         </div>
       </aside>
 
-      <!-- Column 3: Editor -->
-      <section class="panel editor-panel">
-        <div class="panel-header-editor">
-          <div class="editor-header-title">
-            <i :class="selectedCollectionDefinition.icon" class="title-icon" />
-            <strong>{{ selectedItem ? selectedItem.title || 'Yeni Kayıt Düzenleme' : 'Kayıt Seçin' }}</strong>
-          </div>
-          <button
-            v-if="selectedItem"
-            class="button danger delete-btn-editor"
-            type="button"
-            @click="removeItem(selectedItem.id)"
-          >
-            <i class="pi pi-trash" /> Sil
-          </button>
-        </div>
-
-        <div v-if="selectedItem" class="editor-content-scroll">
-          
-          <!-- Language Tabs -->
-          <div class="field lang-selector-field">
-            <span>İçerik Dili</span>
-            <div class="content-lang-tabs">
+      <!-- Editor Modal -->
+      <div v-if="isEditing && selectedItem" class="editor-modal-backdrop" @click.self="isEditing = false">
+        <section class="panel editor-modal-card">
+          <div class="panel-header-editor">
+            <div class="editor-header-title">
+              <i :class="selectedCollectionDefinition.icon" class="title-icon" />
+              <strong>{{ selectedItem ? selectedItem.title || 'Yeni Kayıt Düzenleme' : 'Kayıt Seçin' }}</strong>
+            </div>
+            <div class="editor-header-actions">
               <button
+                v-if="selectedItem"
+                class="button danger delete-btn-editor"
                 type="button"
-                class="content-lang-tab"
-                :class="{ active: contentLanguage === 'tr' }"
-                @click="contentLanguage = 'tr'"
+                @click="removeItem(selectedItem.id)"
               >
-                Türkçe
+                <i class="pi pi-trash" /> Sil
               </button>
-              <button
-                type="button"
-                class="content-lang-tab"
-                :class="{ active: contentLanguage === 'en' }"
-                @click="contentLanguage = 'en'"
-              >
-                İngilizce
+              <button class="button secondary close-btn-editor" type="button" @click="isEditing = false">
+                <i class="pi pi-times" /> Kapat
               </button>
             </div>
           </div>
 
-          <!-- Section 1: Genel Bilgiler -->
-          <div class="editor-section-card">
-            <div class="section-card-title">Genel Bilgiler</div>
-            <div class="editor-fields-grid">
-              <label v-if="contentLanguage === 'tr'" class="field field-full">
-                <span>Başlık (TR)</span>
-                <input v-model.trim="selectedItem.title" class="input" placeholder="İçerik başlığı (Türkçe)" />
-              </label>
-              <label v-else class="field field-full">
-                <span>Başlık (EN)</span>
-                <input v-model.trim="selectedItem.titleEn" class="input" placeholder="İçerik başlığı (İngilizce)" />
-              </label>
-              <label class="field field-full">
-                <span>Slug (Benzersiz Kimlik)</span>
-                <input v-model.trim="selectedItem.slug" class="input" placeholder="Örn: yeni-duyuru" />
-              </label>
+          <div class="editor-content-scroll">
+            
+            <!-- Language Tabs -->
+            <div class="field lang-selector-field">
+              <span>İçerik Dili</span>
+              <div class="content-lang-tabs">
+                <button
+                  type="button"
+                  class="content-lang-tab"
+                  :class="{ active: contentLanguage === 'tr' }"
+                  @click="contentLanguage = 'tr'"
+                >
+                  Türkçe
+                </button>
+                <button
+                  type="button"
+                  class="content-lang-tab"
+                  :class="{ active: contentLanguage === 'en' }"
+                  @click="contentLanguage = 'en'"
+                >
+                  İngilizce
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- Section 2: Görsel & Yönlendirme -->
-          <div class="editor-section-card">
-            <div class="section-card-title">Görsel & Yönlendirme</div>
-            <div class="editor-fields-grid">
-              <div class="field field-full">
-                <span>Görsel</span>
-                <div v-if="selectedItem.imageUrl" class="image-preview-container">
-                  <img :src="selectedItem.imageUrl" alt="Görsel önizleme" class="image-preview" />
-                  <button class="button danger image-remove-btn" type="button" @click="removeImage">
-                    <i class="pi pi-trash" /> Görseli Kaldır
-                  </button>
+            <div class="editor-row-grid">
+              <!-- Section 1: Genel Bilgiler -->
+              <div class="editor-section-card">
+                <div class="section-card-title">Genel Bilgiler</div>
+                <div class="editor-fields-grid">
+                  <label v-if="contentLanguage === 'tr'" class="field field-full">
+                    <span>Başlık (TR)</span>
+                    <input v-model.trim="selectedItem.title" class="input" placeholder="İçerik başlığı (Türkçe)" />
+                  </label>
+                  <label v-else class="field field-full">
+                    <span>Başlık (EN)</span>
+                    <input v-model.trim="selectedItem.titleEn" class="input" placeholder="İçerik başlığı (İngilizce)" />
+                  </label>
+                  <label class="field field-full">
+                    <span>Slug (Benzersiz Kimlik)</span>
+                    <input v-model.trim="selectedItem.slug" class="input" placeholder="Örn: yeni-duyuru" />
+                  </label>
                 </div>
-                <div v-else class="image-upload-dropzone" @click="triggerFileInput">
-                  <i class="pi pi-upload" />
-                  <span>{{ uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
-                  <small v-if="uploadError" class="image-upload-error">{{ uploadError }}</small>
-                </div>
-                <input
-                  ref="fileInput"
-                  type="file"
-                  accept="image/*"
-                  class="hidden-file-input"
-                  @change="handleFileChange"
-                />
               </div>
 
+              <!-- Section 2: Görsel & Yönlendirme -->
+              <div class="editor-section-card">
+                <div class="section-card-title">Görsel & Yönlendirme</div>
+                <div class="editor-fields-grid">
+                  <div class="field field-full">
+                    <span>Görsel</span>
+                    <div v-if="selectedItem.imageUrl" class="image-preview-container">
+                      <img :src="selectedItem.imageUrl" alt="Görsel önizleme" class="image-preview" />
+                      <button class="button danger image-remove-btn" type="button" @click="removeImage">
+                        <i class="pi pi-trash" /> Görseli Kaldır
+                      </button>
+                    </div>
+                    <div v-else class="image-upload-dropzone" @click="triggerFileInput">
+                      <i class="pi pi-upload" />
+                      <span>{{ uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
+                      <small v-if="uploadError" class="image-upload-error">{{ uploadError }}</small>
+                    </div>
+                    <input
+                      ref="fileInput"
+                      type="file"
+                      accept="image/*"
+                      class="hidden-file-input"
+                      @change="handleFileChange"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Section 3: İçerik Detayları -->
-          <div class="editor-section-card">
-            <div class="section-card-title">İçerik Detayları</div>
-            <div class="editor-fields-grid">
-              <label v-if="contentLanguage === 'tr'" class="field field-full">
-                <span>Özet / Giriş Metni (TR)</span>
-                <textarea v-model="selectedItem.excerpt" class="textarea" rows="2" placeholder="Listelerde görünecek kısa Türkçe açıklama..." />
-              </label>
-              <label v-else class="field field-full">
-                <span>Özet / Giriş Metni (EN)</span>
-                <textarea v-model="selectedItem.excerptEn" class="textarea" rows="2" placeholder="Listelerde görünecek kısa İngilizce açıklama..." />
-              </label>
-              <label v-if="contentLanguage === 'tr'" class="field field-full">
-                <span>Ana İçerik Metni (TR)</span>
-                <textarea v-model="selectedItem.body" class="textarea body-textarea" rows="8" placeholder="Türkçe duyuru veya blog içeriğini buraya yazın..." />
-              </label>
-              <label v-else class="field field-full">
-                <span>Ana İçerik Metni (EN)</span>
-                <textarea v-model="selectedItem.bodyEn" class="textarea body-textarea" rows="8" placeholder="İngilizce duyuru veya blog içeriğini buraya yazın..." />
-              </label>
+            <!-- Section 3: İçerik Detayları -->
+            <div class="editor-section-card">
+              <div class="section-card-title">İçerik Detayları</div>
+              <div class="editor-fields-grid">
+                <label v-if="contentLanguage === 'tr'" class="field field-full">
+                  <span>Özet / Giriş Metni (TR)</span>
+                  <textarea v-model="selectedItem.excerpt" class="textarea" rows="2" placeholder="Listelerde görünecek kısa Türkçe açıklama..." />
+                </label>
+                <label v-else class="field field-full">
+                  <span>Özet / Giriş Metni (EN)</span>
+                  <textarea v-model="selectedItem.excerptEn" class="textarea" rows="2" placeholder="Listelerde görünecek kısa İngilizce açıklama..." />
+                </label>
+                <div v-if="contentLanguage === 'tr'" class="field field-full">
+                  <span>Ana İçerik Metni (TR)</span>
+                  <WysiwygEditor v-model="selectedItem.body" />
+                </div>
+                <div v-else class="field field-full">
+                  <span>Ana İçerik Metni (EN)</span>
+                  <WysiwygEditor v-model="selectedItem.bodyEn" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Section 4: Ayarlar & Gelişmiş -->
-          <div class="editor-section-card">
-            <div class="section-card-title">Ayarlar & Gelişmiş</div>
-            <div class="editor-fields-grid">
-              <label class="field">
-                <span>Görüntüleme Sırası</span>
-                <input v-model.number="selectedItem.order" class="input" type="number" min="1" />
-              </label>
-              <label class="field">
-                <span>Yayın Durumu</span>
-                <select v-model="selectedItem.status" class="input select-input">
-                  <option value="DRAFT">Taslak (DRAFT)</option>
-                  <option value="PUBLISHED">Yayında (PUBLISHED)</option>
-                  <option value="ARCHIVED">Arşivlendi (ARCHIVED)</option>
-                </select>
-              </label>
-              <label class="field field-full">
-                <span>Etiketler (Virgülle ayırın)</span>
-                <input
-                  :value="selectedItem.tags.join(', ')"
-                  class="input"
-                  placeholder="kampanya, haber, yeni"
-                  @input="handleTagsInput"
-                />
-              </label>
-              <label v-if="selectedCollection === 'blogs'" class="field field-full">
-                <span>Okuma Süresi (Örn: 4 dk okuma)</span>
-                <input
-                  v-if="contentLanguage === 'tr'"
-                  v-model="selectedItem.readTime"
-                  type="text"
-                  class="input"
-                  placeholder="4 dk okuma"
-                />
-                <input
-                  v-else
-                  v-model="selectedItem.readTimeEn"
-                  type="text"
-                  class="input"
-                  placeholder="4 min read"
-                />
-              </label>
+            <!-- Section 4: Ayarlar & Gelişmiş -->
+            <div class="editor-section-card">
+              <div class="section-card-title">Ayarlar & Gelişmiş</div>
+              <div class="editor-fields-grid">
+                <label class="field">
+                  <span>Görüntüleme Sırası</span>
+                  <input v-model.number="selectedItem.order" class="input" type="number" min="1" />
+                </label>
+                <label class="field">
+                  <span>Yayın Durumu</span>
+                  <select v-model="selectedItem.status" class="input select-input">
+                    <option value="DRAFT">Taslak (DRAFT)</option>
+                    <option value="PUBLISHED">Yayında (PUBLISHED)</option>
+                    <option value="ARCHIVED">Arşivlendi (ARCHIVED)</option>
+                  </select>
+                </label>
+                <label class="field field-full">
+                  <span>Etiketler (Virgülle ayırın)</span>
+                  <input
+                    :value="selectedItem.tags.join(', ')"
+                    class="input"
+                    placeholder="kampanya, haber, yeni"
+                    @input="handleTagsInput"
+                  />
+                </label>
+                <label v-if="selectedCollection === 'blogs'" class="field field-full">
+                  <span>Okuma Süresi (Örn: 4 dk okuma)</span>
+                  <input
+                    v-if="contentLanguage === 'tr'"
+                    v-model="selectedItem.readTime"
+                    type="text"
+                    class="input"
+                    placeholder="4 dk okuma"
+                  />
+                  <input
+                    v-else
+                    v-model="selectedItem.readTimeEn"
+                    type="text"
+                    class="input"
+                    placeholder="4 min read"
+                  />
+                </label>
+              </div>
             </div>
-          </div>
 
-        </div>
-        <div v-else class="editor-empty-state">
-          <i :class="selectedCollectionDefinition.icon" class="empty-state-icon animate-pulse" />
-          <p>Lütfen düzenlemek için listeden bir kayıt seçin veya yeni bir kayıt ekleyin.</p>
-        </div>
-      </section>
+          </div>
+        </section>
+      </div>
 
     </div>
 
@@ -269,6 +273,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi, toApiMessage } from '../../services/api';
+import WysiwygEditor from './WysiwygEditor.vue';
 
 type CollectionKey =
   | 'contents'
@@ -353,6 +358,7 @@ const selectedItemId = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploading = ref(false);
 const uploadError = ref<string | null>(null);
+const isEditing = ref(false);
 
 function triggerFileInput() {
   fileInput.value?.click();
@@ -448,10 +454,12 @@ watch(selectedCollection, () => {
 function selectCollection(collection: CollectionKey) {
   selectedCollection.value = collection;
   selectedItemId.value = documentRef.value?.collections[collection][0]?.id ?? null;
+  isEditing.value = false;
 }
 
 function selectItem(itemId: string) {
   selectedItemId.value = itemId;
+  isEditing.value = true;
 }
 
 function addItem() {
@@ -478,6 +486,7 @@ function addItem() {
   };
   collection.unshift(nextItem);
   selectedItemId.value = nextItem.id;
+  isEditing.value = true;
 }
 
 function removeItem(itemId: string) {
@@ -491,6 +500,7 @@ function removeItem(itemId: string) {
   );
   selectedItemId.value =
     documentRef.value.collections[selectedCollection.value][0]?.id ?? null;
+  isEditing.value = false;
 }
 
 function updateTags(rawValue: string) {
@@ -576,7 +586,7 @@ onMounted(loadDocument);
 .studio-grid-three-col {
   display: grid;
   gap: 1.25rem;
-  grid-template-columns: 210px 300px 1fr;
+  grid-template-columns: 210px 1fr;
   align-items: start;
 }
 
@@ -817,12 +827,62 @@ onMounted(loadDocument);
   font-size: 0.85rem;
 }
 
-/* Column 3: Editor Panel */
-.editor-panel {
+/* Editor Modal Backdrop and Card */
+.editor-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.editor-modal-card {
+  width: 90%;
+  max-width: 1000px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  max-height: 750px;
-  min-height: 600px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.editor-row-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .editor-row-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .panel-header-editor {
@@ -895,6 +955,10 @@ onMounted(loadDocument);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.field-full {
+  grid-column: span 2;
 }
 
 .field span {
@@ -1037,18 +1101,12 @@ onMounted(loadDocument);
   gap: 0.5rem;
 }
 
-@media (max-width: 1200px) {
-  .studio-grid-three-col {
-    grid-template-columns: 180px 240px 1fr;
-  }
-}
-
 @media (max-width: 992px) {
   .studio-grid-three-col {
     grid-template-columns: 1fr;
   }
   
-  .items-panel, .editor-panel {
+  .items-panel {
     max-height: none;
   }
   

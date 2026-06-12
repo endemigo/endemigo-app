@@ -13,7 +13,9 @@
     "goBack": "Go Back",
     "genericError": "Something went wrong. Please try again.",
     "cancel": "Cancel",
-    "ok": "OK"
+    "ok": "OK",
+    "authRequiredTitle": "Sign In Required",
+    "authRequiredMessage": "Please sign in first to create a listing."
   },
   "launchSplash": {
     "tagline": "Rare finds. Live bids."
@@ -315,6 +317,11 @@
     "entryModeMarketplaceBody": "Sell at a fixed price or open Ask Price negotiation.",
     "entryModeAuction": "Auction",
     "entryModeAuctionBody": "Create a lot, set the opening price, and collect live bids.",
+    "entryModeAuctionRealtime": "Live Auction",
+    "entryModeAuctionRealtimeBody": "Real-time bidding in sequential lots as part of a scheduled auction event.",
+    "entryModeAuctionTimed": "Timed Auction",
+    "entryModeAuctionTimedBody": "Standalone auction running between set start and end dates with automatic extensions.",
+    "entryModeAuctionBack": "Back",
     "popularTag": "POPULAR",
     "newTag": "NEW",
     "sellerAssurance": "Endemigo Seller Protection",
@@ -352,9 +359,9 @@
     "stepCategory": "Category Selection",
     "stepCore": "Listing Details",
     "stepShippingPayment": "Shipping and Payment",
-    "stepProductStory": "Product Story",
-    "stepProductDescriptions": "Product Descriptions",
-    "stepProductDetails": "Product Details",
+    "stepProductStory": "Origin & Brand",
+    "stepProductDescriptions": "Product Content & Documents",
+    "stepProductDetails": "Images & Variations",
     "stepGeoIndication": "Geographical Indication",
     "stepLogistics": "Shipping and Documents",
     "stepBasics": "Basics",
@@ -504,7 +511,9 @@
     "imageCount": "{{count}} images",
     "createdSuccess": "Product created successfully. Saved as draft.",
     "publishedSuccess": "Product is now live.",
+    "pendingReviewSuccess": "Product created successfully and sent for approval.",
     "auctionCreatedSuccess": "Product and auction are now live.",
+    "auctionPendingReviewSuccess": "Product and auction created successfully and sent for approval.",
     "myProductsTitle": "My Products",
     "emptyProducts": "You do not have products yet.",
     "aiGenerating": "Generating description and story with AI...",
@@ -661,7 +670,11 @@
     "shipping": "Shipping",
     "serviceFee": "Service fee",
     "free": "Free",
-    "secureCheckout": "Secure checkout • 256-bit encryption"
+    "secureCheckout": "Secure checkout • 256-bit encryption",
+    "checkoutConfirmTitle": "Confirm Order",
+    "checkoutConfirmMessage": "Are you sure you want to purchase {{count}} items in your cart?",
+    "checkoutSuccessTitle": "Success!",
+    "checkoutSuccessMessage": "Your orders have been successfully placed and payment completed."
   },
   "auth": {
     "slogan": "From the Fertile Lands of Anatolia",
@@ -1016,6 +1029,7 @@
     "loadError": "Orders could not be loaded",
     "retry": "Try again",
     "orderCode": "Order no",
+    "orderDate": "Order date",
     "status": "Status",
     "total": "Total",
     "updatedAt": "Updated",
@@ -1133,6 +1147,7 @@
     "wallet": "Wallet",
     "addresses": "My Addresses",
     "notifications": "Notifications",
+    "favorites": "My Favorites",
     "membership": "My Package",
     "paketim": "My Package",
     "sellerAds": "Seller ads",
@@ -1355,6 +1370,8 @@
   "sellerAds": {
     "title": "Seller ads",
     "subtitle": "Request fixed ad packages and track admin approval.",
+    "packagesTab": "New Application",
+    "requestsTab": "My Applications",
     "availableWallet": "Available wallet balance",
     "packages": "Ad packages",
     "requests": "Existing requests",
@@ -1378,6 +1395,11 @@
       "SEARCH_PROMOTION": "Search promotion",
       "CATEGORY_SHOWCASE": "Category showcase",
       "HOME_BANNER": "Home banner"
+    },
+    "packageDescriptions": {
+      "SEARCH_PROMOTION": "Feature your products at the top of search results and attract buyer attention 10x faster.",
+      "CATEGORY_SHOWCASE": "Showcase your products in the special showcase area at the very top of the category pages to reach your target audience directly.",
+      "HOME_BANNER": "Publish a banner for your store or product on the main banner areas of the Endemigo homepage. Highest visibility package."
     }
   },
   "sellerCampaigns": {

@@ -34,6 +34,7 @@ import {
   DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
   VariantOptionKind,
   type ProductImageUploadLimits,
+  TrustBadgeLevel,
 } from '@endemigo/shared';
 import { AdsService } from '../ads/ads.service';
 import { AdminSettingsService } from '../admin-settings/admin-settings.service';
@@ -681,6 +682,18 @@ export class ProductService {
           message: 'Ürün yayınlama gereksinimleri karşılanmıyor',
           errors,
         });
+      }
+
+      // Güvenilirlik kontrolü — Güvenilmeyen satıcının ürünü onay sürecine gider
+      if (this.trustService) {
+        const trustBadge = await this.trustService.getSellerTrustBadge(sellerId);
+        const isTrusted =
+          trustBadge.level === TrustBadgeLevel.TRUSTED ||
+          trustBadge.level === TrustBadgeLevel.HIGHLY_TRUSTED;
+
+        if (!isTrusted) {
+          product.status = ProductStatus.PENDING_REVIEW;
+        }
       }
     }
 

@@ -55,12 +55,12 @@ export interface ProductListingTemplateField {
 }
 
 export interface ProductListingTemplate {
-  fields: ProductListingTemplateField[];
+  fields?: ProductListingTemplateField[];
   variant: {
     enabled: boolean;
     allowedKinds: ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[];
-    requiredKinds: ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[];
-    maxGroups: number;
+    requiredKinds?: ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[];
+    maxGroups?: number;
   };
 }
 

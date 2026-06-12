@@ -181,7 +181,7 @@ const navGroups: NavGroup[] = [
       { label: 'Ürünler', to: '/products', icon: 'pi pi-box' },
       { label: 'Kategoriler', to: '/categories', icon: 'pi pi-tags' },
       { label: 'Markalar', to: '/brands', icon: 'pi pi-bookmark' },
-      { label: 'Coğrafi İşaretler & Sertifikalar', to: '/geo-indications', icon: 'pi pi-certificate' },
+      { label: 'Coğrafi İşaretler & Sertifikalar', to: '/geo-indications', icon: 'pi pi-file-check' },
       { label: 'Özellik Rozetleri', to: '/feature-badges', icon: 'pi pi-check-square' },
       { label: 'Müzayede Etkinlikleri', to: '/auction-events', icon: 'pi pi-calendar' },
       { label: 'Teklifler', to: '/bids', icon: 'pi pi-sort-amount-up' },

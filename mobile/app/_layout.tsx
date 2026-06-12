@@ -20,6 +20,7 @@ import { styles } from '../styles/_layout.styles';
 import { Ionicons } from '@expo/vector-icons';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
 import { createLaunchSplashImageItems } from '../utils/launchSplashImages';
+import { useOneSignal } from '../hooks/useOneSignal';
 import '../i18n'; // initialize i18n before any screen renders
 
 import {
@@ -98,6 +99,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
+  useOneSignal();
   const router = useRouter();
   const pathname = usePathname();
   const setConnectionIssue = useBackendConnectionStore((state) => state.setConnectionIssue);

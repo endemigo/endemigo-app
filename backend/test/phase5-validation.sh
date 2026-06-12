@@ -2,7 +2,7 @@
 # Phase 5 — Full Validation Test Suite
 # Tests all auction, bid, wallet, and edge case scenarios
 
-API="http://localhost:3000"
+API="http://localhost:3030"
 PASS=0
 FAIL=0
 

@@ -10,7 +10,7 @@ export async function getNegotiationSocket(): Promise<Socket> {
   const token = (await storage.getToken()) || '';
 
   negotiationSocket = io(`${ENV.API_URL}/negotiation`, {
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
     auth: { token },
     reconnection: true,
     reconnectionAttempts: 10,

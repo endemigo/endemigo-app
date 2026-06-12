@@ -143,9 +143,10 @@ export class AuctionService {
         reserveMet: false,
         buyerPremiumRate: dto.buyerPremiumRate ?? 0.25,
         auctionType: event.auctionType, // Etkinlik türünü miras alır
-        antiSnipingEnabled: dto.antiSnipingEnabled ?? true,
-        extensionSeconds: dto.extensionSeconds ?? 60,
-        maxExtensions: dto.maxExtensions ?? 5,
+        antiSnipingEnabled: event.antiSnipingEnabled ?? (dto.antiSnipingEnabled ?? true),
+        extensionSeconds: event.extensionSeconds ?? (dto.extensionSeconds ?? 60),
+        maxExtensions: event.maxExtensions ?? (dto.maxExtensions ?? 5),
+        extensionDuration: event.extensionDuration ?? 60,
         culturalAssetRestricted: dto.culturalAssetRestricted ?? false,
         status: AuctionStatus.DRAFT,
         approvalStatus: AuctionApprovalStatus.PENDING, // Onay bekliyor
@@ -1034,19 +1035,15 @@ export class AuctionService {
       return this.checkTimedAntiSniping(auction, bidTime);
     }
 
-    // ─── Realtime: Kademeli süre azaltma 60→45→30 (D-10) ────
-    const ext = auction.currentExtensions;
-    let extensionSec: number;
-    if (ext === 0) extensionSec = 60;
-    else if (ext === 1) extensionSec = 45;
-    else extensionSec = 30;
+    // ─── Realtime: Dinamik veya varsayılan sabit süre ────
+    const extensionSec = auction.extensionDuration || 60;
 
     // Check if bid is within the anti-sniping window
     const windowMs = auction.extensionSeconds * 1000;
     if (timeLeft <= windowMs) {
       const newEndTime = new Date(endTime.getTime() + extensionSec * 1000);
       this.logger.log(
-        `Anti-sniping triggered for auction ${auction.id}: extension ${ext + 1} (+${extensionSec}s)`,
+        `Anti-sniping triggered for auction ${auction.id}: extension ${auction.currentExtensions + 1} (+${extensionSec}s)`,
       );
       return {
         extended: true,
@@ -1070,30 +1067,30 @@ export class AuctionService {
     extensionNumber?: number;
     extensionSeconds?: number;
   } {
-    // AUCT-T-03: Son 60sn'de gelen her teklif → 2 dakika uzatma, max 3 uzatma
-    const MAX_TIMED_EXTENSIONS = 3;
-    const TIMED_WINDOW_SEC = 60;
-    const TIMED_EXTENSION_SEC = 120; // 2 dakika
+    // AUCT-T-03: Son saniyelerde gelen her teklif -> uzatma süresi ekle
+    const maxExtensions = auction.maxExtensions ?? 3;
+    const windowSec = auction.extensionSeconds ?? 60;
+    const extensionSec = auction.extensionDuration ?? 120; // default 2 dakika
 
-    if (auction.currentExtensions >= MAX_TIMED_EXTENSIONS) {
+    if (auction.currentExtensions >= maxExtensions) {
       return { extended: false };
     }
 
     const endTime = new Date(auction.endTime);
     const timeLeft = endTime.getTime() - bidTime.getTime();
 
-    if (timeLeft <= TIMED_WINDOW_SEC * 1000) {
+    if (timeLeft <= windowSec * 1000) {
       const newEndTime = new Date(
-        endTime.getTime() + TIMED_EXTENSION_SEC * 1000,
+        endTime.getTime() + extensionSec * 1000,
       );
       this.logger.log(
-        `Timed anti-sniping triggered for auction ${auction.id}: extension ${auction.currentExtensions + 1} (+${TIMED_EXTENSION_SEC}s)`,
+        `Timed anti-sniping triggered for auction ${auction.id}: extension ${auction.currentExtensions + 1} (+${extensionSec}s)`,
       );
       return {
         extended: true,
         newEndTime,
         extensionNumber: auction.currentExtensions + 1,
-        extensionSeconds: TIMED_EXTENSION_SEC,
+        extensionSeconds: extensionSec,
       };
     }
 

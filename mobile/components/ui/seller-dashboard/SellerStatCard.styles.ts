@@ -12,9 +12,9 @@ export const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius['2xl'],
-    flex: 1,
+    width: '47.5%',
     gap: Spacing.sm,
-    minHeight: 120,
+    minHeight: 110,
     padding: Spacing.base,
     ...Shadows.sm,
   },

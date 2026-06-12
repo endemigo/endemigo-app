@@ -150,7 +150,11 @@ export const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   bannerBgImage: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     opacity: 0.35,
   },
   dotsRow: {
@@ -337,7 +341,7 @@ export const styles = StyleSheet.create({
   recentGrid: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.base,
-    gap: Spacing.sm,
+    gap: Spacing.base,
     marginBottom: Spacing.xl,
   },
   recentCard: {
@@ -668,7 +672,11 @@ export const styles = StyleSheet.create({
     ...Shadows.md,
   },
   editorialBgImage: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     opacity: 0.4,
   },
   editorialContent: {
@@ -840,7 +848,11 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLow,
   },
   trustBannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     justifyContent: 'flex-end',
     padding: Spacing.md,
     backgroundColor: 'rgba(0,0,0,0.2)',
@@ -962,7 +974,11 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLow,
   },
   aboutHeroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.18)',
     padding: Spacing.lg,

@@ -27,7 +27,7 @@ export default function BecomeSellerScreen() {
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, auctionType } = useLocalSearchParams<{ mode?: string; auctionType?: string }>();
   const isSeller = Boolean(user?.isSeller);
 
   const { data: categories } = useCategories();
@@ -202,6 +202,7 @@ export default function BecomeSellerScreen() {
           isProductsLoading={isMyProductsLoading}
           onCreated={refetchMyProducts}
           initialEntryMode={mode as never}
+          initialAuctionType={auctionType}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -81,5 +81,96 @@ export const styles = StyleSheet.create({
   bottomSpacer: {
     height: 120,
   },
+
+  // Subcategories Navigation
+  subcategoriesScroll: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+    paddingVertical: Spacing.sm,
+  },
+  subcategoriesContent: {
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  subcategoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.slate100,
+    gap: Spacing.xs,
+  },
+  subcategoryChipActive: {
+    backgroundColor: Colors.primaryFixed,
+  },
+  subcategoryChipText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.slate600,
+  },
+  subcategoryChipTextActive: {
+    color: Colors.primary,
+  },
+  subcategoryCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.slate200,
+  },
+  subcategoryCountBadgeActive: {
+    backgroundColor: Colors.white,
+  },
+  subcategoryCountText: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodyBold,
+    color: Colors.slate500,
+  },
+  subcategoryCountTextActive: {
+    color: Colors.primary,
+  },
+
+  // Empty State Customizations
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    backgroundColor: `${Colors.primary}1A`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    color: Colors.onSurface,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    maxWidth: 240,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing.md,
+  },
+  primaryButtonText: {
+    color: Colors.white,
+    fontFamily: FontFamily.headlineBlack,
+    fontWeight: '800',
+    fontSize: FontSize.body,
+  },
 });
 

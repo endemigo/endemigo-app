@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
     borderRadius: BorderRadius['2xl'],
     gap: Spacing.sm,
     padding: Spacing.base,
-    width: '47%',
+    width: '47.5%',
     ...Shadows.sm,
   },
   iconBox: {

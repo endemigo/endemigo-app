@@ -2010,6 +2010,7 @@ const SECTION_COPY: Record<string, { tr: string; en: string }> = {
   'recently-viewed': { tr: 'Son gezilen urun raili', en: 'Recent product rail' },
   listings: { tr: 'One cikan urun bandi', en: 'Featured listing strip' },
   categories: { tr: 'Kategori kisayollari', en: 'Category shortcuts' },
+  'category-products': { tr: 'Kategori Urunleri', en: 'Category products' },
   'discounted-products': { tr: 'Indirimli urunler', en: 'Discount deal cards' },
   'most-liked-products': { tr: 'Topluluk favorileri', en: 'Community favorites' },
   campaigns: { tr: 'Kampanya alanlari', en: 'Campaign content slots' },
@@ -2021,6 +2022,7 @@ const PREVIEW_SECTION_SLOTS: Record<string, string[]> = {
   'recently-viewed': ['Bal', 'Yag', 'Sabun'],
   listings: ['Ilan 1', 'Ilan 2', 'Ilan 3'],
   categories: ['Gida', 'Yag', 'Taki'],
+  'category-products': ['Kategori Ürün 1', 'Kategori Ürün 2', 'Kategori Ürün 3'],
   'discounted-products': ['%20', '%15', '%10'],
   'most-liked-products': ['Like', 'Like', 'Like'],
   campaigns: ['Kampanya', 'Kampanya', 'Kampanya'],
@@ -2063,15 +2065,16 @@ const DEFAULT_HOME_SURFACE_SLOTS = [
   { id: 'home-hero-banners', order: 2, title: 'Hero Banner' },
   { id: 'home-entry-tiles', order: 3, title: 'Giriş Kartları' },
   { id: 'home-listings', order: 4, title: 'İlanlar Alanı' },
-  { id: 'home-categories', order: 5, title: 'Kategoriler' },
-  { id: 'home-recently-viewed', order: 6, title: 'Son Gezdiklerim' },
-  { id: 'home-discounted-products', order: 7, title: 'İndirimli Ürünler' },
-  { id: 'home-most-liked-products', order: 8, title: 'En Çok Beğenilenler' },
-  { id: 'home-trust-bar', order: 9, title: 'Güven Barı' },
-  { id: 'home-campaigns', order: 10, title: 'Kampanyalar' },
-  { id: 'home-blog', order: 11, title: 'Blog' },
-  { id: 'home-trust-hub', order: 12, title: 'Güven Merkezi' },
-  { id: 'home-quick-tab-bar', order: 13, title: 'Hızlı Sekme Çubuğu' },
+  { id: 'home-recently-viewed', order: 5, title: 'Son Gezdiklerim' },
+  { id: 'home-categories', order: 6, title: 'Kategoriler' },
+  { id: 'home-category-products', order: 7, title: 'Kategori Ürünleri' },
+  { id: 'home-discounted-products', order: 8, title: 'İndirimli Ürünler' },
+  { id: 'home-most-liked-products', order: 9, title: 'En Çok Beğenilenler' },
+  { id: 'home-trust-bar', order: 10, title: 'Güven Barı' },
+  { id: 'home-campaigns', order: 11, title: 'Kampanyalar' },
+  { id: 'home-blog', order: 12, title: 'Blog' },
+  { id: 'home-trust-hub', order: 13, title: 'Güven Merkezi' },
+  { id: 'home-quick-tab-bar', order: 14, title: 'Hızlı Sekme Çubuğu' },
 ] as const;
 
 const LISTING_CREATE_FIELD_KEY_SET = new Set<string>(
@@ -3259,7 +3262,7 @@ onBeforeUnmount(() => {
 function getFullUrl(url: string): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `http://localhost:3000${url}`;
+  return `http://localhost:3030${url}`;
 }
 
 function getBannerActiveImage(bannerId: string): string {

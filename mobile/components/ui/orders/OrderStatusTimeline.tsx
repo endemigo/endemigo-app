@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { OrderStatus } from '@endemigo/shared';
-import { formatShortDate } from '../../../utils/transactionFormatters';
+import { formatDateTimeWithYear } from '../../../utils/transactionFormatters';
 import { styles } from './OrderStatusTimeline.styles';
 
 interface OrderStatusTimelineProps {
@@ -66,9 +66,11 @@ export function OrderStatusTimeline({ status, createdAt, updatedAt }: OrderStatu
             </View>
             <View style={styles.content}>
               <Text style={styles.stepTitle}>{t(`orderStatuses.${step}`)}</Text>
-              <Text style={styles.stepMeta}>
-                {state === 'pending' ? t('orders.status') : formatShortDate(state === 'done' ? createdAt : updatedAt)}
-              </Text>
+              {state !== 'pending' && (
+                <Text style={styles.stepMeta}>
+                  {formatDateTimeWithYear(state === 'done' ? createdAt : updatedAt)}
+                </Text>
+              )}
             </View>
           </View>
         );

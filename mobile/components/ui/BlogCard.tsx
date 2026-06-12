@@ -1,6 +1,7 @@
 import { Blog } from '@/types';
 import React from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Colors } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -21,10 +22,10 @@ export function BlogCard({ item, onPress }: Props) {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
+      <Image source={{ uri: item.image }} style={styles.image} contentFit="cover" />
       <View style={styles.content}>
         <View style={styles.metaRow}>
-          <Text style={styles.category}>{item.category}</Text>
+          <Text style={styles.category}>{t('blogDetail.categoryFallback')}</Text>
           <View style={styles.dot} />
           <Text style={styles.metaText}>{readTime}</Text>
         </View>

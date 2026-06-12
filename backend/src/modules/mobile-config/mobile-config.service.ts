@@ -245,3 +245,4 @@ export class MobileConfigService {
     this.versionColumnEnsured = true;
   }
 }
+// Trigger rebuild to pick up shared-types changes.

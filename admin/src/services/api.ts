@@ -1,6 +1,6 @@
 import axios, { AxiosError, type AxiosResponse } from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3030';
 export const ADMIN_TOKEN_KEY = 'endemigo.admin.accessToken';
 export const ADMIN_USER_KEY = 'endemigo.admin.user';
 

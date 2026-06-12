@@ -13,6 +13,7 @@ export interface CartItem {
   imageUrl?: string;
   quantity: number;
   addedAt?: string;
+  sellerId?: string;
 }
 
 interface AddCartPayload {
@@ -22,6 +23,7 @@ interface AddCartPayload {
   title: string;
   price: number;
   imageUrl?: string;
+  sellerId?: string;
 }
 
 interface CartState {
@@ -86,6 +88,7 @@ function mapApiItemsToStore(data: CartApiResponse): CartItem[] {
     title: item.product?.title ?? '',
     price: Number(item.product?.price ?? 0),
     imageUrl: item.product?.imageUrl,
+    sellerId: (item as any).product?.sellerId,
   }));
 }
 
@@ -157,6 +160,7 @@ export const useCartStore = create<CartState>((set) => ({
             title: payload.title,
             price: payload.price,
             imageUrl: payload.imageUrl,
+            sellerId: payload.sellerId,
             quantity: 1,
             addedAt: new Date().toISOString(),
           },

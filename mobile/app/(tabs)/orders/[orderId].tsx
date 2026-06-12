@@ -1,7 +1,7 @@
 import React from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CargoStatus, OrderStatus } from '@endemigo/shared';
 import { Colors } from '../../../constants/theme';
@@ -21,7 +21,7 @@ import { OrderStatusTimeline } from '../../../components/ui/orders/OrderStatusTi
 import { ReturnRequestCard } from '../../../components/ui/orders/ReturnRequestCard';
 import { ReturnStatusCard } from '../../../components/ui/orders/ReturnStatusCard';
 import { SellerOrderActions } from '../../../components/ui/orders/SellerOrderActions';
-import { formatCurrency } from '../../../utils/transactionFormatters';
+import { formatCurrency, formatDateTimeWithYear } from '../../../utils/transactionFormatters';
 import { useModalStore } from '../../../store/modalStore';
 import { useRoleModeStore } from '../../../store/roleModeStore';
 import { resolveApiErrorMessage } from '../../../utils/apiError';
@@ -29,6 +29,7 @@ import { styles } from '../../../styles/tabs/orders/[orderId].styles';
 
 export default function OrderDetailScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const params = useLocalSearchParams<{ orderId: string }>();
   const orderId = params.orderId;
   const activeMode = useRoleModeStore((state) => state.activeMode);
@@ -194,12 +195,40 @@ export default function OrderDetailScreen() {
           <Text style={styles.amount}>{formatCurrency(order.data.amount, order.data.currency)}</Text>
         </View>
         <Text style={styles.status}>{t(`orderStatuses.${order.data.status}`)}</Text>
+        {order.data.createdAt && (
+          <Text style={styles.status}>
+            {t('orders.orderDate')}: {formatDateTimeWithYear(order.data.createdAt)}
+          </Text>
+        )}
         {order.data.autoCompleteAt && (
           <Text style={styles.status}>
             {t('orders.autoCompleteAt', { date: order.data.autoCompleteAt })}
           </Text>
         )}
       </View>
+
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => router.push(`/product/${order.data?.productId}` as never)}
+        activeOpacity={0.75}
+      >
+        {order.data.productImage ? (
+          <Image source={{ uri: order.data.productImage }} style={styles.productImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.productImagePlaceholder}>
+            <Ionicons name="cube-outline" size={26} color={Colors.primary} />
+          </View>
+        )}
+        <View style={styles.productInfo}>
+          <Text style={styles.productTitle} numberOfLines={2}>
+            {order.data.title}
+          </Text>
+          <Text style={styles.productPrice}>
+            {formatCurrency(order.data.amount, order.data.currency)} (1 {t('product.unitPiece')})
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+      </TouchableOpacity>
 
       <OrderStatusTimeline
         status={order.data.status}

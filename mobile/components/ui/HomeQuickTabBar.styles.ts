@@ -7,7 +7,7 @@ export const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: `${Colors.white}F2`,
+    backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.slate100,
     borderRadius: 18,
@@ -26,11 +26,11 @@ export const styles = StyleSheet.create({
     minHeight: 42,
   },
   label: {
-    color: Colors.primary,
+    color: Colors.slate400,
     fontSize: FontSize.xs,
-    fontFamily: FontFamily.headline,
+    fontFamily: FontFamily.bodyMedium,
   },
   labelActive: {
-    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
   },
 });

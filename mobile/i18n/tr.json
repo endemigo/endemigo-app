@@ -13,7 +13,9 @@
     "goBack": "Geri Dön",
     "genericError": "Bir hata oluştu, lütfen tekrar deneyin.",
     "cancel": "İptal",
-    "ok": "Tamam"
+    "ok": "Tamam",
+    "authRequiredTitle": "Giriş Gerekli",
+    "authRequiredMessage": "İlan verebilmek için lütfen önce giriş yapın."
   },
   "launchSplash": {
     "tagline": "Nadir parçalar. Canlı teklifler."
@@ -315,6 +317,11 @@
     "entryModeMarketplaceBody": "Sabit fiyatla sat veya Fiyat Sor görüşmesi aç.",
     "entryModeAuction": "Müzayede",
     "entryModeAuctionBody": "Lot oluştur, başlangıç fiyatı ve süreyle teklif topla.",
+    "entryModeAuctionRealtime": "Canlı Müzayede",
+    "entryModeAuctionRealtimeBody": "Müzayede etkinliği bünyesinde, sıralı lotlar halinde ve gerçek zamanlı uzayan sürelerle canlı teklif toplama.",
+    "entryModeAuctionTimed": "Zamanlı Müzayede",
+    "entryModeAuctionTimedBody": "Belirlediğiniz başlangıç ve bitiş saatlerinde gerçekleşen, son dakika teklifleriyle uzayan müzayede.",
+    "entryModeAuctionBack": "Geri",
     "popularTag": "POPÜLER",
     "newTag": "YENİ",
     "sellerAssurance": "Endemigo Satıcı Güvencesi",
@@ -352,9 +359,9 @@
     "stepCategory": "Kategori Seçimi",
     "stepCore": "İlan Detayları",
     "stepShippingPayment": "Kargo ve Ödeme",
-    "stepProductStory": "Ürünün Hikayesi",
-    "stepProductDescriptions": "Ürünün Açıklamaları",
-    "stepProductDetails": "Ürün Hakkında Detay",
+    "stepProductStory": "Menşei ve Marka",
+    "stepProductDescriptions": "Ürün İçeriği ve Belgeler",
+    "stepProductDetails": "Görseller ve Varyasyonlar",
     "stepGeoIndication": "Coğrafi İşaret",
     "stepLogistics": "Kargo ve Belgeler",
     "stepBasics": "Temel Bilgiler",
@@ -504,7 +511,9 @@
     "imageCount": "{{count}} görsel",
     "createdSuccess": "Ürün başarıyla oluşturuldu. Taslak olarak kaydedildi.",
     "publishedSuccess": "Ürün başarıyla yayına alındı.",
+    "pendingReviewSuccess": "Ürün başarıyla oluşturuldu ve onay sürecine gönderildi.",
     "auctionCreatedSuccess": "Ürün ve müzayede başarıyla yayına alındı.",
+    "auctionPendingReviewSuccess": "Ürün ve müzayede başarıyla oluşturuldu ve onay sürecine gönderildi.",
     "myProductsTitle": "Ürünlerim",
     "emptyProducts": "Henüz ürününüz yok.",
     "aiGenerating": "Yapay zeka ile açıklama ve hikaye oluşturuluyor...",
@@ -661,7 +670,11 @@
     "shipping": "Kargo",
     "serviceFee": "Hizmet Bedeli",
     "free": "Ücretsiz",
-    "secureCheckout": "Güvenli ödeme • 256-bit şifreleme"
+    "secureCheckout": "Güvenli ödeme • 256-bit şifreleme",
+    "checkoutConfirmTitle": "Siparişi Onayla",
+    "checkoutConfirmMessage": "Sepetinizdeki {{count}} adet ürünü satın almak istiyor musunuz?",
+    "checkoutSuccessTitle": "Başarılı!",
+    "checkoutSuccessMessage": "Siparişleriniz başarıyla oluşturuldu ve ödemesi tamamlandı."
   },
   "auth": {
     "slogan": "Anadolu'nun Bereketli Topraklarından",
@@ -1016,6 +1029,7 @@
     "loadError": "Siparişler yüklenemedi",
     "retry": "Tekrar dene",
     "orderCode": "Sipariş no",
+    "orderDate": "Sipariş tarihi",
     "status": "Durum",
     "total": "Toplam",
     "updatedAt": "Güncellendi",
@@ -1133,6 +1147,7 @@
     "wallet": "Cüzdan",
     "addresses": "Adreslerim",
     "notifications": "Bildirimler",
+    "favorites": "Favorilerim",
     "membership": "Paketim",
     "paketim": "Paketim",
     "sellerAds": "Satıcı reklamları",
@@ -1355,6 +1370,8 @@
   "sellerAds": {
     "title": "Satıcı reklamları",
     "subtitle": "Sabit reklam paketleri isteyin ve admin onay durumunu takip edin.",
+    "packagesTab": "Yeni Başvuru",
+    "requestsTab": "Başvurularım",
     "availableWallet": "Kullanılabilir cüzdan bakiyesi",
     "packages": "Reklam paketleri",
     "requests": "Mevcut talepler",
@@ -1363,7 +1380,7 @@
     "duration": "Süre",
     "durationDays": "{{count}} gün",
     "approvalState": "Onay",
-    "approvalAdminReview": "Admin onayı gerekli",
+    "approvalAdminReview": "İncelemede",
     "schedule": "Takvim",
     "requestPackage": "Paketi talep et",
     "confirmTitle": "Reklam paketi talebi",
@@ -1378,6 +1395,11 @@
       "SEARCH_PROMOTION": "Arama öne çıkarma",
       "CATEGORY_SHOWCASE": "Kategori vitrini",
       "HOME_BANNER": "Ana sayfa banner"
+    },
+    "packageDescriptions": {
+      "SEARCH_PROMOTION": "Ürünlerinizi arama sonuçlarında en üst sırada öne çıkararak alıcıların dikkatini 10 kat daha hızlı çekin.",
+      "CATEGORY_SHOWCASE": "İlgili kategori sayfalarının en tepesinde yer alan özel vitrin alanında ürünlerinizi sergileyerek doğrudan hedef kitlenize ulaşın.",
+      "HOME_BANNER": "Endemigo ana sayfasındaki dev reklam alanlarında mağazanızın veya seçtiğiniz ürünün bannerını yayınlayın. En yüksek görünürlük paketi."
     }
   },
   "sellerCampaigns": {
@@ -1497,7 +1519,7 @@
   "adRequestStatuses": {
     "DRAFT": "Taslak",
     "REQUESTED": "Talep edildi",
-    "ADMIN_REVIEW": "Admin incelemesi",
+    "ADMIN_REVIEW": "İncelemede",
     "APPROVED": "Onaylandı",
     "SCHEDULED": "Planlandı",
     "ACTIVE": "Aktif",

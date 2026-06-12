@@ -22,10 +22,10 @@ export const Colors = {
   primaryFixedDim: '#8ACEFF',
 
   // Secondary
-  secondary: '#36A936',
-  secondaryContainer: '#89FC7D',
+  secondary: '#2B8A3E',
+  secondaryContainer: '#E6F4EA',
   onSecondary: '#FFFFFF',
-  onSecondaryContainer: '#007512',
+  onSecondaryContainer: '#137333',
 
   // Auction
   auctionGreen: '#42b94b',

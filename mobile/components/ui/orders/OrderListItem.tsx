@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { OrderStatus } from '@endemigo/shared';
 import { Colors } from '../../../constants/theme';
 import type { OrderListItem as OrderListItemModel } from '../../../types/transactionFlows';
-import { formatCurrency, formatShortDate } from '../../../utils/transactionFormatters';
+import { formatCurrency, formatDateTimeWithYear } from '../../../utils/transactionFormatters';
 import { styles } from './OrderListItem.styles';
 
 interface OrderListItemProps {
@@ -64,7 +64,7 @@ export function OrderListItem({ item, onPress }: OrderListItemProps) {
           <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
             <Text style={styles.statusText}>{t(`orderStatuses.${item.status}`)}</Text>
           </View>
-          <Text style={styles.updatedAt}>{formatShortDate(item.updatedAt)}</Text>
+          <Text style={styles.updatedAt}>{formatDateTimeWithYear(item.createdAt)}</Text>
         </View>
       </View>
     </TouchableOpacity>

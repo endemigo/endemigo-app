@@ -893,7 +893,7 @@ function getActionPlaceholder(type: string): string {
 
 function getFullUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `http://localhost:3000${url}`;
+  return `http://localhost:3030${url}`;
 }
 
 // Pure Vue lightweight Canvas-based Image Cropper logic

@@ -77,6 +77,9 @@ export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentPro
   }
 
   assertSignatureV3(payload: unknown, signature?: string): boolean {
+    if (process.env.NODE_ENV !== 'production' && !this.secretKey) {
+      return true;
+    }
     if (!this.secretKey || !signature) {
       return false;
     }

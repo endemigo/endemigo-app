@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, View, Text, Image, Modal } from 'react-native';
+import { TouchableOpacity, View, Text, Image, Modal, PanResponder, Animated as RNAnimated } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 import { useRoleModeStore } from '../../store/roleModeStore';
+import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 import { styles } from '../../styles/tabs/_layout.styles';
 import { styles as entryModeStyles } from '../../components/forms/product-create/ProductCreateWizard.styles';
+
+const AnimatedSafeAreaView = RNAnimated.createAnimatedComponent(SafeAreaView);
 
 export default function TabLayout() {
   const { t } = useTranslation();
@@ -18,14 +22,56 @@ export default function TabLayout() {
   const isProfileScreen = pathname === '/profile';
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const isSellerMode = activeMode === 'seller';
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [isEntryModeModalVisible, setIsEntryModeModalVisible] = useState(false);
+  const [modalStep, setModalStep] = useState<'main' | 'auctionType'>('main');
 
-  const handleSelectEntryMode = (mode: 'MARKETPLACE' | 'AUCTION') => {
+  const panY = React.useRef(new RNAnimated.Value(0)).current;
+
+  const resetPositionAnim = RNAnimated.timing(panY, {
+    toValue: 0,
+    duration: 250,
+    useNativeDriver: true,
+  });
+
+  const closeAnim = RNAnimated.timing(panY, {
+    toValue: 600,
+    duration: 200,
+    useNativeDriver: true,
+  });
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 10 && gestureState.dy > 0 && Math.abs(gestureState.dx) < 30;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 0.5) {
+          closeAnim.start(() => {
+            setIsEntryModeModalVisible(false);
+            setModalStep('main');
+            panY.setValue(0);
+          });
+        } else {
+          resetPositionAnim.start();
+        }
+      },
+    })
+  ).current;
+
+  const handleSelectEntryMode = (mode: 'MARKETPLACE' | 'AUCTION', auctionType?: 'REALTIME' | 'TIMED') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     setIsEntryModeModalVisible(false);
+    setModalStep('main');
     router.push({
       pathname: '/(tabs)/become-seller',
-      params: { mode }
+      params: { mode, auctionType }
     });
   };
 
@@ -132,6 +178,24 @@ export default function TabLayout() {
           tabPress: (e) => {
             e.preventDefault();
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+            if (!isLoggedIn) {
+              useModalStore.getState().showModal({
+                title: t('common.authRequiredTitle'),
+                message: t('common.authRequiredMessage'),
+                type: 'info',
+                confirmText: t('auth.login'),
+                cancelText: t('common.cancel'),
+                onConfirm: () => {
+                  useModalStore.getState().hideModal();
+                  router.push('/(auth)/login');
+                },
+                onCancel: () => {
+                  useModalStore.getState().hideModal();
+                }
+              });
+              return;
+            }
+            setModalStep('main');
             setIsEntryModeModalVisible(true);
           }
         }}
@@ -145,6 +209,21 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'speedometer' : 'speedometer-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="buy-now"
+        options={{
+          title: t('tabs.buyNow'),
+          headerShown: false,
+          href: isSellerMode ? null : undefined,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'bag-handle' : 'bag-handle-outline'}
               size={24}
               color={color}
             />
@@ -186,44 +265,73 @@ export default function TabLayout() {
         options={{
           title: t('tabs.auctions'),
           headerShown: false,
-          tabBarStyle: { display: 'none' },
           tabBarActiveTintColor: Colors.auctionGreen,
-          tabBarInactiveTintColor: `${Colors.auctionGreen}99`,
-          tabBarLabel: ({ focused }) => (
-            <Text style={[styles.tabBarLabel, { color: focused ? Colors.auctionGreen : `${Colors.auctionGreen}99` }]}>
-              {t('tabs.auctions')}
-            </Text>
-          ),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'hammer' : 'hammer-outline'}
               size={24}
-              color={Colors.auctionGreen}
+              color={color}
             />
           ),
         }}
       />
-      <Tabs.Screen name="settings" options={{ href: null }} />
-      <Tabs.Screen name="edit-profile" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="edit-profile" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
-      <Tabs.Screen name="orders" options={{ href: null }} />
-      <Tabs.Screen name="orders/[orderId]" options={{ href: null }} />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          href: null,
+          headerTitle: () => (
+            <Text style={styles.headerProfileTitle}>{t('tabs.orders')}</Text>
+          ),
+          headerLeft: () => (
+            <TouchableOpacity
+              style={{ marginLeft: 16, padding: 8 }}
+              onPress={() => router.replace('/(tabs)/profile')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+          headerRight: () => null,
+        }}
+      />
+      <Tabs.Screen
+        name="orders/[orderId]"
+        options={{
+          href: null,
+          headerTitle: () => (
+            <Text style={styles.headerProfileTitle}>{t('orders.detailTitle')}</Text>
+          ),
+          headerLeft: () => (
+            <TouchableOpacity
+              style={{ marginLeft: 16, padding: 8 }}
+              onPress={() => router.replace('/(tabs)/orders')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+          headerRight: () => null,
+        }}
+      />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="notification-preferences" options={{ href: null }} />
+      <Tabs.Screen name="notification-preferences" options={{ href: null, headerShown: false }} />
       <Tabs.Screen
         name="categories"
         options={{
           href: null,
         }}
       />
-      <Tabs.Screen name="categories/[id]" options={{ href: null }} />
+      <Tabs.Screen name="categories/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="membership" options={{ href: null }} />
       <Tabs.Screen name="seller-campaigns" options={{ href: null }} />
       <Tabs.Screen name="addresses" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
-
+ 
     <Modal
       visible={isEntryModeModalVisible}
       transparent={true}
@@ -234,71 +342,130 @@ export default function TabLayout() {
         <TouchableOpacity
           style={entryModeStyles.entryModeModalDismissArea}
           activeOpacity={1}
-          onPress={() => setIsEntryModeModalVisible(false)}
+          onPress={() => {
+            setIsEntryModeModalVisible(false);
+            setModalStep('main');
+          }}
         />
-        <SafeAreaView style={entryModeStyles.entryModeModalContainer} edges={['bottom']}>
+        <AnimatedSafeAreaView style={[entryModeStyles.entryModeModalContainer, { transform: [{ translateY: panY }] }]} edges={['bottom']} {...panResponder.panHandlers}>
           <View style={entryModeStyles.entryModeModalHandle} />
-
-          <View style={entryModeStyles.entryModeHeaderArea}>
-            <Text style={entryModeStyles.entryModeEyebrow}>{t('listing.entryModeEyebrow')}</Text>
-            <Text style={entryModeStyles.entryModeTitle}>{t('listing.entryModeTitle')}</Text>
-            <Text style={entryModeStyles.entryModeSubtitle}>{t('listing.entryModeSubtitle')}</Text>
-          </View>
-
+ 
+          {modalStep === 'main' ? (
+            <View style={entryModeStyles.entryModeHeaderArea}>
+              <Text style={entryModeStyles.entryModeTitle}>{t('listing.entryModeTitle')}</Text>
+              <Text style={entryModeStyles.entryModeSubtitle}>{t('listing.entryModeSubtitle')}</Text>
+            </View>
+          ) : (
+            <View style={entryModeStyles.entryModeHeaderArea}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                <TouchableOpacity
+                  onPress={() => setModalStep('main')}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: Colors.slate100,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+              <Text style={entryModeStyles.entryModeTitle}>{t('listing.auctionType')}</Text>
+              <Text style={entryModeStyles.entryModeSubtitle}>{t('listing.entryModeSubtitle')}</Text>
+            </View>
+          )}
+ 
           <View style={entryModeStyles.entryModeOptions}>
-            <Animated.View entering={FadeInUp.delay(100).duration(600)}>
-              <TouchableOpacity
-                style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionMarketplace]}
-                activeOpacity={0.7}
-                onPress={() => handleSelectEntryMode('MARKETPLACE')}
-              >
-                <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerMarketplace]}>
-                  <Ionicons name="storefront-outline" size={24} color={Colors.primary} />
-                </View>
-                <View style={entryModeStyles.entryModeOptionTextWrap}>
-                  <View style={entryModeStyles.entryModeOptionHeaderRow}>
-                    <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeMarketplace')}</Text>
-                    <View style={[entryModeStyles.entryModeBadge, entryModeStyles.entryModeBadgeMarketplace]}>
-                      <Text style={[entryModeStyles.entryModeBadgeText, entryModeStyles.entryModeBadgeTextMarketplace]}>
-                        {t('listing.popularTag')}
-                      </Text>
+            {modalStep === 'main' ? (
+              <>
+                <Animated.View entering={FadeInUp.delay(100).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionMarketplace]}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectEntryMode('MARKETPLACE')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerMarketplace]}>
+                      <Ionicons name="storefront-outline" size={24} color={Colors.primary} />
                     </View>
-                  </View>
-                  <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeMarketplaceBody')}</Text>
-                </View>
-                <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View entering={FadeInUp.delay(250).duration(600)}>
-              <TouchableOpacity
-                style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
-                activeOpacity={0.7}
-                onPress={() => handleSelectEntryMode('AUCTION')}
-              >
-                <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
-                  <Ionicons name="hammer-outline" size={24} color={Colors.secondary} />
-                </View>
-                <View style={entryModeStyles.entryModeOptionTextWrap}>
-                  <View style={entryModeStyles.entryModeOptionHeaderRow}>
-                    <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeAuction')}</Text>
-                    <View style={[entryModeStyles.entryModeBadge, entryModeStyles.entryModeBadgeAuction]}>
-                      <Text style={[entryModeStyles.entryModeBadgeText, entryModeStyles.entryModeBadgeTextAuction]}>
-                        {t('listing.newTag')}
-                      </Text>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <View style={entryModeStyles.entryModeOptionHeaderRow}>
+                        <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeMarketplace')}</Text>
+                      </View>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeMarketplaceBody')}</Text>
                     </View>
-                  </View>
-                  <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionBody')}</Text>
-                </View>
-                <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
-              </TouchableOpacity>
-            </Animated.View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+ 
+                <Animated.View entering={FadeInUp.delay(250).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
+                    activeOpacity={0.7}
+                    onPress={() => setModalStep('auctionType')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
+                      <Ionicons name="hammer-outline" size={24} color={Colors.secondary} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <View style={entryModeStyles.entryModeOptionHeaderRow}>
+                        <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeAuction')}</Text>
+                      </View>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionBody')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+              </>
+            ) : (
+              <>
+                <Animated.View entering={FadeInUp.delay(100).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction, { borderColor: `${Colors.secondary}33` }]}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction, { backgroundColor: `${Colors.secondary}12` }]}>
+                      <Ionicons name="flash-outline" size={24} color={Colors.secondary} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <View style={entryModeStyles.entryModeOptionHeaderRow}>
+                        <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeAuctionRealtime')}</Text>
+                      </View>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionRealtimeBody')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+ 
+                <Animated.View entering={FadeInUp.delay(200).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, { borderColor: Colors.slate200 }]}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectEntryMode('AUCTION', 'TIMED')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, { backgroundColor: Colors.slate100 }]}>
+                      <Ionicons name="time-outline" size={24} color={Colors.slate600} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <View style={entryModeStyles.entryModeOptionHeaderRow}>
+                        <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.entryModeAuctionTimed')}</Text>
+                      </View>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionTimedBody')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+              </>
+            )}
           </View>
-
+ 
           <View style={entryModeStyles.entryModeFooter}>
             <Text style={entryModeStyles.entryModeFooterText}>{t('listing.sellerAssurance')}</Text>
           </View>
-        </SafeAreaView>
+        </AnimatedSafeAreaView>
       </View>
     </Modal>
   </>

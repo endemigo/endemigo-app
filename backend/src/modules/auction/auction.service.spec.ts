@@ -852,9 +852,9 @@ describe('AuctionService', () => {
       expect(result.antiSniping.extended).toBe(false);
     });
 
-    it('kademeli azaltma: 2. uzatma → 45s', async () => {
+    it('her uzatmada sabit süre eklenmeli (kademesiz)', async () => {
       const endTime = new Date(Date.now() + 30000);
-      const auction = createMockAuction({ endTime, currentExtensions: 1 });
+      const auction = createMockAuction({ endTime, currentExtensions: 2 }); // 3. uzatma
 
       mockQueryRunner.manager.findOne
         .mockResolvedValueOnce(auction)
@@ -872,30 +872,7 @@ describe('AuctionService', () => {
         amount: 1100,
       });
 
-      expect(result.antiSniping.extensionSeconds).toBe(45);
-    });
-
-    it('kademeli azaltma: 3+ uzatma → 30s', async () => {
-      const endTime = new Date(Date.now() + 30000);
-      const auction = createMockAuction({ endTime, currentExtensions: 2 });
-
-      mockQueryRunner.manager.findOne
-        .mockResolvedValueOnce(auction)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'wallet-1',
-          userId: 'buyer-1',
-          balance: 10000,
-          heldAmount: 0,
-        });
-
-      userService.findById.mockResolvedValue(mockBuyer);
-      const result = await service.placeBid('auction-1', 'buyer-1', {
-        amount: 1100,
-      });
-
-      expect(result.antiSniping.extensionSeconds).toBe(30);
+      expect(result.antiSniping.extensionSeconds).toBe(60); // Kademe olmadığı için hep varsayılan 60s
     });
 
     it('maxExtensions ulaşıldıysa uzatma yok', async () => {
@@ -951,6 +928,34 @@ describe('AuctionService', () => {
       expect(result.antiSniping.extended).toBe(false);
     });
 
+    it('dinamik uzatma süresi → extensionDuration kadar uzamalı', async () => {
+      const endTime = new Date(Date.now() + 30000); // 30s left
+      const auction = createMockAuction({
+        endTime,
+        currentExtensions: 0,
+        extensionDuration: 40,
+      });
+
+      mockQueryRunner.manager.findOne
+        .mockResolvedValueOnce(auction)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'wallet-1',
+          userId: 'buyer-1',
+          balance: 10000,
+          heldAmount: 0,
+        });
+
+      userService.findById.mockResolvedValue(mockBuyer);
+      const result = await service.placeBid('auction-1', 'buyer-1', {
+        amount: 1100,
+      });
+
+      expect(result.antiSniping.extended).toBe(true);
+      expect(result.antiSniping.extensionSeconds).toBe(40);
+    });
+
     it('Timed auction → 120s uzatma (AUCT-T-03)', async () => {
       const endTime = new Date(Date.now() + 30000);
       const auction = createMockAuction({
@@ -984,6 +989,7 @@ describe('AuctionService', () => {
         endTime,
         auctionType: AuctionType.TIMED,
         currentExtensions: 3,
+        maxExtensions: 3,
       });
 
       mockQueryRunner.manager.findOne

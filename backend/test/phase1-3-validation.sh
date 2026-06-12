@@ -2,7 +2,7 @@
 # Phase 1-3 Regression Test Suite
 # Auth + Become Seller + Products + Categories
 
-API="http://localhost:3000"
+API="http://localhost:3030"
 PASS=0
 FAIL=0
 

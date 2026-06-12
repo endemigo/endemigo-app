@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   CampaignDiscountType,
@@ -40,6 +40,9 @@ export default function SellerCampaignsScreen() {
   const { user } = useAuthStore();
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const { showModal } = useModalStore();
+  const pathname = usePathname();
+  const isFocused = pathname.includes('/seller-campaigns');
+
   const isSellerAccess = activeMode === 'seller' && Boolean(user?.isSeller);
   const campaignsQuery = useMyCampaigns(isSellerAccess);
   const couponsQuery = useMyCoupons(isSellerAccess);
@@ -48,7 +51,7 @@ export default function SellerCampaignsScreen() {
   const optIntoCampaign = useOptIntoCampaign();
 
   useEffect(() => {
-    if (!isSellerAccess) {
+    if (isFocused && !isSellerAccess) {
       showModal({
         title: t('sellerCampaigns.accessDeniedTitle'),
         message: t('sellerCampaigns.accessDeniedMessage'),
@@ -56,7 +59,7 @@ export default function SellerCampaignsScreen() {
       });
       router.replace('/(tabs)/profile' as never);
     }
-  }, [isSellerAccess, router, showModal, t]);
+  }, [isFocused, isSellerAccess, router, showModal, t]);
 
   const showError = (titleKey: string, error: unknown) => {
     showModal({

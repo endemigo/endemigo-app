@@ -2,11 +2,13 @@ import { StyleSheet } from 'react-native';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 export const styles = StyleSheet.create({
-  bottomSpacer: { height: 120 },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  scrollContent: {
     padding: Spacing.base,
+    paddingBottom: 140,
   },
 
   // Profile Header
@@ -57,8 +59,8 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     marginTop: Spacing.md,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     backgroundColor: `${Colors.primary}10`,
     borderRadius: BorderRadius.full,
   },
@@ -103,55 +105,81 @@ export const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius['2xl'],
     marginBottom: Spacing.base,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
     ...Shadows.sm,
   },
   walletHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  walletHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.md,
   },
   walletIconBox: {
     width: 32,
     height: 32,
-    borderRadius: BorderRadius.md,
-    backgroundColor: `${Colors.primary}1A`,
+    borderRadius: BorderRadius.full,
+    backgroundColor: `${Colors.primary}12`,
     justifyContent: 'center',
     alignItems: 'center',
   },
   walletTitle: {
-    color: Colors.onSurfaceVariant,
+    color: Colors.onSurface,
     fontSize: FontSize.body,
     fontFamily: FontFamily.bodySemiBold,
     fontWeight: '600',
+  },
+  walletChevron: {
+    color: Colors.slate400,
+  },
+  walletBalanceLabel: {
+    color: Colors.slate500,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    marginBottom: 4,
   },
   walletBalance: {
-    color: Colors.primary,
+    color: Colors.onSurface,
     fontSize: FontSize.display,
     fontFamily: FontFamily.headlineBlack,
-    fontWeight: '900',
-    marginBottom: Spacing.xs,
+    fontWeight: '800',
+    marginBottom: Spacing.md,
   },
-  walletHeldRow: {
+  walletDivider: {
+    height: 1,
+    backgroundColor: Colors.slate100,
+    marginBottom: Spacing.md,
+  },
+  walletFooter: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
   },
-  walletHeld: {
-    color: Colors.accent,
-    fontSize: FontSize.body,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
+  walletFooterItem: {
+    flex: 1,
   },
-  walletHint: {
+  walletFooterLabel: {
     color: Colors.slate400,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
-    marginTop: Spacing.sm,
-    fontStyle: 'italic',
+    marginBottom: 2,
+  },
+  walletFooterValue: {
+    color: Colors.onSurface,
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  walletHeldValue: {
+    color: Colors.accent,
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
   },
   sectionTitle: {
     color: Colors.onSurface,
@@ -233,10 +261,13 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.errorContainer,
-    padding: Spacing.base,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: `${Colors.error}20`,
+    paddingVertical: Spacing.lg,
     borderRadius: BorderRadius['2xl'],
     gap: Spacing.sm,
+    ...Shadows.sm,
   },
   logoutText: {
     color: Colors.error,

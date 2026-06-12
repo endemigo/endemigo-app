@@ -197,7 +197,11 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
@@ -210,21 +214,6 @@ export default function ProfileScreen() {
         </Text>
         <Text style={styles.email}>{user?.email}</Text>
         {user?.phone && <Text style={styles.phone}>{user.phone}</Text>}
-        <View style={styles.badgeRow}>
-          <View style={[styles.badge, user?.isSeller ? styles.sellerBadge : styles.buyerBadge]}>
-            <Ionicons
-              name={user?.isSeller ? 'storefront' : 'cart'}
-              size={14}
-              color={Colors.primary}
-            />
-            <Text style={[
-              styles.badgeText,
-              user?.isSeller ? styles.badgeTextSeller : styles.badgeTextBuyer,
-            ]}>
-              {user?.isSeller ? t('profile.seller') : t('profile.buyer')}
-            </Text>
-          </View>
-        </View>
         <RoleModeSwitch isSeller={Boolean(user?.isSeller)} />
 
         {/* Edit Profile Button */}
@@ -239,30 +228,47 @@ export default function ProfileScreen() {
       </View>
 
       {/* Wallet Card */}
-      <View style={styles.walletCard}>
+      <TouchableOpacity
+        style={styles.walletCard}
+        onPress={() => router.push('/(tabs)/wallet')}
+        activeOpacity={0.9}
+      >
         <View style={styles.walletHeader}>
-          <View style={styles.walletIconBox}>
-            <Ionicons name="wallet" size={20} color={Colors.primary} />
+          <View style={styles.walletHeaderLeft}>
+            <View style={styles.walletIconBox}>
+              <Ionicons name="wallet-outline" size={18} color={Colors.primary} />
+            </View>
+            <Text style={styles.walletTitle}>{t('wallet.title')}</Text>
           </View>
-          <Text style={styles.walletTitle}>{t('profile.wallet')}</Text>
+          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} style={styles.walletChevron} />
         </View>
+
+        <Text style={styles.walletBalanceLabel}>{t('wallet.availableBalance')}</Text>
         <Text style={styles.walletBalance}>
           {wallet ? formatCurrency(wallet.available) : t('common.loading')}
         </Text>
-        {wallet && wallet.held > 0 && (
-          <View style={styles.walletHeldRow}>
-            <Ionicons name="lock-closed" size={12} color={Colors.accent} />
-            <Text style={styles.walletHeld}>
-              {t('wallet.heldBalance')}: {formatCurrency(wallet.held)}
-            </Text>
-          </View>
-        )}
+
         {wallet && (
-          <Text style={styles.walletHint}>
-            {t('profile.walletBalance')}: {formatCurrency(wallet.balance)}
-          </Text>
+          <>
+            <View style={styles.walletDivider} />
+            <View style={styles.walletFooter}>
+              <View style={styles.walletFooterItem}>
+                <Text style={styles.walletFooterLabel}>{t('wallet.totalBalance')}</Text>
+                <Text style={styles.walletFooterValue}>{formatCurrency(wallet.balance)}</Text>
+              </View>
+              {wallet.held > 0 && (
+                <View style={[styles.walletFooterItem, { alignItems: 'flex-end' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="lock-closed" size={10} color={Colors.accent} />
+                    <Text style={styles.walletFooterLabel}>{t('wallet.heldBalance')}</Text>
+                  </View>
+                  <Text style={styles.walletHeldValue}>{formatCurrency(wallet.held)}</Text>
+                </View>
+              )}
+            </View>
+          </>
         )}
-      </View>
+      </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>{t('profile.commonSectionTitle')}</Text>
       <Text style={styles.sectionSubtitle}>{t('profile.commonSectionSubtitle')}</Text>
@@ -308,8 +314,6 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
         <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
-
-      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }

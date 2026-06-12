@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -48,7 +49,7 @@ import {
   DEFAULT_MAX_PRODUCT_IMAGE_COUNT,
   mapPickerAssetToProductImage,
 } from '../../../utils/productImageUpload.ts';
-import { formatPriceInput } from '../../../utils/priceInputMask.ts';
+import { formatPriceInput, parsePriceInput } from '../../../utils/priceInputMask.ts';
 import { formatCurrency } from '../../../utils/transactionFormatters';
 import { createListingDraft, updateListingDraft } from '../../../services/listingDraftService.ts';
 import { submitProductCreateWizard, generateAiContent } from '../../../services/productCreateService.ts';
@@ -65,6 +66,7 @@ interface ProductCreateWizardProps {
   isProductsLoading: boolean;
   onCreated: () => Promise<unknown> | void;
   initialEntryMode?: ProductCreateEntryMode;
+  initialAuctionType?: string;
 }
 
 const STEP_TITLE_KEYS: Record<ProductCreateWizardStep, string> = {
@@ -152,6 +154,49 @@ const SEEDED_NUMBER_VARIANTS = [
   { id: 'e46ba6c6-5377-4ec3-9c46-5343a3db7742', nameTr: '45', nameEn: '45' },
 ];
 
+const findCategoryById = (list: Category[], id: string): Category | null => {
+  for (const cat of list) {
+    if (cat.id === id) return cat;
+    if (cat.children?.length) {
+      const found = findCategoryById(cat.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const getCategoryPath = (list: Category[], id: string, path: string[] = []): string[] | null => {
+  for (const cat of list) {
+    const currentPath = [...path, cat.name];
+    if (cat.id === id) return currentPath;
+    if (cat.children?.length) {
+      const found = getCategoryPath(cat.children, id, currentPath);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const isDescendantOf = (parent: Category, childId: string): boolean => {
+  if (!parent.children) return false;
+  for (const child of parent.children) {
+    if (child.id === childId) return true;
+    if (isDescendantOf(child, childId)) return true;
+  }
+  return false;
+};
+
+const findParentCategoryOfId = (list: Category[], id: string, parent: Category | null = null): Category | null => {
+  for (const cat of list) {
+    if (cat.id === id) return parent;
+    if (cat.children?.length) {
+      const found = findParentCategoryOfId(cat.children, id, cat);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
 export function ProductCreateWizard({
   categories,
   recentProducts,
@@ -159,6 +204,7 @@ export function ProductCreateWizard({
   isProductsLoading,
   onCreated,
   initialEntryMode,
+  initialAuctionType,
 }: ProductCreateWizardProps) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
@@ -174,7 +220,7 @@ export function ProductCreateWizard({
   const [auctionEvents, setAuctionEvents] = useState<any[]>([]);
   const [isEventsLoading, setIsEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState<string | null>(null);
-  const [geoIndications, setGeoIndications] = useState<Array<{ id: string; name: string; code: string; logoUrl: string }>>([]);
+  const [geoIndications, setGeoIndications] = useState<Array<{ id: string; name: string; nameEn?: string; code: string; logoUrl: string }>>([]);
   const [isGeoLoading, setIsGeoLoading] = useState(false);
   const [featureBadges, setFeatureBadges] = useState<Array<{ id: string; name: string; nameEn: string; code: string; logoUrl: string }>>([]);
   const [isFeaturesLoading, setIsFeaturesLoading] = useState(false);
@@ -211,9 +257,9 @@ export function ProductCreateWizard({
       try {
         if (ENV.USE_MOCK) {
           setGeoIndications([
-            { id: '1', name: 'Kırmızı (TR)', code: 'PDO_RED_TR', logoUrl: '' },
-            { id: '2', name: 'Yeşil (TR)', code: 'PGI_GREEN_TR', logoUrl: '' },
-            { id: '3', name: 'Mavi (TR)', code: 'TSG_BLUE_TR', logoUrl: '' },
+            { id: '1', name: 'Kırmızı (TR)', nameEn: 'Red (EN)', code: 'PDO_RED_TR', logoUrl: '' },
+            { id: '2', name: 'Yeşil (TR)', nameEn: 'Green (EN)', code: 'PGI_GREEN_TR', logoUrl: '' },
+            { id: '3', name: 'Mavi (TR)', nameEn: 'Blue (EN)', code: 'TSG_BLUE_TR', logoUrl: '' },
           ]);
         } else {
           const { data } = await api.get('/products/geo-indications');
@@ -263,9 +309,13 @@ export function ProductCreateWizard({
       const selectedCategoryName = selectedCategory?.name;
       const aiContent = await generateAiContent(state.title.trim(), selectedCategoryName);
 
+      const mergedDescription = isDescriptionEmpty
+        ? `${aiContent.description}\n\n${aiContent.story}`
+        : state.description;
+
       patchState({
-        description: isDescriptionEmpty ? aiContent.description : state.description,
-        sellerNotes: isStoryEmpty ? aiContent.story : state.sellerNotes,
+        description: mergedDescription,
+        sellerNotes: mergedDescription,
         productContent: isContentEmpty ? aiContent.productContent : state.productContent,
       });
     } catch (error) {
@@ -277,7 +327,7 @@ export function ProductCreateWizard({
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      reset();
+      reset(initialEntryMode, initialAuctionType);
       setCurrentStep(1);
       setImages([]);
       setSelectedExistingProductId(null);
@@ -285,7 +335,7 @@ export function ProductCreateWizard({
     });
 
     return unsubscribe;
-  }, [navigation, reset, initialEntryMode]);
+  }, [navigation, reset, initialEntryMode, initialAuctionType]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entryMode, setEntryMode] = useState<ProductCreateEntryMode | null>(initialEntryMode ?? null);
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -309,6 +359,8 @@ export function ProductCreateWizard({
   const [isDesiModalVisible, setDesiModalVisible] = useState(false);
   const [desiFieldTarget, setDesiFieldTarget] = useState<DesiFieldTarget | null>(null);
   const [isProductsCollapsed, setIsProductsCollapsed] = useState(true);
+  const [pendingShippingDistrictOpen, setPendingShippingDistrictOpen] = useState<string | null>(null);
+  const [pendingProductionDistrictOpen, setPendingProductionDistrictOpen] = useState<string | null>(null);
 
   // Variant States
   const [hasVariants, setHasVariants] = useState(false);
@@ -329,32 +381,20 @@ export function ProductCreateWizard({
   );
 
   const selectedCategory = useMemo(() => {
-    for (const rootCategory of rootCategories) {
-      if (rootCategory.id === state.categoryId) return rootCategory;
-      const childCategory = rootCategory.children?.find((child) => child.id === state.categoryId);
-      if (childCategory) return childCategory;
-    }
-
-    return null;
+    return findCategoryById(rootCategories, state.categoryId);
   }, [rootCategories, state.categoryId]);
   const selectedListingTemplate = selectedCategory?.listingTemplate ?? null;
 
   const selectedCategoryLabel = useMemo(() => {
-    if (!selectedCategory) return t('listing.categoryPlaceholder');
+    if (!state.categoryId) return t('listing.categoryPlaceholder');
+    const path = getCategoryPath(rootCategories, state.categoryId);
+    return path ? path.join(' > ') : t('listing.categoryPlaceholder');
+  }, [rootCategories, state.categoryId, t]);
 
-    for (const rootCategory of rootCategories) {
-      if (rootCategory.id === selectedCategory.id) return rootCategory.name;
-      const childCategory = rootCategory.children?.find((child) => child.id === selectedCategory.id);
-      if (childCategory) return `${rootCategory.name} > ${childCategory.name}`;
-    }
-
-    return selectedCategory.name;
-  }, [rootCategories, selectedCategory, t]);
-
-  const selectedRootCategory = useMemo(
-    () => rootCategories.find((category) => category.id === selectedRootCategoryId) || null,
-    [rootCategories, selectedRootCategoryId],
-  );
+  const selectedRootCategory = useMemo(() => {
+    if (!selectedRootCategoryId) return null;
+    return findCategoryById(rootCategories, selectedRootCategoryId);
+  }, [rootCategories, selectedRootCategoryId]);
 
   const activeSubcategories = useMemo(() => {
     if (!selectedRootCategory) return [];
@@ -477,6 +517,21 @@ export function ProductCreateWizard({
     return 0;
   }, [selectedExistingProduct]);
   const effectiveImageCount = images.length > 0 ? images.length : selectedExistingProductImageCount;
+  const previewImages = useMemo(() => {
+    if (images.length > 0) {
+      return images.map((img) => img.uri);
+    }
+    if (selectedExistingProduct) {
+      if (Array.isArray(selectedExistingProduct.images) && selectedExistingProduct.images.length > 0) {
+        return selectedExistingProduct.images.map((img) => img.url);
+      }
+      const singleUrl = selectedExistingProduct.imageUrl || selectedExistingProduct.thumbnail;
+      if (singleUrl) {
+        return [singleUrl];
+      }
+    }
+    return [];
+  }, [images, selectedExistingProduct]);
   const listingFieldVisibility = useMemo<ListingFieldVisibilityOptions>(() => {
     const optionalFields = mobileConfigData?.listingCreate?.optionalFields;
     const categoryFields = (mobileConfigData?.listingCreate as any)?.categoryFields;
@@ -511,8 +566,14 @@ export function ProductCreateWizard({
       'sellerNotes',
       'productionProvince',
       'productionDistrict',
-      // Step 5 (Description / Story)
+      // Step 5 (Description / Story / Logistics)
       'productContent',
+      'barcodeNo',
+      'geoIndicationReceivedAt',
+      'geoIndicationCertNo',
+      'geoIndicationRegion',
+      'additionalCertificates',
+      'featureBadges',
       // Step 6 (Media & Logistics Specs)
       'sku',
       'weight',
@@ -552,7 +613,7 @@ export function ProductCreateWizard({
     const matchedRootCategory = rootCategories.find(
       (rootCategory) =>
         rootCategory.id === state.categoryId
-        || Boolean(rootCategory.children?.some((child) => child.id === state.categoryId)),
+        || isDescendantOf(rootCategory, state.categoryId),
     );
 
     if (matchedRootCategory && matchedRootCategory.id !== selectedRootCategoryId) {
@@ -568,15 +629,69 @@ export function ProductCreateWizard({
           ? PRODUCT_CREATE_LISTING_TYPES.AUCTION
           : PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE,
         askPriceEnabled: false,
+        auctionType: initialAuctionType === 'TIMED'
+          ? PRODUCT_CREATE_AUCTION_TYPES.TIMED
+          : PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
       });
     }
-  }, [initialEntryMode]);
+  }, [initialEntryMode, initialAuctionType]);
+
+  // Auto-fill delivery/cargo details from the seller's most recent product
+  useEffect(() => {
+    if (recentProducts.length > 0 && !state.shippingProvince && !state.shippingDistrict && !state.shippingAddress) {
+      const recent = recentProducts[0];
+      if (recent.shippingProvince) {
+        patchState({
+          shippingProvince: recent.shippingProvince || '',
+          shippingDistrict: recent.shippingDistrict || '',
+          shippingAddress: recent.shippingAddress || '',
+          deliveryTemplateDomestic: recent.deliveryTemplateDomestic || '',
+          deliveryTemplateInternational: recent.deliveryTemplateInternational || '',
+          desiDomestic: recent.desiDomestic || '',
+          desiInternational: recent.desiInternational || '',
+        });
+      }
+    }
+  }, [recentProducts]);
+
+  // Fallback: Auto-fill shipping location from the user's default/business address if they have no recent products
+  useEffect(() => {
+    async function fetchDefaultAddress() {
+      if (recentProducts.length === 0 && !state.shippingProvince && !state.shippingDistrict && !state.shippingAddress) {
+        try {
+          if (ENV.USE_MOCK) {
+            patchState({
+              shippingProvince: 'İzmir',
+              shippingDistrict: 'Urla',
+              shippingAddress: 'Zeytinlik Caddesi No: 45, Urla, İzmir',
+              deliveryTemplateDomestic: 'Yurtiçi Kargo 1-3 gün',
+              desiDomestic: '1-3',
+            });
+            return;
+          }
+          const { data } = await api.get('/users/addresses');
+          const addresses = Array.isArray(data) ? data : (data?.addresses || []);
+          const defaultAddress = addresses.find((addr: any) => addr.isDefault || addr.type === 'BUSINESS') || addresses[0];
+          if (defaultAddress) {
+            patchState({
+              shippingProvince: defaultAddress.city || '',
+              shippingDistrict: defaultAddress.district || '',
+              shippingAddress: defaultAddress.addressLine || '',
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to fetch default address:', error);
+        }
+      }
+    }
+    fetchDefaultAddress();
+  }, [recentProducts]);
 
   function handleOpenCategoryModal() {
     const matchedRootCategory = rootCategories.find(
       (rootCategory) =>
         rootCategory.id === state.categoryId
-        || Boolean(rootCategory.children?.some((child) => child.id === state.categoryId)),
+        || isDescendantOf(rootCategory, state.categoryId),
     );
 
     setCategorySearch('');
@@ -597,7 +712,9 @@ export function ProductCreateWizard({
 
   function handleBackToRootCategories() {
     setCategorySearch('');
-    setSelectedRootCategoryId('');
+    if (!selectedRootCategoryId) return;
+    const parent = findParentCategoryOfId(rootCategories, selectedRootCategoryId);
+    setSelectedRootCategoryId(parent ? parent.id : '');
   }
 
   function handleOpenProvinceModal() {
@@ -630,8 +747,9 @@ export function ProductCreateWizard({
     setShippingProvinceModalVisible(false);
   }
 
-  function handleOpenShippingDistrictModal() {
-    if (!state.shippingProvince) return;
+  function handleOpenShippingDistrictModal(overrideProvince?: string) {
+    const province = overrideProvince || state.shippingProvince;
+    if (!province) return;
     setShippingDistrictSearch('');
     setShippingDistrictModalVisible(true);
   }
@@ -651,8 +769,9 @@ export function ProductCreateWizard({
     setProductionProvinceModalVisible(false);
   }
 
-  function handleOpenProductionDistrictModal() {
-    if (!state.productionProvince) return;
+  function handleOpenProductionDistrictModal(overrideProvince?: string) {
+    const province = overrideProvince || state.productionProvince;
+    if (!province) return;
     setProductionDistrictSearch('');
     setProductionDistrictModalVisible(true);
   }
@@ -858,25 +977,32 @@ export function ProductCreateWizard({
 
     try {
       setIsSubmitting(true);
-      await submitProductCreateWizard(state, images, selectedExistingProductId ?? undefined);
-      reset();
+      const product = await submitProductCreateWizard(state, images, selectedExistingProductId ?? undefined);
+      reset(initialEntryMode, initialAuctionType);
       setImages([]);
       setCurrentStep(1);
-      setEntryMode(null);
+      setEntryMode(initialEntryMode ?? null);
       setDraftId(null);
       setCategorySearch('');
       setShowAuctionAdvanced(false);
       setSelectedExistingProductId(null);
       await onCreated();
 
+      const isPendingReview = (product as any)?.status === 'PENDING_REVIEW';
+      let messageKey = '';
+      if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
+        messageKey = isPendingReview ? 'listing.auctionPendingReviewSuccess' : 'listing.auctionCreatedSuccess';
+      } else {
+        messageKey = isPendingReview ? 'listing.pendingReviewSuccess' : 'listing.publishedSuccess';
+      }
+
       showModal({
         title: t('common.success'),
-        message: t(
-          state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
-            ? 'listing.auctionCreatedSuccess'
-            : 'listing.publishedSuccess',
-        ),
+        message: t(messageKey),
         type: 'success',
+        onConfirm: () => {
+          router.replace('/(tabs)/seller-dashboard' as never);
+        },
       });
     } catch (error: unknown) {
       showModal({
@@ -1049,7 +1175,7 @@ export function ProductCreateWizard({
               <TouchableOpacity
                 style={styles.selectorInput}
                 activeOpacity={0.85}
-                onPress={handleOpenShippingDistrictModal}
+                onPress={() => handleOpenShippingDistrictModal()}
               >
                 <Text
                   style={state.shippingDistrict ? styles.selectorInputText : styles.selectorInputPlaceholder}
@@ -1201,7 +1327,7 @@ export function ProductCreateWizard({
             {isEventsLoading ? (
               <ActivityIndicator color={Colors.primary} size="small" style={{ marginVertical: 12 }} />
             ) : eventsError ? (
-              <Text style={{ color: Colors.danger, fontSize: 13, marginBottom: 8 }}>{eventsError}</Text>
+              <Text style={{ color: Colors.error, fontSize: 13, marginBottom: 8 }}>{eventsError}</Text>
             ) : auctionEvents.length === 0 ? (
               <Text style={{ color: Colors.slate500, fontSize: 13, marginVertical: 8 }}>
                 Şu anda başvuru sürecinde olan aktif bir müzayede etkinliği bulunmamaktadır.
@@ -1209,8 +1335,8 @@ export function ProductCreateWizard({
             ) : (
               <View style={{ gap: 8, marginVertical: 8 }}>
                 {auctionEvents.map((event) => {
-                  const isSelected = state.selectedEventId === event.id;
-                  return (
+                   const isSelected = state.selectedEventId === event.id;
+                   return (
                     <TouchableOpacity
                       key={event.id}
                       activeOpacity={0.85}
@@ -1220,7 +1346,7 @@ export function ProductCreateWizard({
                         alignItems: 'center',
                         backgroundColor: isSelected ? `${Colors.primary}08` : Colors.surface,
                         borderWidth: 1.5,
-                        borderColor: isSelected ? Colors.primary : Colors.border,
+                        borderColor: isSelected ? Colors.primary : Colors.outlineVariant,
                         borderRadius: 12,
                         padding: 12,
                         gap: 12,
@@ -1352,13 +1478,19 @@ export function ProductCreateWizard({
         {isAuction ? null : (
           <>
             <TouchableOpacity
-              style={styles.toggleCard}
-              activeOpacity={0.85}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 12,
+                marginBottom: 16,
+              }}
+              activeOpacity={0.8}
               onPress={() => patchState({ askPriceEnabled: !state.askPriceEnabled, askPriceMinAmount: !state.askPriceEnabled ? state.askPriceMinAmount : '' })}
             >
-              <View>
-                <Text style={styles.toggleTitle}>{t('listing.askPriceEnabled')}</Text>
-                <Text style={styles.toggleSub}>{t('listing.askPriceHint')}</Text>
+              <View style={{ flex: 1, marginRight: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>{t('listing.askPriceEnabled')}</Text>
+                <Text style={{ fontSize: 12, color: Colors.slate500, marginTop: 2, lineHeight: 16 }}>{t('listing.askPriceHint')}</Text>
               </View>
               <View style={[styles.checkbox, state.askPriceEnabled && styles.checkboxChecked]}>
                 {state.askPriceEnabled ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
@@ -1389,7 +1521,7 @@ export function ProductCreateWizard({
     return (
       <>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.description')} *</Text>
+          <Text style={styles.inputLabel}>{t('listing.description')} & {t('listing.sellerNotes')} *</Text>
           <TextInput
             style={[
               styles.input,
@@ -1555,28 +1687,8 @@ export function ProductCreateWizard({
   }
 
   function renderAdditionalStep() {
-    const isNotesGenerating = isAiGenerating && (!state.sellerNotes || state.sellerNotes.trim().length === 0);
     return (
       <>
-        {isListingFieldVisible('sellerNotes') ? (
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>{t('listing.sellerNotes')}</Text>
-            <TextInput
-              style={[
-                styles.input,
-                styles.textareaInput,
-                isNotesGenerating && { opacity: 0.6, backgroundColor: Colors.slate50 }
-              ]}
-              value={state.sellerNotes}
-              onChangeText={(value) => updateField('sellerNotes', value)}
-              placeholder={isNotesGenerating ? t('listing.aiGenerating') : t('listing.sellerNotesPlaceholder')}
-              placeholderTextColor={Colors.slate400}
-              multiline
-              maxLength={600}
-              editable={!isNotesGenerating}
-            />
-          </View>
-        ) : null}
 
         {isListingFieldVisible('brand') ? (
           <View style={styles.inputGroup}>
@@ -1632,7 +1744,7 @@ export function ProductCreateWizard({
               <TouchableOpacity
                 style={[styles.selectorInput, !state.productionProvince && { opacity: 0.5 }]}
                 activeOpacity={0.85}
-                onPress={handleOpenProductionDistrictModal}
+                onPress={() => handleOpenProductionDistrictModal()}
               >
                 <Text
                   style={state.productionDistrict ? styles.selectorInputText : styles.selectorInputPlaceholder}
@@ -1674,60 +1786,58 @@ export function ProductCreateWizard({
           </View>
         ) : null}
 
-        <View style={styles.inlineRow}>
-          {isListingFieldVisible('barcodeNo') ? (
-            <View style={styles.inlineBlock}>
-              <Text style={styles.inputLabel}>{t('listing.barcodeNo')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.barcodeNo}
-                onChangeText={(value) => updateField('barcodeNo', value)}
-                placeholder={t('listing.barcodeNoPlaceholder')}
-                placeholderTextColor={Colors.slate400}
-                keyboardType="number-pad"
-              />
-            </View>
-          ) : null}
-          {isListingFieldVisible('geoIndicationReceivedAt') ? (
-            <View style={styles.inlineBlock}>
-              <Text style={styles.inputLabel}>{t('listing.geoIndicationReceivedAt')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.geoIndicationReceivedAt}
-                onChangeText={(value) => updateField('geoIndicationReceivedAt', value)}
-                placeholder="2026-05-07"
-                placeholderTextColor={Colors.slate400}
-              />
-            </View>
-          ) : null}
-        </View>
+        {isListingFieldVisible('barcodeNo') ? (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>{t('listing.barcodeNo')}</Text>
+            <TextInput
+              style={styles.input}
+              value={state.barcodeNo}
+              onChangeText={(value) => updateField('barcodeNo', value)}
+              placeholder={t('listing.barcodeNoPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              keyboardType="number-pad"
+            />
+          </View>
+        ) : null}
 
-        <View style={styles.inlineRow}>
-          {isListingFieldVisible('geoIndicationCertNo') ? (
-            <View style={styles.inlineBlock}>
-              <Text style={styles.inputLabel}>{t('listing.geoIndicationCertNo')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.geoIndicationCertNo}
-                onChangeText={(value) => updateField('geoIndicationCertNo', value)}
-                placeholder="CI-2024-001"
-                placeholderTextColor={Colors.slate400}
-              />
-            </View>
-          ) : null}
-          {isListingFieldVisible('geoIndicationRegion') ? (
-            <View style={styles.inlineBlock}>
-              <Text style={styles.inputLabel}>{t('listing.geoIndicationRegion')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.geoIndicationRegion}
-                onChangeText={(value) => updateField('geoIndicationRegion', value)}
-                placeholder={t('listing.geoIndicationRegionPlaceholder')}
-                placeholderTextColor={Colors.slate400}
-              />
-            </View>
-          ) : null}
-        </View>
+        {isListingFieldVisible('geoIndicationReceivedAt') ? (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>{t('listing.geoIndicationReceivedAt')}</Text>
+            <TextInput
+              style={styles.input}
+              value={state.geoIndicationReceivedAt}
+              onChangeText={(value) => updateField('geoIndicationReceivedAt', value)}
+              placeholder="2026-05-07"
+              placeholderTextColor={Colors.slate400}
+            />
+          </View>
+        ) : null}
+
+        {isListingFieldVisible('geoIndicationCertNo') ? (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>{t('listing.geoIndicationCertNo')}</Text>
+            <TextInput
+              style={styles.input}
+              value={state.geoIndicationCertNo}
+              onChangeText={(value) => updateField('geoIndicationCertNo', value)}
+              placeholder="CI-2024-001"
+              placeholderTextColor={Colors.slate400}
+            />
+          </View>
+        ) : null}
+
+        {isListingFieldVisible('geoIndicationRegion') ? (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>{t('listing.geoIndicationRegion')}</Text>
+            <TextInput
+              style={styles.input}
+              value={state.geoIndicationRegion}
+              onChangeText={(value) => updateField('geoIndicationRegion', value)}
+              placeholder={t('listing.geoIndicationRegionPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+            />
+          </View>
+        ) : null}
 
         {isListingFieldVisible('additionalCertificates') ? (
           <View style={styles.inputGroup}>
@@ -1750,7 +1860,7 @@ export function ProductCreateWizard({
             {isFeaturesLoading ? (
               <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 10 }} />
             ) : (
-              <View style={styles.chipRow}>
+              <View style={styles.badgeGrid}>
                 {featureBadges.map((item) => {
                   const val = item.code || item.id;
                   const isSelected = state.featureBadges.includes(val);
@@ -1758,11 +1868,28 @@ export function ProductCreateWizard({
                   return (
                     <TouchableOpacity
                       key={`feature-badge-${val}`}
-                      style={[styles.chip, isSelected && styles.chipActive]}
+                      style={[styles.badgeItem, { opacity: isSelected ? 1 : 0.5 }]}
                       activeOpacity={0.85}
                       onPress={() => handleToggleFeatureBadge(val)}
                     >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{displayName}</Text>
+                      <View style={[styles.badgeIconContainer, isSelected && styles.badgeIconContainerActive]}>
+                        {item.logoUrl ? (
+                          <Image
+                            source={{ uri: item.logoUrl }}
+                            style={styles.badgeLogo}
+                            contentFit="contain"
+                          />
+                        ) : (
+                          <Ionicons
+                            name="ribbon-outline"
+                            size={26}
+                            color={isSelected ? Colors.primary : Colors.slate400}
+                          />
+                        )}
+                      </View>
+                      <Text style={[styles.badgeLabel, isSelected && styles.badgeLabelActive]}>
+                        {displayName}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -1777,18 +1904,36 @@ export function ProductCreateWizard({
             {isGeoLoading ? (
               <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 10 }} />
             ) : (
-              <View style={styles.chipRow}>
+              <View style={styles.badgeGrid}>
                 {geoIndications.map((item) => {
                   const val = item.code || item.id;
                   const isSelected = state.geoBadgeSelections.includes(val);
+                  const displayName = i18n.language === 'en' ? (item.nameEn || item.name) : item.name;
                   return (
                     <TouchableOpacity
                       key={`geo-badge-${item.id}`}
-                      style={[styles.chip, isSelected && styles.chipActive]}
+                      style={[styles.badgeItem, { opacity: isSelected ? 1 : 0.5 }]}
                       activeOpacity={0.85}
                       onPress={() => handleToggleGeoBadgeSelection(val)}
                     >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{item.name}</Text>
+                      <View style={[styles.badgeIconContainer, isSelected && styles.badgeIconContainerActive]}>
+                        {item.logoUrl ? (
+                          <Image
+                            source={{ uri: item.logoUrl }}
+                            style={styles.badgeLogo}
+                            contentFit="contain"
+                          />
+                        ) : (
+                          <Ionicons
+                            name="ribbon"
+                            size={26}
+                            color={isSelected ? Colors.primary : Colors.slate400}
+                          />
+                        )}
+                      </View>
+                      <Text style={[styles.badgeLabel, isSelected && styles.badgeLabelActive]}>
+                        {displayName}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -2182,36 +2327,145 @@ export function ProductCreateWizard({
   function renderReviewStep() {
     return (
       <>
+        {previewImages.length > 0 ? (
+          <View style={styles.previewImagesContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.previewImagesContent}
+            >
+              {previewImages.map((uri, idx) => (
+                <View key={`preview-img-${idx}`} style={styles.previewImageCard}>
+                  <Image source={{ uri }} style={styles.previewImage} contentFit="cover" />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={styles.compactPreviewCard}>
+          {/* Başlık (En üstte belirgin) */}
+          <View style={styles.compactBlock}>
+            <Text style={styles.compactBlockLabel}>{t('listing.summaryTitle')}</Text>
+            <Text style={[styles.compactBlockValue, { fontWeight: '700', fontSize: 16 }]}>
+              {state.title}
+            </Text>
+          </View>
+
+          {/* Satış Modeli */}
+          <View style={styles.compactRow}>
+            <Text style={styles.compactRowLabel}>{t('listing.summaryMode')}</Text>
+            <Text style={styles.compactRowValue}>
+              {t(state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION ? 'listing.auction' : 'listing.directSale')}
+            </Text>
+          </View>
+
+          {/* Kategori */}
+          <View style={styles.compactRow}>
+            <Text style={styles.compactRowLabel}>{t('listing.summaryCategory')}</Text>
+            <Text style={styles.compactRowValue} numberOfLines={2}>
+              {selectedCategoryLabel}
+            </Text>
+          </View>
+
+          {/* Fiyat */}
+          <View style={styles.compactRow}>
+            <Text style={styles.compactRowLabel}>{t('listing.summaryPrice')}</Text>
+            <Text style={styles.compactRowValue}>
+              {state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION 
+                ? formatCurrency(parsePriceInput(state.auctionStartPrice) || 0)
+                : formatCurrency(parsePriceInput(state.directSalePrice) || 0)}
+            </Text>
+          </View>
+
+          {/* Stok Adedi */}
+          {state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION ? (
+            <View style={styles.compactRow}>
+              <Text style={styles.compactRowLabel}>{t('listing.stockQuantity')}</Text>
+              <Text style={styles.compactRowValue}>{state.stockQuantity}</Text>
+            </View>
+          ) : null}
+
+          {/* Marka */}
+          {state.brand ? (
+            <View style={styles.compactRow}>
+              <Text style={styles.compactRowLabel}>{t('listing.brand')}</Text>
+              <Text style={styles.compactRowValue}>{state.brand}</Text>
+            </View>
+          ) : null}
+
+          {/* Üretim Yeri (Origin) */}
+          {state.productionProvince ? (
+            <View style={styles.compactRow}>
+              <Text style={styles.compactRowLabel}>{t('listing.productionProvince')}</Text>
+              <Text style={styles.compactRowValue}>
+                {state.productionProvince}
+                {state.productionDistrict ? ` / ${state.productionDistrict}` : ''}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Kargo Çıkış Yeri */}
+          {state.shippingProvince ? (
+            <View style={styles.compactRow}>
+              <Text style={styles.compactRowLabel}>{t('listing.shippingProvince')}</Text>
+              <Text style={styles.compactRowValue}>
+                {state.shippingProvince}
+                {state.shippingDistrict ? ` / ${state.shippingDistrict}` : ''}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Desi */}
+          {state.desiDomestic ? (
+            <View style={styles.compactRow}>
+              <Text style={styles.compactRowLabel}>{t('listing.desiDomestic') || 'DESİ'}</Text>
+              <Text style={styles.compactRowValue}>{state.desiDomestic}</Text>
+            </View>
+          ) : null}
+
+          {/* Açıklama */}
+          {state.description ? (
+            <View style={styles.compactBlock}>
+              <Text style={styles.compactBlockLabel}>{t('listing.description')}</Text>
+              <Text style={styles.compactBlockValue}>{state.description}</Text>
+            </View>
+          ) : null}
+
+          {/* Sertifikalar */}
+          {state.additionalCertificates ? (
+            <View style={styles.compactBlock}>
+              <Text style={styles.compactBlockLabel}>{t('listing.additionalCertificates')}</Text>
+              <Text style={styles.compactBlockValue}>{state.additionalCertificates}</Text>
+            </View>
+          ) : null}
+
+          {/* Varyantlar */}
+          {state.variantSkus && state.variantSkus.length > 0 ? (
+            <View style={[styles.compactBlock, styles.compactRowLast]}>
+              <Text style={styles.compactBlockLabel}>{t('listing.variantListTitle')}</Text>
+              {state.variantSkus.map((variant, index) => {
+                const colorNode = SEEDED_COLOR_VARIANTS.find((c) => c.id === variant.colorVariantNumberId);
+                const sizeNode = activeSizeList.find((s) => s.id === variant.sizeVariantNumberId);
+                const labelParts = [];
+                if (colorNode) labelParts.push(colorNode.nameTr);
+                if (sizeNode) labelParts.push(sizeNode.nameTr);
+                const label = labelParts.join(' / ') || t('listing.variantItemFallback');
+                return (
+                  <View key={`preview-variant-${index}`} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                    <Text style={{ color: Colors.slate700, fontSize: 13 }}>{label}</Text>
+                    <Text style={{ color: Colors.slate500, fontSize: 13 }}>
+                      {t('listing.variantStockMeta', { stock: variant.stockQuantity })}
+                      {variant.priceOverride ? ` (${formatCurrency(variant.priceOverride)})` : ''}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+
         {state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION ? renderAuctionReviewFields() : null}
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('listing.summaryMode')}</Text>
-          <Text style={styles.summaryValue}>
-            {t(state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION ? 'listing.auction' : 'listing.directSale')}
-          </Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('listing.summaryTitle')}</Text>
-          <Text style={styles.summaryValue}>{state.title}</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('listing.summaryCategory')}</Text>
-          <Text style={styles.summaryValue}>{selectedCategoryLabel}</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('listing.summaryPrice')}</Text>
-          <Text style={styles.summaryValue}>
-            {state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION ? state.auctionStartPrice : state.directSalePrice}
-          </Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>{t('listing.summaryImages')}</Text>
-          <Text style={styles.summaryValue}>{t('listing.imageCount', { count: effectiveImageCount })}</Text>
-        </View>
       </>
     );
   }
@@ -2457,8 +2711,13 @@ export function ProductCreateWizard({
                         style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
                         activeOpacity={0.85}
                         onPress={() => {
-                          patchState({ categoryId: item.id });
-                          handleCloseCategoryModal();
+                          if (item.children && item.children.length > 0) {
+                            setSelectedRootCategoryId(item.id);
+                            setCategorySearch('');
+                          } else {
+                            patchState({ categoryId: item.id });
+                            handleCloseCategoryModal();
+                          }
                         }}
                       >
                         <View style={styles.categoryListItemLeft}>
@@ -2484,7 +2743,11 @@ export function ProductCreateWizard({
                             {item.name}
                           </Text>
                         </View>
-                        {isSelected ? <Ionicons name="checkmark-circle" size={18} color={Colors.primary} /> : null}
+                        {item.children && item.children.length > 0 ? (
+                          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+                        ) : isSelected ? (
+                          <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+                        ) : null}
                       </TouchableOpacity>
                     );
                   }}
@@ -2631,12 +2894,13 @@ export function ProductCreateWizard({
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.categoryListContent}
+              ItemSeparatorComponent={() => <View style={styles.locationSeparator} />}
               renderItem={({ item }) => {
                 const isSelected = item === state.originRegion;
 
                 return (
                   <TouchableOpacity
-                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    style={[styles.locationListItem, isSelected && styles.locationListItemSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
                       patchState({ originCountry: 'TR', originRegion: item });
@@ -2644,9 +2908,6 @@ export function ProductCreateWizard({
                     }}
                   >
                     <View style={styles.categoryListItemLeft}>
-                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
-                        <Ionicons name="location-outline" size={18} color={Colors.primary} />
-                      </View>
                       <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
                         {item}
                       </Text>
@@ -2670,6 +2931,12 @@ export function ProductCreateWizard({
         transparent
         animationType="slide"
         onRequestClose={handleCloseShippingProvinceModal}
+        onDismiss={() => {
+          if (pendingShippingDistrictOpen) {
+            handleOpenShippingDistrictModal(pendingShippingDistrictOpen);
+            setPendingShippingDistrictOpen(null);
+          }
+        }}
       >
         <View style={styles.bottomSheetBackdrop}>
           <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={handleCloseShippingProvinceModal} />
@@ -2714,21 +2981,26 @@ export function ProductCreateWizard({
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.categoryListContent}
+              ItemSeparatorComponent={() => <View style={styles.locationSeparator} />}
               renderItem={({ item }) => {
                 const isSelected = item === state.shippingProvince;
                 return (
                   <TouchableOpacity
-                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    style={[styles.locationListItem, isSelected && styles.locationListItemSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
                       patchState({ shippingProvince: item, shippingDistrict: '' });
                       handleCloseShippingProvinceModal();
+                      if (Platform.OS === 'ios') {
+                        setPendingShippingDistrictOpen(item);
+                      } else {
+                        setTimeout(() => {
+                          handleOpenShippingDistrictModal(item);
+                        }, 100);
+                      }
                     }}
                   >
                     <View style={styles.categoryListItemLeft}>
-                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
-                        <Ionicons name="location-outline" size={18} color={Colors.primary} />
-                      </View>
                       <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
                         {item}
                       </Text>
@@ -2796,11 +3068,12 @@ export function ProductCreateWizard({
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.categoryListContent}
+              ItemSeparatorComponent={() => <View style={styles.locationSeparator} />}
               renderItem={({ item }) => {
                 const isSelected = item === state.shippingDistrict;
                 return (
                   <TouchableOpacity
-                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    style={[styles.locationListItem, isSelected && styles.locationListItemSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
                       patchState({ shippingDistrict: item });
@@ -2808,9 +3081,6 @@ export function ProductCreateWizard({
                     }}
                   >
                     <View style={styles.categoryListItemLeft}>
-                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
-                        <Ionicons name="business-outline" size={18} color={Colors.primary} />
-                      </View>
                       <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
                         {item}
                       </Text>
@@ -2834,6 +3104,12 @@ export function ProductCreateWizard({
         transparent
         animationType="slide"
         onRequestClose={handleCloseProductionProvinceModal}
+        onDismiss={() => {
+          if (pendingProductionDistrictOpen) {
+            handleOpenProductionDistrictModal(pendingProductionDistrictOpen);
+            setPendingProductionDistrictOpen(null);
+          }
+        }}
       >
         <View style={styles.bottomSheetBackdrop}>
           <TouchableOpacity style={styles.bottomSheetDismissArea} activeOpacity={1} onPress={handleCloseProductionProvinceModal} />
@@ -2878,21 +3154,26 @@ export function ProductCreateWizard({
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.categoryListContent}
+              ItemSeparatorComponent={() => <View style={styles.locationSeparator} />}
               renderItem={({ item }) => {
                 const isSelected = item === state.productionProvince;
                 return (
                   <TouchableOpacity
-                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    style={[styles.locationListItem, isSelected && styles.locationListItemSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
                       patchState({ productionProvince: item, productionDistrict: '' });
                       handleCloseProductionProvinceModal();
+                      if (Platform.OS === 'ios') {
+                        setPendingProductionDistrictOpen(item);
+                      } else {
+                        setTimeout(() => {
+                          handleOpenProductionDistrictModal(item);
+                        }, 100);
+                      }
                     }}
                   >
                     <View style={styles.categoryListItemLeft}>
-                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
-                        <Ionicons name="business-outline" size={18} color={Colors.primary} />
-                      </View>
                       <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
                         {item}
                       </Text>
@@ -2960,11 +3241,12 @@ export function ProductCreateWizard({
               keyExtractor={(item) => item}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.categoryListContent}
+              ItemSeparatorComponent={() => <View style={styles.locationSeparator} />}
               renderItem={({ item }) => {
                 const isSelected = item === state.productionDistrict;
                 return (
                   <TouchableOpacity
-                    style={[styles.categoryListItem, isSelected && styles.categoryListItemSelected]}
+                    style={[styles.locationListItem, isSelected && styles.locationListItemSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
                       patchState({ productionDistrict: item });
@@ -2972,9 +3254,6 @@ export function ProductCreateWizard({
                     }}
                   >
                     <View style={styles.categoryListItemLeft}>
-                      <View style={[styles.categoryIconWrapLarge, styles.provinceIconWrap]}>
-                        <Ionicons name="business-outline" size={18} color={Colors.primary} />
-                      </View>
                       <Text style={[styles.categoryListItemText, isSelected && styles.categoryListItemTextSelected]}>
                         {item}
                       </Text>

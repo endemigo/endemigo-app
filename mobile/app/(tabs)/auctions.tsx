@@ -20,7 +20,7 @@ import {
   resolveMobileAudience,
 } from '../../utils/mobileConfig';
 import { formatCurrency } from '../../utils/transactionFormatters';
-import { HomeQuickTabBar } from '../../components/ui';
+
 
 function formatTimeLeft(ms: number, t: (k: string) => string) {
   if (ms <= 0) return t('auctions.ended');
@@ -102,7 +102,6 @@ export default function AuctionsScreen() {
       <SafeAreaView style={styles.center} edges={['top']}>
         <ActivityIndicator size="large" color={Colors.auctionGreen} />
         <Text style={styles.loadingText}>{t('auctions.loading')}</Text>
-        <HomeQuickTabBar activeTab="auctions" />
       </SafeAreaView>
     );
   }
@@ -113,7 +112,6 @@ export default function AuctionsScreen() {
         <Ionicons name="hammer-outline" size={64} color={Colors.slate300} />
         <Text style={styles.emptyText}>{t('auctions.empty')}</Text>
         <Text style={styles.emptySubtext}>{t('auctions.emptySub')}</Text>
-        <HomeQuickTabBar activeTab="auctions" />
       </SafeAreaView>
     );
   }
@@ -231,7 +229,6 @@ export default function AuctionsScreen() {
           );
         }}
       />
-      <HomeQuickTabBar activeTab="auctions" />
     </SafeAreaView>
   );
 }

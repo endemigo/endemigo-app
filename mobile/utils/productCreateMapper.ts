@@ -101,7 +101,7 @@ export function buildProductCreatePayload(
     sku: resolveStringField('sku', state),
     barcodeNo: resolveStringField('barcodeNo', state),
     productContent: resolveStringField('productContent', state),
-    sellerNotes: resolveStringField('sellerNotes', state),
+    sellerNotes: state.description.trim() || undefined,
     brand: resolveStringField('brand', state),
     isEndemigoBrandCandidate: state.isEndemigoBrandCandidate,
     geoIndicationCertNo: state.geoIndicationCertNo.trim() || undefined,

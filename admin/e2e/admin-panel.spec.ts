@@ -9,7 +9,7 @@ const admin = {
 };
 
 async function mockAdminApi(page: Page) {
-  await page.route('http://localhost:3000/**', async (route) => {
+  await page.route('http://localhost:3030/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;

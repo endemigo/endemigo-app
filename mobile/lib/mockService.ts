@@ -72,7 +72,7 @@ export const MOCK_CATEGORIES = [
     slug: 'hali-kilim',
     productCount: 89,
     imageUrl: 'https://images.unsplash.com/photo-1600166898405-da9535204843?w=600&q=80',
-    listingTemplate: { variant: { enabled: true, allowedKinds: ['COLOR', 'SIZE'] } },
+    listingTemplate: { variant: { enabled: true, allowedKinds: ['COLOR', 'SIZE'] as ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[] } },
   },
   { id: 'cat-5', name: 'Mücevher & Saat', slug: 'mucevher-saat', productCount: 35, imageUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600&q=80' },
   { id: 'cat-6', name: 'Mobilya & Dekor', slug: 'mobilya-dekor', productCount: 156, imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&q=80' },
@@ -82,7 +82,7 @@ export const MOCK_CATEGORIES = [
     slug: 'kiyafet-aksesuar',
     productCount: 42,
     imageUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&q=80',
-    listingTemplate: { variant: { enabled: true, allowedKinds: ['COLOR', 'SIZE'] } },
+    listingTemplate: { variant: { enabled: true, allowedKinds: ['COLOR', 'SIZE'] as ('COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION')[] } },
   },
   { id: 'cat-8', name: 'Spor & Outdoor', slug: 'spor-outdoor', productCount: 73, imageUrl: 'https://images.unsplash.com/photo-1530137073520-13c9f3078f2d?w=600&q=80' },
   { id: 'cat-9', name: 'Yöresel Ürünler', slug: 'yoresel-urunler', productCount: 29, imageUrl: 'https://images.unsplash.com/photo-1506617564039-2f3b650b7010?w=600&q=80' },
@@ -103,6 +103,11 @@ export const MOCK_PRODUCTS = [
     categoryName: 'Zeytinyağı',
     geoIndicationCertNo: 'TR-CI-2026-001',
     geoIndicationRegion: 'Ayvalık',
+    shippingProvince: 'İzmir',
+    shippingDistrict: 'Urla',
+    shippingAddress: 'Zeytinlik Caddesi No: 45, Urla, İzmir',
+    deliveryTemplateDomestic: 'Yurtiçi Kargo 1-3 gün',
+    desiDomestic: '1-3',
     createdAt: new Date(now - hours(24)).toISOString(),
   },
   {
@@ -116,6 +121,11 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Karadeniz Arıcılık',
     categoryId: 'cat-5',
     categoryName: 'Arıcılık & Bal',
+    shippingProvince: 'Rize',
+    shippingDistrict: 'Çamlıhemşin',
+    shippingAddress: 'Ayder Yaylası Arı Çiftliği No: 8',
+    deliveryTemplateDomestic: 'Yurtiçi Kargo 3-7 gün',
+    desiDomestic: '1-3',
     createdAt: new Date(now - hours(12)).toISOString(),
   },
   {
@@ -130,6 +140,11 @@ export const MOCK_PRODUCTS = [
     categoryId: 'cat-1',
     categoryName: 'Gıda & Yöresel',
     geoIndicationRegion: 'Siirt',
+    shippingProvince: 'Siirt',
+    shippingDistrict: 'Merkez',
+    shippingAddress: 'Kooperatif Caddesi No: 12',
+    deliveryTemplateDomestic: 'Yurtiçi Kargo 1-3 gün',
+    desiDomestic: '1-3',
     createdAt: new Date(now - hours(6)).toISOString(),
   },
   {
@@ -143,6 +158,11 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Anadolu El Sanatları',
     categoryId: 'cat-6',
     categoryName: 'El Sanatları',
+    shippingProvince: 'Kayseri',
+    shippingDistrict: 'Yahyalı',
+    shippingAddress: 'Dokumacılar Çarşısı No: 4',
+    deliveryTemplateDomestic: 'UPS Kargo 1-3 gün',
+    desiDomestic: '5-10',
     createdAt: new Date(now - hours(48)).toISOString(),
   },
   {
@@ -156,6 +176,11 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Nevşehir Tarım',
     categoryId: 'cat-11',
     categoryName: 'Kurutulmuş Gıda',
+    shippingProvince: 'Nevşehir',
+    shippingDistrict: 'Ürgüp',
+    shippingAddress: 'Nevşehir Tarım Depoları No: 5',
+    deliveryTemplateDomestic: 'Yurtiçi Kargo 1-3 gün',
+    desiDomestic: '1-3',
     createdAt: new Date(now - hours(3)).toISOString(),
   },
   {
@@ -169,6 +194,11 @@ export const MOCK_PRODUCTS = [
     sellerName: 'Anadolu El Sanatları',
     categoryId: 'cat-10',
     categoryName: 'Bakır & Seramik',
+    shippingProvince: 'Kahramanmaraş',
+    shippingDistrict: 'Dulkadiroğlu',
+    shippingAddress: 'Tarihi Bakırcılar Çarşısı No: 8',
+    deliveryTemplateDomestic: 'UPS Kargo 3-7 gün',
+    desiDomestic: '3-5',
     createdAt: new Date(now - hours(72)).toISOString(),
   },
 ];
@@ -520,7 +550,7 @@ export const mockService = {
       geoIndicationRegion: payload.geoIndicationRegion ?? null,
       createdAt: new Date().toISOString(),
       stockQuantity: payload.stockQuantity,
-    } as (typeof MOCK_PRODUCTS_ENRICHED)[number];
+    } as unknown as (typeof MOCK_PRODUCTS_ENRICHED)[number];
 
     MOCK_PRODUCTS_ENRICHED.unshift(createdProduct);
     return {

@@ -477,6 +477,7 @@ export default function ProductDetailScreen() {
         title: product.title,
         price: Number(product.price),
         imageUrl: productImageUri,
+        sellerId: product.sellerId,
       });
       setFlyToCartImageUri(productImageUri);
       flyProgress.value = 0;
@@ -634,6 +635,13 @@ export default function ProductDetailScreen() {
 
   return (
     <View style={styles.container}>
+      <TopBar
+        title={toTurkishUppercase(product.categoryName || t('tabs.home'))}
+        onBack={() => router.back()}
+        onShare={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
+        onFavorite={handleToggleFavorite}
+        isFavoriteActive={favoriteActive}
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollView}
@@ -651,13 +659,6 @@ export default function ProductDetailScreen() {
           }
         }}
       >
-        <TopBar
-          title={toTurkishUppercase(product.categoryName || t('tabs.home'))}
-          onBack={() => router.back()}
-          onShare={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
-          onFavorite={handleToggleFavorite}
-          isFavoriteActive={favoriteActive}
-        />
 
         <HeroImage
           imageUri={productImageUri}

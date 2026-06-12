@@ -18,7 +18,6 @@ export function GlobalModal() {
   const { isVisible, options, hideModal } = useModalStore();
   const [shouldRender, setShouldRender] = useState(isVisible);
   const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.9);
 
   useEffect(() => {
     let hideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -26,10 +25,8 @@ export function GlobalModal() {
     if (isVisible) {
       setShouldRender(true);
       opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) });
-      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
     } else {
       opacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
-      scale.value = withTiming(0.9, { duration: 200, easing: Easing.in(Easing.ease) });
       hideTimeout = setTimeout(() => setShouldRender(false), 200);
     }
 
@@ -38,7 +35,7 @@ export function GlobalModal() {
         clearTimeout(hideTimeout);
       }
     };
-  }, [isVisible, opacity, scale]);
+  }, [isVisible, opacity]);
 
   const handleConfirm = () => {
     if (options.onConfirm) options.onConfirm();
@@ -52,10 +49,6 @@ export function GlobalModal() {
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-  }));
-
-  const animatedContentStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
   }));
 
   const getIcon = () => {
@@ -74,7 +67,7 @@ export function GlobalModal() {
 
   return (
     <Animated.View style={[styles.overlay, animatedStyle]} pointerEvents={isVisible ? 'auto' : 'none'}>
-      <Animated.View style={[styles.modalContent, animatedContentStyle]}>
+      <View style={styles.modalContent}>
         <View style={styles.iconContainer}>{getIcon()}</View>
 
         <Text style={styles.title}>{options.title}</Text>
@@ -95,7 +88,7 @@ export function GlobalModal() {
             <Text style={styles.confirmBtnText}>{options.confirmText ?? t('common.ok')}</Text>
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
     </Animated.View>
   );
 }

@@ -23,171 +23,227 @@
           </header>
 
         <form class="drawer-body" @submit.prevent="submit">
-          <label
-            v-for="field in visibleFields"
-            :key="field.key"
-            class="field"
-            :class="{ 'field--full': field.type === 'textarea' || field.type === 'multiselect' || field.type === 'template_editor' }"
-          >
-            <span>{{ field.label }}</span>
-            <textarea
-              v-if="field.type === 'textarea'"
-              v-model="fieldValues[field.key]"
-              class="textarea"
-              :required="field.required"
-            />
-            <select
-              v-else-if="field.type === 'select'"
-              v-model="fieldValues[field.key]"
-              class="select"
-              :required="field.required"
+          <template v-for="field in visibleFields" :key="field.key">
+            <label
+              v-if="!hasLogoGroup || (field.key !== 'issuer' && field.key !== 'registrationUrl')"
+              class="field"
+              :class="{ 'field--full': field.fullWidth || field.type === 'textarea' || field.type === 'multiselect' || field.type === 'template_editor' || field.type === 'image' || (field.key === 'logoUrl' && hasLogoGroup) }"
             >
-              <option value="">Seçin</option>
-              <option v-for="option in field.options ?? []" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-            <div v-else-if="field.type === 'multiselect'" class="multiselect-container">
-              <!-- Search Input -->
-              <div class="multiselect-search-wrap">
-                <i class="pi pi-search" aria-hidden="true" />
-                <input
-                  type="text"
-                  v-model="multiselectSearch[field.key]"
-                  placeholder="Grup ara..."
-                  class="input multiselect-search"
-                  @click.prevent
-                />
-              </div>
+              <span>{{ field.key === 'logoUrl' && hasLogoGroup ? 'Logo Görseli & Detaylar' : field.label }}</span>
 
-              <!-- Selected count & clear all -->
-              <div class="multiselect-header">
-                <span class="muted">{{ getSelectedCount(field.key) }} varyasyon seçildi</span>
-                <button
-                  v-if="getSelectedCount(field.key) > 0"
-                  type="button"
-                  class="multiselect-clear-btn"
-                  @click="clearSelected(field.key)"
-                >
-                  Tümünü kaldır
-                </button>
-              </div>
-
-              <!-- Options list (Grouped) -->
-              <div class="multiselect-list">
-                <label
-                  v-for="group in filteredGroups(field)"
-                  :key="group.kind"
-                  class="multiselect-item"
-                  :class="{ 'is-selected': isGroupChecked(field.key, group.optionIds) }"
-                >
-                  <input
-                    type="checkbox"
-                    :value="group.kind"
-                    :checked="isGroupChecked(field.key, group.optionIds)"
-                    @change="toggleGroup(field.key, group.optionIds)"
-                    class="multiselect-checkbox"
-                  />
-                  <div class="multiselect-item-content">
-                    <div class="multiselect-item-text">
-                      <span class="multiselect-item-label">{{ group.label }}</span>
-                      <span class="multiselect-item-details">
-                        {{ group.optionLabels.join(', ') }}
-                      </span>
+              <!-- Special Grouped Logo Layout -->
+              <div v-if="field.key === 'logoUrl' && hasLogoGroup" class="logo-group-layout">
+                <!-- Image Upload (Left, Square) -->
+                <div class="logo-group-left">
+                  <div class="image-upload-wrap square-image-upload">
+                    <div v-if="fieldValues[field.key]" class="image-preview-container square-preview-container">
+                      <img :src="fieldValues[field.key]" alt="Logo" class="image-preview square-preview" />
+                      <button type="button" class="button danger ghost button--sm image-remove-btn square-remove-btn" @click="fieldValues[field.key] = ''">
+                        <i class="pi pi-trash" aria-hidden="true" />
+                        Kaldır
+                      </button>
                     </div>
-                    <span class="multiselect-item-badge">
-                      {{ group.kind }} ({{ group.optionIds.length }} Seçenek)
+                    <div v-else class="image-upload-dropzone square-dropzone" @click="triggerFileInput(field.key)">
+                      <i class="pi pi-upload" aria-hidden="true" />
+                      <span style="font-size: 11px; font-weight: 700; margin-top: 4px;">Logo Seç</span>
+                      <small v-if="uploadState[field.key]?.error" class="image-upload-error">{{ uploadState[field.key]?.error }}</small>
+                    </div>
+                    <input
+                      :ref="el => { if (el) fileInputRefs[field.key] = el }"
+                      type="file"
+                      accept="image/*"
+                      class="hidden-file-input"
+                      @change="handleImageUpload(field.key, $event)"
+                    />
+                  </div>
+                </div>
+
+                <!-- Inputs (Right, Stacked) -->
+                <div class="logo-group-right">
+                  <div v-if="getFieldByKey('issuer')" class="sub-field">
+                    <span>{{ getFieldByKey('issuer').label }}</span>
+                    <input
+                      v-model="fieldValues['issuer']"
+                      class="input"
+                      type="text"
+                      :required="getFieldByKey('issuer').required"
+                    />
+                  </div>
+                  <div v-if="getFieldByKey('registrationUrl')" class="sub-field">
+                    <span>{{ getFieldByKey('registrationUrl').label }}</span>
+                    <input
+                      v-model="fieldValues['registrationUrl']"
+                      class="input"
+                      type="text"
+                      :required="getFieldByKey('registrationUrl').required"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Standard rendering -->
+              <template v-else>
+                <textarea
+                  v-if="field.type === 'textarea'"
+                  v-model="fieldValues[field.key]"
+                  class="textarea"
+                  :required="field.required"
+                />
+                <select
+                  v-else-if="field.type === 'select'"
+                  v-model="fieldValues[field.key]"
+                  class="select"
+                  :required="field.required"
+                >
+                  <option value="">Seçin</option>
+                  <option v-for="option in field.options ?? []" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <div v-else-if="field.type === 'multiselect'" class="multiselect-container">
+                  <!-- Search Input -->
+                  <div class="multiselect-search-wrap">
+                    <i class="pi pi-search" aria-hidden="true" />
+                    <input
+                      type="text"
+                      v-model="multiselectSearch[field.key]"
+                      placeholder="Grup ara..."
+                      class="input multiselect-search"
+                      @click.prevent
+                    />
+                  </div>
+
+                  <!-- Selected count & clear all -->
+                  <div class="multiselect-header">
+                    <span class="muted">{{ getSelectedCount(field.key) }} varyasyon seçildi</span>
+                    <button
+                      v-if="getSelectedCount(field.key) > 0"
+                      type="button"
+                      class="multiselect-clear-btn"
+                      @click="clearSelected(field.key)"
+                    >
+                      Tümünü kaldır
+                    </button>
+                  </div>
+
+                  <!-- Options list (Grouped) -->
+                  <div class="multiselect-list">
+                    <label
+                      v-for="group in filteredGroups(field)"
+                      :key="group.kind"
+                      class="multiselect-item"
+                      :class="{ 'is-selected': isGroupChecked(field.key, group.optionIds) }"
+                    >
+                      <input
+                        type="checkbox"
+                        :value="group.kind"
+                        :checked="isGroupChecked(field.key, group.optionIds)"
+                        @change="toggleGroup(field.key, group.optionIds)"
+                        class="multiselect-checkbox"
+                      />
+                      <div class="multiselect-item-content">
+                        <div class="multiselect-item-text">
+                          <span class="multiselect-item-label">{{ group.label }}</span>
+                          <span class="multiselect-item-details">
+                            {{ group.optionLabels.join(', ') }}
+                          </span>
+                        </div>
+                        <span class="multiselect-item-badge">
+                          {{ group.kind }} ({{ group.optionIds.length }} Seçenek)
+                        </span>
+                      </div>
+                    </label>
+                    <div v-if="filteredGroups(field).length === 0" class="multiselect-empty">
+                      Varyasyon grubu bulunamadı.
+                    </div>
+                  </div>
+                </div>
+                <div v-else-if="field.type === 'template_editor'" class="template-editor-container">
+                  <!-- Live Search Filter Bar -->
+                  <div class="template-search-bar">
+                    <i class="pi pi-search search-icon" aria-hidden="true" />
+                    <input 
+                      type="text" 
+                      v-model="templateSearchQuery" 
+                      placeholder="İlan alanı ara (örnek: fiyat, kargo, desi)..." 
+                      class="input template-search-input"
+                    />
+                    <span class="template-search-badge" v-if="templateSearchQuery">
+                      {{ filteredPredefinedFields.length }} alan
                     </span>
                   </div>
-                </label>
-                <div v-if="filteredGroups(field).length === 0" class="multiselect-empty">
-                  Varyasyon grubu bulunamadı.
-                </div>
-              </div>
-            </div>
-            <div v-else-if="field.type === 'template_editor'" class="template-editor-container">
-              <!-- Live Search Filter Bar -->
-              <div class="template-search-bar">
-                <i class="pi pi-search search-icon" aria-hidden="true" />
-                <input 
-                  type="text" 
-                  v-model="templateSearchQuery" 
-                  placeholder="İlan alanı ara (örnek: fiyat, kargo, desi)..." 
-                  class="input template-search-input"
-                />
-                <span class="template-search-badge" v-if="templateSearchQuery">
-                  {{ filteredPredefinedFields.length }} alan
-                </span>
-              </div>
 
-              <!-- Predefined Fields Checklist Grid -->
-              <div class="template-predefined-grid">
-                <div 
-                  v-for="pf in filteredPredefinedFields" 
-                  :key="pf.key" 
-                  class="predefined-field-card"
-                  :class="{ 'is-active': isFieldVisibleInTemplate(field.key, pf.key) }"
-                >
-                  <div class="predefined-field-meta">
-                    <strong class="predefined-field-label">{{ pf.label }}</strong>
-                    <span class="predefined-field-key">{{ pf.key }}</span>
-                    <span class="predefined-field-type-badge">{{ translateFieldType(pf.type) }}</span>
-                  </div>
-                  <div class="predefined-field-actions">
-                    <label class="toggle-switch-label">
-                      <input 
-                        type="checkbox" 
-                        :checked="isFieldVisibleInTemplate(field.key, pf.key)"
-                        @change="toggleFieldVisibility(field.key, pf.key, pf)"
-                      />
-                      <span class="action-text">Göster</span>
-                    </label>
-                    
-                    <label 
-                      v-if="isFieldVisibleInTemplate(field.key, pf.key)" 
-                      class="toggle-switch-label requirement-toggle"
+                  <!-- Predefined Fields Checklist Grid -->
+                  <div class="template-predefined-grid">
+                    <div 
+                      v-for="pf in filteredPredefinedFields" 
+                      :key="pf.key" 
+                      class="predefined-field-card"
+                      :class="{ 'is-active': isFieldVisibleInTemplate(field.key, pf.key) }"
                     >
-                      <input 
-                        type="checkbox" 
-                        :checked="isFieldRequiredInTemplate(field.key, pf.key)"
-                        @change="toggleFieldRequirement(field.key, pf.key)"
-                      />
-                      <span class="action-text zorunlu-text" :class="{ 'is-required': isFieldRequiredInTemplate(field.key, pf.key) }">Zorunlu</span>
-                    </label>
+                      <div class="predefined-field-meta">
+                        <strong class="predefined-field-label">{{ pf.label }}</strong>
+                        <span class="predefined-field-key">{{ pf.key }}</span>
+                        <span class="predefined-field-type-badge">{{ translateFieldType(pf.type) }}</span>
+                      </div>
+                      <div class="predefined-field-actions">
+                        <label class="toggle-switch-label">
+                          <input 
+                            type="checkbox" 
+                            :checked="isFieldVisibleInTemplate(field.key, pf.key)"
+                            @change="toggleFieldVisibility(field.key, pf.key, pf)"
+                          />
+                          <span class="action-text">Göster</span>
+                        </label>
+                        
+                        <label 
+                          v-if="isFieldVisibleInTemplate(field.key, pf.key)" 
+                          class="toggle-switch-label requirement-toggle"
+                        >
+                          <input 
+                            type="checkbox" 
+                            :checked="isFieldRequiredInTemplate(field.key, pf.key)"
+                            @change="toggleFieldRequirement(field.key, pf.key)"
+                          />
+                          <span class="action-text zorunlu-text" :class="{ 'is-required': isFieldRequiredInTemplate(field.key, pf.key) }">Zorunlu</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div v-else-if="field.type === 'image'" class="image-upload-wrap">
-              <div v-if="fieldValues[field.key]" class="image-preview-container">
-                <img :src="fieldValues[field.key]" alt="Kapak Görseli" class="image-preview" />
-                <button type="button" class="button danger ghost button--sm image-remove-btn" @click="fieldValues[field.key] = ''">
-                  <i class="pi pi-trash" aria-hidden="true" />
-                  Kaldır
-                </button>
-              </div>
-              <div v-else class="image-upload-dropzone" @click="triggerFileInput(field.key)">
-                <i class="pi pi-upload" aria-hidden="true" />
-                <span>{{ uploadState[field.key]?.uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
-                <small v-if="uploadState[field.key]?.error" class="image-upload-error">{{ uploadState[field.key]?.error }}</small>
-              </div>
-              <input
-                :ref="el => { if (el) fileInputRefs[field.key] = el }"
-                type="file"
-                accept="image/*"
-                class="hidden-file-input"
-                @change="handleImageUpload(field.key, $event)"
-              />
-            </div>
-            <input
-              v-else
-              v-model="fieldValues[field.key]"
-              class="input"
-              :type="field.type ?? 'text'"
-              :required="field.required"
-              @input="field.key === 'slug' ? onSlugInput() : null"
-            />
-          </label>
+                <div v-else-if="field.type === 'image'" class="image-upload-wrap">
+                  <div v-if="fieldValues[field.key]" class="image-preview-container">
+                    <img :src="fieldValues[field.key]" alt="Kapak Görseli" class="image-preview" />
+                    <button type="button" class="button danger ghost button--sm image-remove-btn" @click="fieldValues[field.key] = ''">
+                      <i class="pi pi-trash" aria-hidden="true" />
+                      Kaldır
+                    </button>
+                  </div>
+                  <div v-else class="image-upload-dropzone" @click="triggerFileInput(field.key)">
+                    <i class="pi pi-upload" aria-hidden="true" />
+                    <span>{{ uploadState[field.key]?.uploading ? 'Yükleniyor...' : 'Görsel seçmek için tıklayın' }}</span>
+                    <small v-if="uploadState[field.key]?.error" class="image-upload-error">{{ uploadState[field.key]?.error }}</small>
+                  </div>
+                  <input
+                    :ref="el => { if (el) fileInputRefs[field.key] = el }"
+                    type="file"
+                    accept="image/*"
+                    class="hidden-file-input"
+                    @change="handleImageUpload(field.key, $event)"
+                  />
+                </div>
+                <input
+                  v-else
+                  v-model="fieldValues[field.key]"
+                  class="input"
+                  :type="field.type ?? 'text'"
+                  :required="field.required"
+                  @input="field.key === 'slug' ? onSlugInput() : null"
+                />
+              </template>
+              <small v-if="field.description" class="field-desc">{{ field.description }}</small>
+            </label>
+          </template>
 
           <div v-if="totalPages > 1" class="drawer-page-meta">
             <span class="muted">Sayfa {{ currentPage + 1 }} / {{ totalPages }}</span>
@@ -256,6 +312,8 @@ export interface DrawerField {
   required?: boolean;
   value?: any;
   options?: DrawerFieldOption[];
+  description?: string;
+  fullWidth?: boolean;
 }
 
 export interface DrawerConfirmPayload {
@@ -299,6 +357,17 @@ const hasReason = computed(() => reason.value.trim().length > 0);
 const templateEditorError = ref<string | null>(null);
 
 const templateSearchQuery = ref('');
+
+const hasLogoGroup = computed(() => {
+  return props.fields.some(f => f.key === 'logoUrl') &&
+         props.fields.some(f => f.key === 'issuer') &&
+         props.fields.some(f => f.key === 'registrationUrl');
+});
+
+function getFieldByKey(key: string) {
+  return props.fields.find(f => f.key === key);
+}
+
 
 const PREDEFINED_TEMPLATE_FIELDS = [
   { key: 'brand', label: 'Marka', type: 'text' },
@@ -736,9 +805,9 @@ watch(
   z-index: 40;
   display: flex;
   justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.4); /* Subtle slate overlay */
-  backdrop-filter: blur(4px); /* Premium backdrop blur */
-  transition: all 0.3s ease;
+  background: rgba(15, 23, 42, 0.45); /* Elegant slate overlay */
+  backdrop-filter: blur(8px); /* Modern premium backdrop blur */
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .drawer-backdrop.backdrop-modal {
@@ -749,12 +818,12 @@ watch(
 
 /* Modal and Side Drawer General styles */
 .drawer {
-  width: min(520px, 100vw);
+  width: min(560px, 100vw);
   height: 100vh;
   overflow-y: auto;
   border-left: 1px solid var(--border-soft);
   background: var(--bg-panel);
-  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.15);
+  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.1);
   display: flex;
   flex-direction: column;
 }
@@ -765,8 +834,8 @@ watch(
   max-height: calc(100vh - 48px);
   margin: auto;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.18), 0 8px 16px -8px rgba(15, 23, 42, 0.08);
   overflow: hidden;
 }
 
@@ -776,16 +845,16 @@ watch(
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--border-soft);
-  padding: 16px 20px;
-  background: var(--bg-soft);
+  padding: 18px 24px;
+  background: var(--bg-panel);
 }
 
 .drawer-title {
   font-family: 'Manrope', sans-serif;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
   color: var(--text-strong);
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
 }
 
 .drawer-close-btn {
@@ -796,22 +865,25 @@ watch(
   align-items: center;
   justify-content: center;
   padding: 0 !important;
-  border: 1px solid transparent !important;
-  transition: all 0.25s ease !important;
+  border: 1px solid var(--border-soft) !important;
+  background: var(--bg-soft) !important;
+  color: var(--text-muted) !important;
+  transition: all 0.2s ease !important;
 }
 
 .drawer-close-btn:hover {
-  background: var(--border-soft) !important;
+  background: var(--danger-50) !important;
+  border-color: var(--danger-200) !important;
+  color: var(--danger-600) !important;
   transform: rotate(90deg);
-  color: var(--danger-500) !important;
 }
 
 /* Form Styles and Apple/Stripe-like Input aesthetics */
 .drawer-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 20px;
+  gap: 20px;
+  padding: 24px;
   overflow-y: auto;
   flex: 1;
 }
@@ -820,7 +892,7 @@ watch(
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .drawer-body .field.field--full,
@@ -831,9 +903,9 @@ watch(
 
 .drawer-body .field span {
   font-size: 11px;
-  font-weight: 800;
-  color: #5a6f64;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.8px;
   text-transform: uppercase;
 }
 
@@ -842,44 +914,51 @@ watch(
 .drawer-body .textarea {
   width: 100%;
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: var(--bg-soft); /* Slate-soft background */
+  border-radius: 10px;
+  background: var(--bg-soft);
   color: var(--text-strong);
-  padding: 10px 12px;
-  font-size: 13.5px;
+  padding: 11px 14px;
+  font-size: 14px;
   font-weight: 500;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.01);
+}
+
+.drawer-body .input:hover,
+.drawer-body .select:hover,
+.drawer-body .textarea:hover {
+  border-color: var(--text-muted);
 }
 
 .drawer-body .input:focus,
 .drawer-body .select:focus,
 .drawer-body .textarea:focus {
   outline: none;
-  background: #ffffff; /* Turns white on focus */
+  background: #ffffff;
   border-color: var(--brand-500);
-  box-shadow: 0 0 0 3px rgba(54, 95, 168, 0.12), inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 0 0 3px rgba(54, 95, 168, 0.12), inset 0 1px 2px rgba(0, 0, 0, 0.01);
 }
 
 /* Premium Gerekçe Area */
 .reason-field-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   border-top: 1px dashed var(--border-soft);
-  padding-top: 16px;
-  margin-top: 8px;
+  padding-top: 20px;
+  margin-top: 12px;
 }
 
 .reason-info-banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--brand-100);
-  color: var(--brand-600);
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border: 1px solid var(--brand-200);
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 12.5px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -890,19 +969,20 @@ watch(
 }
 
 .reason-textarea {
-  min-height: 70px !important;
+  min-height: 80px !important;
 }
 
 .reason-warning-text {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--danger-500);
+  color: var(--danger-600);
   font-size: 12.5px;
   font-weight: 600;
-  background: var(--danger-100);
-  padding: 8px 12px;
-  border-radius: 8px;
+  background: var(--danger-50);
+  border: 1px solid var(--danger-100);
+  padding: 10px 14px;
+  border-radius: 10px;
   margin-top: 4px;
 }
 
@@ -917,9 +997,9 @@ watch(
   justify-content: flex-end;
   gap: 12px;
   border-top: 1px solid var(--border-soft);
-  padding: 16px 20px;
+  padding: 18px 24px;
   background: var(--bg-soft);
-  margin-top: 8px;
+  margin-top: 16px;
 }
 
 .drawer-page-meta {
@@ -927,6 +1007,15 @@ watch(
   justify-content: flex-end;
   font-size: 12px;
   padding: 0 4px;
+}
+
+.field-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-transform: none !important;
 }
 
 /* --- Nested CSS Transitions for Teleport --- */
@@ -1373,5 +1462,102 @@ watch(
 .zorunlu-text.is-required {
   color: #d97706; /* Amber */
   font-weight: 800;
+}
+
+/* Grouped Logo Layout Styles */
+.logo-group-layout {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.logo-group-left {
+  flex-shrink: 0;
+  width: 160px;
+}
+
+.logo-group-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sub-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub-field span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* Square-specific Image Upload styles */
+.square-image-upload {
+  width: 160px;
+  height: 160px;
+  margin-top: 0;
+}
+
+.square-preview-container {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.square-preview {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.square-remove-btn {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  width: calc(100% - 16px);
+  padding: 6px 12px;
+  font-size: 11px;
+  background: rgba(239, 68, 68, 0.9) !important;
+  color: white !important;
+  border: none !important;
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.square-remove-btn:hover {
+  background: #ef4444 !important;
+}
+
+.square-dropzone {
+  width: 100%;
+  height: 100%;
+  min-height: auto;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 </style>

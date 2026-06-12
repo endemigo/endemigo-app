@@ -20,7 +20,7 @@ export default function AuthLayout() {
         headerShadowVisible: false,
       }}
     >
-      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="register" options={{ title: t('auth.registerTitle') }} />
     </Stack>
   );

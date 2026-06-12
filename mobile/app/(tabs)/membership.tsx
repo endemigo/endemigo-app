@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   MembershipPeriod,
@@ -67,6 +67,9 @@ export default function MembershipScreen() {
   const { user } = useAuthStore();
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const { showModal } = useModalStore();
+  const pathname = usePathname();
+  const isFocused = pathname.includes('/membership');
+
   const isSellerAccess = activeMode === 'seller' && Boolean(user?.isSeller);
   const packagesQuery = useMembershipPackages();
   const membershipQuery = useMyMembership(isSellerAccess);
@@ -80,7 +83,7 @@ export default function MembershipScreen() {
   const cancelAtPeriodEnd = Boolean(subscription?.cancelAtPeriodEnd);
 
   useEffect(() => {
-    if (!isSellerAccess) {
+    if (isFocused && !isSellerAccess) {
       showModal({
         title: t('paketim.accessDeniedTitle'),
         message: t('paketim.accessDeniedMessage'),
@@ -88,7 +91,7 @@ export default function MembershipScreen() {
       });
       router.replace('/(tabs)/profile' as never);
     }
-  }, [isSellerAccess, router, showModal, t]);
+  }, [isFocused, isSellerAccess, router, showModal, t]);
 
   const benefits = useMemo(
     () => [

@@ -23,7 +23,7 @@ const STATUS_LABELS: Record<string, string> = {
   APPROVED: 'Onaylandı',
   REJECTED: 'Reddedildi',
   TERMINATED: 'Sonlandırıldı',
-  ADMIN_REVIEW: 'Admin İncelemesi',
+  ADMIN_REVIEW: 'İncelemede',
   FAILED: 'Başarısız',
   CANCELLED: 'İptal Edildi',
   COMPLETED: 'Tamamlandı',

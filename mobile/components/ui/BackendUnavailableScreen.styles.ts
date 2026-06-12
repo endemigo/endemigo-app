@@ -3,7 +3,11 @@ import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '..
 
 export const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     backgroundColor: Colors.background,
     justifyContent: 'center',
     paddingHorizontal: Spacing.lg,

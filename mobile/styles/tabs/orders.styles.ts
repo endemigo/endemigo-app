@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, FontFamily, FontSize, Spacing, Shadows } from '../../constants/theme';
 
 export const styles = StyleSheet.create({
   container: {
@@ -43,8 +43,17 @@ export const styles = StyleSheet.create({
     padding: Spacing.base,
     paddingBottom: Spacing.xxxl,
   },
-  header: {
-    gap: Spacing.sm,
+  headerContainer: {
+    gap: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  heroCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['3xl'],
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    ...Shadows.md,
   },
   titleRow: {
     alignItems: 'center',
@@ -79,30 +88,5 @@ export const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     fontFamily: FontFamily.body,
     fontSize: FontSize.body,
-  },
-  filterRow: {
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  chip: {
-    backgroundColor: Colors.white,
-    borderColor: Colors.slate200,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  chipText: {
-    color: Colors.onSurfaceVariant,
-    fontFamily: FontFamily.bodyBold,
-    fontSize: FontSize.caption,
-    fontWeight: '700',
-  },
-  chipTextActive: {
-    color: Colors.white,
   },
 });

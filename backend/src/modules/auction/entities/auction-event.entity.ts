@@ -38,4 +38,16 @@ export class AuctionEvent extends BaseEntity {
 
   @Column({ type: 'uuid', nullable: true })
   activeLotId: string | null;
+
+  @Column({ default: true })
+  antiSnipingEnabled: boolean;
+
+  @Column({ default: 5 })
+  maxExtensions: number;
+
+  @Column({ default: 60 })
+  extensionSeconds: number;
+
+  @Column({ default: 60 })
+  extensionDuration: number;
 }

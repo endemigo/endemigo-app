@@ -150,7 +150,8 @@ const fields = computed<DrawerField[]>(() => [
   },
   {
     key: 'code',
-    label: 'Sistem Kodu (Eski ürünlerle eşleşme için boş kalabilir)',
+    label: 'Sistem Kodu',
+    description: 'Eski ürünlerle eşleşme için boş kalabilir',
     type: 'text',
     required: false,
     value: selectedRow.value?.code ?? '',

@@ -1,8 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import { SellerQuickActions } from '../../components/ui/seller-dashboard/SellerQuickActions';
 import { SellerStatCard } from '../../components/ui/seller-dashboard/SellerStatCard';
 import { useSellerDashboardSummary } from '../../hooks/useSellerDashboard';
@@ -13,6 +15,7 @@ import { styles } from '../../styles/tabs/seller-dashboard.styles';
 export default function SellerDashboardScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const summary = useSellerDashboardSummary(Boolean(user?.isSeller));
 
@@ -21,6 +24,23 @@ export default function SellerDashboardScreen() {
       <View style={styles.center}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.centerBody}>{t('common.loading')}</Text>
+      </View>
+    );
+  }
+
+  if (summary.isError) {
+    return (
+      <View style={styles.center}>
+        <Ionicons name="cloud-offline-outline" size={48} color={Colors.error} />
+        <Text style={[styles.centerTitle, { marginTop: Spacing.sm }]}>{t('common.error')}</Text>
+        <Text style={styles.centerBody}>{t('common.genericError')}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => summary.refetch()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.retryText}>{t('wallet.retry')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -80,7 +100,10 @@ export default function SellerDashboardScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base },
+      ]}
       refreshControl={
         <RefreshControl
           refreshing={summary.isRefetching}

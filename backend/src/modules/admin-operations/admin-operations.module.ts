@@ -28,6 +28,7 @@ import { FeatureBadge } from '../product/entities/feature-badge.entity';
 import { AdminOperationsController } from './admin-operations.controller';
 import { AdminOperationsService } from './admin-operations.service';
 import { AuctionModule } from '../auction/auction.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { AuctionModule } from '../auction/auction.module';
     AdminAuthModule,
     AdminAuditModule,
     AuctionModule,
+    NotificationModule,
   ],
   controllers: [AdminOperationsController],
   providers: [AdminOperationsService],

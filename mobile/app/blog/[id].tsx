@@ -18,6 +18,24 @@ import { styles } from '../../styles/blog/BlogDetailScreen.styles';
 const BLOG_PLACEHOLDER =
   'https://placehold.co/1000x600/F8F9FA/0097D8?text=Endemigo';
 
+function formatHtmlToText(html: string) {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<p>/gi, '')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<h[1-6]>/gi, '')
+    .replace(/<li>/gi, ' • ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/?[a-z0-9]+[^>]*>/gi, '') // Tüm diğer HTML etiketlerini temizle
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+}
+
 export default function BlogDetailScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -77,7 +95,7 @@ export default function BlogDetailScreen() {
           {formatShortDate(blog.publishedAt)}
         </Text>
         <Text style={styles.excerpt}>{blog.excerpt}</Text>
-        <Text style={styles.paragraph}>{blog.body || blog.excerpt}</Text>
+        <Text style={styles.paragraph}>{formatHtmlToText(blog.body || blog.excerpt)}</Text>
       </View>
     </ScrollView>
   );

@@ -134,7 +134,7 @@ async function checkOpenApi() {
     'backend/src/main.ts should configure Swagger/OpenAPI output',
   );
 
-  const openApiUrl = process.env.PHASE10_OPENAPI_URL || 'http://localhost:3000/api/docs-json';
+  const openApiUrl = process.env.PHASE10_OPENAPI_URL || 'http://localhost:3030/api/docs-json';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   try {

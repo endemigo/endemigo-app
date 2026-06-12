@@ -14,7 +14,7 @@ export class EmailService {
   private readonly appUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+    this.appUrl = this.configService.get<string>('APP_URL', 'http://localhost:3030');
   }
 
   async sendVerificationEmail(email: string, token: string): Promise<void> {

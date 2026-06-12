@@ -1,17 +1,17 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import { useAuctions } from '../../hooks/useAuctions';
 import { useProducts, useCategories, useBlogs } from '../../hooks/useProducts';
 import {
@@ -22,6 +22,7 @@ import {
 import { BlogCard, ProductCard } from '../../components/ui';
 import type { Blog, Category, Product } from '../../types';
 import { formatCurrency } from '../../utils/transactionFormatters';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../../styles/tabs/ExploreScreen.styles';
 
 type ExploreSectionKey = 'all' | 'products' | 'auctions' | 'blogs';
@@ -58,8 +59,49 @@ function normalizeSection(value: string | string[] | undefined): ExploreSectionK
   return 'all';
 }
 
+function getCategoryChipConfig(categoryName: string) {
+  const normalized = categoryName.trim().toLocaleLowerCase('tr-TR');
+
+  if (normalized.includes('elektronik') || normalized.includes('electronic')) {
+    return { icon: 'hardware-chip-outline' as const, bg: '#E0F2FE', text: '#0369A1' };
+  }
+  if (
+    normalized.includes('antika') ||
+    normalized.includes('koleksiyon') ||
+    normalized.includes('antique') ||
+    normalized.includes('collectible')
+  ) {
+    return { icon: 'trophy-outline' as const, bg: '#FEF3C7', text: '#B45309' };
+  }
+  if (normalized.includes('sanat') || normalized.includes('art')) {
+    return { icon: 'color-palette-outline' as const, bg: '#F3E8FF', text: '#7E22CE' };
+  }
+  if (normalized.includes('halı') || normalized.includes('kilim') || normalized.includes('rug') || normalized.includes('carpet')) {
+    return { icon: 'grid-outline' as const, bg: '#E2F1E8', text: '#15803D' };
+  }
+  if (
+    normalized.includes('mücevher') ||
+    normalized.includes('saat') ||
+    normalized.includes('jewelry') ||
+    normalized.includes('watch')
+  ) {
+    return { icon: 'sparkles-outline' as const, bg: '#FCE7F3', text: '#BE185D' };
+  }
+  if (
+    normalized.includes('mobilya') ||
+    normalized.includes('dekor') ||
+    normalized.includes('furniture') ||
+    normalized.includes('decor')
+  ) {
+    return { icon: 'home-outline' as const, bg: '#E0E7FF', text: '#4338CA' };
+  }
+
+  return { icon: 'sparkles-outline' as const, bg: '#F3F4F5', text: '#3F4850' };
+}
+
 export default function ExploreScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const [query, setQuery] = React.useState('');
@@ -93,7 +135,7 @@ export default function ExploreScreen() {
   }, [blogs.data, hasQuery, query]);
 
   const featuredCategories = React.useMemo(
-    () => (categories.data ?? []).slice(0, 6),
+    () => ((categories.data as Category[]) ?? []).slice(0, 6),
     [categories.data],
   );
   const freshProducts = React.useMemo(
@@ -118,7 +160,7 @@ export default function ExploreScreen() {
     return (
       <View style={styles.productGrid}>
         {items.map((item) => (
-          <View key={item.id} style={styles.productCardWrap}>
+          <View key={item.id} style={styles.productGridCardWrap}>
             <ProductCard
               item={item}
               onPress={() => router.push(`/product/${item.id}`)}
@@ -126,6 +168,35 @@ export default function ExploreScreen() {
           </View>
         ))}
       </View>
+    );
+  };
+
+  const renderProductCarousel = (items: Product[], emptyKey: string) => {
+    if (items.length === 0) {
+      return (
+        <View style={styles.emptyCard}>
+          <Ionicons name="cube-outline" size={28} color={Colors.slate400} />
+          <Text style={styles.emptyTitle}>{t(emptyKey)}</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.carouselScroll}
+        contentContainerStyle={styles.carouselScrollContent}
+      >
+        {items.map((item) => (
+          <View key={item.id} style={styles.productCardWrap}>
+            <ProductCard
+              item={item}
+              onPress={() => router.push(`/product/${item.id}`)}
+            />
+          </View>
+        ))}
+      </ScrollView>
     );
   };
 
@@ -156,21 +227,29 @@ export default function ExploreScreen() {
           <Image
             source={{ uri: item.productImageUrl || AUCTION_PLACEHOLDER }}
             style={styles.auctionImage}
+            contentFit="cover"
           />
           <View style={styles.auctionBody}>
-            <Text style={styles.auctionTitle} numberOfLines={2}>
-              {item.productTitle}
-            </Text>
-            <Text style={styles.auctionMeta}>
-              {item.categoryName || t('exploreScreen.openAuction')}
-            </Text>
-            <Text style={styles.auctionPrice}>
-              {formatCurrency(item.currentPrice)}
-            </Text>
-            <View style={styles.auctionFooter}>
-              <Text style={styles.auctionMeta}>
-                {t('exploreScreen.bidCount', { count: item.bidCount })}
+            <View style={styles.auctionHeader}>
+              <Text style={styles.auctionTitle} numberOfLines={2}>
+                {item.productTitle}
               </Text>
+              <Text style={styles.auctionMeta}>
+                {item.categoryName || t('exploreScreen.openAuction')}
+              </Text>
+            </View>
+            <View style={styles.auctionFooter}>
+              <View style={styles.auctionPriceContainer}>
+                <Text style={styles.auctionPriceLabel}>
+                  {t('auction.currentPrice') || 'Fiyat'}:
+                </Text>
+                <Text style={styles.auctionPrice}>
+                  {formatCurrency(item.currentPrice)}
+                </Text>
+                <Text style={styles.auctionMeta}>
+                  {` • ${t('exploreScreen.bidCount', { count: item.bidCount })}`}
+                </Text>
+              </View>
               {reserveBadge ? (
                 <View
                   style={[
@@ -275,44 +354,70 @@ export default function ExploreScreen() {
   const renderDiscoveryState = () => (
     <>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {t('exploreScreen.featuredCategories')}
-        </Text>
-        <View style={styles.categoryRow}>
-          {featuredCategories.map((category: Category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={styles.categoryChip}
-              activeOpacity={0.82}
-              onPress={() =>
-                router.push({
-                  pathname: '/(tabs)/categories/[id]',
-                  params: { id: category.id, name: category.name },
-                })
-              }
-            >
-              <Ionicons
-                name="sparkles-outline"
-                size={16}
-                color={Colors.primary}
-              />
-              <Text style={styles.categoryChipText}>{category.name}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>
+            {t('exploreScreen.featuredCategories')}
+          </Text>
+          <TouchableOpacity
+            style={styles.sectionAction}
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/categories')}
+          >
+            <Text style={styles.sectionActionText}>
+              {t('exploreScreen.seeAllCategories') || 'Tümü'}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryScroll}
+          contentContainerStyle={styles.categoryScrollContent}
+        >
+          {featuredCategories.map((category: Category) => {
+            const config = getCategoryChipConfig(category.name);
+            return (
+              <TouchableOpacity
+                key={category.id}
+                style={[styles.categoryChip, { backgroundColor: config.bg }]}
+                activeOpacity={0.82}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(tabs)/categories/[id]',
+                    params: { id: category.id, name: category.name },
+                  })
+                }
+              >
+                <Ionicons
+                  name={config.icon}
+                  size={15}
+                  color={config.text}
+                />
+                <Text style={[styles.categoryChipText, { color: config.text }]}>
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('exploreScreen.newArrivals')}</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>{t('exploreScreen.newArrivals')}</Text>
+        </View>
         {products.isLoading ? (
           <ActivityIndicator size="small" color={Colors.primary} />
         ) : (
-          renderProductGrid(freshProducts, 'exploreScreen.noProducts')
+          renderProductCarousel(freshProducts, 'exploreScreen.noProducts')
         )}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('exploreScreen.liveAuctions')}</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>{t('exploreScreen.liveAuctions')}</Text>
+        </View>
         {auctions.isLoading ? (
           <ActivityIndicator size="small" color={Colors.auctionGreen} />
         ) : (
@@ -321,9 +426,11 @@ export default function ExploreScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {t('exploreScreen.editorialStories')}
-        </Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>
+            {t('exploreScreen.editorialStories')}
+          </Text>
+        </View>
         {blogs.isLoading ? (
           <ActivityIndicator size="small" color={Colors.primary} />
         ) : (
@@ -336,17 +443,29 @@ export default function ExploreScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.heroCard}>
-        <Text style={styles.heroBadge}>{t('exploreScreen.heroBadge')}</Text>
-        <Text style={styles.heroTitle}>{t('exploreScreen.heroTitle')}</Text>
-        <Text style={styles.heroSubtitle}>
-          {t('exploreScreen.heroSubtitle')}
-        </Text>
+        <View style={styles.headerTopRow}>
+          <Image
+            source={require('../../assets/images/endemigo-logo.png')}
+            style={styles.headerLogo}
+            contentFit="contain"
+          />
+          <TouchableOpacity
+            style={styles.headerNotificationButton}
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={22} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.searchWrap}>
-          <Ionicons name="search" size={18} color={Colors.slate500} />
+          <Ionicons name="search" size={18} color={Colors.primary} />
           <TextInput
             style={styles.searchInput}
             value={query}
@@ -356,33 +475,63 @@ export default function ExploreScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {query.length > 0 ? (
+            <TouchableOpacity
+              style={styles.searchClearButton}
+              activeOpacity={0.7}
+              onPress={() => setQuery('')}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.slate400} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
-      <View style={styles.filterRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterScrollContent}
+      >
         {(['all', 'products', 'auctions', 'blogs'] as ExploreSectionKey[]).map(
-          (section) => (
-            <TouchableOpacity
-              key={section}
-              style={[
-                styles.filterChip,
-                activeSection === section && styles.filterChipActive,
-              ]}
-              activeOpacity={0.84}
-              onPress={() => setActiveSection(section)}
-            >
-              <Text
+          (section) => {
+            let iconName: keyof typeof Ionicons.glyphMap = 'grid-outline';
+            if (section === 'products') iconName = 'cube-outline';
+            if (section === 'auctions') iconName = 'hammer-outline';
+            if (section === 'blogs') iconName = 'newspaper-outline';
+
+            return (
+              <TouchableOpacity
+                key={section}
                 style={[
-                  styles.filterChipText,
-                  activeSection === section && styles.filterChipTextActive,
+                  styles.filterChip,
+                  activeSection === section && styles.filterChipActive,
                 ]}
+                activeOpacity={0.84}
+                onPress={() => setActiveSection(section)}
               >
-                {t(`exploreScreen.${section}`)}
-              </Text>
-            </TouchableOpacity>
-          ),
+                <Ionicons
+                  name={iconName}
+                  size={14}
+                  color={
+                    activeSection === section
+                      ? Colors.primaryContainer
+                      : Colors.onSurfaceVariant
+                  }
+                />
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    activeSection === section && styles.filterChipTextActive,
+                  ]}
+                >
+                  {t(`exploreScreen.${section}`)}
+                </Text>
+              </TouchableOpacity>
+            );
+          },
         )}
-      </View>
+      </ScrollView>
 
       {hasQuery ? (
         <View style={styles.section}>
@@ -393,7 +542,10 @@ export default function ExploreScreen() {
         </View>
       ) : (
         <>
-          <Text style={styles.hintText}>{t('exploreScreen.searchHint')}</Text>
+          <View style={styles.hintCard}>
+            <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+            <Text style={styles.hintText}>{t('exploreScreen.searchHint')}</Text>
+          </View>
           {renderDiscoveryState()}
         </>
       )}

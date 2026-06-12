@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CargoProvider, CargoStatus, OrderStatus } from '@endemigo/shared';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { useRoleModeStore } from '../store/roleModeStore';
+import { useCartStore, type CartItem } from '../store/cartStore';
 import {
   ORDER_QUERY_KEYS,
   WALLET_QUERY_KEYS,
@@ -135,6 +136,7 @@ function normalizeOrder(raw: RawOrder, activeMode: RoleMode): OrderListItem {
     amount: Number(raw.amount),
     currency: raw.currency,
     status: raw.status,
+    createdAt: raw.createdAt,
     updatedAt: raw.updatedAt ?? raw.createdAt,
     autoCompleteAt: raw.autoConfirmAt ?? null,
   };
@@ -207,6 +209,30 @@ export function useOrdersByMode(status: OrderStatusFilter = 'all', page = 1) {
         page,
         hasNextPage: start + ORDER_PAGE_SIZE < normalized.length,
       };
+    },
+  });
+}
+
+export function useInfiniteOrdersByMode() {
+  const activeMode = useRoleModeStore((state) => state.activeMode);
+
+  return useInfiniteQuery({
+    queryKey: ['orders', 'infinite', activeMode],
+    queryFn: async ({ pageParam = 1 }) => {
+      if (ENV.USE_MOCK) return { orders: [], total: 0, page: pageParam, hasNextPage: false };
+      const { data } = await api.get<OrdersResponse>(getOrderEndpoint(activeMode));
+      const normalized = data.orders.map((order) => normalizeOrder(order, activeMode));
+      const start = (pageParam - 1) * ORDER_PAGE_SIZE;
+      const paginatedOrders = normalized.slice(start, start + ORDER_PAGE_SIZE);
+      return {
+        orders: paginatedOrders,
+        page: pageParam,
+        hasNextPage: start + ORDER_PAGE_SIZE < normalized.length,
+      };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
     },
   });
 }
@@ -382,6 +408,74 @@ export function useSellerOrderTransition(orderId?: string) {
     },
     onSuccess: () => {
       invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useCheckoutCart() {
+  const queryClient = useQueryClient();
+  const clearCart = useCartStore((state) => state.clearCart);
+
+  return useMutation<void, Error, CartItem[]>({
+    mutationFn: async (items) => {
+      if (!items || items.length === 0) {
+        throw new Error('Sepetiniz boş');
+      }
+
+      if (ENV.USE_MOCK) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await clearCart();
+        return;
+      }
+
+      for (const item of items) {
+        if (!item.sellerId) {
+          throw new Error(`Ürünün satıcı bilgisi eksik: ${item.title}`);
+        }
+
+        // Loop for the quantity of the item
+        for (let q = 0; q < item.quantity; q++) {
+          // 1. Create the direct-sale order for this item
+          const { data: orderData } = await api.post('/orders/direct-sale', {
+            productId: item.productId,
+            sellerId: item.sellerId,
+            amount: item.price,
+            currency: 'TRY',
+            idempotencyKey: `direct-${item.productId}-${Date.now()}-${q}-${Math.floor(Math.random() * 1000)}`,
+          });
+
+          const createdOrder = (orderData as any).order;
+          if (!createdOrder?.id) {
+            throw new Error('Sipariş oluşturulamadı');
+          }
+
+          // 2. Initiate payment for this order
+          const { data: paymentData } = await api.post('/payments/initiate', {
+            orderId: createdOrder.id,
+            amount: item.price,
+            currency: 'TRY',
+            idempotencyKey: `pay-${createdOrder.id}-${Date.now()}-${q}-${Math.floor(Math.random() * 1000)}`,
+          });
+
+          const payment = (paymentData as any).payment;
+          if (payment?.checkoutToken) {
+            // 3. Complete payment directly by calling webhook callback (development signature bypass enabled)
+            await api.post('/payments/iyzico/webhook', {
+              eventKey: payment.checkoutToken,
+              token: payment.checkoutToken,
+              status: 'success',
+            });
+          }
+        }
+      }
+
+      // 4. Clear the cart upon success
+      await clearCart();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
     },
   });
 }

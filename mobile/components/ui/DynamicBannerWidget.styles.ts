@@ -16,7 +16,7 @@ export const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: FontFamily.headlineBlack,
     fontWeight: '800',
-    fontSize: FontSize.headline,
+    fontSize: FontSize.heading,
     color: Colors.slate900,
   },
   loadingContainer: {

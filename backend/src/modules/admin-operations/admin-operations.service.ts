@@ -27,8 +27,10 @@ import {
   AuctionEventStatus,
   AuctionApprovalStatus,
   AuctionType,
+  NotificationEventType,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { NotificationService } from '../notification/notification.service';
 import { User } from '../user/entities/user.entity';
 import { Address } from '../user/entities/address.entity';
 import { SellerProfile, SellerStatus } from '../user/entities/seller-profile.entity';
@@ -470,6 +472,8 @@ export class AdminOperationsService {
     @Optional()
     @Inject(STORAGE_SERVICE)
     private readonly storage?: IStorageService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async getQueues() {
@@ -2831,6 +2835,19 @@ export class AdminOperationsService {
       status: sellerProfile.status,
       approvedAt: sellerProfile.approvedAt,
     });
+
+    if (this.notificationService) {
+      await this.notificationService.createFromEvent({
+        eventId: `seller-appr-${sellerProfile.id}`,
+        userId: sellerProfile.userId,
+        eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+        title: 'Satıcı Başvurunuz Onaylandı',
+        body: 'Tebrikler! Satıcı başvurunuz onaylandı. Artık Endemigo\'da ürünlerinizi satmaya başlayabilirsiniz.',
+        relatedEntityType: 'seller',
+        relatedEntityId: sellerProfile.id,
+      }).catch(() => {});
+    }
+
     return { code: RC.SUCCESS, message: 'Satıcı onaylandı', sellerProfile };
   }
 
@@ -2842,6 +2859,19 @@ export class AdminOperationsService {
     await this.record(actor, AdminAuditAction.SELLER_REJECTED, 'SELLER', id, dto, before, {
       status: sellerProfile.status,
     });
+
+    if (this.notificationService) {
+      await this.notificationService.createFromEvent({
+        eventId: `seller-rej-${sellerProfile.id}-${Date.now()}`,
+        userId: sellerProfile.userId,
+        eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+        title: 'Satıcı Başvurunuz Reddedildi',
+        body: `Satıcı başvurunuz reddedildi. Nedeni: ${dto.reason || 'Kriterler karşılanmıyor'}`,
+        relatedEntityType: 'seller',
+        relatedEntityId: sellerProfile.id,
+      }).catch(() => {});
+    }
+
     return { code: RC.SUCCESS, message: 'Satıcı başvurusu reddedildi', sellerProfile };
   }
 
@@ -2975,6 +3005,20 @@ export class AdminOperationsService {
       await this.syncProductImages(saved.id, imageUrls);
       saved.imageUrl = imageUrls[0] ?? '';
       await this.productRepo.save(saved);
+    }
+
+    if (before.status === ProductStatus.PENDING_REVIEW && saved.status === ProductStatus.ACTIVE) {
+      if (this.notificationService) {
+        await this.notificationService.createFromEvent({
+          eventId: `prod-appr-${saved.id}`,
+          userId: saved.sellerId,
+          eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+          title: 'Ürününüz Onaylandı',
+          body: `"${saved.title}" başlıklı ürününüz onaylandı ve yayına alındı.`,
+          relatedEntityType: 'product',
+          relatedEntityId: saved.id,
+        }).catch(() => {});
+      }
     }
 
     return { code: RC.SUCCESS, message: 'Ürün güncellendi', product: saved };
@@ -4769,6 +4813,10 @@ export class AdminOperationsService {
     event.endTime = new Date(payload.endTime);
     event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
     event.activeLotId = null;
+    event.antiSnipingEnabled = payload.antiSnipingEnabled !== undefined ? this.toBooleanValue(payload.antiSnipingEnabled) : true;
+    event.maxExtensions = payload.maxExtensions !== undefined ? this.toNumber(payload.maxExtensions, 5) : 5;
+    event.extensionSeconds = payload.extensionSeconds !== undefined ? this.toNumber(payload.extensionSeconds, 60) : 60;
+    event.extensionDuration = payload.extensionDuration !== undefined ? this.toNumber(payload.extensionDuration, 60) : 60;
 
     const saved = await this.auctionEventRepo.save(event);
     await this.record(actor, AdminAuditAction.AUCTION_EVENT_CREATED, 'AUCTION_EVENT', saved.id, dto, {}, this.toRecord(saved));
@@ -4791,8 +4839,31 @@ export class AdminOperationsService {
       event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
     }
     if (payload.activeLotId !== undefined) event.activeLotId = payload.activeLotId;
+    if (payload.antiSnipingEnabled !== undefined) event.antiSnipingEnabled = this.toBooleanValue(payload.antiSnipingEnabled);
+    if (payload.maxExtensions !== undefined) event.maxExtensions = this.toNumber(payload.maxExtensions, 5);
+    if (payload.extensionSeconds !== undefined) event.extensionSeconds = this.toNumber(payload.extensionSeconds, 60);
+    if (payload.extensionDuration !== undefined) event.extensionDuration = this.toNumber(payload.extensionDuration, 60);
 
     const saved = await this.auctionEventRepo.save(event);
+
+    // Cascade settings to associated Auctions/Lots
+    if (
+      payload.antiSnipingEnabled !== undefined ||
+      payload.maxExtensions !== undefined ||
+      payload.extensionSeconds !== undefined ||
+      payload.extensionDuration !== undefined
+    ) {
+      await this.auctionRepo.update(
+        { eventId: id },
+        {
+          ...(payload.antiSnipingEnabled !== undefined ? { antiSnipingEnabled: this.toBooleanValue(payload.antiSnipingEnabled) } : {}),
+          ...(payload.maxExtensions !== undefined ? { maxExtensions: this.toNumber(payload.maxExtensions, 5) } : {}),
+          ...(payload.extensionSeconds !== undefined ? { extensionSeconds: this.toNumber(payload.extensionSeconds, 60) } : {}),
+          ...(payload.extensionDuration !== undefined ? { extensionDuration: this.toNumber(payload.extensionDuration, 60) } : {}),
+        }
+      );
+    }
+
     await this.record(actor, AdminAuditAction.AUCTION_EVENT_UPDATED, 'AUCTION_EVENT', id, dto, before, this.toRecord(saved));
     return { code: RC.SUCCESS, message: 'Müzayede etkinliği güncellendi', event: saved };
   }
@@ -4967,6 +5038,21 @@ export class AdminOperationsService {
       before,
       this.toRecord(saved)
     );
+
+    if (this.notificationService && auction.product) {
+      const isApproved = status === AuctionApprovalStatus.APPROVED;
+      await this.notificationService.createFromEvent({
+        eventId: `auc-appr-${auction.id}-${status}-${Date.now()}`,
+        userId: auction.sellerId,
+        eventType: NotificationEventType.AUCTION_STARTED,
+        title: isApproved ? 'Müzayede Başvurunuz Onaylandı' : 'Müzayede Başvurusu Reddedildi',
+        body: isApproved 
+          ? `"${auction.product.title}" ürünü için müzayede başvurunuz onaylandı.`
+          : `"${auction.product.title}" ürünü için müzayede başvurunuz reddedildi. Nedeni: ${reason || 'Kriterler karşılanmıyor'}`,
+        relatedEntityType: 'auction',
+        relatedEntityId: auction.id,
+      }).catch(() => {});
+    }
 
     return {
       code: RC.SUCCESS,

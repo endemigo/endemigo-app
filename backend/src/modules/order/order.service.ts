@@ -27,7 +27,7 @@ import {
   ProductStatus,
   RC,
 } from '@endemigo/shared';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, Repository, In } from 'typeorm';
 import { CargoService } from '../cargo/cargo.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../notification/notification.service';
@@ -887,26 +887,76 @@ export class OrderService {
   }
 
   async getBuyerOrders(buyerId: string) {
-    const orders = await this.orderRepository?.find({
+    const orders = (await this.orderRepository?.find({
       where: { buyerId },
       order: { createdAt: 'DESC' },
-    });
+    })) || [];
+
+    if (orders.length > 0 && this.productRepository) {
+      const productIds = [...new Set(orders.map((o) => o.productId))];
+      const products = await this.productRepository.find({
+        where: { id: In(productIds) },
+        select: ['id', 'title', 'imageUrl'],
+      });
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      const ordersWithProduct = orders.map((order) => {
+        const product = productMap.get(order.productId);
+        return {
+          ...order,
+          productTitle: product?.title ?? null,
+          productImageUrl: product?.imageUrl ?? null,
+        };
+      });
+
+      return {
+        code: RC.ORDER_FETCHED,
+        message: 'Buyer orders fetched',
+        orders: ordersWithProduct,
+      };
+    }
+
     return {
       code: RC.ORDER_FETCHED,
       message: 'Buyer orders fetched',
-      orders: orders ?? [],
+      orders: [],
     };
   }
 
   async getSellerOrders(sellerId: string) {
-    const orders = await this.orderRepository?.find({
+    const orders = (await this.orderRepository?.find({
       where: { sellerId },
       order: { createdAt: 'DESC' },
-    });
+    })) || [];
+
+    if (orders.length > 0 && this.productRepository) {
+      const productIds = [...new Set(orders.map((o) => o.productId))];
+      const products = await this.productRepository.find({
+        where: { id: In(productIds) },
+        select: ['id', 'title', 'imageUrl'],
+      });
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      const ordersWithProduct = orders.map((order) => {
+        const product = productMap.get(order.productId);
+        return {
+          ...order,
+          productTitle: product?.title ?? null,
+          productImageUrl: product?.imageUrl ?? null,
+        };
+      });
+
+      return {
+        code: RC.ORDER_FETCHED,
+        message: 'Seller orders fetched',
+        orders: ordersWithProduct,
+      };
+    }
+
     return {
       code: RC.ORDER_FETCHED,
       message: 'Seller orders fetched',
-      orders: orders ?? [],
+      orders: [],
     };
   }
 

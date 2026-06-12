@@ -3,7 +3,7 @@ const axios = require('axios');
 async function main() {
   try {
     console.log('Logging in as admin...');
-    const loginRes = await axios.post('http://localhost:3000/admin/auth/login', {
+    const loginRes = await axios.post('http://localhost:3030/admin/auth/login', {
       email: 'admin@endemigo.test',
       password: 'Secret123!'
     });
@@ -12,7 +12,7 @@ async function main() {
     console.log('Login successful. Token acquired.');
     
     console.log('Fetching variants...');
-    const variantsRes = await axios.get('http://localhost:3000/admin/variants/numbers', {
+    const variantsRes = await axios.get('http://localhost:3030/admin/variants/numbers', {
       params: { page: 1, limit: 200 },
       headers: {
         Authorization: `Bearer ${token}`
