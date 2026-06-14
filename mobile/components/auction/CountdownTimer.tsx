@@ -13,12 +13,14 @@ interface CountdownTimerProps {
   endTime: string;
   serverTime?: string;
   onExpired?: () => void;
+  label?: string;
 }
 
 export function CountdownTimer({
   endTime,
   serverTime,
   onExpired,
+  label,
 }: CountdownTimerProps) {
   const [timeLeft, setTimeLeft] = useState({
     hours: 0,
@@ -83,12 +85,12 @@ export function CountdownTimer({
 
   return (
     <Animated.View
-      style={[styles.container, isUrgent && styles.urgent, pulseStyle]}
+      style={[styles.container, isUrgent && !label && styles.urgent, pulseStyle]}
     >
-      <Text style={[styles.label, isUrgent && styles.urgentText]}>
-        {isUrgent ? '⚡ Son saniyeler!' : 'Kalan Süre'}
+      <Text style={[styles.label, isUrgent && !label && styles.urgentText]}>
+        {isUrgent && !label ? '⚡ Son saniyeler!' : (label || 'Kalan Süre')}
       </Text>
-      <Text style={[styles.time, isUrgent && styles.urgentText]}>
+      <Text style={[styles.time, isUrgent && !label && styles.urgentText]}>
         {display}
       </Text>
     </Animated.View>

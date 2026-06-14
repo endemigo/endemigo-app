@@ -14,6 +14,7 @@ import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
 import { VariantNumber } from './entities/variant-number.entity';
 import { ProductVariantSku } from './entities/product-variant-sku.entity';
+import { ProductView } from './entities/product-view.entity';
 import { Favorite } from '../search/entities/favorite.entity';
 import { ListingTemplate as ListingTemplateEntity } from './entities/listing-template.entity';
 import { GeoIndication } from './entities/geo-indication.entity';
@@ -382,6 +383,8 @@ export class ProductService {
     private readonly productVariantSkuRepo: Repository<ProductVariantSku>,
     @InjectRepository(Favorite)
     private readonly favoriteRepo: Repository<Favorite>,
+    @InjectRepository(ProductView)
+    private readonly productViewRepo: Repository<ProductView>,
     @InjectRepository(ListingTemplateEntity)
     private readonly listingTemplateRepo: Repository<ListingTemplateEntity>,
     @InjectRepository(GeoIndication)
@@ -1676,5 +1679,167 @@ export class ProductService {
       imageUrl?: string;
     };
     return safeDto;
+  }
+
+  async recordProductView(
+    productId: string,
+    userId?: string,
+    metadata?: { deviceToken?: string; referrer?: string; platform?: string },
+  ) {
+    const product = await this.productRepo.findOne({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException({
+        code: RC.PRODUCT_NOT_FOUND,
+        message: 'Ürün bulunamadı',
+      });
+    }
+
+    const deviceToken = metadata?.deviceToken || null;
+    const referrer = metadata?.referrer || null;
+    const platform = metadata?.platform || null;
+
+    let view: ProductView | null = null;
+    if (userId) {
+      view = await this.productViewRepo.findOne({
+        where: { userId, productId },
+      });
+    } else if (deviceToken) {
+      view = await this.productViewRepo.findOne({
+        where: { userId: IsNull(), deviceToken, productId },
+      });
+    }
+
+    if (view) {
+      view.viewCount += 1;
+      view.lastViewedAt = new Date();
+      if (referrer) view.referrer = referrer;
+      if (platform) view.platform = platform;
+      await this.productViewRepo.save(view);
+    } else {
+      const newView = this.productViewRepo.create({
+        productId,
+        userId: userId || null,
+        deviceToken: userId ? null : deviceToken,
+        viewCount: 1,
+        referrer,
+        platform,
+      });
+      await this.productViewRepo.save(newView);
+    }
+
+    return {
+      code: RC.PRODUCT_VIEW_RECORDED,
+      message: 'Ürün ziyareti kaydedildi',
+    };
+  }
+
+  async getRecentlyViewed(
+    userId?: string,
+    deviceToken?: string,
+    page = 1,
+    limit = 20,
+  ) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 50);
+
+    const qb = this.productViewRepo
+      .createQueryBuilder('pv')
+      .innerJoinAndSelect('pv.product', 'p')
+      .leftJoinAndSelect('p.category', 'category')
+      .leftJoinAndSelect('p.images', 'images')
+      .andWhere('p.deletedAt IS NULL')
+      .andWhere('p.status = :status', { status: ProductStatus.ACTIVE });
+
+    if (userId) {
+      qb.andWhere('pv.userId = :userId', { userId });
+    } else if (deviceToken) {
+      qb.andWhere('pv.userId IS NULL AND pv.deviceToken = :deviceToken', {
+        deviceToken,
+      });
+    } else {
+      return {
+        items: [],
+        total: 0,
+        page: safePage,
+        totalPages: 0,
+      };
+    }
+
+    const [views, total] = await qb
+      .orderBy('pv.lastViewedAt', 'DESC')
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    const items = views.map((v) => {
+      const p = v.product;
+      return {
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        price: Number(p.price),
+        imageUrl: p.imageUrl,
+        images: p.images?.map((img) => ({
+          id: img.id,
+          url: img.url,
+          sortOrder: img.sortOrder,
+          isPrimary: img.isPrimary,
+        })) || [],
+        status: p.status,
+        sellerId: p.sellerId,
+        categoryId: p.categoryId,
+        categoryName: p.category?.name || null,
+        stockQuantity: p.stockQuantity,
+        condition: p.condition,
+        listingType: p.listingType,
+        originCountry: p.originCountry,
+        favoriteCount: p.favoriteCount,
+        createdAt: p.createdAt,
+        lastViewedAt: v.lastViewedAt,
+      };
+    });
+
+    return {
+      items,
+      total,
+      page: safePage,
+      totalPages: Math.ceil(total / safeLimit),
+    };
+  }
+
+  async mergeGuestViews(userId: string, deviceToken: string) {
+    if (!userId || !deviceToken) return;
+
+    const guestViews = await this.productViewRepo.find({
+      where: { deviceToken, userId: IsNull() },
+    });
+
+    for (const guestView of guestViews) {
+      const userView = await this.productViewRepo.findOne({
+        where: { userId, productId: guestView.productId },
+      });
+
+      if (userView) {
+        userView.viewCount += guestView.viewCount;
+        userView.firstViewedAt = new Date(
+          Math.min(
+            userView.firstViewedAt.getTime(),
+            guestView.firstViewedAt.getTime(),
+          ),
+        );
+        userView.lastViewedAt = new Date(
+          Math.max(
+            userView.lastViewedAt.getTime(),
+            guestView.lastViewedAt.getTime(),
+          ),
+        );
+        await this.productViewRepo.save(userView);
+        await this.productViewRepo.remove(guestView);
+      } else {
+        guestView.userId = userId;
+        guestView.deviceToken = null;
+        await this.productViewRepo.save(guestView);
+      }
+    }
   }
 }

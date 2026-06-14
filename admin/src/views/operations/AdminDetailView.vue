@@ -54,15 +54,15 @@
       <div class="panel-body">
         <div v-if="loading" class="muted">Detay yükleniyor...</div>
         <div v-else-if="activeTab === 'Genel Bakış'">
-          <template v-if="isUserResource && userRelated">
-            <section class="overview-grid">
+          <template v-if="(isUserResource || isSellerResource) && userRelated">
+            <section class="overview-grid" style="margin-bottom: 2rem;">
               <article class="overview-hero-card">
                 <header class="overview-hero-header">
                   <div>
                     <p class="overview-eyebrow">Üye Genel Durum</p>
                     <h3 class="overview-title">{{ userDisplayName }}</h3>
                   </div>
-                  <span class="status-pill">{{ getString(overview, 'isActive') === 'true' ? 'ACTIVE' : 'INACTIVE' }}</span>
+                  <span class="status-pill">{{ (isUserResource ? getString(overview, 'isActive') : (overview.user ? getString(overview.user, 'isActive') : '')) === 'true' ? 'ACTIVE' : 'INACTIVE' }}</span>
                 </header>
                 <div class="overview-kpi-grid">
                   <article class="overview-kpi">
@@ -126,15 +126,15 @@
                 <h4>Hızlı Profil</h4>
                 <div class="metric-row">
                   <span>E-posta</span>
-                  <strong>{{ getString(overview, 'email') || '-' }}</strong>
+                  <strong>{{ (isUserResource ? getString(overview, 'email') : (overview.user ? getString(overview.user, 'email') : '')) || '-' }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Telefon</span>
-                  <strong>{{ getString(overview, 'phone') || '-' }}</strong>
+                  <strong>{{ (isUserResource ? getString(overview, 'phone') : (overview.user ? getString(overview.user, 'phone') : '')) || '-' }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Üye Tipi</span>
-                  <strong>{{ getString(overview, 'isSeller') === 'true' ? 'SELLER' : 'BUYER' }}</strong>
+                  <strong>{{ (isUserResource ? getString(overview, 'isSeller') === 'true' : (overview.user ? getString(overview.user, 'isSeller') === 'true' : false)) ? 'SELLER' : 'BUYER' }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Adres</span>
@@ -142,7 +142,117 @@
                 </div>
                 <div class="metric-row">
                   <span>Kayıt</span>
-                  <strong>{{ getString(overview, 'createdAt') ? formatDate(getString(overview, 'createdAt')) : '-' }}</strong>
+                  <strong>{{ (isUserResource ? getString(overview, 'createdAt') : (overview.user ? getString(overview.user, 'createdAt') : '')) ? formatDate(isUserResource ? getString(overview, 'createdAt') : (overview.user ? getString(overview.user, 'createdAt') : '')) : '-' }}</strong>
+                </div>
+              </article>
+            </section>
+          </template>
+
+          <template v-if="(isUserResource || isSellerResource) && sellerRelated">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div>
+                    <p class="overview-eyebrow">Satıcı Genel Durum</p>
+                    <h3 class="overview-title">{{ (isSellerResource ? getString(overview, 'businessName') : (overview.sellerProfile ? getString(overview.sellerProfile, 'businessName') : '')) || 'Satıcı' }}</h3>
+                  </div>
+                  <span class="status-pill">{{ (isSellerResource ? getString(overview, 'status') : (overview.sellerProfile ? getString(overview.sellerProfile, 'status') : '')) || '-' }}</span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>Toplam Ciro</p>
+                    <strong>{{ formatMoney(sellerRelated.summary.grossMerchandiseValue, 'TRY') }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Toplam Satış</p>
+                    <strong>{{ sellerRelated.summary.saleCount }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Aktif Ürün</p>
+                    <strong>{{ sellerRelated.summary.activeProductCount }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Aktif Müzayede</p>
+                    <strong>{{ sellerRelated.summary.activeAuctionCount }}</strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Ürün Sağlığı</h4>
+                <div class="metric-row">
+                  <span>Aktif Ürün Oranı</span>
+                  <strong>{{ sellerActiveProductRate }}%</strong>
+                </div>
+                <div class="metric-track">
+                  <div class="metric-fill is-success" :style="{ width: `${sellerActiveProductRate}%` }"></div>
+                </div>
+                <div class="metric-row">
+                  <span>Taslak Ürün Oranı</span>
+                  <strong>{{ sellerDraftProductRate }}%</strong>
+                </div>
+                <div class="metric-track">
+                  <div class="metric-fill is-warning" :style="{ width: `${sellerDraftProductRate}%` }"></div>
+                </div>
+                <div class="metric-row">
+                  <span>İncelemedeki Ürün</span>
+                  <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Askıdaki/Stoksuz</span>
+                  <strong>{{ sellerRelated.summary.suspendedProductCount }} / {{ sellerRelated.summary.outOfStockProductCount }}</strong>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Ödeme & Risk</h4>
+                <div class="metric-row">
+                  <span>Bekleyen Ödeme Talebi</span>
+                  <strong>{{ sellerRelated.summary.pendingPayoutCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>İnceleme Bekleyen Ödeme</span>
+                  <strong>{{ sellerRelated.summary.adminReviewPaymentCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Toplam Ödeme Talebi</span>
+                  <strong>{{ sellerRelated.summary.payoutRequestCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Benzersiz Alıcı</span>
+                  <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Hızlı Profil (Satıcı)</h4>
+                <div class="metric-row">
+                  <span>Kullanıcı ID</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'userId') : (overview.sellerProfile ? getString(overview.sellerProfile, 'userId') : '')) || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Telefon</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'phone') : (overview.sellerProfile ? getString(overview.sellerProfile, 'phone') : '')) || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Komisyon</span>
+                  <strong>%{{ Number((isSellerResource ? getString(overview, 'commissionRate') : (overview.sellerProfile ? getString(overview.sellerProfile, 'commissionRate') : '')) || 0) * 100 }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Adres Sayısı</span>
+                  <strong>{{ sellerRelated.summary.addressCount }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Sözleşme Versiyonu</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'agreementVersion') : (overview.sellerProfile ? getString(overview.sellerProfile, 'agreementVersion') : '')) || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Sözleşme Tarihi</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'agreementAcceptedAt') : (overview.sellerProfile ? getString(overview.sellerProfile, 'agreementAcceptedAt') : '')) ? formatDate(isSellerResource ? getString(overview, 'agreementAcceptedAt') : getString(overview.sellerProfile, 'agreementAcceptedAt')) : '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Onay Tarihi</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'approvedAt') : (overview.sellerProfile ? getString(overview.sellerProfile, 'approvedAt') : '')) ? formatDate(isSellerResource ? getString(overview, 'approvedAt') : getString(overview.sellerProfile, 'approvedAt')) : '-' }}</strong>
                 </div>
               </article>
             </section>
@@ -510,127 +620,7 @@
               </div>
             </section>
           </template>
-          <template v-else-if="isSellerResource && sellerRelated">
-            <section class="overview-grid">
-              <article class="overview-hero-card">
-                <header class="overview-hero-header">
-                  <div>
-                    <p class="overview-eyebrow">Satıcı Genel Durum</p>
-                    <h3 class="overview-title">{{ getString(overview, 'businessName') || 'Satıcı' }}</h3>
-                  </div>
-                  <span class="status-pill">{{ getString(overview, 'status') || '-' }}</span>
-                </header>
-                <div class="overview-kpi-grid">
-                  <article class="overview-kpi">
-                    <p>Toplam Ciro</p>
-                    <strong>{{ formatMoney(sellerRelated.summary.grossMerchandiseValue, 'TRY') }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Toplam Satış</p>
-                    <strong>{{ sellerRelated.summary.saleCount }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Aktif Ürün</p>
-                    <strong>{{ sellerRelated.summary.activeProductCount }}</strong>
-                  </article>
-                  <article class="overview-kpi">
-                    <p>Aktif Müzayede</p>
-                    <strong>{{ sellerRelated.summary.activeAuctionCount }}</strong>
-                  </article>
-                </div>
-              </article>
 
-              <article class="overview-card">
-                <h4>Ürün Sağlığı</h4>
-                <div class="metric-row">
-                  <span>Aktif Ürün Oranı</span>
-                  <strong>{{ sellerActiveProductRate }}%</strong>
-                </div>
-                <div class="metric-track">
-                  <div class="metric-fill is-success" :style="{ width: `${sellerActiveProductRate}%` }"></div>
-                </div>
-                <div class="metric-row">
-                  <span>Taslak Ürün Oranı</span>
-                  <strong>{{ sellerDraftProductRate }}%</strong>
-                </div>
-                <div class="metric-track">
-                  <div class="metric-fill is-warning" :style="{ width: `${sellerDraftProductRate}%` }"></div>
-                </div>
-                <div class="metric-row">
-                  <span>İncelemedeki Ürün</span>
-                  <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Askıdaki/Stoksuz</span>
-                  <strong>{{ sellerRelated.summary.suspendedProductCount }} / {{ sellerRelated.summary.outOfStockProductCount }}</strong>
-                </div>
-              </article>
-
-              <article class="overview-card">
-                <h4>Ödeme & Risk</h4>
-                <div class="metric-row">
-                  <span>Bekleyen Ödeme Talebi</span>
-                  <strong>{{ sellerRelated.summary.pendingPayoutCount }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>İnceleme Bekleyen Ödeme</span>
-                  <strong>{{ sellerRelated.summary.adminReviewPaymentCount }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Toplam Ödeme Talebi</span>
-                  <strong>{{ sellerRelated.summary.payoutRequestCount }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Benzersiz Alıcı</span>
-                  <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
-                </div>
-              </article>
-
-              <article class="overview-card">
-                <h4>Hızlı Profil</h4>
-                <div class="metric-row">
-                  <span>Kullanıcı ID</span>
-                  <strong>{{ getString(overview, 'userId') || '-' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>E-posta</span>
-                  <strong>{{ getString(overview, 'userEmail') || '-' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Telefon</span>
-                  <strong>{{ getString(overview, 'phone') || '-' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Komisyon</span>
-                  <strong>%{{ Number(getString(overview, 'commissionRate') || 0) * 100 }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Adres Sayısı</span>
-                  <strong>{{ sellerRelated.summary.addressCount }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Kullanıcı Durumu</span>
-                  <strong>{{ getString(overview, 'userIsActive') === 'true' ? 'ACTIVE' : 'INACTIVE' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>E-posta Doğrulama</span>
-                  <strong>{{ getString(overview, 'userIsVerified') === 'true' ? 'DOĞRULU' : 'DOĞRUSUZ' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Sözleşme Versiyonu</span>
-                  <strong>{{ getString(overview, 'agreementVersion') || '-' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Sözleşme Tarihi</span>
-                  <strong>{{ getString(overview, 'agreementAcceptedAt') ? formatDate(getString(overview, 'agreementAcceptedAt')) : '-' }}</strong>
-                </div>
-                <div class="metric-row">
-                  <span>Onay Tarihi</span>
-                  <strong>{{ getString(overview, 'approvedAt') ? formatDate(getString(overview, 'approvedAt')) : '-' }}</strong>
-                </div>
-              </article>
-            </section>
-          </template>
           <template v-else-if="isProductResource && productRelated">
             <section class="overview-grid">
               <article class="overview-hero-card">
@@ -1087,672 +1077,635 @@
           </article>
         </div>
         <div v-else-if="activeTab === 'İlgili Kayıtlar'" class="related-section">
-          <template v-if="isUserResource && userRelated">
-            <section class="record-block">
-              <h3>Adresler</h3>
-              <div v-if="userRelated.addresses.length === 0" class="empty-state">
-                <i class="pi pi-map-marker empty-icon" />
-                <p>Adres kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Tip</th>
-                      <th>Başlık</th>
-                      <th>Ad Soyad</th>
-                      <th>Telefon</th>
-                      <th>Konum</th>
-                      <th>Varsayılan</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="address in userRelated.addresses" :key="address.id">
-                      <td>{{ shortId(address.id) }}</td>
-                      <td><span class="status-pill">{{ address.type }}</span></td>
-                      <td>{{ address.title || '-' }}</td>
-                      <td>{{ address.fullName || '-' }}</td>
-                      <td>{{ address.phone || '-' }}</td>
-                      <td>{{ `${address.city}/${address.district}` }}</td>
-                      <td>
-                        <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
-                          {{ address.isDefault ? 'EVET' : 'HAYIR' }}
-                        </span>
-                      </td>
-                      <td>{{ formatDate(address.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+          <template v-if="isUserResource || isSellerResource">
+            <!-- ALICI GEÇMİŞİ VE HESAP BİLGİLERİ -->
+            <template v-if="userRelated">
+              <h2 class="section-title" style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700; color: var(--text-strong);">Alıcı Geçmişi</h2>
+              
+              <section class="record-block">
+                <h3>Adresler</h3>
+                <div v-if="userRelated.addresses.length === 0" class="empty-state">
+                  <i class="pi pi-map-marker empty-icon" />
+                  <p>Adres kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Tip</th>
+                        <th>Başlık</th>
+                        <th>Ad Soyad</th>
+                        <th>Telefon</th>
+                        <th>Konum</th>
+                        <th>Varsayılan</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="address in userRelated.addresses" :key="address.id">
+                        <td>{{ shortId(address.id) }}</td>
+                        <td><span class="status-pill">{{ address.type }}</span></td>
+                        <td>{{ address.title || '-' }}</td>
+                        <td>{{ address.fullName || '-' }}</td>
+                        <td>{{ address.phone || '-' }}</td>
+                        <td>{{ `${address.city}/${address.district}` }}</td>
+                        <td>
+                          <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
+                            {{ address.isDefault ? 'EVET' : 'HAYIR' }}
+                          </span>
+                        </td>
+                        <td>{{ formatDate(address.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Geçmiş Siparişler</h3>
-              <div v-if="userRelated.orders.length === 0" class="empty-state">
-                <i class="pi pi-shopping-bag empty-icon" />
-                <p>Sipariş kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Satıcı</th>
-                      <th>Tutar</th>
-                      <th>Durum</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="order in userRelated.orders" :key="order.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToOrderDetail(order.id)">
-                          {{ shortId(order.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(order.productId)">
-                          {{ order.productTitle || shortId(order.productId) }}
-                        </button>
-                      </td>
-                      <td>{{ order.counterpartName || order.counterpartEmail || shortId(order.counterpartId) }}</td>
-                      <td>{{ formatMoney(order.amount, order.currency) }}</td>
-                      <td><span class="status-pill">{{ order.status }}</span></td>
-                      <td>{{ formatDate(order.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('orders')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('orders')"
-                  @click="loadMore('orders')"
-                >
-                  {{ isLoadingMore('orders') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Geçmiş Siparişler</h3>
+                <div v-if="userRelated.orders.length === 0" class="empty-state">
+                  <i class="pi pi-shopping-bag empty-icon" />
+                  <p>Sipariş kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Ürün</th>
+                        <th>Satıcı</th>
+                        <th>Tutar</th>
+                        <th>Durum</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="order in userRelated.orders" :key="order.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToOrderDetail(order.id)">
+                            {{ shortId(order.id) }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(order.productId)">
+                            {{ order.productTitle || shortId(order.productId) }}
+                          </button>
+                        </td>
+                        <td>{{ order.counterpartName || order.counterpartEmail || shortId(order.counterpartId) }}</td>
+                        <td>{{ formatMoney(order.amount, order.currency) }}</td>
+                        <td><span class="status-pill">{{ order.status }}</span></td>
+                        <td>{{ formatDate(order.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="record-footer" v-if="canLoadMore('orders')">
+                  <button
+                    type="button"
+                    class="button ghost load-more-button"
+                    :disabled="isLoadingMore('orders')"
+                    @click="loadMore('orders')"
+                  >
+                    {{ isLoadingMore('orders') ? 'Yükleniyor...' : 'Daha fazla göster' }}
+                  </button>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Geçmiş Satışlar</h3>
-              <div v-if="userRelated.sales.length === 0" class="empty-state">
-                <i class="pi pi-money-bill empty-icon" />
-                <p>Satış kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Alıcı</th>
-                      <th>Tutar</th>
-                      <th>Durum</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="sale in userRelated.sales" :key="sale.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToOrderDetail(sale.id)">
-                          {{ shortId(sale.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(sale.productId)">
-                          {{ sale.productTitle || shortId(sale.productId) }}
-                        </button>
-                      </td>
-                      <td>{{ sale.counterpartName || sale.counterpartEmail || shortId(sale.counterpartId) }}</td>
-                      <td>{{ formatMoney(sale.amount, sale.currency) }}</td>
-                      <td><span class="status-pill">{{ sale.status }}</span></td>
-                      <td>{{ formatDate(sale.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('sales')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('sales')"
-                  @click="loadMore('sales')"
-                >
-                  {{ isLoadingMore('sales') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Favoriye Eklenen Ürünler</h3>
+                <div v-if="userRelated.favorites.length === 0" class="empty-state">
+                  <i class="pi pi-heart empty-icon" />
+                  <p>Favori kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Ürün</th>
+                        <th>Durum</th>
+                        <th>Fiyat</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="favorite in userRelated.favorites" :key="favorite.id">
+                        <td>{{ shortId(favorite.id) }}</td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(favorite.productId)">
+                            {{ favorite.productTitle || shortId(favorite.productId) }}
+                          </button>
+                        </td>
+                        <td><span class="status-pill">{{ favorite.productStatus || '-' }}</span></td>
+                        <td>{{ favorite.productPrice === null ? '-' : formatMoney(favorite.productPrice, 'TRY') }}</td>
+                        <td>{{ formatDate(favorite.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="record-footer" v-if="canLoadMore('favorites')">
+                  <button
+                    type="button"
+                    class="button ghost load-more-button"
+                    :disabled="isLoadingMore('favorites')"
+                    @click="loadMore('favorites')"
+                  >
+                    {{ isLoadingMore('favorites') ? 'Yükleniyor...' : 'Daha fazla göster' }}
+                  </button>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Favoriye Eklenen Ürünler</h3>
-              <div v-if="userRelated.favorites.length === 0" class="empty-state">
-                <i class="pi pi-heart empty-icon" />
-                <p>Favori kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Durum</th>
-                      <th>Fiyat</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="favorite in userRelated.favorites" :key="favorite.id">
-                      <td>{{ shortId(favorite.id) }}</td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(favorite.productId)">
-                          {{ favorite.productTitle || shortId(favorite.productId) }}
-                        </button>
-                      </td>
-                      <td><span class="status-pill">{{ favorite.productStatus || '-' }}</span></td>
-                      <td>{{ favorite.productPrice === null ? '-' : formatMoney(favorite.productPrice, 'TRY') }}</td>
-                      <td>{{ formatDate(favorite.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('favorites')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('favorites')"
-                  @click="loadMore('favorites')"
-                >
-                  {{ isLoadingMore('favorites') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Sepet</h3>
+                <div v-if="userRelated.cart.length === 0" class="empty-state">
+                  <i class="pi pi-shopping-cart empty-icon" />
+                  <p>Sepet boş.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Ürün</th>
+                        <th>Adet</th>
+                        <th>Durum</th>
+                        <th>Fiyat</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="item in userRelated.cart" :key="item.id">
+                        <td>{{ shortId(item.id) }}</td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(item.productId)">
+                            {{ item.productTitle || shortId(item.productId) }}
+                          </button>
+                        </td>
+                        <td>{{ item.quantity }}</td>
+                        <td><span class="status-pill">{{ item.productStatus || '-' }}</span></td>
+                        <td>{{ item.productPrice === null ? '-' : formatMoney(item.productPrice, 'TRY') }}</td>
+                        <td>{{ formatDate(item.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="record-footer" v-if="canLoadMore('cart')">
+                  <button
+                    type="button"
+                    class="button ghost load-more-button"
+                    :disabled="isLoadingMore('cart')"
+                    @click="loadMore('cart')"
+                  >
+                    {{ isLoadingMore('cart') ? 'Yükleniyor...' : 'Daha fazla göster' }}
+                  </button>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Sepet</h3>
-              <div v-if="userRelated.cart.length === 0" class="empty-state">
-                <i class="pi pi-shopping-cart empty-icon" />
-                <p>Sepet boş.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Adet</th>
-                      <th>Durum</th>
-                      <th>Fiyat</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in userRelated.cart" :key="item.id">
-                      <td>{{ shortId(item.id) }}</td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(item.productId)">
-                          {{ item.productTitle || shortId(item.productId) }}
-                        </button>
-                      </td>
-                      <td>{{ item.quantity }}</td>
-                      <td><span class="status-pill">{{ item.productStatus || '-' }}</span></td>
-                      <td>{{ item.productPrice === null ? '-' : formatMoney(item.productPrice, 'TRY') }}</td>
-                      <td>{{ formatDate(item.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('cart')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('cart')"
-                  @click="loadMore('cart')"
-                >
-                  {{ isLoadingMore('cart') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Kupon Kullanım Geçmişi</h3>
+                <div v-if="userRelated.coupons.usage.length === 0" class="empty-state">
+                  <i class="pi pi-percentage empty-icon" />
+                  <p>Kupon kullanım kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Kupon</th>
+                        <th>Durum</th>
+                        <th>Sipariş</th>
+                        <th>İndirim</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="usage in userRelated.coupons.usage" :key="usage.id">
+                        <td>{{ shortId(usage.id) }}</td>
+                        <td>{{ usage.couponCode || shortId(usage.couponId) }}</td>
+                        <td><span class="status-pill">{{ usage.couponStatus || '-' }}</span></td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToOrderDetail(usage.orderId)">
+                            {{ shortId(usage.orderId) }}
+                          </button>
+                        </td>
+                        <td>{{ formatMoney(usage.discountAmount, usage.currency) }}</td>
+                        <td>{{ formatDate(usage.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="record-footer" v-if="canLoadMore('couponUsage')">
+                  <button
+                    type="button"
+                    class="button ghost load-more-button"
+                    :disabled="isLoadingMore('couponUsage')"
+                    @click="loadMore('couponUsage')"
+                  >
+                    {{ isLoadingMore('couponUsage') ? 'Yükleniyor...' : 'Daha fazla göster' }}
+                  </button>
+                </div>
+              </section>
+            </template>
 
-            <section class="record-block">
-              <h3>Tanımlanan Kuponlar</h3>
-              <div v-if="userRelated.coupons.defined.length === 0" class="empty-state">
-                <i class="pi pi-ticket empty-icon" />
-                <p>Tanımlı kupon yok.</p>
+            <!-- SATICI GEÇMİŞİ -->
+            <template v-if="sellerRelated">
+              <h2 class="section-title" style="margin-top: 2rem; margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700; color: var(--text-strong);">Satıcı Geçmişi</h2>
+              
+              <div class="summary-grid">
+                <article class="summary-card">
+                  <p class="summary-label">Toplam Ürün</p>
+                  <strong>{{ sellerRelated.summary.productCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Aktif Ürün</p>
+                  <strong>{{ sellerRelated.summary.activeProductCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Taslak Ürün</p>
+                  <strong>{{ sellerRelated.summary.draftProductCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">İncelemede Ürün</p>
+                  <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Askıdaki Ürün</p>
+                  <strong>{{ sellerRelated.summary.suspendedProductCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Stoksuz Ürün</p>
+                  <strong>{{ sellerRelated.summary.outOfStockProductCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Toplam Satış</p>
+                  <strong>{{ sellerRelated.summary.saleCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Tamamlanan Satış</p>
+                  <strong>{{ sellerRelated.summary.completedSaleCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Benzersiz Alıcı</p>
+                  <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Toplam Ciro</p>
+                  <strong>{{ formatMoney(sellerRelated.summary.grossMerchandiseValue, 'TRY') }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Müzayede (Aktif/Toplam)</p>
+                  <strong>{{ sellerRelated.summary.activeAuctionCount }} / {{ sellerRelated.summary.auctionCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Kupon Sayısı</p>
+                  <strong>{{ sellerRelated.summary.couponCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Ödeme Talepleri</p>
+                  <strong>{{ sellerRelated.summary.payoutRequestCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Bekleyen Ödeme Talebi</p>
+                  <strong>{{ sellerRelated.summary.pendingPayoutCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">İnceleme Bekleyen Ödeme</p>
+                  <strong>{{ sellerRelated.summary.adminReviewPaymentCount }}</strong>
+                </article>
+                <article class="summary-card">
+                  <p class="summary-label">Adres Sayısı</p>
+                  <strong>{{ sellerRelated.summary.addressCount }}</strong>
+                </article>
               </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>Kod</th>
-                      <th>Durum</th>
-                      <th>Kullanım Durumu</th>
-                      <th>İndirim</th>
-                      <th>Kullanım</th>
-                      <th>Limit</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="coupon in userRelated.coupons.defined" :key="coupon.id">
-                      <td>{{ coupon.code }}</td>
-                      <td><span class="status-pill">{{ coupon.status }}</span></td>
-                      <td>
-                        <span class="status-pill" :class="couponUsageStateClass(coupon)">
-                          {{ couponUsageStateLabel(coupon) }}
-                        </span>
-                      </td>
-                      <td>{{ coupon.discountType }} / {{ coupon.discountValue }}</td>
-                      <td>{{ coupon.totalUses }}</td>
-                      <td>{{ coupon.maxUses === null ? 'Sınırsız' : coupon.maxUses }}</td>
-                      <td>{{ formatDate(coupon.startsAt) }} - {{ formatDate(coupon.endsAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('couponDefinitions')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('couponDefinitions')"
-                  @click="loadMore('couponDefinitions')"
-                >
-                  {{ isLoadingMore('couponDefinitions') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
 
-            <section class="record-block">
-              <h3>Kupon Kullanım Geçmişi</h3>
-              <div v-if="userRelated.coupons.usage.length === 0" class="empty-state">
-                <i class="pi pi-percentage empty-icon" />
-                <p>Kupon kullanım kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Kupon</th>
-                      <th>Durum</th>
-                      <th>Sipariş</th>
-                      <th>İndirim</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="usage in userRelated.coupons.usage" :key="usage.id">
-                      <td>{{ shortId(usage.id) }}</td>
-                      <td>{{ usage.couponCode || shortId(usage.couponId) }}</td>
-                      <td><span class="status-pill">{{ usage.couponStatus || '-' }}</span></td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToOrderDetail(usage.orderId)">
-                          {{ shortId(usage.orderId) }}
-                        </button>
-                      </td>
-                      <td>{{ formatMoney(usage.discountAmount, usage.currency) }}</td>
-                      <td>{{ formatDate(usage.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="record-footer" v-if="canLoadMore('couponUsage')">
-                <button
-                  type="button"
-                  class="button ghost load-more-button"
-                  :disabled="isLoadingMore('couponUsage')"
-                  @click="loadMore('couponUsage')"
-                >
-                  {{ isLoadingMore('couponUsage') ? 'Yükleniyor...' : 'Daha fazla göster' }}
-                </button>
-              </div>
-            </section>
-          </template>
-          <template v-else-if="isSellerResource && sellerRelated">
-            <div class="summary-grid">
-              <article class="summary-card">
-                <p class="summary-label">Toplam Ürün</p>
-                <strong>{{ sellerRelated.summary.productCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Aktif Ürün</p>
-                <strong>{{ sellerRelated.summary.activeProductCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Taslak Ürün</p>
-                <strong>{{ sellerRelated.summary.draftProductCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">İncelemede Ürün</p>
-                <strong>{{ sellerRelated.summary.reviewProductCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Askıdaki Ürün</p>
-                <strong>{{ sellerRelated.summary.suspendedProductCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Stoksuz Ürün</p>
-                <strong>{{ sellerRelated.summary.outOfStockProductCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Toplam Satış</p>
-                <strong>{{ sellerRelated.summary.saleCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Tamamlanan Satış</p>
-                <strong>{{ sellerRelated.summary.completedSaleCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Benzersiz Alıcı</p>
-                <strong>{{ sellerRelated.summary.uniqueBuyerCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Toplam Ciro</p>
-                <strong>{{ formatMoney(sellerRelated.summary.grossMerchandiseValue, 'TRY') }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Müzayede (Aktif/Toplam)</p>
-                <strong>{{ sellerRelated.summary.activeAuctionCount }} / {{ sellerRelated.summary.auctionCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Kupon Sayısı</p>
-                <strong>{{ sellerRelated.summary.couponCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Ödeme Talepleri</p>
-                <strong>{{ sellerRelated.summary.payoutRequestCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Bekleyen Ödeme Talebi</p>
-                <strong>{{ sellerRelated.summary.pendingPayoutCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">İnceleme Bekleyen Ödeme</p>
-                <strong>{{ sellerRelated.summary.adminReviewPaymentCount }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Adres Sayısı</p>
-                <strong>{{ sellerRelated.summary.addressCount }}</strong>
-              </article>
-            </div>
+              <!-- Only show Address block from sellerRelated if userRelated is NOT present -->
+              <section v-if="!userRelated" class="record-block">
+                <h3>Adresler</h3>
+                <div v-if="sellerRelated.addresses.length === 0" class="empty-state">
+                  <i class="pi pi-map-marker empty-icon" />
+                  <p>Adres kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Tip</th>
+                        <th>Başlık</th>
+                        <th>Ad Soyad</th>
+                        <th>Telefon</th>
+                        <th>Konum</th>
+                        <th>Varsayılan</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="address in sellerRelated.addresses" :key="address.id">
+                        <td>{{ shortId(address.id) }}</td>
+                        <td><span class="status-pill">{{ address.type }}</span></td>
+                        <td>{{ address.title || '-' }}</td>
+                        <td>{{ address.fullName || '-' }}</td>
+                        <td>{{ address.phone || '-' }}</td>
+                        <td>{{ `${address.city}/${address.district}` }}</td>
+                        <td>
+                          <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
+                            {{ address.isDefault ? 'EVET' : 'HAYIR' }}
+                          </span>
+                        </td>
+                        <td>{{ formatDate(address.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Adresler</h3>
-              <div v-if="sellerRelated.addresses.length === 0" class="empty-state">
-                <i class="pi pi-map-marker empty-icon" />
-                <p>Adres kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Tip</th>
-                      <th>Başlık</th>
-                      <th>Ad Soyad</th>
-                      <th>Telefon</th>
-                      <th>Konum</th>
-                      <th>Varsayılan</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="address in sellerRelated.addresses" :key="address.id">
-                      <td>{{ shortId(address.id) }}</td>
-                      <td><span class="status-pill">{{ address.type }}</span></td>
-                      <td>{{ address.title || '-' }}</td>
-                      <td>{{ address.fullName || '-' }}</td>
-                      <td>{{ address.phone || '-' }}</td>
-                      <td>{{ `${address.city}/${address.district}` }}</td>
-                      <td>
-                        <span class="status-pill" :class="address.isDefault ? 'is-success' : 'is-muted'">
-                          {{ address.isDefault ? 'EVET' : 'HAYIR' }}
-                        </span>
-                      </td>
-                      <td>{{ formatDate(address.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Son Ürünler</h3>
+                <div v-if="sellerRelated.products.length === 0" class="empty-state">
+                  <i class="pi pi-box empty-icon" />
+                  <p>Ürün kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Başlık</th>
+                        <th>Durum</th>
+                        <th>Fiyat</th>
+                        <th>Stok</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="product in sellerRelated.products" :key="product.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(product.id)">
+                            {{ shortId(product.id) }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(product.id)">
+                            {{ product.title || shortId(product.id) }}
+                          </button>
+                        </td>
+                        <td><span class="status-pill">{{ product.status }}</span></td>
+                        <td>{{ formatMoney(product.price, 'TRY') }}</td>
+                        <td>{{ product.stockQuantity }}</td>
+                        <td>{{ formatDate(product.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Son Ürünler</h3>
-              <div v-if="sellerRelated.products.length === 0" class="empty-state">
-                <i class="pi pi-box empty-icon" />
-                <p>Ürün kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Başlık</th>
-                      <th>Durum</th>
-                      <th>Fiyat</th>
-                      <th>Stok</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="product in sellerRelated.products" :key="product.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(product.id)">
-                          {{ shortId(product.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(product.id)">
-                          {{ product.title || shortId(product.id) }}
-                        </button>
-                      </td>
-                      <td><span class="status-pill">{{ product.status }}</span></td>
-                      <td>{{ formatMoney(product.price, 'TRY') }}</td>
-                      <td>{{ product.stockQuantity }}</td>
-                      <td>{{ formatDate(product.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <!-- Only show sales block from sellerRelated if userRelated is NOT present (since userRelated.sales has pagination and loadMore) -->
+              <section v-if="!userRelated" class="record-block">
+                <h3>Son Satışlar</h3>
+                <div v-if="sellerRelated.sales.length === 0" class="empty-state">
+                  <i class="pi pi-money-bill empty-icon" />
+                  <p>Satış kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Ürün</th>
+                        <th>Alıcı</th>
+                        <th>Tutar</th>
+                        <th>Durum</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="sale in sellerRelated.sales" :key="sale.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToOrderDetail(sale.id)">
+                            {{ shortId(sale.id) }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(sale.productId)">
+                            {{ sale.productTitle || shortId(sale.productId) }}
+                          </button>
+                        </td>
+                        <td>{{ sale.counterpartName || sale.counterpartEmail || shortId(sale.counterpartId) }}</td>
+                        <td>{{ formatMoney(sale.amount, sale.currency) }}</td>
+                        <td><span class="status-pill">{{ sale.status }}</span></td>
+                        <td>{{ formatDate(sale.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Son Satışlar</h3>
-              <div v-if="sellerRelated.sales.length === 0" class="empty-state">
-                <i class="pi pi-money-bill empty-icon" />
-                <p>Satış kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Alıcı</th>
-                      <th>Tutar</th>
-                      <th>Durum</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="sale in sellerRelated.sales" :key="sale.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToOrderDetail(sale.id)">
-                          {{ shortId(sale.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(sale.productId)">
-                          {{ sale.productTitle || shortId(sale.productId) }}
-                        </button>
-                      </td>
-                      <td>{{ sale.counterpartName || sale.counterpartEmail || shortId(sale.counterpartId) }}</td>
-                      <td>{{ formatMoney(sale.amount, sale.currency) }}</td>
-                      <td><span class="status-pill">{{ sale.status }}</span></td>
-                      <td>{{ formatDate(sale.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Son Müzayedeler</h3>
+                <div v-if="sellerRelated.auctions.length === 0" class="empty-state">
+                  <i class="pi pi-clock empty-icon" />
+                  <p>Müzayede kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Ürün</th>
+                        <th>Durum</th>
+                        <th>Güncel Fiyat</th>
+                        <th>Reserve</th>
+                        <th>Reserve Durumu</th>
+                        <th>Teklif</th>
+                        <th>Bitiş</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="auction in sellerRelated.auctions" :key="auction.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToAuctionDetail(auction.id)">
+                            {{ shortId(auction.id) }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="link-inline" @click="goToProductDetail(auction.productId)">
+                            {{ shortId(auction.productId) }}
+                          </button>
+                        </td>
+                        <td><span class="status-pill">{{ auction.status }}</span></td>
+                        <td>{{ formatMoney(auction.currentPrice, 'TRY') }}</td>
+                        <td>{{ formatReserveLabel(auction.reservePrice) }}</td>
+                        <td>{{ formatReserveState(auction.reservePrice, auction.reserveMet) }}</td>
+                        <td>{{ auction.bidCount }}</td>
+                        <td>{{ formatDate(auction.endTime) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Son Müzayedeler</h3>
-              <div v-if="sellerRelated.auctions.length === 0" class="empty-state">
-                <i class="pi pi-clock empty-icon" />
-                <p>Müzayede kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Ürün</th>
-                      <th>Durum</th>
-                      <th>Güncel Fiyat</th>
-                      <th>Reserve</th>
-                      <th>Reserve Durumu</th>
-                      <th>Teklif</th>
-                      <th>Bitiş</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="auction in sellerRelated.auctions" :key="auction.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToAuctionDetail(auction.id)">
-                          {{ shortId(auction.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button type="button" class="link-inline" @click="goToProductDetail(auction.productId)">
-                          {{ shortId(auction.productId) }}
-                        </button>
-                      </td>
-                      <td><span class="status-pill">{{ auction.status }}</span></td>
-                      <td>{{ formatMoney(auction.currentPrice, 'TRY') }}</td>
-                      <td>{{ formatReserveLabel(auction.reservePrice) }}</td>
-                      <td>{{ formatReserveState(auction.reservePrice, auction.reserveMet) }}</td>
-                      <td>{{ auction.bidCount }}</td>
-                      <td>{{ formatDate(auction.endTime) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <!-- Only show coupons block from sellerRelated if userRelated is NOT present (since userRelated.coupons.defined has pagination and loadMore) -->
+              <section v-if="!userRelated" class="record-block">
+                <h3>Son Kuponlar</h3>
+                <div v-if="sellerRelated.coupons.length === 0" class="empty-state">
+                  <i class="pi pi-ticket empty-icon" />
+                  <p>Kupon kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Kod</th>
+                        <th>Durum</th>
+                        <th>İndirim</th>
+                        <th>Limit</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="coupon in sellerRelated.coupons" :key="coupon.id">
+                        <td>{{ coupon.code }}</td>
+                        <td><span class="status-pill">{{ coupon.status }}</span></td>
+                        <td>{{ coupon.discountType }} / {{ coupon.discountValue }}</td>
+                        <td>{{ coupon.maxUses === null ? 'Sınırsız' : coupon.maxUses }}</td>
+                        <td>{{ formatDate(coupon.startsAt) }} - {{ formatDate(coupon.endsAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Son Kuponlar</h3>
-              <div v-if="sellerRelated.coupons.length === 0" class="empty-state">
-                <i class="pi pi-ticket empty-icon" />
-                <p>Kupon kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>Kod</th>
-                      <th>Durum</th>
-                      <th>İndirim</th>
-                      <th>Limit</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="coupon in sellerRelated.coupons" :key="coupon.id">
-                      <td>{{ coupon.code }}</td>
-                      <td><span class="status-pill">{{ coupon.status }}</span></td>
-                      <td>{{ coupon.discountType }} / {{ coupon.discountValue }}</td>
-                      <td>{{ coupon.maxUses === null ? 'Sınırsız' : coupon.maxUses }}</td>
-                      <td>{{ formatDate(coupon.startsAt) }} - {{ formatDate(coupon.endsAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <!-- If userRelated IS loaded, we render the paginated Tanımlanan Kuponlar block here under Satıcı Geçmişi -->
+              <section v-else class="record-block">
+                <h3>Tanımlanan Kuponlar</h3>
+                <div v-if="userRelated.coupons.defined.length === 0" class="empty-state">
+                  <i class="pi pi-ticket empty-icon" />
+                  <p>Tanımlı kupon yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Kod</th>
+                        <th>Durum</th>
+                        <th>Kullanım Durumu</th>
+                        <th>İndirim</th>
+                        <th>Kullanım</th>
+                        <th>Limit</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="coupon in userRelated.coupons.defined" :key="coupon.id">
+                        <td>{{ coupon.code }}</td>
+                        <td><span class="status-pill">{{ coupon.status }}</span></td>
+                        <td>
+                          <span class="status-pill" :class="couponUsageStateClass(coupon)">
+                            {{ couponUsageStateLabel(coupon) }}
+                          </span>
+                        </td>
+                        <td>{{ coupon.discountType }} / {{ coupon.discountValue }}</td>
+                        <td>{{ coupon.totalUses }}</td>
+                        <td>{{ coupon.maxUses === null ? 'Sınırsız' : coupon.maxUses }}</td>
+                        <td>{{ formatDate(coupon.startsAt) }} - {{ formatDate(coupon.endsAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="record-footer" v-if="canLoadMore('couponDefinitions')">
+                  <button
+                    type="button"
+                    class="button ghost load-more-button"
+                    :disabled="isLoadingMore('couponDefinitions')"
+                    @click="loadMore('couponDefinitions')"
+                  >
+                    {{ isLoadingMore('couponDefinitions') ? 'Yükleniyor...' : 'Daha fazla göster' }}
+                  </button>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Satış Ödemeleri</h3>
-              <div v-if="sellerRelated.payments.length === 0" class="empty-state">
-                <i class="pi pi-credit-card empty-icon" />
-                <p>Ödeme kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Sipariş</th>
-                      <th>Durum</th>
-                      <th>Tutar</th>
-                      <th>Ödendi</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="payment in sellerRelated.payments" :key="payment.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToPaymentDetail(payment.id)">
-                          {{ shortId(payment.id) }}
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          v-if="payment.orderId"
-                          type="button"
-                          class="link-inline"
-                          @click="goToOrderDetail(payment.orderId)"
-                        >
-                          {{ shortId(payment.orderId) }}
-                        </button>
-                        <span v-else>-</span>
-                      </td>
-                      <td><span class="status-pill">{{ payment.status }}</span></td>
-                      <td>{{ formatMoney(payment.amount, payment.currency) }}</td>
-                      <td>{{ payment.paidAt ? formatDate(payment.paidAt) : '-' }}</td>
-                      <td>{{ formatDate(payment.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Satış Ödemeleri</h3>
+                <div v-if="sellerRelated.payments.length === 0" class="empty-state">
+                  <i class="pi pi-credit-card empty-icon" />
+                  <p>Ödeme kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Sipariş</th>
+                        <th>Durum</th>
+                        <th>Tutar</th>
+                        <th>Ödendi</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="payment in sellerRelated.payments" :key="payment.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToPaymentDetail(payment.id)">
+                            {{ shortId(payment.id) }}
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            v-if="payment.orderId"
+                            type="button"
+                            class="link-inline"
+                            @click="goToOrderDetail(payment.orderId)"
+                          >
+                            {{ shortId(payment.orderId) }}
+                          </button>
+                          <span v-else>-</span>
+                        </td>
+                        <td><span class="status-pill">{{ payment.status }}</span></td>
+                        <td>{{ formatMoney(payment.amount, payment.currency) }}</td>
+                        <td>{{ payment.paidAt ? formatDate(payment.paidAt) : '-' }}</td>
+                        <td>{{ formatDate(payment.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
-            <section class="record-block">
-              <h3>Ödeme Talepleri</h3>
-              <div v-if="sellerRelated.payouts.length === 0" class="empty-state">
-                <i class="pi pi-wallet empty-icon" />
-                <p>Ödeme talebi kaydı yok.</p>
-              </div>
-              <div v-else class="table-wrap">
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Durum</th>
-                      <th>Tutar</th>
-                      <th>İnceleme</th>
-                      <th>Tarih</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="payout in sellerRelated.payouts" :key="payout.id">
-                      <td>
-                        <button type="button" class="link-inline" @click="goToPayoutDetail(payout.id)">
-                          {{ shortId(payout.id) }}
-                        </button>
-                      </td>
-                      <td><span class="status-pill">{{ payout.status }}</span></td>
-                      <td>{{ formatMoney(payout.amount, payout.currency) }}</td>
-                      <td>{{ payout.reviewedAt ? formatDate(payout.reviewedAt) : '-' }}</td>
-                      <td>{{ formatDate(payout.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <section class="record-block">
+                <h3>Ödeme Talepleri</h3>
+                <div v-if="sellerRelated.payouts.length === 0" class="empty-state">
+                  <i class="pi pi-wallet empty-icon" />
+                  <p>Ödeme talebi kaydı yok.</p>
+                </div>
+                <div v-else class="table-wrap">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Durum</th>
+                        <th>Tutar</th>
+                        <th>İnceleme</th>
+                        <th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="payout in sellerRelated.payouts" :key="payout.id">
+                        <td>
+                          <button type="button" class="link-inline" @click="goToPayoutDetail(payout.id)">
+                            {{ shortId(payout.id) }}
+                          </button>
+                        </td>
+                        <td><span class="status-pill">{{ payout.status }}</span></td>
+                        <td>{{ formatMoney(payout.amount, payout.currency) }}</td>
+                        <td>{{ payout.reviewedAt ? formatDate(payout.reviewedAt) : '-' }}</td>
+                        <td>{{ formatDate(payout.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </template>
           </template>
           <template v-else-if="isProductResource && productRelated">
             <div class="summary-grid">
@@ -3195,14 +3148,52 @@ const actionConfigs: Record<string, ActionConfig[]> = {
 
 const rowActions = computed(() => {
   if (props.readOnly) return [];
-  const actions = actionConfigs[props.resource] ?? [];
-  return actions.filter((action) => {
-    if (!action.when) return true;
-    return action.when(overview.value);
+  const list: ActionConfig[] = [];
+
+  // Core Resource Actions
+  const coreActions = actionConfigs[props.resource] ?? [];
+  coreActions.forEach((action) => {
+    if (!action.when || action.when(overview.value)) {
+      list.push(action);
+    }
   });
+
+  // Auxiliary Resource Actions (User/Seller merge)
+  if (isUserResource.value) {
+    const sellerProfile = overview.value.sellerProfile as Record<string, unknown> | null;
+    if (sellerProfile) {
+      const sellerActions = actionConfigs.sellers ?? [];
+      sellerActions.forEach((action) => {
+        if (!action.when || action.when(sellerProfile)) {
+          list.push(action);
+        }
+      });
+    }
+  } else if (isSellerResource.value) {
+    const user = overview.value.user as Record<string, unknown> | null;
+    if (user) {
+      const userActions = actionConfigs.users ?? [];
+      userActions.forEach((action) => {
+        if (!action.when || action.when(user)) {
+          list.push(action);
+        }
+      });
+    }
+  }
+
+  return list;
 });
 const drawerTitle = computed(() => selectedAction.value?.label ?? 'Yönetici işlemi');
-const drawerFields = computed(() => selectedAction.value?.fields?.(overview.value) ?? []);
+const drawerFields = computed(() => {
+  if (!selectedAction.value?.fields) return [];
+  let targetRow = overview.value;
+  if (isUserResource.value && (selectedAction.value.key === 'editSeller' || selectedAction.value.key === 'approve' || selectedAction.value.key === 'reject')) {
+    targetRow = (overview.value.sellerProfile as Record<string, unknown>) ?? overview.value;
+  } else if (isSellerResource.value && (selectedAction.value.key === 'restrict' || selectedAction.value.key === 'reactivate')) {
+    targetRow = (overview.value.user as Record<string, unknown>) ?? overview.value;
+  }
+  return selectedAction.value.fields(targetRow);
+});
 const drawerConfirmLabel = computed(() => selectedAction.value?.confirmLabel ?? 'Onayla');
 const drawerPresentation = computed(() => selectedAction.value?.presentation ?? 'drawer');
 const drawerPageSize = computed(() => selectedAction.value?.pageSize ?? 0);
@@ -3547,13 +3538,22 @@ async function confirmAction(payload: DrawerConfirmPayload) {
 
   const body: Record<string, unknown> = { reason: payload.reason, metadata: payload.values };
 
+  let targetId = props.id;
+  if (isSellerResource.value && (selectedAction.value.key === 'restrict' || selectedAction.value.key === 'reactivate')) {
+    const userId = overview.value.userId || (overview.value.user as any)?.id;
+    if (userId) targetId = String(userId);
+  } else if (isUserResource.value && (selectedAction.value.key === 'approve' || selectedAction.value.key === 'reject' || selectedAction.value.key === 'editSeller')) {
+    const sellerId = (overview.value.sellerProfile as any)?.id;
+    if (sellerId) targetId = String(sellerId);
+  }
+
   try {
     if (selectedAction.value.method === 'delete') {
-      await adminApi.delete(selectedAction.value.path(props.id), { data: body });
+      await adminApi.delete(selectedAction.value.path(targetId), { data: body });
     } else if (selectedAction.value.method === 'post') {
-      await adminApi.post(selectedAction.value.path(props.id), body);
+      await adminApi.post(selectedAction.value.path(targetId), body);
     } else {
-      await adminApi.patch(selectedAction.value.path(props.id), body);
+      await adminApi.patch(selectedAction.value.path(targetId), body);
     }
     closeDrawer();
     await loadDetail();
@@ -3986,12 +3986,48 @@ async function loadDetail() {
     relatedRecords.value = response.data.relatedRecords ?? {};
     if (isUserResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
       userRelated.value = normalizeUserRelated(relatedRecords.value as Partial<UserRelatedRecords>);
-      sellerRelated.value = null;
+      if (relatedRecords.value.sellerSummary) {
+        sellerRelated.value = normalizeSellerRelated({
+          summary: relatedRecords.value.sellerSummary as any,
+          products: relatedRecords.value.products as any,
+          sales: relatedRecords.value.sales as any,
+          auctions: relatedRecords.value.auctions as any,
+          payouts: relatedRecords.value.payouts as any,
+          coupons: (relatedRecords.value.coupons as any)?.defined ?? [],
+          payments: relatedRecords.value.payments as any,
+          addresses: relatedRecords.value.addresses as any,
+        });
+      } else {
+        sellerRelated.value = null;
+      }
       productRelated.value = null;
       bidRelated.value = null;
     } else if (isSellerResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {
       sellerRelated.value = normalizeSellerRelated(relatedRecords.value as Partial<SellerRelatedRecords>);
-      userRelated.value = null;
+      if (relatedRecords.value.userSummary) {
+        userRelated.value = normalizeUserRelated({
+          summary: relatedRecords.value.userSummary as any,
+          orders: relatedRecords.value.orders as any,
+          sales: relatedRecords.value.sales as any,
+          addresses: relatedRecords.value.addresses as any,
+          favorites: relatedRecords.value.favorites as any,
+          cart: relatedRecords.value.cart as any,
+          coupons: {
+            defined: [],
+            usage: relatedRecords.value.couponUsage as any,
+          },
+          pagination: {
+            orders: toDefaultPagination(),
+            sales: toDefaultPagination(),
+            favorites: toDefaultPagination(),
+            cart: toDefaultPagination(),
+            couponDefinitions: toDefaultPagination(),
+            couponUsage: toDefaultPagination(),
+          },
+        });
+      } else {
+        userRelated.value = null;
+      }
       productRelated.value = null;
       bidRelated.value = null;
     } else if (isProductResource.value && relatedRecords.value && typeof relatedRecords.value === 'object') {

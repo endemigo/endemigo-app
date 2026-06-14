@@ -19,6 +19,8 @@ import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, Horizon
 import { storage } from '../lib/storage';
 import { useAuthStore } from '../store/authStore';
 import { useRoleModeStore } from '../store/roleModeStore';
+import { useRecentlyViewedStore } from '../store/recentlyViewedStore';
+import { useModalStore } from '../store/modalStore';
 import { styles } from '../styles/tabs/index.styles';
 import {
   isAudienceVisible,
@@ -28,6 +30,7 @@ import {
 } from '../utils/mobileConfig';
 import { getProductImageUri } from '../utils/productImages';
 import { formatCurrency } from '../utils/transactionFormatters';
+import { formatProductPrice } from '../utils/productPriceFormatter';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -187,11 +190,20 @@ export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = React.useState(false);
+  const fetchRecentlyViewed = useRecentlyViewedStore((state) => state.fetchRecentlyViewed);
+  const recentlyViewedItems = useRecentlyViewedStore((state) => state.items);
+
+  React.useEffect(() => {
+    fetchRecentlyViewed(1, 3).catch(console.error);
+  }, [fetchRecentlyViewed]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await queryClient.invalidateQueries();
+      await Promise.all([
+        queryClient.invalidateQueries(),
+        fetchRecentlyViewed(1, 3),
+      ]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -206,6 +218,7 @@ export default function HomeScreen() {
   const { data: mostLikedProducts } = useMostLikedProducts();
   const { data: blogs } = useBlogs();
   const user = useAuthStore((state) => state.user);
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [categoryImageErrors, setCategoryImageErrors] = React.useState<Record<string, boolean>>({});
@@ -213,7 +226,18 @@ export default function HomeScreen() {
   const mobileLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const audience = resolveMobileAudience(user, activeMode);
   const allProducts = React.useMemo(() => data?.items ?? [], [data?.items]);
-  const recentProducts = allProducts.slice(0, 3);
+  const recentProducts = React.useMemo(() => {
+    const actualViews = recentlyViewedItems.slice(0, 3);
+    if (actualViews.length >= 3) {
+      return actualViews;
+    }
+    const needed = 3 - actualViews.length;
+    const existingIds = new Set(actualViews.map((p) => p.id));
+    const candidates = allProducts.filter((p) => !existingIds.has(p.id));
+    const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+    const backfill = shuffled.slice(0, needed);
+    return [...actualViews, ...backfill];
+  }, [recentlyViewedItems, allProducts]);
   const listingProducts = allProducts.length > 3 ? allProducts.slice(3, 7) : allProducts.slice(0, 4);
   const listingSlots = Array.from({ length: 4 }, (_, index) => listingProducts[index] || null);
   const discountedSlots = Array.from({ length: 6 }, (_, index) => {
@@ -410,7 +434,26 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={[styles.searchActionButton, styles.notificationActionButton]}
                   activeOpacity={0.85}
-                  onPress={() => router.push('/(tabs)/notifications')}
+                  onPress={() => {
+                    if (!isLoggedIn) {
+                      useModalStore.getState().showModal({
+                        title: t('common.authRequiredTitle'),
+                        message: t('notifications.authRequiredMessage'),
+                        type: 'info',
+                        confirmText: t('auth.login'),
+                        cancelText: t('common.cancel'),
+                        onConfirm: () => {
+                          useModalStore.getState().hideModal();
+                          router.push('/(auth)/login');
+                        },
+                        onCancel: () => {
+                          useModalStore.getState().hideModal();
+                        }
+                      });
+                      return;
+                    }
+                    router.push('/(tabs)/notifications');
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.notifications')}
                 >
@@ -526,7 +569,7 @@ export default function HomeScreen() {
                         {item?.title || t('home.mockListingTitle')}
                       </Text>
                       <Text style={styles.listingPrice}>
-                        {item ? formatCurrency(item.price) : t('home.mockListingPrice')}
+                        {item ? formatProductPrice(item, t) : t('home.mockListingPrice')}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -653,7 +696,7 @@ export default function HomeScreen() {
           </React.Fragment>
         ) : null;
       case 'home-recently-viewed':
-        return recentlyViewedSection?.enabled ? (
+        return recentlyViewedSection?.enabled && recentProducts.length > 0 ? (
           <React.Fragment key={moduleId}>
             <SectionHeader title={resolveLocalizedText(recentlyViewedSection.title, mobileLocale, t('home.recentlyViewed'))} />
             <View style={styles.recentGrid}>
@@ -702,7 +745,7 @@ export default function HomeScreen() {
                       <Text style={styles.recentTitle} numberOfLines={2}>
                         {item.title}
                       </Text>
-                      <Text style={styles.recentPrice}>{formatCurrency(item.price)}</Text>
+                      <Text style={styles.recentPrice}>{formatProductPrice(item, t)}</Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -868,7 +911,27 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={styles.notifyButton}
                   activeOpacity={0.85}
-                  onPress={() => router.push((trustBlock.cta?.route || '/(tabs)/notifications') as never)}
+                  onPress={() => {
+                    const targetRoute = trustBlock.cta?.route || '/(tabs)/notifications';
+                    if (targetRoute.includes('notifications') && !isLoggedIn) {
+                      useModalStore.getState().showModal({
+                        title: t('common.authRequiredTitle'),
+                        message: t('notifications.authRequiredMessage'),
+                        type: 'info',
+                        confirmText: t('auth.login'),
+                        cancelText: t('common.cancel'),
+                        onConfirm: () => {
+                          useModalStore.getState().hideModal();
+                          router.push('/(auth)/login');
+                        },
+                        onCancel: () => {
+                          useModalStore.getState().hideModal();
+                        }
+                      });
+                      return;
+                    }
+                    router.push(targetRoute as never);
+                  }}
                 >
                   <Ionicons name="notifications-outline" size={18} color={Colors.white} />
                   <Text style={styles.notifyButtonText}>

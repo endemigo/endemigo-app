@@ -11,7 +11,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import api from '../../lib/api';
@@ -31,7 +30,7 @@ export default function SettingsScreen() {
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+
 
   const [consents, setConsents] = useState<KvkkConsent[]>([]);
   const [, setLoadingConsents] = useState(true);
@@ -134,14 +133,7 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.8}>
-          <Ionicons name="chevron-back" size={24} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+
 
       {/* KVKK Section */}
       <Text style={styles.sectionTitle}>{t('settings.kvkkTitle')}</Text>

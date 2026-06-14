@@ -174,7 +174,6 @@ export default function MembershipScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>{t('paketim.title')}</Text>
         <Text style={styles.subtitle}>{t('paketim.sellerInfoDescription')}</Text>
       </View>
 

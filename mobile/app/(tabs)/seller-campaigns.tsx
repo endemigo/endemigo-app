@@ -158,7 +158,6 @@ export default function SellerCampaignsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>{t('sellerCampaigns.title')}</Text>
         <Text style={styles.subtitle}>{t('sellerCampaigns.subtitle')}</Text>
       </View>
 

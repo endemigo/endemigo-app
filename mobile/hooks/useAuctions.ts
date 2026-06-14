@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
@@ -32,6 +32,7 @@ interface Auction {
   orderId?: string | null;
   bidCount: number;
   lotNumber?: string;
+  sequenceNumber?: number | null;
   antiSnipingEnabled?: boolean;
   extensionSeconds?: number;
   maxExtensions?: number;
@@ -97,7 +98,6 @@ export function useAuctions(page = 1) {
       const { data } = await api.get(`/auctions?page=${page}&limit=20`);
       return data;
     },
-    refetchInterval: 5000,
   });
 }
 
@@ -110,7 +110,6 @@ export function useAuction(id: string) {
       return data;
     },
     enabled: !!id,
-    refetchInterval: 5000,
   });
 }
 
@@ -125,7 +124,6 @@ export function useAuctionBids(id: string) {
       return unwrapBids(data);
     },
     enabled: !!id,
-    refetchInterval: 5000,
   });
 }
 
@@ -226,4 +224,58 @@ export function useCompleteAuctionPayment() {
   });
 }
 
-export type { Auction, BidEntry, AuctionResult };
+interface AuctionEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  status: string;
+  auctionType: string;
+  startTime: string;
+  endTime: string;
+  submissionDeadline?: string | null;
+  activeLotId?: string | null;
+  lotCount?: number;
+}
+
+interface AuctionEventDetailsResponse {
+  code: string;
+  message: string;
+  event: AuctionEvent;
+  lots: Auction[];
+}
+
+export function useInfiniteAuctionEvents() {
+  return useInfiniteQuery({
+    queryKey: ['auction-events', 'infinite'],
+    queryFn: async ({ pageParam = 1 }) => {
+      if (ENV.USE_MOCK) return { items: [], page: pageParam, hasNextPage: false };
+      const { data } = await api.get(`/auctions/events?page=${pageParam}&limit=10`);
+      return {
+        items: data.items,
+        page: pageParam,
+        hasNextPage: pageParam < data.totalPages,
+      };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
+    },
+  });
+}
+
+export function useAuctionEventDetails(id: string) {
+  return useQuery<AuctionEventDetailsResponse>({
+    queryKey: ['auction-event-details', id],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) {
+        throw new Error('Not implemented in mock mode');
+      }
+      const { data } = await api.get(`/auctions/events/${id}`);
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export type { Auction, BidEntry, AuctionResult, AuctionEvent, AuctionEventDetailsResponse };

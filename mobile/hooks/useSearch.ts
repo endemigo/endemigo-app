@@ -4,6 +4,7 @@ import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
 import { useAuthStore } from '../store/authStore';
+import { useFavoritesStore } from '../store/favoritesStore';
 import type { Blog, Product } from '../types';
 
 interface ApiEnvelope {
@@ -118,10 +119,28 @@ export function useSearchAuctions(
 }
 
 export function useFavorites(page = 1, enabled = true) {
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const localItems = useFavoritesStore((state) => state.items);
+
   return useQuery<PaginatedResponse<Product>>({
-    queryKey: ['favorites', page],
+    queryKey: ['favorites', page, isLoggedIn, localItems.length],
     enabled,
     queryFn: async () => {
+      if (!isLoggedIn) {
+        const limit = 30;
+        const total = localItems.length;
+        const totalPages = Math.ceil(total / limit);
+        const paginatedItems = localItems.slice((page - 1) * limit, page * limit);
+        return {
+          code: 'FAVORITES_LISTED',
+          message: 'Local favoriler listelendi',
+          items: paginatedItems,
+          total,
+          page,
+          totalPages,
+        };
+      }
+
       if (ENV.USE_MOCK) {
         return mockService.getFavorites();
       }
@@ -136,9 +155,57 @@ export function useFavorites(page = 1, enabled = true) {
 
 export function useToggleFavorite() {
   const queryClient = useQueryClient();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const toggleFavoriteLocal = useFavoritesStore((state) => state.toggleFavoriteLocal);
 
   return useMutation<ToggleFavoriteResponse, unknown, string>({
     mutationFn: async (productId: string) => {
+      if (!isLoggedIn) {
+        // Find product in cache or fetch it
+        let product = queryClient.getQueryData<Product>(['product', productId]);
+        if (!product) {
+          const queries = queryClient.getQueryCache().getAll();
+          for (const q of queries) {
+            if (Array.isArray(q.state.data)) {
+              product = q.state.data.find((p: any) => p?.id === productId);
+            } else if (
+              q.state.data &&
+              typeof q.state.data === 'object' &&
+              'items' in q.state.data &&
+              Array.isArray(q.state.data.items)
+            ) {
+              product = q.state.data.items.find((p: any) => p?.id === productId);
+            }
+            if (product) break;
+          }
+        }
+
+        if (!product) {
+          try {
+            if (ENV.USE_MOCK) {
+              product = await mockService.getProduct(productId);
+            } else {
+              const { data } = await api.get<any>(`/products/${productId}`);
+              const { code: _c, message: _m, ...p } = data;
+              product = p;
+            }
+          } catch (e) {
+            console.error('Failed to fetch product details for guest favorite', e);
+          }
+        }
+
+        if (!product) {
+          throw new Error('Product details not found');
+        }
+
+        const isFavorited = await toggleFavoriteLocal(product);
+        return {
+          code: isFavorited ? 'FAVORITE_ADDED' : 'FAVORITE_REMOVED',
+          message: isFavorited ? 'Favorilere eklendi' : 'Favorilerden çıkarıldı',
+          isFavorited,
+        };
+      }
+
       if (ENV.USE_MOCK) {
         return mockService.toggleFavorite(productId);
       }

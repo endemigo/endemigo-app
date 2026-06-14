@@ -1,5 +1,5 @@
-import { StyleSheet } from 'react-native';
-import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../constants/theme';
+import { StyleSheet, Platform } from 'react-native';
+import { BorderRadius, Colors, FontFamily, FontSize, Shadows, Spacing } from '../../constants/theme';
 
 export const styles = StyleSheet.create({
   container: {
@@ -40,7 +40,7 @@ export const styles = StyleSheet.create({
   },
   listContent: {
     padding: Spacing.base,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 140, // Avoid overlapping behind the tab bar
     gap: Spacing.base,
   },
   header: {
@@ -87,6 +87,7 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.headline,
     fontSize: FontSize.subheading,
     fontWeight: '700',
+    marginTop: Spacing.lg,
   },
   transactionCard: {
     backgroundColor: Colors.white,
@@ -129,5 +130,95 @@ export const styles = StyleSheet.create({
     color: Colors.slate500,
     fontFamily: FontFamily.body,
     fontSize: FontSize.caption,
+  },
+  loadingMoreContainer: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 10,
+    marginBottom: Spacing.base,
+  },
+  dropdownButton: {
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate200,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    ...Shadows.sm,
+  },
+  dropdownButtonText: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.body,
+    fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalDismissArea: {
+    flex: 1,
+  },
+  modalMenuContainer: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? 36 : Spacing.xl,
+  },
+  modalMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+    marginBottom: Spacing.sm,
+  },
+  modalMenuTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.bodyXl,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    padding: Spacing.xs,
+  },
+  modalMenuList: {
+    gap: Spacing.xs,
+  },
+  modalMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  modalMenuItemActive: {
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  modalMenuItemText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+  modalMenuItemTextActive: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
+    fontWeight: '700',
+  },
+  listHeaderContainer: {
+    zIndex: 10,
+    elevation: 10,
+    gap: Spacing.base,
   },
 });

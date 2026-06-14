@@ -17,8 +17,10 @@ type AuctionSummaryPanelProps = {
   viewerCount: number;
   walletAvailable?: number;
   endTime: string;
+  startTime?: string;
   serverTime: string;
   isActive: boolean;
+  isUpcoming?: boolean;
   isEnded: boolean;
   isSeller: boolean;
   isWinner: boolean;
@@ -45,8 +47,10 @@ export function AuctionSummaryPanel({
   viewerCount,
   walletAvailable,
   endTime,
+  startTime,
   serverTime,
   isActive,
+  isUpcoming,
   isEnded,
   isSeller,
   isWinner,
@@ -62,6 +66,19 @@ export function AuctionSummaryPanel({
   const summaryTitle = isEnded ? t('auction.resultTitleEnded') : t('auction.overviewTitle');
   const leadMetricLabel = isEnded ? t('auction.finalBid') : t('auction.nextBid');
   const leadMetricValue = isEnded ? Number(finalPrice ?? currentPrice) : minBid;
+
+  const isUpcomingAuction =
+    isUpcoming ||
+    (startTime &&
+      new Date(startTime).getTime() >
+        new Date(serverTime || Date.now()).getTime());
+  const timerTarget = isUpcomingAuction ? startTime : endTime;
+  const timerBadgeText = isUpcomingAuction
+    ? t('auction.startsInLabel')
+    : isEnded
+      ? t('auction.auctionEnded')
+      : t('auction.timeLeftLabel');
+  const timerActive = (isActive || isUpcomingAuction) && timerTarget;
 
   return (
     <View style={styles.card}>
@@ -80,11 +97,15 @@ export function AuctionSummaryPanel({
                 isEnded && styles.timerBadgeTextEnded,
               ]}
             >
-              {isEnded ? t('auction.auctionEnded') : t('auction.timeLeftLabel')}
+              {timerBadgeText}
             </Text>
           </View>
-          {isActive && endTime ? (
-            <CountdownTimer endTime={endTime} serverTime={serverTime} />
+          {timerActive ? (
+            <CountdownTimer
+              endTime={timerTarget}
+              serverTime={serverTime}
+              label={isUpcomingAuction ? t('auction.startsInLabel') : undefined}
+            />
           ) : (
             <Text style={styles.timerEndedText}>00:00:00</Text>
           )}

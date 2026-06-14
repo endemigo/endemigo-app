@@ -10,7 +10,8 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { OrderService } from '../order/order.service';
-import { AuctionPaymentStatus, RC } from '@endemigo/shared';
+import { AuctionPaymentStatus, RC, AuctionApprovalStatus } from '@endemigo/shared';
+import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { BidStatus } from '../../shared/types/bid-status.enum';
@@ -245,6 +246,7 @@ describe('AuctionService', () => {
       commitTransaction: jest.fn(),
       rollbackTransaction: jest.fn(),
       release: jest.fn(),
+      isTransactionActive: true,
       manager: {
         findOne: jest.fn(),
         query: jest.fn().mockResolvedValue([]),
@@ -1647,6 +1649,64 @@ describe('AuctionService', () => {
 
       const result = await service.applyToEvent('seller-1', 'event-1', mockDto as any);
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('findEventDetails', () => {
+    it('olmayan etkinlik → NotFoundException', async () => {
+      auctionRepo.manager.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.findEventDetails('nonexistent-event')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('etkinlik varsa approved lotlari sequenceNumber sırasıyla döndürmeli', async () => {
+      const mockEvent = {
+        id: 'event-1',
+        title: 'Halı Kilim Müzayedesi',
+        status: 'ACTIVE',
+      };
+      const mockLot1 = createMockAuction({
+        id: 'lot-1',
+        eventId: 'event-1',
+        sequenceNumber: 1,
+        approvalStatus: AuctionApprovalStatus.APPROVED,
+        product: { title: 'Halı 1', imageUrl: null },
+      });
+      const mockLot2 = createMockAuction({
+        id: 'lot-2',
+        eventId: 'event-1',
+        sequenceNumber: 2,
+        approvalStatus: AuctionApprovalStatus.APPROVED,
+        product: { title: 'Kilim 1', imageUrl: null },
+      });
+
+      auctionRepo.manager.findOne.mockResolvedValueOnce(mockEvent);
+      auctionRepo.find.mockResolvedValueOnce([mockLot1, mockLot2]);
+
+      const result = await service.findEventDetails('event-1');
+
+      expect(auctionRepo.manager.findOne).toHaveBeenCalledWith(
+        AuctionEvent,
+        expect.objectContaining({ where: { id: 'event-1' } }),
+      );
+      expect(auctionRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            eventId: 'event-1',
+            approvalStatus: AuctionApprovalStatus.APPROVED,
+          },
+          relations: ['product', 'seller'],
+          order: { sequenceNumber: 'ASC' },
+        }),
+      );
+
+      expect(result.code).toBe(RC.SUCCESS);
+      expect(result.event).toEqual(mockEvent);
+      expect(result.lots).toHaveLength(2);
+      expect(result.lots[0].id).toBe('lot-1');
+      expect(result.lots[1].id).toBe('lot-2');
     });
   });
 });

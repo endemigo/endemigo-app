@@ -3,8 +3,9 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, To
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageBubble, NegotiationComposer, NegotiationStatusBadge } from '../../components/negotiation';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import {
   useCanRespondToOffer,
   useNegotiation,
@@ -34,6 +35,7 @@ export default function NegotiationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const showModal = useModalStore((state) => state.showModal);
   const { data: negotiation, isLoading } = useNegotiation(id);
@@ -107,7 +109,7 @@ export default function NegotiationDetailScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base }]}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={20} color={Colors.onSurface} />
         </TouchableOpacity>

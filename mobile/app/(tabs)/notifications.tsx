@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import {
@@ -97,36 +97,40 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={notifications.isRefetching || markAllRead.isPending}
-          onRefresh={notifications.refetch}
-          tintColor={Colors.primary}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('notifications.title')}</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => markAllRead.mutate(notifications.data ?? [])}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="checkmark-done-outline" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/(tabs)/notification-preferences' as never)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="options-outline" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <>
+      <Tabs.Screen
+        options={{
+          headerRight: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16, gap: 8 }}>
+              <TouchableOpacity
+                style={{ padding: 8 }}
+                onPress={() => markAllRead.mutate(notifications.data ?? [])}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="checkmark-done-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ padding: 8 }}
+                onPress={() => router.push('/(tabs)/notification-preferences' as never)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="options-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ),
+        }}
+      />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={notifications.isRefetching || markAllRead.isPending}
+            onRefresh={notifications.refetch}
+            tintColor={Colors.primary}
+          />
+        }
+      >
 
       {requiredAction.length > 0 && (
         <>
@@ -150,5 +154,6 @@ export default function NotificationsScreen() {
         </View>
       )}
     </ScrollView>
+    </>
   );
 }

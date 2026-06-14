@@ -9,7 +9,7 @@ export const styles = StyleSheet.create({
   scrollContent: {
     gap: Spacing.base,
     padding: Spacing.base,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 140,
   },
   center: {
     alignItems: 'center',

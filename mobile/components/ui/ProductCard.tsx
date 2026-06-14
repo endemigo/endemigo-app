@@ -16,6 +16,7 @@ import {
 } from '../../utils/mobileConfig';
 import { getProductImageUri } from '../../utils/productImages';
 import { formatCurrency } from '../../utils/transactionFormatters';
+import { formatProductPrice } from '../../utils/productPriceFormatter';
 import { styles } from './ProductCard.styles';
 
 const SQUARE_PLACEHOLDER = 'https://placehold.co/148x148/F8F9FA/0097D8?text=Endemigo';
@@ -102,7 +103,7 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
                 </Text>
               </View>
             ) : productCardConfig.showPrice ? (
-              <Text style={styles.squarePrice}>{formatCurrency(item.price)}</Text>
+              <Text style={styles.squarePrice}>{formatProductPrice(item, t)}</Text>
             ) : (
               <Text style={styles.squareCtaHint}>{productCtaLabel}</Text>
             )}
@@ -154,7 +155,7 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
           ) : productCardConfig.showPrice ? (
             <>
               <Text style={styles.gridPrice}>
-                {formatCurrency(item.price)}
+                {formatProductPrice(item, t)}
               </Text>
               <Text style={styles.gridCtaHint}>{productCtaLabel}</Text>
             </>

@@ -24,4 +24,9 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   lastName?: string;
+
+  @ApiPropertyOptional({ example: 'device-uuid-token' })
+  @IsOptional()
+  @IsString()
+  deviceToken?: string;
 }

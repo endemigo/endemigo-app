@@ -46,6 +46,11 @@ export function buildCorsOptions(
         return;
       }
 
+      if (allowedOrigins.includes('*')) {
+        callback(null, true);
+        return;
+      }
+
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
         return;

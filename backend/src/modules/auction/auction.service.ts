@@ -480,16 +480,50 @@ export class AuctionService {
     };
   }
 
-  async findEvents(status?: AuctionEventStatus) {
+  async findEvents(status?: AuctionEventStatus, page = 1, limit = 20) {
     const qb = this.auctionRepo.manager.createQueryBuilder(AuctionEvent, 'e');
     if (status) {
       qb.where('e.status = :status', { status });
     }
-    const items = await qb.orderBy('e.startTime', 'ASC').getMany();
+    
+    const [items, total] = await qb
+      .orderBy('e.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
     return {
       code: RC.SUCCESS,
       message: 'Auction events fetched',
       items,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async findEventDetails(id: string) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id },
+    });
+    if (!event) {
+      throw this.notFound(RC.NOT_FOUND, 'Müzayede etkinliği bulunamadı');
+    }
+
+    const lots = await this.auctionRepo.find({
+      where: {
+        eventId: id,
+        approvalStatus: AuctionApprovalStatus.APPROVED,
+      },
+      relations: ['product', 'seller'],
+      order: { sequenceNumber: 'ASC' },
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede etkinliği detayları getirildi',
+      event,
+      lots: lots.map((lot) => this.toResponse(lot)),
     };
   }
 
@@ -576,6 +610,16 @@ export class AuctionService {
           `Minimum teklif: ${minBid.toFixed(2)}₺`,
         );
       }
+
+      const diffCents = Math.round((dto.amount - currentPrice) * 100);
+      const incrementCents = Math.round(minIncrement * 100);
+      if (diffCents % incrementCents !== 0) {
+        throw this.badRequest(
+          RC.VALIDATION_ERROR,
+          `Teklif artış miktarının (${minIncrement}) tam katı olmalıdır`,
+        );
+      }
+
       if (dto.maxAmount !== undefined && dto.maxAmount < dto.amount) {
         throw this.badRequest(
           RC.VALIDATION_ERROR,
@@ -906,7 +950,9 @@ export class AuctionService {
         previousLeadBidderId: previousLeadBid?.bidderId || null,
       };
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
@@ -1917,6 +1963,7 @@ export class AuctionService {
       maxExtensions: auction.maxExtensions,
       currentExtensions: auction.currentExtensions,
       culturalAssetRestricted: auction.culturalAssetRestricted,
+      sequenceNumber: auction.sequenceNumber,
       createdAt: auction.createdAt,
     };
   }

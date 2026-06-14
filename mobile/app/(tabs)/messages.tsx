@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { NegotiationListItem } from '../../components/negotiation';
 import { Colors } from '../../constants/theme';
@@ -24,20 +24,24 @@ export default function MessagesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>{t('negotiation.list.title')}</Text>
-          <Text style={styles.subtitle}>{t('negotiation.list.subtitle')}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={() => refetch()}
-          activeOpacity={0.8}
-          disabled={isRefetching}
-        >
-          <Ionicons name="refresh" size={18} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
+      <Tabs.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity
+              style={{ marginRight: 16, padding: 8 }}
+              onPress={() => refetch()}
+              activeOpacity={0.7}
+              disabled={isRefetching}
+            >
+              {isRefetching ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons name="refresh" size={22} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       {negotiations.length === 0 ? (
         <View style={styles.emptyCard}>

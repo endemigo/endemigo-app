@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
@@ -97,6 +97,55 @@ export function useWalletHistory(filter: WalletHistoryFilter = 'all', page = 1) 
         limit: data.limit ?? WALLET_HISTORY_PAGE_SIZE,
         hasNextPage: data.hasNextPage ?? data.items.length === WALLET_HISTORY_PAGE_SIZE,
       };
+    },
+  });
+}
+
+export function useWalletHistoryInfinite(filter: WalletHistoryFilter = 'all') {
+  return useInfiniteQuery<WalletHistoryResponse>({
+    queryKey: [...WALLET_QUERY_KEYS.history(filter === 'all' ? undefined : filter), 'infinite'] as const,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) => {
+      const currentPage = pageParam as number;
+      if (ENV.USE_MOCK) {
+        if (currentPage > 3) {
+          return { items: [], total: 30, page: currentPage, limit: WALLET_HISTORY_PAGE_SIZE, hasNextPage: false };
+        }
+        const mockItems: WalletHistoryItem[] = Array.from({ length: 10 }).map((_, idx) => ({
+          id: `mock-tx-${filter}-${currentPage}-${idx}-${Date.now()}`,
+          type: filter === 'all' ? 'payment_escrow' : (FILTER_TYPE_MAP[filter][0] || 'payment_escrow'),
+          amount: 1424 + idx * 100,
+          currency: 'TRY',
+          direction: idx % 2 === 0 ? 'credit' : 'debit',
+          description: filter === 'payment' ? 'Move buyer payment into escrow' : `Mock transaction of type ${filter}`,
+          createdAt: new Date(Date.now() - (currentPage * 10 + idx) * 60 * 60 * 1000).toISOString(),
+        }));
+        return {
+          items: mockItems,
+          total: 30,
+          page: currentPage,
+          limit: WALLET_HISTORY_PAGE_SIZE,
+          hasNextPage: currentPage < 3,
+        };
+      }
+      const requestedTypes = filter === 'all' ? [] : FILTER_TYPE_MAP[filter];
+      const { data } = await api.get<WalletHistoryApiResponse>('/wallet/history', {
+        params: {
+          limit: WALLET_HISTORY_PAGE_SIZE,
+          page: currentPage,
+          types: requestedTypes.length > 0 ? requestedTypes.join(',') : undefined,
+        },
+      });
+      return {
+        items: data.items,
+        total: data.total ?? data.items.length,
+        page: data.page ?? currentPage,
+        limit: data.limit ?? WALLET_HISTORY_PAGE_SIZE,
+        hasNextPage: data.hasNextPage ?? data.items.length === WALLET_HISTORY_PAGE_SIZE,
+      };
+    },
+    getNextPageParam: (lastPage) => {
+      return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
     },
   });
 }

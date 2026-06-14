@@ -8,6 +8,7 @@ import { Category } from './entities/category.entity';
 import { Brand } from './entities/brand.entity';
 import { VariantNumber } from './entities/variant-number.entity';
 import { ProductVariantSku } from './entities/product-variant-sku.entity';
+import { ProductView } from './entities/product-view.entity';
 import { Favorite } from '../search/entities/favorite.entity';
 import { ProductService } from './product.service';
 import { ProductController, CategoryController } from './product.controller';
@@ -21,7 +22,7 @@ import { OrderReview } from '../order/entities/order-review.entity';
 import { ListingTemplate } from './entities/listing-template.entity';
 import { GeoIndication } from './entities/geo-indication.entity';
 import { FeatureBadge } from './entities/feature-badge.entity';
-
+ 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -32,6 +33,7 @@ import { FeatureBadge } from './entities/feature-badge.entity';
       Brand,
       VariantNumber,
       ProductVariantSku,
+      ProductView,
       Favorite,
       OrderReview,
       ListingTemplate,

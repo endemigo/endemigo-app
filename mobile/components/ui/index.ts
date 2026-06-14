@@ -18,4 +18,6 @@ export { GlobalToast } from './GlobalToast';
 export { BackendUnavailableScreen } from './BackendUnavailableScreen';
 export { HomeQuickTabBar } from './HomeQuickTabBar';
 export { DynamicBannerWidget } from './DynamicBannerWidget';
+export { ProductImageCarousel } from './ProductImageCarousel';
+
 

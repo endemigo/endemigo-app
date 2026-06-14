@@ -4,7 +4,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,11 +18,14 @@ export function GlobalModal() {
   const [shouldRender, setShouldRender] = useState(isVisible);
   const opacity = useSharedValue(0);
 
+  if (isVisible && !shouldRender) {
+    setShouldRender(true);
+  }
+
   useEffect(() => {
     let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (isVisible) {
-      setShouldRender(true);
       opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) });
     } else {
       opacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
@@ -74,7 +76,7 @@ export function GlobalModal() {
         <Text style={styles.message}>{options.message}</Text>
 
         <View style={styles.buttonContainer}>
-          {options.onCancel && (
+          {(options.onCancel || options.cancelText) && (
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} activeOpacity={0.8}>
               <Text style={styles.cancelBtnText}>{options.cancelText ?? t('common.cancel')}</Text>
             </TouchableOpacity>

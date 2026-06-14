@@ -5,6 +5,9 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -51,6 +54,7 @@ export default function AuctionDetailScreen() {
   const [maxBidAmount, setMaxBidAmount] = useState('');
   const [activeProxyAmount, setActiveProxyAmount] = useState<number | null>(null);
   const [bidState, setBidState] = useState<'leading' | 'outbid' | null>(null);
+  const [showComposer, setShowComposer] = useState(false);
 
   const apiCurrentPrice = Number(auction?.currentPrice || 0);
   const socketCurrentPrice = Number(socket.currentPrice || 0);
@@ -123,6 +127,11 @@ export default function AuctionDetailScreen() {
     auction.status === AuctionStatus.COMPLETED ||
     socket.auctionEnded;
   const isActive = auction.status === AuctionStatus.ACTIVE && !isEnded;
+  const isUpcoming =
+    (auction.status === AuctionStatus.PUBLISHED ||
+      auction.status === AuctionStatus.DRAFT) &&
+    !isActive &&
+    !isEnded;
   const isSeller = user?.id === auction.sellerId;
   const minBid = currentPrice + Number(auction.minIncrement);
   const parsedBidAmount = parseFloat(bidAmount);
@@ -384,8 +393,10 @@ export default function AuctionDetailScreen() {
             viewerCount={socket.viewerCount}
             walletAvailable={wallet?.available}
             endTime={endTime}
+            startTime={auction.startTime}
             serverTime={serverTime}
             isActive={isActive}
+            isUpcoming={isUpcoming}
             isEnded={isEnded}
             isSeller={isSeller}
             isWinner={socket.isWinner}
@@ -421,27 +432,13 @@ export default function AuctionDetailScreen() {
 
       {isActive && !isSeller ? (
         <View style={styles.stickyComposer}>
-          <AuctionBidComposer
-            bidAmount={bidAmount}
-            maxBidAmount={maxBidAmount}
-            quickBidOptions={quickBidOptions}
-            feeEstimateRows={feeEstimateRows}
-            statusMessage={bidStatusMessage}
-            proxyMessage={proxyMessage}
-            walletGateMessage={walletGateMessage}
-            onChangeText={setBidAmount}
-            onChangeMaxBidText={setMaxBidAmount}
-            onSelectQuickBid={setBidAmount}
-            placeholder={minBid.toString()}
-            maxPlaceholder={t('auction.maxBidPlaceholder')}
-            minBidText={t('auction.minBid', {
-              amount: formatAmount(minBid),
-            })}
-            disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
-            isPending={placeBid.isPending}
-            onSubmit={handleBid}
-            t={t}
-          />
+          <TouchableOpacity
+            style={styles.openComposerButton}
+            onPress={() => setShowComposer(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
+          </TouchableOpacity>
           {hasActiveHoldForAuction ? (
             <TouchableOpacity
               style={styles.withdrawButton}
@@ -458,6 +455,48 @@ export default function AuctionDetailScreen() {
           ) : null}
         </View>
       ) : null}
+
+      <Modal
+        visible={showComposer}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowComposer(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setShowComposer(false)}
+          />
+          <View style={styles.modalContent}>
+            <AuctionBidComposer
+              bidAmount={bidAmount}
+              maxBidAmount={maxBidAmount}
+              quickBidOptions={quickBidOptions}
+              feeEstimateRows={feeEstimateRows}
+              statusMessage={bidStatusMessage}
+              proxyMessage={proxyMessage}
+              walletGateMessage={walletGateMessage}
+              onChangeText={setBidAmount}
+              onChangeMaxBidText={setMaxBidAmount}
+              onSelectQuickBid={setBidAmount}
+              placeholder={minBid.toString()}
+              maxPlaceholder={t('auction.maxBidPlaceholder')}
+              minBidText={t('auction.minBid', {
+                amount: formatAmount(minBid),
+              })}
+              disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
+              isPending={placeBid.isPending}
+              onSubmit={handleBid}
+              onClose={() => setShowComposer(false)}
+              t={t}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }

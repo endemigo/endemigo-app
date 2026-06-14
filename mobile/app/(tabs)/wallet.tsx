@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   Text,
@@ -14,7 +16,7 @@ import { Colors } from '../../constants/theme';
 import {
   useCreatePayoutRequest,
   useWalletBalance,
-  useWalletHistory,
+  useWalletHistoryInfinite,
   useWalletPayoutRequests,
   type WalletHistoryFilter,
 } from '../../hooks/useWallet';
@@ -30,14 +32,20 @@ const FILTERS: WalletHistoryFilter[] = ['all', 'top_up', 'payment', 'hold', 'ref
 export default function WalletScreen() {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<WalletHistoryFilter>('all');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const wallet = useWalletBalance();
-  const history = useWalletHistory(filter, 1);
+  const history = useWalletHistoryInfinite(filter);
   const payoutRequests = useWalletPayoutRequests(activeMode === 'seller');
   const createPayout = useCreatePayoutRequest();
 
   const isRefreshing = wallet.isRefetching || history.isRefetching || payoutRequests.isRefetching;
   const hasError = wallet.isError || history.isError;
+
+  const transactions = useMemo(
+    () => history.data?.pages.flatMap((page) => page.items) ?? [],
+    [history.data],
+  );
 
   const filterLabels = useMemo(
     () => ({
@@ -98,62 +106,122 @@ export default function WalletScreen() {
   }
 
   return (
-    <FlatList
-      style={styles.container}
-      contentContainerStyle={styles.listContent}
-      data={history.data?.items ?? []}
-      keyExtractor={(item) => item.id}
-      renderItem={renderTransaction}
-      refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
-      }
-      ListHeaderComponent={(
-        <>
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('wallet.title')}</Text>
-            <Text style={styles.subtitle}>{t('wallet.summaryTitle')}</Text>
+    <>
+      <FlatList
+        style={styles.container}
+        contentContainerStyle={styles.listContent}
+        data={transactions}
+        keyExtractor={(item) => item.id}
+        renderItem={renderTransaction}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+        }
+        onEndReached={() => {
+          if (history.hasNextPage && !history.isFetchingNextPage) {
+            history.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          history.isFetchingNextPage ? (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator color={Colors.primary} size="small" />
+            </View>
+          ) : null
+        }
+        ListHeaderComponent={(
+          <View style={styles.listHeaderContainer}>
+            <View style={styles.header}>
+              <Text style={styles.subtitle}>{t('wallet.summaryTitle')}</Text>
+            </View>
+
+            <WalletSummaryCard summary={wallet.data} />
+
+            <SellerPayoutCard
+              available={wallet.data?.available ?? 0}
+              payoutRequests={payoutRequests.data}
+              isSubmitting={createPayout.isPending}
+              onSubmit={createPayout.mutateAsync}
+            />
+
+            <Text style={styles.sectionTitle}>{t('wallet.history')}</Text>
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => setIsDropdownOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dropdownButtonText}>
+                  {filterLabels[filter]}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={18}
+                  color={Colors.onSurfaceVariant}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
+        )}
+        ListEmptyComponent={(
+          <View style={styles.center}>
+            <Ionicons name="receipt-outline" size={48} color={Colors.slate300} />
+            <Text style={styles.centerTitle}>{t('wallet.emptyTitle')}</Text>
+            <Text style={styles.centerBody}>{t('wallet.emptyBody')}</Text>
+          </View>
+        )}
+      />
 
-          <WalletSummaryCard summary={wallet.data} />
-
-          <SellerPayoutCard
-            available={wallet.data?.available ?? 0}
-            payoutRequests={payoutRequests.data}
-            isSubmitting={createPayout.isPending}
-            onSubmit={createPayout.mutateAsync}
+      <Modal
+        visible={isDropdownOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsDropdownOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={styles.modalDismissArea}
+            activeOpacity={1}
+            onPress={() => setIsDropdownOpen(false)}
           />
+          <View style={styles.modalMenuContainer}>
+            <View style={styles.modalMenuHeader}>
+              <Text style={styles.modalMenuTitle}>{t('wallet.history')}</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setIsDropdownOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={20} color={Colors.onSurfaceVariant} />
+              </TouchableOpacity>
+            </View>
 
-          <Text style={styles.sectionTitle}>{t('wallet.history')}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-          >
-            {FILTERS.map((item) => {
-              const isActive = item === filter;
-              return (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                  onPress={() => setFilter(item)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {filterLabels[item]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </>
-      )}
-      ListEmptyComponent={(
-        <View style={styles.center}>
-          <Ionicons name="receipt-outline" size={48} color={Colors.slate300} />
-          <Text style={styles.centerTitle}>{t('wallet.emptyTitle')}</Text>
-          <Text style={styles.centerBody}>{t('wallet.emptyBody')}</Text>
+            <View style={styles.modalMenuList}>
+              {FILTERS.map((item) => {
+                const isActive = item === filter;
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.modalMenuItem, isActive && styles.modalMenuItemActive]}
+                    onPress={() => {
+                      setFilter(item);
+                      setIsDropdownOpen(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modalMenuItemText, isActive && styles.modalMenuItemTextActive]}>
+                      {filterLabels[item]}
+                    </Text>
+                    {isActive && (
+                      <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
-      )}
-    />
+      </Modal>
+    </>
   );
 }

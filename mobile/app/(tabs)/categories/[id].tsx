@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { styles as layoutStyles } from '../../../styles/tabs/_layout.styles';
 import { useProducts, useCategories, Product, Category } from '../../../hooks/useProducts';
 import { Colors, Spacing } from '../../../constants/theme';
 import { ProductCard } from '../../../components/ui';
@@ -13,7 +13,6 @@ export default function CategoryDetailScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const router = useRouter();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const { data, isLoading, isError, refetch } = useProducts(1);
   const { data: categories } = useCategories();
 
@@ -118,15 +117,15 @@ export default function CategoryDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base }]}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => router.back()} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={20} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {name || t('categories.title')}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <Tabs.Screen
+        options={{
+          headerTitle: () => (
+            <Text style={layoutStyles.headerProfileTitle} numberOfLines={1}>
+              {name || t('categories.title')}
+            </Text>
+          ),
+        }}
+      />
 
       {filterChips.length > 1 && (
         <View>

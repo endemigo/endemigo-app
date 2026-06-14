@@ -20,6 +20,7 @@ import { ListingType, type Product } from '@/types';
 import { useCartStore } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';
 import { formatCurrency } from '../../utils/transactionFormatters';
+import { formatProductPrice } from '../../utils/productPriceFormatter';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -80,6 +81,7 @@ function SellerProductCard({
   quickActionLabel: string;
   quickActionStyle: StyleProp<ViewStyle>;
 }) {
+  const { t } = useTranslation();
   const hasGeoIndication = Boolean(product.geoIndicationCertNo || product.geoIndicationRegion);
   const resolvedGeoTypes = product.geoIndicationTypes?.length
     ? product.geoIndicationTypes
@@ -110,7 +112,7 @@ function SellerProductCard({
           <Text style={styles.productTitle} numberOfLines={2}>{product.title}</Text>
         </TouchableOpacity>
         <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
+          <Text style={styles.productPrice}>{formatProductPrice(product, t)}</Text>
           <TouchableOpacity
             style={[styles.quickActionButtonBase, quickActionStyle]}
             activeOpacity={0.85}

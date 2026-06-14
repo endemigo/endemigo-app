@@ -3,7 +3,6 @@ import { ActivityIndicator, ScrollView, Switch, Text, TouchableOpacity, View } f
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../../constants/theme';
 import {
   useNotificationPreferences,
@@ -24,7 +23,7 @@ export default function NotificationPreferencesScreen() {
   const preferences = useNotificationPreferences();
   const updatePreferences = useUpdateNotificationPreferences();
   const [categories, setCategories] = useState<NotificationPreferenceItem[]>([]);
-  const insets = useSafeAreaInsets();
+
 
   useEffect(() => {
     if (preferences.data?.categories) {
@@ -78,13 +77,7 @@ export default function NotificationPreferencesScreen() {
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top : Spacing.sm }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
-          <Ionicons name="chevron-back" size={24} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('notifications.preferencesTitle')}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+
 
       <View style={styles.card}>
         {CATEGORIES.map((category, index) => {

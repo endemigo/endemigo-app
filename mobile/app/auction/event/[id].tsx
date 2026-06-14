@@ -1,0 +1,998 @@
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView,
+  Image,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { AuctionStatus, AuctionPaymentStatus } from '@endemigo/shared';
+
+import {
+  useAuctionEventDetails,
+  usePlaceBid,
+  useWithdrawBid,
+  useAuctionBids,
+} from '../../../hooks/useAuctions';
+import { useAuctionEventSocket } from '../../../hooks/useAuctionEventSocket';
+import { useWalletBalance, useWalletHolds } from '../../../hooks/useWallet';
+import { useAuthStore } from '../../../store/authStore';
+import { useModalStore } from '../../../store/modalStore';
+import { resolveApiErrorMessage } from '../../../utils/apiError';
+import { formatAmount, formatCurrency } from '../../../utils/transactionFormatters';
+import { calculateAuctionBidEstimate } from '../../../utils/auctionBidConsole';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../../constants/theme';
+import { styles } from './event.styles';
+import { useProduct } from '../../../hooks/useProducts';
+import { getProductImageUri } from '../../../utils/productImages';
+import { getAuctionConditionLabel } from '../../../utils/auctionPresentation';
+import { AuctionBidComposer } from '../../../components/auction/AuctionBidComposer';
+import { ProductImageCarousel } from '../../../components/ui';
+
+export default function LiveEventRoomScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('en') ? 'en' : 'tr';
+  const { user } = useAuthStore();
+  const { showModal } = useModalStore();
+
+  const { data: eventDetails, isLoading: isDetailsLoading, refetch: refetchDetails } = useAuctionEventDetails(id);
+  const socket = useAuctionEventSocket(id);
+
+  const { data: wallet } = useWalletBalance();
+  const { data: walletHolds = [] } = useWalletHolds();
+  const placeBid = usePlaceBid();
+  const withdrawBid = useWithdrawBid();
+
+  const [activeSubTab, setActiveSubTab] = useState<'catalog' | 'feed' | 'rules'>('catalog');
+  const [bidAmount, setBidAmount] = useState('');
+  const [maxBidAmount, setMaxBidAmount] = useState('');
+  const [activeProxyAmount, setActiveProxyAmount] = useState<number | null>(null);
+  const [bidState, setBidState] = useState<'leading' | 'outbid' | null>(null);
+  const [showComposer, setShowComposer] = useState(false);
+
+  // Selected upcoming lot to view in preview modal
+  const [selectedLotForPreview, setSelectedLotForPreview] = useState<string | null>(null);
+
+  // Local state for ticking countdown timer
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(0);
+
+  // Find active lot details from pre-fetched lots list or state
+  const activeLotId = socket.activeLotId || eventDetails?.event.activeLotId;
+  const activeLotDetails = eventDetails?.lots.find((lot) => lot.id === activeLotId);
+
+  // Fetch bids for the active lot to synchronize initial bidder state on load
+  const { data: activeLotBids, refetch: refetchBids } = useAuctionBids(activeLotId ?? '');
+
+  // Resolve current price from both static details and socket updates
+  const apiCurrentPrice = Number(activeLotDetails?.currentPrice || 0);
+  const socketCurrentPrice = Number(socket.currentPrice || 0);
+  const currentLotPrice = Math.max(apiCurrentPrice, socketCurrentPrice);
+  const bidCount = Math.max(activeLotDetails?.bidCount || 0, socket.bidCount || 0);
+  const endTime = socket.endTime || activeLotDetails?.endTime || '';
+  const serverTime = socket.serverTime || activeLotDetails?.serverTime || '';
+
+  // Hook product details for active lot
+  const { data: activeProduct } = useProduct(activeLotDetails?.productId ?? '');
+
+  // Resolve the current leading bidder's name from socket or initial bids list
+  const leadingBidderName = socket.lastBid?.bidderName 
+    || (activeLotBids && activeLotBids[0]?.bidderName) 
+    || null;
+
+  const maskBidderName = (name: string | null | undefined) => {
+    if (!name) return null;
+    const trimmed = name.trim();
+    if (!trimmed) return 'Anonim';
+    if (trimmed.endsWith('.')) return trimmed;
+    
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    const firstName = parts.slice(0, -1).join(' ');
+    const lastName = parts[parts.length - 1];
+    const lastInitial = lastName ? lastName.charAt(0) + '.' : '';
+    return `${firstName} ${lastInitial}`.trim();
+  };
+
+  // Hook product details for previewed lot
+  const previewedLot = eventDetails?.lots.find((lot) => lot.id === selectedLotForPreview);
+  const { data: previewedProduct } = useProduct(previewedLot?.productId ?? '');
+
+  useEffect(() => {
+    if (socket.lastBid) {
+      refetchDetails();
+      refetchBids();
+    }
+  }, [refetchDetails, refetchBids, socket.lastBid]);
+
+  useEffect(() => {
+    if (socket.lotEnded) {
+      refetchDetails();
+      refetchBids();
+    }
+  }, [refetchDetails, refetchBids, socket.lotEnded]);
+
+  useEffect(() => {
+    if (socket.wasOutbid) {
+      setBidState('outbid');
+      setActiveProxyAmount(null);
+    }
+  }, [socket.wasOutbid]);
+
+  // Handle active lot changes - reset bid compose form values
+  useEffect(() => {
+    if (activeLotId) {
+      setBidState(null);
+      setActiveProxyAmount(null);
+      setBidAmount('');
+      setMaxBidAmount('');
+    }
+  }, [activeLotId]);
+
+  // Synchronize bidState with initial fetch and socket updates
+  useEffect(() => {
+    if (!user) {
+      setBidState(null);
+      return;
+    }
+
+    const loggedInFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const loggedInMaskedName = `${user.firstName || ''} ${user.lastName ? user.lastName.charAt(0) + '.' : ''}`.trim();
+
+    const isUserBidder = (name: string) => {
+      const cleanName = (name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const cleanFullName = loggedInFullName.replace(/\s+/g, ' ').toLowerCase();
+      const cleanMaskedName = loggedInMaskedName.replace(/\s+/g, ' ').toLowerCase();
+      return cleanName === cleanFullName || cleanName === cleanMaskedName;
+    };
+
+    // 1. If we have socket updates, prioritize them
+    if (socket.lastBid) {
+      if (isUserBidder(socket.lastBid.bidderName)) {
+        setBidState('leading');
+      } else {
+        setBidState('outbid');
+      }
+      return;
+    }
+
+    // 2. Otherwise, check the bids list from initial fetch
+    if (activeLotBids && activeLotBids.length > 0) {
+      // Bids are sorted DESC by amount, so index 0 is the leading bid
+      const highestBid = activeLotBids[0];
+      if (highestBid && isUserBidder(highestBid.bidderName)) {
+        setBidState('leading');
+      } else {
+        // If the user has placed any bid but is not leading, they are outbid
+        const hasUserBid = activeLotBids.some((bid) => isUserBidder(bid.bidderName));
+        if (hasUserBid) {
+          setBidState('outbid');
+        } else {
+          setBidState(null);
+        }
+      }
+    } else {
+      setBidState(null);
+    }
+  }, [activeLotBids, socket.lastBid, user]);
+
+  // Run countdown timer locally
+  useEffect(() => {
+    if (!endTime) {
+      setTimeLeftSeconds(0);
+      return;
+    }
+    const endMs = new Date(endTime).getTime();
+    const serverMs = serverTime ? new Date(serverTime).getTime() : Date.now();
+    const initialSecs = Math.max(0, Math.ceil((endMs - serverMs) / 1000));
+    setTimeLeftSeconds(initialSecs);
+
+    const timer = setInterval(() => {
+      setTimeLeftSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endTime, serverTime]);
+
+  useEffect(() => {
+    if (activeLotDetails?.minIncrement) {
+      const nextBidAmount = currentLotPrice + Number(activeLotDetails.minIncrement);
+      setBidAmount((prev) => {
+        const parsedPrev = parseFloat(prev);
+        if (!prev || isNaN(parsedPrev) || parsedPrev < nextBidAmount) {
+          return nextBidAmount.toString();
+        }
+        return prev;
+      });
+      setMaxBidAmount((prev) => {
+        const parsedPrev = parseFloat(prev);
+        if (prev && !isNaN(parsedPrev) && parsedPrev < nextBidAmount) {
+          return '';
+        }
+        return prev;
+      });
+    }
+  }, [activeLotDetails?.minIncrement, currentLotPrice]);
+
+  if (isDetailsLoading || !eventDetails) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.auctionGreen} />
+      </View>
+    );
+  }
+
+  const { event, lots } = eventDetails;
+
+  // Sort lots: active at the top, waiting in the middle, ended at the bottom
+  const sortedLots = [...(lots || [])].sort((a, b) => {
+    const getPriority = (lot: typeof a) => {
+      const isActive = lot.id === activeLotId;
+      const isEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED;
+      if (isActive) return 0;
+      if (!isEnded) return 1;
+      return 2;
+    };
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0);
+  });
+
+  const isSeller = activeLotDetails ? user?.id === activeLotDetails.sellerId : false;
+  const minBid = activeLotDetails ? currentLotPrice + Number(activeLotDetails.minIncrement) : 0;
+  const parsedBidAmount = parseFloat(bidAmount);
+  const parsedMaxBidAmount = parseFloat(maxBidAmount);
+  const isBidEmpty = bidAmount.trim().length === 0;
+  const isMaxBidEmpty = maxBidAmount.trim().length === 0;
+  const isBidBelowMinimum =
+    !isBidEmpty && !Number.isNaN(parsedBidAmount) && parsedBidAmount < minBid;
+  const isMaxBidBelowBid =
+    !isMaxBidEmpty &&
+    !Number.isNaN(parsedMaxBidAmount) &&
+    parsedMaxBidAmount < parsedBidAmount;
+  const minIncrement = activeLotDetails ? Number(activeLotDetails.minIncrement) : 1;
+  const isBidNotIncrementMultiple =
+    !isBidEmpty &&
+    !Number.isNaN(parsedBidAmount) &&
+    (Math.round((parsedBidAmount - currentLotPrice) * 100) % Math.round(minIncrement * 100) !== 0);
+
+  const isBidInvalid =
+    isBidEmpty ||
+    Number.isNaN(parsedBidAmount) ||
+    isBidBelowMinimum ||
+    isMaxBidBelowBid ||
+    isBidNotIncrementMultiple;
+
+  const premiumBaseAmount =
+    !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount)
+      ? parsedMaxBidAmount
+      : Number.isNaN(parsedBidAmount)
+      ? 0
+      : parsedBidAmount;
+
+  const activeHoldForAuction = walletHolds.find(
+    (hold) => hold.auctionId === activeLotId && !hold.releasedAt && !hold.capturedAt,
+  );
+  const hasActiveHoldForAuction = Boolean(activeHoldForAuction);
+  const walletAvailableForBid =
+    typeof wallet?.available === 'number'
+      ? wallet.available + (activeHoldForAuction?.amount ?? 0)
+      : undefined;
+
+  const bidEstimate = calculateAuctionBidEstimate({
+    bidAmount: premiumBaseAmount,
+    buyerPremiumRate: activeLotDetails ? Number(activeLotDetails.buyerPremiumRate) : 0.05,
+    walletAvailable: walletAvailableForBid,
+  });
+  const isWalletGateClosed = !bidEstimate.isWalletSufficient;
+
+  const feeEstimateRows = [
+    {
+      key: 'hammer',
+      label: t('auction.hammerPriceLabel'),
+      value: formatCurrency(bidEstimate.hammerAmount),
+    },
+    {
+      key: 'premium',
+      label: t('auction.buyerPremium'),
+      value: formatCurrency(bidEstimate.buyerPremiumAmount),
+    },
+    {
+      key: 'total',
+      label: t('auction.estimatedTotalLabel'),
+      value: formatCurrency(bidEstimate.estimatedTotal),
+      tone: isWalletGateClosed ? ('error' as const) : ('accent' as const),
+    },
+  ];
+
+  const walletGateMessage = isWalletGateClosed
+    ? t('auction.walletGateMessage', {
+        shortfall: formatAmount(bidEstimate.walletShortfall),
+      })
+    : null;
+
+  const quickBidOptions = activeLotDetails
+    ? [
+        {
+          key: 'min',
+          label: t('auction.quickBidMin', { amount: formatAmount(minBid) }),
+          amount: String(minBid),
+        },
+        {
+          key: 'plusOne',
+          label: t('auction.quickBidPlusOne', {
+            amount: formatAmount(minBid + Number(activeLotDetails.minIncrement)),
+          }),
+          amount: String(minBid + Number(activeLotDetails.minIncrement)),
+        },
+        {
+          key: 'plusThree',
+          label: t('auction.quickBidPlusThree', {
+            amount: formatAmount(minBid + Number(activeLotDetails.minIncrement) * 3),
+          }),
+          amount: String(minBid + Number(activeLotDetails.minIncrement) * 3),
+        },
+      ]
+    : [];
+
+  const bidStatusMessage = bidState
+    ? t(
+        bidState === 'leading'
+          ? 'auction.leaderStateLeading'
+          : 'auction.leaderStateOutbid',
+      )
+    : t('auction.leaderStateWatching');
+
+  const proxyMessage = activeProxyAmount
+    ? t('auction.proxyActiveMessage', {
+        amount: formatAmount(activeProxyAmount),
+      })
+    : null;
+
+  const handleBid = async () => {
+    if (!activeLotId) return;
+
+    if (isBidEmpty) {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.emptyBidError'),
+        type: 'error',
+      });
+      return;
+    }
+
+    const amount = parsedBidAmount;
+    if (Number.isNaN(amount) || amount < minBid) {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.minBidError', {
+          amount: minBid.toFixed(2),
+        }),
+        type: 'error',
+      });
+      return;
+    }
+
+    const diff = amount - currentLotPrice;
+    const diffCents = Math.round(diff * 100);
+    const incrementCents = Math.round(Number(activeLotDetails?.minIncrement || 0) * 100);
+    if (incrementCents > 0 && diffCents % incrementCents !== 0) {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.bidIncrementError', {
+          increment: activeLotDetails?.minIncrement,
+        }),
+        type: 'error',
+      });
+      return;
+    }
+
+    if (isMaxBidBelowBid) {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.maxBidError'),
+        type: 'error',
+      });
+      return;
+    }
+
+    if (isWalletGateClosed) {
+      showModal({
+        title: t('auction.walletGateTitle'),
+        message: t('auction.walletGateModalMessage', {
+          total: formatAmount(bidEstimate.estimatedTotal),
+          shortfall: formatAmount(bidEstimate.walletShortfall),
+        }),
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      const result = await placeBid.mutateAsync({
+        auctionId: activeLotId,
+        amount,
+        maxAmount:
+          !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount)
+            ? parsedMaxBidAmount
+            : undefined,
+      });
+      if (result?.bid?.isLeadingBid === false) {
+        setShowComposer(false);
+        setBidState('outbid');
+        setActiveProxyAmount(null);
+        showModal({
+          title: t('auction.proxyOutbidTitle'),
+          message: t('auction.proxyOutbidMessage', {
+            amount: formatAmount(result.auction?.currentPrice ?? amount),
+          }),
+          type: 'info',
+        });
+        return;
+      }
+      setShowComposer(false);
+      setBidState('leading');
+      setActiveProxyAmount(
+        !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount) && parsedMaxBidAmount > amount
+          ? parsedMaxBidAmount
+          : null,
+      );
+      showModal({
+        title: t('auction.bidAcceptedTitle'),
+        message: t('auction.bidAcceptedMessage', {
+          amount: formatAmount(amount),
+        }),
+        type: 'success',
+      });
+    } catch (error: unknown) {
+      const message = resolveApiErrorMessage(
+        error,
+        t,
+        'auction.bidErrorFallback',
+      );
+      showModal({
+        title: t('common.error'),
+        message,
+        type: 'error',
+      });
+    }
+  };
+
+  const handleWithdrawBid = () => {
+    if (!activeLotId) return;
+
+    showModal({
+      title: t('auction.withdrawBidTitle'),
+      message: t('auction.withdrawBidMessage'),
+      type: 'info',
+      confirmText: t('auction.withdrawBidConfirm'),
+      cancelText: t('common.cancel'),
+      onConfirm: async () => {
+        try {
+          await withdrawBid.mutateAsync({ auctionId: activeLotId });
+          setBidState(null);
+          setActiveProxyAmount(null);
+          showModal({
+            title: t('auction.withdrawBidSuccessTitle'),
+            message: t('auction.withdrawBidSuccessMessage'),
+            type: 'success',
+          });
+        } catch (error: unknown) {
+          showModal({
+            title: t('common.error'),
+            message: resolveApiErrorMessage(error, t, 'auction.withdrawBidErrorFallback'),
+            type: 'error',
+          });
+        }
+      },
+    });
+  };
+
+  // Render Time Left for Active Lot
+  const renderTimeLeft = () => {
+    if (!endTime || timeLeftSeconds <= 0) {
+      return (
+        <View style={styles.timerContainer}>
+          <View style={styles.timerTextRow}>
+            <Ionicons name="time-outline" size={16} color={Colors.slate500} />
+            <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
+          </View>
+          <Text style={[styles.countdownValue, { color: Colors.error }]}>
+            {t('auctions.ended')}
+          </Text>
+        </View>
+      );
+    }
+
+    const hours = Math.floor(timeLeftSeconds / 3600);
+    const minutes = Math.floor((timeLeftSeconds % 3600) / 60);
+    const seconds = timeLeftSeconds % 60;
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const display = hours > 0
+      ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+      : `${pad(minutes)}:${pad(seconds)}`;
+
+    return (
+      <View style={styles.timerContainer}>
+        <View style={styles.timerTextRow}>
+          <Ionicons name="time-outline" size={16} color={Colors.slate500} />
+          <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
+        </View>
+        <Text style={[styles.countdownValue, timeLeftSeconds <= 15 && { color: Colors.error }]}>
+          {display}
+        </Text>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={20} color={Colors.onSurface} />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {event.title}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {socket.eventStatus === 'ACTIVE'
+              ? t('auctions.live', { defaultValue: 'Canlı' })
+              : t('auctions.waiting', { defaultValue: 'Yakında' })}
+          </Text>
+        </View>
+
+        <View style={styles.headerMetrics}>
+          <View style={styles.metricBadge}>
+            <Ionicons name="people-outline" size={14} color={Colors.slate500} />
+            <Text style={styles.metricText}>{socket.viewerCount}</Text>
+          </View>
+          {socket.isConnected && (
+            <View style={[styles.metricBadge, { backgroundColor: `${Colors.auctionGreen}10` }]}>
+              <View style={[styles.liveDot, { backgroundColor: Colors.auctionGreen }]} />
+              <Text style={[styles.metricText, { color: Colors.auctionGreen }]}>
+                {t('auction.connectionLive', { defaultValue: 'Bağlı' })}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Dynamic Center Section - Active Lot or Waiting Banner */}
+        {activeLotId && activeLotDetails ? (
+          <View style={styles.activeLotContainer}>
+            <View style={styles.activeLotImageContainer}>
+              <ProductImageCarousel
+                images={activeProduct?.images}
+                fallbackImage={getProductImageUri(
+                  activeProduct,
+                  activeLotDetails.productImage || 'https://placehold.co/100x100',
+                )}
+                height={240}
+              />
+              <View style={styles.activeLotImageBadgeContainer}>
+                <View style={styles.activeLotBadge}>
+                  <Text style={styles.activeLotBadgeText}>{t('auction.live')}</Text>
+                </View>
+                {activeLotDetails.lotNumber && (
+                  <View style={styles.activeLotNumberBadge}>
+                    <Text style={styles.activeLotNumberBadgeText}>Lot #{activeLotDetails.lotNumber}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={{ paddingHorizontal: Spacing.base, paddingBottom: Spacing.base, paddingTop: Spacing.sm }}>
+              <Text style={styles.activeLotTitle} numberOfLines={2}>
+                {activeLotDetails.productTitle}
+              </Text>
+              
+              <View style={styles.activeLotPriceRow}>
+                <View>
+                  <Text style={styles.priceLabel}>{t('auction.currentPrice')}</Text>
+                  {leadingBidderName && (
+                    <Text style={styles.bidderNameSubtext}>
+                      {maskBidderName(leadingBidderName)}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+                  <Text style={styles.priceValue}>{formatCurrency(currentLotPrice)}</Text>
+                  {bidState === 'leading' && (
+                    <View style={styles.leaderBadge}>
+                      <Ionicons name="checkmark-circle" size={12} color={Colors.white} />
+                      <Text style={styles.leaderBadgeText}>{t('auction.leaderBadge', { defaultValue: 'Lider' })}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {renderTimeLeft()}
+
+              {/* Bid Status Feedback Alerts */}
+              {bidState === 'leading' && (
+                <View style={[styles.statusAlertCard, { backgroundColor: `${Colors.auctionGreen}10` }]}>
+                  <Ionicons name="checkmark-circle" size={18} color={Colors.auctionGreen} />
+                  <Text style={[styles.statusAlertText, { color: Colors.auctionGreen }]}>
+                    {t('auction.leaderStateLeading')}
+                  </Text>
+                </View>
+              )}
+              {bidState === 'outbid' && (
+                <View style={[styles.statusAlertCard, { backgroundColor: `${Colors.error}1A` }]}>
+                  <Ionicons name="alert-circle" size={18} color={Colors.error} />
+                  <Text style={[styles.statusAlertText, { color: Colors.error }]}>
+                    {t('auction.leaderStateOutbid')}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.waitingContainer}>
+            <Image
+              source={{
+                uri: event.coverImageUrl || 'https://placehold.co/600x300/F8F9FA/0097D8',
+              }}
+              style={styles.waitingCover}
+            />
+            <Text style={styles.waitingTitle}>{event.title}</Text>
+            <Text style={styles.waitingTime}>
+              {new Date(event.startTime).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            <View style={[styles.statusAlertCard, { backgroundColor: Colors.slate100 }]}>
+              <Ionicons name="information-circle-outline" size={18} color={Colors.slate500} />
+              <Text style={styles.statusAlertText}>
+                {t('auctions.waiting', { defaultValue: 'Müzayede henüz başlamadı. Katalogu aşağıdan inceleyebilirsiniz.' })}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Sub Navigation Segmented Tabs */}
+        <View style={styles.subTabContainer}>
+          <TouchableOpacity
+            style={[styles.subTabButton, activeSubTab === 'catalog' && styles.subTabButtonActive]}
+            onPress={() => setActiveSubTab('catalog')}
+          >
+            <Text style={[styles.subTabText, activeSubTab === 'catalog' && styles.subTabTextActive]}>
+              {t('auction.catalogTab', { defaultValue: 'Katalog' })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.subTabButton, activeSubTab === 'feed' && styles.subTabButtonActive]}
+            onPress={() => setActiveSubTab('feed')}
+          >
+            <Text style={[styles.subTabText, activeSubTab === 'feed' && styles.subTabTextActive]}>
+              {t('auction.feedTab', { defaultValue: 'Akış' })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.subTabButton, activeSubTab === 'rules' && styles.subTabButtonActive]}
+            onPress={() => setActiveSubTab('rules')}
+          >
+            <Text style={[styles.subTabText, activeSubTab === 'rules' && styles.subTabTextActive]}>
+              {t('auction.rulesTab', { defaultValue: 'Şartlar' })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Tab Contents */}
+        {activeSubTab === 'catalog' && (
+          <View>
+            {sortedLots.map((lot, index) => {
+              const isLotActive = lot.id === activeLotId;
+              const isLotEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED;
+
+              return (
+                <TouchableOpacity
+                  key={lot.id}
+                  style={[styles.lotItem, isLotActive && styles.lotItemActive]}
+                  onPress={() => setSelectedLotForPreview(lot.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.lotSeqContainer}>
+                    <Text style={[styles.lotSeqText, isLotActive && styles.lotSeqTextActive]}>
+                      #{lot.sequenceNumber ?? (index + 1)}
+                    </Text>
+                  </View>
+                  <Image
+                    source={{ uri: lot.productImage || 'https://placehold.co/100x100' }}
+                    style={styles.lotThumb}
+                  />
+                  <View style={styles.lotDetails}>
+                    <View style={styles.lotTitleRow}>
+                      <Text style={styles.lotItemTitle} numberOfLines={1}>
+                        {lot.productTitle}
+                      </Text>
+                      <Text style={styles.lotPrice}>
+                        {formatCurrency(Number(lot.currentPrice))}
+                      </Text>
+                    </View>
+                    <View style={styles.lotStatusRow}>
+                      {isLotActive ? (
+                        <View style={[styles.lotStatusBadge, { backgroundColor: `${Colors.error}1A` }]}>
+                          <Text style={[styles.lotStatusText, { color: Colors.error }]}>
+                            {t('auctions.live')}
+                          </Text>
+                        </View>
+                      ) : isLotEnded ? (
+                        <View style={[styles.lotStatusBadge, { backgroundColor: Colors.slate100 }]}>
+                          <Text style={[styles.lotStatusText, { color: Colors.slate500 }]}>
+                            {t('auctions.ended')}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.lotStatusBadge, { backgroundColor: `${Colors.accent}1A` }]}>
+                          <Text style={[styles.lotStatusText, { color: Colors.accent }]}>
+                            {t('auctions.waiting')}
+                          </Text>
+                        </View>
+                      )}
+                      {lot.lotNumber && (
+                        <Text style={styles.lotNumberText}>Lot: {lot.lotNumber}</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {activeSubTab === 'feed' && (
+          <View style={styles.feedContainer}>
+            {!socket.activityFeed || socket.activityFeed.length === 0 ? (
+              <View style={styles.feedEmpty}>
+                <Ionicons name="chatbubbles-outline" size={36} color={Colors.slate300} />
+                <Text style={styles.feedEmptyText}>
+                  {t('auction.noBidsYet', { defaultValue: 'Canlı hareket bulunmuyor.' })}
+                </Text>
+              </View>
+            ) : (
+              socket.activityFeed.map((item) => {
+                const getToneColor = () => {
+                  if (item.tone === 'accent') return Colors.auctionGreen;
+                  if (item.tone === 'error') return Colors.error;
+                  return Colors.slate600;
+                };
+
+                return (
+                  <View key={item.id} style={styles.feedItem}>
+                    <View style={[styles.feedIcon, { backgroundColor: `${getToneColor()}1A` }]}>
+                      <Ionicons
+                        name={
+                          item.tone === 'accent'
+                            ? 'hammer'
+                            : item.tone === 'error'
+                            ? 'warning'
+                            : 'chatbubble-ellipses'
+                        }
+                        size={14}
+                        color={getToneColor()}
+                      />
+                    </View>
+                    <View style={styles.feedContent}>
+                      <Text style={[styles.feedTitle, { color: getToneColor() }]}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.feedBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {activeSubTab === 'rules' && (
+          <View style={{ padding: Spacing.base }}>
+            <Text style={{ fontFamily: FontFamily.bodySemiBold, fontSize: FontSize.body, marginBottom: 8 }}>
+              {t('legal.auctionTerms.sections.general.title', { defaultValue: 'Genel Kurallar' })}
+            </Text>
+            <Text style={{ fontFamily: FontFamily.body, color: Colors.slate600, fontSize: FontSize.caption, marginBottom: Spacing.base }}>
+              {t('legal.auctionTerms.sections.general.body1', { defaultValue: 'Müzayedeler platform tarafından organize edilen tematik etkinlikler olarak gerçekleştirilir.' })}
+            </Text>
+            <Text style={{ fontFamily: FontFamily.bodySemiBold, fontSize: FontSize.body, marginBottom: 8 }}>
+              {t('legal.auctionTerms.sections.bidding.title', { defaultValue: 'Teklif ve Artış Politikası' })}
+            </Text>
+            <Text style={{ fontFamily: FontFamily.body, color: Colors.slate600, fontSize: FontSize.caption, marginBottom: Spacing.base }}>
+              {t('legal.auctionTerms.sections.bidding.body1', { defaultValue: 'Son saniyelerde gelen teklifler müzayede süresini otomatik uzatır.' })}
+            </Text>
+            <Text style={{ fontFamily: FontFamily.bodySemiBold, fontSize: FontSize.body, marginBottom: 8 }}>
+              {t('legal.auctionTerms.sections.wallet.title', { defaultValue: 'Ödeme ve Blokaj' })}
+            </Text>
+            <Text style={{ fontFamily: FontFamily.body, color: Colors.slate600, fontSize: FontSize.caption }}>
+              {t('legal.auctionTerms.sections.wallet.body1', { defaultValue: 'Teklif vermek için tahmini toplam tutar cüzdanınızda bloke edilir.' })}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Sticky Bottom Place Bid Composer Bar */}
+      {activeLotId && activeLotDetails && !isSeller && (
+        <View style={styles.stickyComposer}>
+          <TouchableOpacity
+            style={styles.openComposerButton}
+            onPress={() => setShowComposer(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bid Compose Modal */}
+      <Modal
+        visible={showComposer}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowComposer(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setShowComposer(false)}
+          />
+          <View style={styles.modalContent}>
+            {activeLotDetails && (
+              <AuctionBidComposer
+                bidAmount={bidAmount}
+                maxBidAmount={maxBidAmount}
+                quickBidOptions={quickBidOptions}
+                feeEstimateRows={feeEstimateRows}
+                statusMessage={bidStatusMessage}
+                proxyMessage={proxyMessage}
+                walletGateMessage={walletGateMessage}
+                onChangeText={setBidAmount}
+                onChangeMaxBidText={setMaxBidAmount}
+                onSelectQuickBid={setBidAmount}
+                placeholder={minBid.toString()}
+                maxPlaceholder={t('auction.maxBidPlaceholder')}
+                minBidText={t('auction.minBid', {
+                  amount: formatAmount(minBid),
+                })}
+                disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
+                isPending={placeBid.isPending}
+                onSubmit={handleBid}
+                onClose={() => setShowComposer(false)}
+                t={t}
+              />
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Lot Preview Modal */}
+      <Modal
+        visible={selectedLotForPreview !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setSelectedLotForPreview(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setSelectedLotForPreview(null)}
+          />
+          <View style={[styles.modalContent, { height: '82%' }]}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {t('moreDetails', { defaultValue: 'Ürün Detayları' })}
+              </Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSelectedLotForPreview(null)}>
+                <Ionicons name="close" size={20} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+
+            {previewedLot && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.imageContainer}>
+                  <ProductImageCarousel
+                    images={previewedProduct?.images}
+                    fallbackImage={previewedLot.productImage || 'https://placehold.co/300x150'}
+                    height={280}
+                  />
+                  {previewedLot.sequenceNumber && (
+                    <View style={styles.imageBadge}>
+                      <Text style={styles.imageBadgeText}>#{previewedLot.sequenceNumber}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ paddingHorizontal: Spacing.base, paddingBottom: Spacing.xl }}>
+                  <Text style={styles.previewTitle}>
+                    {previewedLot.productTitle}
+                  </Text>
+
+                  <View style={styles.badgesContainer}>
+                    <View style={styles.detailBadge}>
+                      <Ionicons name="bookmark-outline" size={14} color={Colors.slate500} />
+                      <Text style={styles.detailBadgeText}>
+                        Lot: {previewedLot.lotNumber || '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.detailBadge}>
+                      <Ionicons name="cash-outline" size={14} color={Colors.auctionGreen} />
+                      <Text style={styles.detailBadgeText}>
+                        {t('auction.openingPrice')}: <Text style={styles.detailBadgePriceText}>{formatCurrency(Number(previewedLot.startPrice))}</Text>
+                      </Text>
+                    </View>
+                  </View>
+
+                  {previewedProduct ? (
+                    <View>
+                      <Text style={styles.sectionHeader}>
+                        {t('product.descriptionTitle', { defaultValue: 'Ürün Açıklaması' })}
+                      </Text>
+                      <Text style={styles.descriptionText}>
+                        {previewedProduct.description || t('product.noDescription', { defaultValue: 'Açıklama bulunmuyor.' })}
+                      </Text>
+
+                      <Text style={styles.sectionHeader}>
+                        {t('product.specifications', { defaultValue: 'Özellikler' })}
+                      </Text>
+                      
+                      <View style={styles.specGrid}>
+                        <View style={styles.specTile}>
+                          <Text style={styles.specTileLabel}>
+                            {t('auction.categoryLabel', { defaultValue: 'Kategori' })}
+                          </Text>
+                          <Text style={styles.specTileValue} numberOfLines={1}>
+                            {previewedProduct.categoryName || '-'}
+                          </Text>
+                        </View>
+
+                        <View style={styles.specTile}>
+                          <Text style={styles.specTileLabel}>
+                            {t('auction.conditionLabel', { defaultValue: 'Durum' })}
+                          </Text>
+                          <Text style={styles.specTileValue} numberOfLines={1}>
+                            {getAuctionConditionLabel(previewedProduct.condition, t)}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    <ActivityIndicator size="small" color={Colors.auctionGreen} style={{ marginVertical: Spacing.xl }} />
+                  )}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}

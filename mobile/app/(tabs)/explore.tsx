@@ -24,6 +24,8 @@ import type { Blog, Category, Product } from '../../types';
 import { formatCurrency } from '../../utils/transactionFormatters';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../../styles/tabs/ExploreScreen.styles';
+import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 
 type ExploreSectionKey = 'all' | 'products' | 'auctions' | 'blogs';
 
@@ -101,6 +103,7 @@ function getCategoryChipConfig(categoryName: string) {
 
 export default function ExploreScreen() {
   const { t } = useTranslation();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
@@ -459,7 +462,26 @@ export default function ExploreScreen() {
           <TouchableOpacity
             style={styles.headerNotificationButton}
             activeOpacity={0.7}
-            onPress={() => router.push('/(tabs)/notifications')}
+            onPress={() => {
+              if (!isLoggedIn) {
+                useModalStore.getState().showModal({
+                  title: t('common.authRequiredTitle'),
+                  message: t('notifications.authRequiredMessage'),
+                  type: 'info',
+                  confirmText: t('auth.login'),
+                  cancelText: t('common.cancel'),
+                  onConfirm: () => {
+                    useModalStore.getState().hideModal();
+                    router.push('/(auth)/login');
+                  },
+                  onCancel: () => {
+                    useModalStore.getState().hideModal();
+                  }
+                });
+                return;
+              }
+              router.push('/(tabs)/notifications');
+            }}
           >
             <Ionicons name="notifications-outline" size={22} color={Colors.primary} />
           </TouchableOpacity>

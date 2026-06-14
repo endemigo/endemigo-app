@@ -1772,26 +1772,31 @@ export class AdminOperationsService {
       });
     }
 
+    const sellerProfile = await this.sellerProfileRepo.findOne({
+      where: { userId: id },
+      select: {
+        id: true,
+        userId: true,
+        businessName: true,
+        taxOffice: true,
+        taxNumber: true,
+        phone: true,
+        status: true,
+        commissionRate: true,
+        approvedAt: true,
+        agreementAcceptedAt: true,
+        agreementVersion: true,
+        agreementIpAddress: true,
+        agreementUserAgent: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
     const initialPage = 1;
     const initialLimit = 25;
     const addressRepo = this.userRepo.manager?.getRepository(Address);
-    const [
-      orderCount,
-      salesCount,
-      favoriteCount,
-      cartLineCount,
-      cartQuantityRaw,
-      addressCount,
-      definedCouponCount,
-      couponUsageCount,
-      orderRows,
-      salesRows,
-      addresses,
-      favorites,
-      cartItems,
-      definedCoupons,
-      usageRows,
-    ] = await Promise.all([
+    const promises: Promise<any>[] = [
       this.orderRepo.count({ where: { buyerId: id } }),
       this.orderRepo.count({ where: { sellerId: id } }),
       this.favoriteRepo.count({ where: { userId: id } }),
@@ -1831,11 +1836,192 @@ export class AdminOperationsService {
         take: initialLimit,
       }),
       this.loadCouponUsageRows(id, initialPage, initialLimit),
-    ]);
+    ];
 
-    const couponUsageMap = await this.loadCouponUsageMap(definedCoupons.map((coupon) => coupon.id));
+    if (sellerProfile) {
+      promises.push(
+        this.productRepo.count({ where: { sellerId: id } }),
+        this.productRepo.count({ where: { sellerId: id, status: ProductStatus.ACTIVE } }),
+        this.productRepo.count({ where: { sellerId: id, status: ProductStatus.DRAFT } }),
+        this.productRepo.count({ where: { sellerId: id, status: ProductStatus.PENDING_REVIEW } }),
+        this.productRepo.count({ where: { sellerId: id, status: ProductStatus.SUSPENDED } }),
+        this.productRepo.count({ where: { sellerId: id, status: ProductStatus.OUT_OF_STOCK } }),
+        this.orderRepo.count({ where: { sellerId: id, status: OrderStatus.COMPLETED } }),
+        this.orderRepo
+          .createQueryBuilder('order')
+          .select('COUNT(DISTINCT order.buyerId)', 'value')
+          .where('order.sellerId = :sellerUserId', { sellerUserId: id })
+          .getRawOne<{ value: string | number | null }>(),
+        this.auctionRepo.count({ where: { sellerId: id } }),
+        this.auctionRepo.count({ where: { sellerId: id, status: AuctionStatus.ACTIVE } }),
+        this.payoutRequestRepo.count({ where: { sellerId: id } }),
+        this.payoutRequestRepo.count({ where: { sellerId: id, status: PayoutRequestStatus.REQUESTED } }),
+        this.paymentRepo
+          .createQueryBuilder('payment')
+          .leftJoin(Order, 'sellerOrder', 'sellerOrder.id = payment.orderId')
+          .where('sellerOrder.sellerId = :sellerUserId', { sellerUserId: id })
+          .andWhere('payment.status = :status', { status: PaymentStatus.ADMIN_REVIEW })
+          .getCount(),
+        this.orderRepo
+          .createQueryBuilder('order')
+          .select('COALESCE(SUM(order.amount), 0)', 'value')
+          .where('order.sellerId = :sellerUserId', { sellerUserId: id })
+          .getRawOne<{ value: string | number | null }>(),
+        this.productRepo.find({
+          where: { sellerId: id },
+          order: { createdAt: 'DESC' },
+          take: 10,
+        }),
+        this.auctionRepo.find({
+          where: { sellerId: id },
+          order: { createdAt: 'DESC' },
+          take: 10,
+        }),
+        this.payoutRequestRepo.find({
+          where: { sellerId: id },
+          order: { createdAt: 'DESC' },
+          take: 10,
+        }),
+        this.paymentRepo
+          .createQueryBuilder('payment')
+          .leftJoin(Order, 'sellerOrder', 'sellerOrder.id = payment.orderId')
+          .where('sellerOrder.sellerId = :sellerUserId', { sellerUserId: id })
+          .orderBy('payment.createdAt', 'DESC')
+          .take(10)
+          .select([
+            'payment.id as id',
+            'payment.orderId as "orderId"',
+            'payment.status as status',
+            'payment.amount as amount',
+            'payment.currency as currency',
+            'payment.paidAt as "paidAt"',
+            'payment.createdAt as "createdAt"',
+          ])
+          .getRawMany<{
+            id: string;
+            orderId: string | null;
+            status: string;
+            amount: string | number;
+            currency: string;
+            paidAt: Date | string | null;
+            createdAt: Date | string;
+          }>(),
+      );
+    }
+
+    const results = await Promise.all(promises);
+
+    const orderCount = results[0];
+    const salesCount = results[1];
+    const favoriteCount = results[2];
+    const cartLineCount = results[3];
+    const cartQuantityRaw = results[4];
+    const addressCount = results[5];
+    const definedCouponCount = results[6];
+    const couponUsageCount = results[7];
+    const orderRows = results[8];
+    const salesRows = results[9];
+    const addresses = results[10];
+    const favorites = results[11];
+    const cartItems = results[12];
+    const definedCoupons = results[13];
+    const usageRows = results[14];
+
+    const couponUsageMap = await this.loadCouponUsageMap(definedCoupons.map((coupon: any) => coupon.id));
 
     const timeline = this.buildUserTimeline(user.createdAt, orderRows, salesRows, usageRows);
+
+    let sellerSummary: any = null;
+    let sellerProducts: any[] = [];
+    let sellerAuctions: any[] = [];
+    let sellerPayouts: any[] = [];
+    let sellerPayments: any[] = [];
+
+    if (sellerProfile) {
+      const productCount = results[15];
+      const activeProductCount = results[16];
+      const draftProductCount = results[17];
+      const reviewProductCount = results[18];
+      const suspendedProductCount = results[19];
+      const outOfStockProductCount = results[20];
+      const completedSaleCount = results[21];
+      const uniqueBuyerCountRaw = results[22];
+      const auctionCount = results[23];
+      const activeAuctionCount = results[24];
+      const payoutRequestCount = results[25];
+      const pendingPayoutCount = results[26];
+      const adminReviewPaymentCount = results[27];
+      const gmvRaw = results[28];
+      const products = results[29];
+      const auctions = results[30];
+      const payouts = results[31];
+      const payments = results[32];
+
+      sellerSummary = {
+        productCount,
+        activeProductCount,
+        draftProductCount,
+        reviewProductCount,
+        suspendedProductCount,
+        outOfStockProductCount,
+        saleCount: salesCount,
+        completedSaleCount,
+        uniqueBuyerCount: Number(uniqueBuyerCountRaw?.value ?? 0),
+        grossMerchandiseValue: Number(gmvRaw?.value ?? 0),
+        auctionCount,
+        activeAuctionCount,
+        couponCount: definedCouponCount,
+        payoutRequestCount,
+        pendingPayoutCount,
+        adminReviewPaymentCount,
+        addressCount,
+      };
+
+      sellerProducts = products.map((product: any) => ({
+        id: product.id,
+        title: product.title,
+        status: product.status,
+        price: Number(product.price ?? 0),
+        stockQuantity: Number(product.stockQuantity ?? 0),
+        createdAt: product.createdAt.toISOString(),
+      }));
+
+      sellerAuctions = auctions.map((auction: any) => ({
+        id: auction.id,
+        productId: auction.productId,
+        status: auction.status,
+        currentPrice: Number(auction.currentPrice ?? 0),
+        reservePrice:
+          auction.reservePrice === null || auction.reservePrice === undefined
+            ? null
+            : Number(auction.reservePrice),
+        reserveMet: this.toBooleanValue(auction.reserveMet),
+        bidCount: Number(auction.bidCount ?? 0),
+        startTime: auction.startTime.toISOString(),
+        endTime: auction.endTime.toISOString(),
+        createdAt: auction.createdAt.toISOString(),
+      }));
+
+      sellerPayouts = payouts.map((payout: any) => ({
+        id: payout.id,
+        amount: Number(payout.amount ?? 0),
+        currency: payout.currency,
+        status: payout.status,
+        createdAt: payout.createdAt.toISOString(),
+        reviewedAt: payout.reviewedAt ? payout.reviewedAt.toISOString() : null,
+      }));
+
+      sellerPayments = payments.map((payment: any) => ({
+        id: payment.id,
+        orderId: payment.orderId ?? '',
+        status: payment.status,
+        amount: Number(payment.amount ?? 0),
+        currency: payment.currency,
+        paidAt: payment.paidAt ? this.toIsoDate(payment.paidAt) : null,
+        createdAt: this.toIsoDate(payment.createdAt),
+      }));
+    }
+
     const relatedRecords = {
       summary: {
         orderCount,
@@ -1849,7 +2035,7 @@ export class AdminOperationsService {
       },
       orders: orderRows,
       sales: salesRows,
-      addresses: addresses.map((address) => ({
+      addresses: addresses.map((address: any) => ({
         id: address.id,
         type: address.type,
         title: address.title,
@@ -1864,7 +2050,7 @@ export class AdminOperationsService {
         isDefault: address.isDefault,
         createdAt: address.createdAt.toISOString(),
       })),
-      favorites: favorites.map((favorite) => ({
+      favorites: favorites.map((favorite: any) => ({
         id: favorite.id,
         productId: favorite.productId,
         productTitle: favorite.product?.title ?? '',
@@ -1872,7 +2058,7 @@ export class AdminOperationsService {
         productPrice: favorite.product?.price ?? null,
         createdAt: favorite.createdAt.toISOString(),
       })),
-      cart: cartItems.map((item) => ({
+      cart: cartItems.map((item: any) => ({
         id: item.id,
         productId: item.productId,
         productTitle: item.product?.title ?? '',
@@ -1882,7 +2068,7 @@ export class AdminOperationsService {
         createdAt: item.createdAt.toISOString(),
       })),
       coupons: {
-        defined: definedCoupons.map<UserCouponDefinitionRow>((coupon) => {
+        defined: (definedCoupons as any[]).map<UserCouponDefinitionRow>((coupon: any) => {
           const totalUses = couponUsageMap.get(coupon.id) ?? 0;
           return {
             id: coupon.id,
@@ -1908,13 +2094,26 @@ export class AdminOperationsService {
         couponDefinitions: this.toPagination(initialPage, initialLimit, definedCouponCount),
         couponUsage: this.toPagination(initialPage, initialLimit, couponUsageCount),
       },
+      sellerSummary,
+      products: sellerProfile ? sellerProducts : undefined,
+      auctions: sellerProfile ? sellerAuctions : undefined,
+      payouts: sellerProfile ? sellerPayouts : undefined,
+      payments: sellerProfile ? sellerPayments : undefined,
     };
 
     return {
       code: RC.SUCCESS,
       message: 'Admin detay getirildi',
       resource: 'users',
-      overview: this.sanitizeUserOverview(user),
+      overview: {
+        ...this.sanitizeUserOverview(user),
+        sellerProfile: sellerProfile
+          ? {
+              ...sellerProfile,
+              commissionRate: Number(sellerProfile.commissionRate),
+            }
+          : null,
+      },
       timeline,
       relatedRecords,
       audit: {
@@ -1956,6 +2155,16 @@ export class AdminOperationsService {
       coupons,
       payments,
       addresses,
+      // Unified Buyer Fields
+      orderCount,
+      favoriteCount,
+      cartLineCount,
+      cartQuantityRaw,
+      couponUsageCount,
+      orderRows,
+      favorites,
+      cartItems,
+      usageRows,
     ] = await Promise.all([
       this.userRepo.findOne({
         where: { id: sellerUserId },
@@ -2055,6 +2264,30 @@ export class AdminOperationsService {
             take: initialLimit,
           })
         : Promise.resolve([]),
+      // Buyer details
+      this.orderRepo.count({ where: { buyerId: sellerUserId } }),
+      this.favoriteRepo.count({ where: { userId: sellerUserId } }),
+      this.cartItemRepo.count({ where: { userId: sellerUserId } }),
+      this.cartItemRepo
+        .createQueryBuilder('cartItem')
+        .select('COALESCE(SUM(cartItem.quantity), 0)', 'value')
+        .where('cartItem.userId = :userId', { userId: sellerUserId })
+        .getRawOne<{ value: string | number | null }>(),
+      this.couponRedemptionRepo.count({ where: { userId: sellerUserId } }),
+      this.loadUserOrdersAsBuyer(sellerUserId, 1, 25),
+      this.favoriteRepo.find({
+        where: { userId: sellerUserId },
+        relations: { product: true },
+        order: { createdAt: 'DESC' },
+        take: 25,
+      }),
+      this.cartItemRepo.find({
+        where: { userId: sellerUserId },
+        relations: { product: true },
+        order: { createdAt: 'DESC' },
+        take: 25,
+      }),
+      this.loadCouponUsageRows(sellerUserId, 1, 25),
     ]);
 
     const productRows: SellerProductRow[] = products.map((product) => ({
@@ -2111,6 +2344,7 @@ export class AdminOperationsService {
       paidAt: payment.paidAt ? this.toIsoDate(payment.paidAt) : null,
       createdAt: this.toIsoDate(payment.createdAt),
     }));
+
     const addressRows: SellerAddressRow[] = addresses.map((address) => ({
       id: address.id,
       type: address.type,
@@ -2215,6 +2449,35 @@ export class AdminOperationsService {
         coupons: couponRows,
         payments: paymentRows,
         addresses: addressRows,
+        userSummary: {
+          orderCount,
+          salesCount: saleCount,
+          favoriteCount,
+          cartLineCount,
+          cartQuantityTotal: Number(cartQuantityRaw?.value ?? 0),
+          addressCount,
+          definedCouponCount: couponCount,
+          couponUsageCount,
+        },
+        orders: orderRows,
+        favorites: favorites.map((favorite) => ({
+          id: favorite.id,
+          productId: favorite.productId,
+          productTitle: favorite.product?.title ?? '',
+          productStatus: favorite.product?.status ?? null,
+          productPrice: favorite.product?.price ?? null,
+          createdAt: favorite.createdAt.toISOString(),
+        })),
+        cart: cartItems.map((item) => ({
+          id: item.id,
+          productId: item.productId,
+          productTitle: item.product?.title ?? '',
+          productStatus: item.product?.status ?? null,
+          productPrice: item.product?.price ?? null,
+          quantity: item.quantity,
+          createdAt: item.createdAt.toISOString(),
+        })),
+        couponUsage: usageRows,
       },
       audit: {
         targetType: this.toTargetType('sellers'),

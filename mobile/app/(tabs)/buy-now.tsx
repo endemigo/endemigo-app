@@ -8,6 +8,8 @@ import { useProducts, useCategories, Product, Category } from '../../hooks/usePr
 import { ProductCard } from '../../components/ui';
 import { Colors, Spacing } from '../../constants/theme';
 import { styles } from '../../styles/buy-now.styles';
+import { useAuthStore } from '../../store/authStore';
+import { useModalStore } from '../../store/modalStore';
 
 const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
   elektronik: { icon: 'desktop', color: Colors.primary },
@@ -29,6 +31,7 @@ function getCategoryIcon(slug: string) {
 export default function BuyNowScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const insets = useSafeAreaInsets();
   
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -106,7 +109,26 @@ export default function BuyNowScreen() {
             <TouchableOpacity
               style={[styles.searchActionButton, styles.notificationActionButton]}
               activeOpacity={0.85}
-              onPress={() => router.push('/(tabs)/notifications')}
+              onPress={() => {
+                if (!isLoggedIn) {
+                  useModalStore.getState().showModal({
+                    title: t('common.authRequiredTitle'),
+                    message: t('notifications.authRequiredMessage'),
+                    type: 'info',
+                    confirmText: t('auth.login'),
+                    cancelText: t('common.cancel'),
+                    onConfirm: () => {
+                      useModalStore.getState().hideModal();
+                      router.push('/(auth)/login');
+                    },
+                    onCancel: () => {
+                      useModalStore.getState().hideModal();
+                    }
+                  });
+                  return;
+                }
+                router.push('/(tabs)/notifications');
+              }}
               accessibilityRole="button"
               accessibilityLabel={t('tabs.notifications')}
             >

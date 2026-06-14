@@ -24,9 +24,14 @@ import { useStartNegotiation } from '../../hooks/useNegotiations';
 import { useToggleFavorite } from '../../hooks/useSearch';
 import { useModalStore } from '../../store/modalStore';
 import { useToastStore } from '../../store/toastStore';
+import { useAuthStore } from '../../store/authStore';
+import { useFavoritesStore } from '../../store/favoritesStore';
+import { useRecentlyViewedStore } from '../../store/recentlyViewedStore';
 import { ProductCard, SectionHeader } from '../../components/ui';
 import { formatCurrency } from '../../utils/transactionFormatters';
+import { formatProductPrice } from '../../utils/productPriceFormatter';
 import { resolveApiErrorMessage } from '../../utils/apiError';
+import type { Product } from '../../types';
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x300/F8F9FA/0097D8?text=Endemigo';
 const GEO_BADGE_LOGOS = {
@@ -151,7 +156,7 @@ function HeroImage({
 
 function PurchasePanel({
   isAskPrice,
-  price,
+  product,
   t,
   cartQuantity,
   cartUnitLabel,
@@ -161,7 +166,7 @@ function PurchasePanel({
   onAskPrice,
 }: {
   isAskPrice: boolean;
-  price: number;
+  product: Product;
   t: ReturnType<typeof useTranslation>['t'];
   cartQuantity: number;
   cartUnitLabel: string;
@@ -173,7 +178,7 @@ function PurchasePanel({
   return (
     <View style={styles.purchaseCard}>
       <View style={styles.purchasePriceRow}>
-        <Text style={styles.purchasePrice}>{formatCurrency(price)}</Text>
+        <Text style={styles.purchasePrice}>{formatProductPrice(product, t)}</Text>
         <Text style={styles.purchaseUnitText}>{t('product.perUnit')}</Text>
       </View>
 
@@ -224,14 +229,13 @@ export default function ProductDetailScreen() {
   const [badgeModalVisible, setBadgeModalVisible] = React.useState(false);
   const [selectedBadge, setSelectedBadge] = React.useState<HeroBadgeItem | null>(null);
   const [reviewCursor, setReviewCursor] = React.useState(0);
-  const [flyToCartImageUri, setFlyToCartImageUri] = React.useState<string | null>(null);
   const [contentStartY, setContentStartY] = React.useState(0);
   const [purchasePanelBottomY, setPurchasePanelBottomY] = React.useState<number | null>(null);
   const [showStickyAddToCart, setShowStickyAddToCart] = React.useState(false);
   const [selectedColorVariantId, setSelectedColorVariantId] = React.useState<string | null>(null);
   const [selectedSizeVariantId, setSelectedSizeVariantId] = React.useState<string | null>(null);
   const [favoriteActive, setFavoriteActive] = React.useState(false);
-  const flyProgress = useSharedValue(0);
+  const [prevProductFavorited, setPrevProductFavorited] = React.useState<boolean | undefined>(undefined);
   const stickyCtaProgress = useSharedValue(0);
   const recommendedProducts = React.useMemo(() => {
     if (!product) return [];
@@ -251,26 +255,15 @@ export default function ProductDetailScreen() {
     return [...sameCategory, ...fallback].slice(0, 6);
   }, [product, productsData?.items]);
 
-  React.useEffect(() => {
-    setFavoriteActive(Boolean(product?.isFavorited));
-  }, [product?.isFavorited]);
-  const flyToCartStyle = useAnimatedStyle(() => {
-    const progress = flyProgress.value;
-    const startX = SCREEN_WIDTH * 0.38;
-    const endX = SCREEN_WIDTH - 30;
-    const startY = Platform.OS === 'ios' ? SCREEN_HEIGHT * 0.32 : SCREEN_HEIGHT * 0.3;
-    const endY = Platform.OS === 'ios' ? SCREEN_HEIGHT - 132 : SCREEN_HEIGHT - 108;
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const isLocalFavorited = useFavoritesStore((state) => state.items.some((p) => p.id === id));
+  const currentProductFavorited = isLoggedIn ? Boolean(product?.isFavorited) : isLocalFavorited;
 
-    return {
-      opacity: interpolate(progress, [0, 0.92, 1], [0.96, 0.9, 0.08]),
-      transform: [
-        { translateX: interpolate(progress, [0, 1], [startX, endX]) },
-        { translateY: interpolate(progress, [0, 1], [startY, endY]) },
-        { scale: interpolate(progress, [0, 0.85, 1], [1, 0.58, 0.22]) },
-        { rotateZ: `${interpolate(progress, [0, 1], [0, 6])}deg` },
-      ],
-    };
-  });
+  if (prevProductFavorited !== currentProductFavorited) {
+    setPrevProductFavorited(currentProductFavorited);
+    setFavoriteActive(currentProductFavorited);
+  }
+
   const stickyCtaAnimatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(stickyCtaProgress.value, [0, 1], [0, 1]),
     transform: [
@@ -369,6 +362,14 @@ export default function ProductDetailScreen() {
       easing: showStickyAddToCart ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
     });
   }, [showStickyAddToCart, stickyCtaProgress]);
+
+  const recordView = useRecentlyViewedStore((state) => state.recordView);
+
+  React.useEffect(() => {
+    if (product?.id) {
+      recordView(product.id).catch(() => {});
+    }
+  }, [product?.id, recordView]);
 
   if (isLoading) {
     return (
@@ -479,16 +480,7 @@ export default function ProductDetailScreen() {
         imageUrl: productImageUri,
         sellerId: product.sellerId,
       });
-      setFlyToCartImageUri(productImageUri);
-      flyProgress.value = 0;
-      flyProgress.value = withTiming(1, {
-        duration: 1400,
-        easing: Easing.inOut(Easing.quad),
-      }, (finished) => {
-        if (finished) {
-          runOnJS(setFlyToCartImageUri)(null);
-        }
-      });
+
       showToast({ message: t('cart.addedToCart'), type: 'success' });
     } catch {
       showModal({
@@ -742,7 +734,7 @@ export default function ProductDetailScreen() {
           >
             <PurchasePanel
               isAskPrice={isAskPrice}
-              price={Number(product.price)}
+              product={product}
               t={t}
               cartQuantity={cartQuantity}
               cartUnitLabel={cartUnitLabel}
@@ -1084,12 +1076,7 @@ export default function ProductDetailScreen() {
         </View>
       </Modal>
 
-      {flyToCartImageUri ? (
-        <Animated.Image
-          source={{ uri: flyToCartImageUri }}
-          style={[styles.flyToCartImage, flyToCartStyle]}
-        />
-      ) : null}
+
 
       <Animated.View
         pointerEvents={showStickyAddToCart ? 'auto' : 'none'}

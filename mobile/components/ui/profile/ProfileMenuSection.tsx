@@ -37,24 +37,12 @@ export function ProfileMenuSection({ activeMode, items, onNavigate }: ProfileMen
             activeOpacity={0.75}
             onPress={() => onNavigate(item.route)}
           >
-            <View style={[
-              styles.icon,
-              item.tone === 'secondary' ? styles.iconSecondary :
-              item.tone === 'accent' ? styles.iconAccent :
-              item.tone === 'neutral' ? styles.iconNeutral :
-              styles.iconPrimary
-            ]}>
-              <Ionicons
-                name={item.icon}
-                size={18}
-                color={
-                  item.tone === 'secondary' ? Colors.secondary :
-                  item.tone === 'accent' ? Colors.accent :
-                  item.tone === 'neutral' ? Colors.slate600 :
-                  Colors.primary
-                }
-              />
-            </View>
+            <Ionicons
+              name={item.icon}
+              size={22}
+              color={Colors.slate500}
+              style={{ width: 24, textAlign: 'center' }}
+            />
             <Text style={styles.text}>{t(item.labelKey)}</Text>
             <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
           </TouchableOpacity>

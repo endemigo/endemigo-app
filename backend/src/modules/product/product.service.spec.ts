@@ -25,6 +25,16 @@ import { AdminSettingsService } from '../admin-settings/admin-settings.service';
 import { ListingTemplate as ListingTemplateEntity } from './entities/listing-template.entity';
 import { GeoIndication } from './entities/geo-indication.entity';
 import { FeatureBadge } from './entities/feature-badge.entity';
+import { ProductView } from './entities/product-view.entity';
+
+type MockProductViewRepository = {
+  findOne: jest.Mock;
+  find: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+  remove: jest.Mock;
+  createQueryBuilder: jest.Mock;
+};
 
 type MockListingTemplateRepository = {
   find: jest.Mock;
@@ -114,6 +124,7 @@ describe('ProductService', () => {
   let listingTemplateRepo: MockListingTemplateRepository;
   let geoIndicationRepo: any;
   let featureBadgeRepo: any;
+  let productViewRepo: MockProductViewRepository;
 
   const mockSeller = {
     id: 'seller-1',
@@ -262,6 +273,23 @@ describe('ProductService', () => {
       save: jest.fn((entity) => Promise.resolve(entity)),
     };
 
+    productViewRepo = {
+      findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+      create: jest.fn((data) => data),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+      remove: jest.fn().mockResolvedValue(undefined),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
@@ -272,6 +300,7 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(VariantNumber), useValue: variantNumberRepo },
         { provide: getRepositoryToken(ProductVariantSku), useValue: productVariantSkuRepo },
         { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
+        { provide: getRepositoryToken(ProductView), useValue: productViewRepo },
         { provide: getRepositoryToken(ListingTemplateEntity), useValue: listingTemplateRepo },
         { provide: getRepositoryToken(GeoIndication), useValue: geoIndicationRepo },
         { provide: getRepositoryToken(FeatureBadge), useValue: featureBadgeRepo },
@@ -955,6 +984,144 @@ describe('ProductService', () => {
 
       expect(result.price).toBe(25000);
       expect(result.askPriceMinAmount).toBe(10000);
+    });
+  });
+
+  describe('recently viewed products', () => {
+    describe('recordProductView', () => {
+      it('should throw NotFoundException if product does not exist', async () => {
+        productRepo.findOne.mockResolvedValue(null);
+        await expect(
+          service.recordProductView('nonexistent-product', 'user-1'),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('should create a new view if none exists', async () => {
+        productRepo.findOne.mockResolvedValue(mockProduct);
+        productViewRepo.findOne.mockResolvedValue(null);
+
+        const result = await service.recordProductView('product-1', 'user-1', {
+          deviceToken: 'token-1',
+          referrer: 'search',
+          platform: 'mobile',
+        });
+
+        expect(result.code).toBe(RC.PRODUCT_VIEW_RECORDED);
+        expect(productViewRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            productId: 'product-1',
+            userId: 'user-1',
+            viewCount: 1,
+            referrer: 'search',
+            platform: 'mobile',
+          }),
+        );
+        expect(productViewRepo.save).toHaveBeenCalled();
+      });
+
+      it('should increment viewCount if view exists', async () => {
+        productRepo.findOne.mockResolvedValue(mockProduct);
+        const existingView = {
+          productId: 'product-1',
+          userId: 'user-1',
+          viewCount: 1,
+          lastViewedAt: new Date(Date.now() - 10000),
+        };
+        productViewRepo.findOne.mockResolvedValue(existingView);
+
+        await service.recordProductView('product-1', 'user-1');
+
+        expect(existingView.viewCount).toBe(2);
+        expect(productViewRepo.save).toHaveBeenCalledWith(existingView);
+      });
+    });
+
+    describe('getRecentlyViewed', () => {
+      it('should return empty result if no user or device token is provided', async () => {
+        const result = await service.getRecentlyViewed();
+        expect(result.items).toEqual([]);
+        expect(result.total).toBe(0);
+      });
+
+      it('should return paginated recently viewed list', async () => {
+        const mockView = {
+          id: 'view-1',
+          lastViewedAt: new Date(),
+          product: {
+            ...mockProduct,
+            status: ProductStatus.ACTIVE,
+            category: { name: 'Halilar' },
+            images: [],
+          },
+        };
+
+        const mockQb = {
+          innerJoinAndSelect: jest.fn().mockReturnThis(),
+          leftJoinAndSelect: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          skip: jest.fn().mockReturnThis(),
+          take: jest.fn().mockReturnThis(),
+          getManyAndCount: jest.fn().mockResolvedValue([[mockView], 1]),
+        };
+
+        productViewRepo.createQueryBuilder.mockReturnValue(mockQb);
+
+        const result = await service.getRecentlyViewed('user-1', undefined, 1, 10);
+
+        expect(result.items).toHaveLength(1);
+        expect(result.total).toBe(1);
+        expect(result.items[0].id).toBe('product-1');
+        expect(result.items[0].categoryName).toBe('Halilar');
+      });
+    });
+
+    describe('mergeGuestViews', () => {
+      it('should merge guest views into user account', async () => {
+        const guestView = {
+          productId: 'product-1',
+          deviceToken: 'token-1',
+          userId: null,
+          viewCount: 2,
+          firstViewedAt: new Date(Date.now() - 20000),
+          lastViewedAt: new Date(Date.now() - 10000),
+        };
+        productViewRepo.find.mockResolvedValue([guestView]);
+        productViewRepo.findOne.mockResolvedValue(null);
+
+        await service.mergeGuestViews('user-1', 'token-1');
+
+        expect(guestView.userId).toBe('user-1');
+        expect(guestView.deviceToken).toBeNull();
+        expect(productViewRepo.save).toHaveBeenCalledWith(guestView);
+      });
+
+      it('should add counts if user view already exists', async () => {
+        const guestView = {
+          productId: 'product-1',
+          deviceToken: 'token-1',
+          userId: null,
+          viewCount: 2,
+          firstViewedAt: new Date(Date.now() - 20000),
+          lastViewedAt: new Date(Date.now() - 10000),
+        };
+        const userView = {
+          productId: 'product-1',
+          userId: 'user-1',
+          viewCount: 1,
+          firstViewedAt: new Date(Date.now() - 5000),
+          lastViewedAt: new Date(Date.now() - 2000),
+        };
+
+        productViewRepo.find.mockResolvedValue([guestView]);
+        productViewRepo.findOne.mockResolvedValue(userView);
+
+        await service.mergeGuestViews('user-1', 'token-1');
+
+        expect(userView.viewCount).toBe(3);
+        expect(productViewRepo.save).toHaveBeenCalledWith(userView);
+        expect(productViewRepo.remove).toHaveBeenCalledWith(guestView);
+      });
     });
   });
 });

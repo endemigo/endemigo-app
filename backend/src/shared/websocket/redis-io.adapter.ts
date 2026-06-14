@@ -51,8 +51,10 @@ export class RedisIoAdapter extends IoAdapter {
     return server;
   }
 
-  async close(server: Server) {
-    server.close();
+  async close(server: any) {
+    if (server && typeof server.close === 'function') {
+      server.close();
+    }
     await this.disconnectRedisClients();
   }
 

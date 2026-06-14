@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -301,11 +302,88 @@ export class ProductController {
   }
 
   @Public()
+  @Get('recently-viewed')
+  @ApiOperation({ summary: 'Son gezilen ürünleri listele' })
+  @ApiQuery({ name: 'deviceToken', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getRecentlyViewed(
+    @Req() req: any,
+    @Query('deviceToken') deviceToken?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    let userId: string | undefined = undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        userId = payload.sub || payload.id;
+      } catch {}
+    }
+
+    const result = await this.productService.getRecentlyViewed(
+      userId,
+      deviceToken,
+      parsePositiveIntQuery(page, 'page', 1),
+      parsePositiveIntQuery(limit, 'limit', 10, 50),
+    );
+
+    return {
+      code: RC.RECENTLY_VIEWED_LISTED,
+      message: 'Son gezilen urunler listelendi',
+      ...result,
+    };
+  }
+
+  @Post('merge-views')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Misafir geçmişini kullanıcı hesabı ile birleştir' })
+  async mergeViews(
+    @CurrentUser('id') userId: string,
+    @Body() dto: { deviceToken: string },
+  ) {
+    if (!dto.deviceToken) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'deviceToken zorunludur',
+      });
+    }
+    await this.productService.mergeGuestViews(userId, dto.deviceToken);
+    return {
+      code: RC.SUCCESS,
+      message: 'Gecmis basariyla birlestirildi',
+    };
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Ürün detay' })
   @ApiResponse({ status: 200, type: ProductResponseDto })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productService.findPublicById(id);
+  }
+
+  @Public()
+  @Post(':id/view')
+  @ApiOperation({ summary: 'Ürün görüntülemeyi kaydet (Üye/Misafir)' })
+  async recordView(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: any,
+    @Body() dto: { deviceToken?: string; referrer?: string; platform?: string },
+  ) {
+    let userId: string | undefined = undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        userId = payload.sub || payload.id;
+      } catch {}
+    }
+
+    return this.productService.recordProductView(id, userId, dto);
   }
 }
 

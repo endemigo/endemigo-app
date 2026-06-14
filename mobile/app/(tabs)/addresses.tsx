@@ -218,7 +218,6 @@ export default function AddressesScreen() {
       }
     >
       <View style={styles.hero}>
-        <Text style={styles.title}>{t('addresses.title')}</Text>
         <Text style={styles.subtitle}>{t('addresses.subtitle')}</Text>
       </View>
 

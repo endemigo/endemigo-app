@@ -13,6 +13,8 @@ import { initMobileMonitoring } from '../lib/monitoring';
 import { useAuthStore } from '../store/authStore';
 import { useBackendConnectionStore } from '../store/backendConnectionStore';
 import { useCartStore } from '../store/cartStore';
+import { useFavoritesStore } from '../store/favoritesStore';
+import { useRecentlyViewedStore } from '../store/recentlyViewedStore';
 import { Colors } from '../constants/theme';
 import { BackendUnavailableScreen, GlobalModal, GlobalToast } from '../components/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -49,6 +51,10 @@ function AuthGate({ children }: { children: ReactNode }) {
   const isLoading = useAuthStore((s) => s.isLoading);
   const hydrateCart = useCartStore((s) => s.hydrateCart);
   const mergeGuestCartToBackend = useCartStore((s) => s.mergeGuestCartToBackend);
+  const hydrateFavorites = useFavoritesStore((s) => s.hydrateFavorites);
+  const mergeGuestFavoritesToBackend = useFavoritesStore((s) => s.mergeGuestFavoritesToBackend);
+  const mergeGuestViewsToBackend = useRecentlyViewedStore((s) => s.mergeGuestViewsToBackend);
+  const fetchRecentlyViewed = useRecentlyViewedStore((s) => s.fetchRecentlyViewed);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -63,7 +69,6 @@ function AuthGate({ children }: { children: ReactNode }) {
     '/seller-ads',
     '/seller-campaigns',
     '/become-seller',
-    '/favoriler',
     '/notifications',
     '/notification-preferences',
   ].some((prefix) => pathname.startsWith(prefix));
@@ -77,10 +82,26 @@ function AuthGate({ children }: { children: ReactNode }) {
       mergeGuestCartToBackend().catch(() => {
         hydrateCart();
       });
+      mergeGuestFavoritesToBackend().catch(() => {
+        hydrateFavorites();
+      });
+      mergeGuestViewsToBackend().catch(() => {
+        fetchRecentlyViewed(1, 10);
+      });
       return;
     }
     hydrateCart();
-  }, [hydrateCart, isLoggedIn, mergeGuestCartToBackend]);
+    hydrateFavorites();
+    fetchRecentlyViewed(1, 10);
+  }, [
+    hydrateCart,
+    hydrateFavorites,
+    isLoggedIn,
+    mergeGuestCartToBackend,
+    mergeGuestFavoritesToBackend,
+    mergeGuestViewsToBackend,
+    fetchRecentlyViewed,
+  ]);
 
   useEffect(() => {
     if (isLoading) return;

@@ -12,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { resolveApiErrorMessage } from '../../utils/apiError';
@@ -24,7 +23,7 @@ export default function EditProfileScreen() {
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+
 
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -65,14 +64,7 @@ export default function EditProfileScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.base }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.8}>
-            <Ionicons name="chevron-back" size={24} color={Colors.onSurface} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('profile.editProfile')}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+
 
         {/* Avatar */}
         <View style={styles.avatarSection}>

@@ -20,6 +20,28 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const isProfileScreen = pathname === '/profile';
+  const getSubpageOptions = (titleKey: string, fallbackRoute = '/(tabs)/profile') => ({
+    href: null,
+    headerTitle: () => (
+      <Text style={styles.headerProfileTitle}>{t(titleKey)}</Text>
+    ),
+    headerLeft: () => (
+      <TouchableOpacity
+        style={{ marginLeft: 16, padding: 8 }}
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace(fallbackRoute as any);
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="chevron-back" size={24} color={Colors.onSurface} />
+      </TouchableOpacity>
+    ),
+    headerRight: () => null,
+  });
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const isSellerMode = activeMode === 'seller';
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
@@ -120,7 +142,26 @@ export default function TabLayout() {
             ) : null}
             <TouchableOpacity
               style={styles.headerIconButton}
-              onPress={() => router.push('/(tabs)/notifications')}
+              onPress={() => {
+                if (!isLoggedIn) {
+                  useModalStore.getState().showModal({
+                    title: t('common.authRequiredTitle'),
+                    message: t('notifications.authRequiredMessage'),
+                    type: 'info',
+                    confirmText: t('auth.login'),
+                    cancelText: t('common.cancel'),
+                    onConfirm: () => {
+                      useModalStore.getState().hideModal();
+                      router.push('/(auth)/login');
+                    },
+                    onCancel: () => {
+                      useModalStore.getState().hideModal();
+                    }
+                  });
+                  return;
+                }
+                router.push('/(tabs)/notifications');
+              }}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={t('tabs.notifications')}
@@ -275,61 +316,25 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="settings" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="edit-profile" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="wallet" options={{ href: null }} />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          href: null,
-          headerTitle: () => (
-            <Text style={styles.headerProfileTitle}>{t('tabs.orders')}</Text>
-          ),
-          headerLeft: () => (
-            <TouchableOpacity
-              style={{ marginLeft: 16, padding: 8 }}
-              onPress={() => router.replace('/(tabs)/profile')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="orders/[orderId]"
-        options={{
-          href: null,
-          headerTitle: () => (
-            <Text style={styles.headerProfileTitle}>{t('orders.detailTitle')}</Text>
-          ),
-          headerLeft: () => (
-            <TouchableOpacity
-              style={{ marginLeft: 16, padding: 8 }}
-              onPress={() => router.replace('/(tabs)/orders')}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => null,
-        }}
-      />
-      <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="notification-preferences" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="settings" options={getSubpageOptions('settings.title')} />
+      <Tabs.Screen name="edit-profile" options={getSubpageOptions('profile.editProfile')} />
+      <Tabs.Screen name="wallet" options={getSubpageOptions('wallet.title')} />
+      <Tabs.Screen name="orders" options={getSubpageOptions('tabs.orders')} />
+      <Tabs.Screen name="orders/[orderId]" options={getSubpageOptions('orders.detailTitle', '/(tabs)/orders')} />
+      <Tabs.Screen name="notifications" options={getSubpageOptions('notifications.title')} />
+      <Tabs.Screen name="notification-preferences" options={getSubpageOptions('notifications.preferencesTitle', '/(tabs)/notifications')} />
       <Tabs.Screen
         name="categories"
         options={{
           href: null,
         }}
       />
-      <Tabs.Screen name="categories/[id]" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen name="messages" options={{ href: null }} />
-      <Tabs.Screen name="membership" options={{ href: null }} />
-      <Tabs.Screen name="seller-campaigns" options={{ href: null }} />
-      <Tabs.Screen name="addresses" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="categories/[id]" options={getSubpageOptions('categories.title')} />
+      <Tabs.Screen name="messages" options={getSubpageOptions('negotiation.list.title')} />
+      <Tabs.Screen name="membership" options={getSubpageOptions('paketim.title')} />
+      <Tabs.Screen name="seller-campaigns" options={getSubpageOptions('sellerCampaigns.title')} />
+      <Tabs.Screen name="addresses" options={getSubpageOptions('addresses.title')} />
+      <Tabs.Screen name="profile" options={getSubpageOptions('tabs.profile', '/(tabs)/explore')} />
     </Tabs>
  
     <Modal

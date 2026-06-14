@@ -123,8 +123,23 @@ export class AuctionController {
   @Get('events')
   @ApiOperation({ summary: 'Müzayede etkinlikleri listesi' })
   @ApiQuery({ name: 'status', required: false, enum: AuctionEventStatus })
-  async findEvents(@Query('status') status?: AuctionEventStatus) {
-    return this.auctionService.findEvents(status);
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  async findEvents(
+    @Query('status') status?: AuctionEventStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const safePage = parsePositiveIntQuery(page, 'page', 1);
+    const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 50);
+    return this.auctionService.findEvents(status, safePage, safeLimit);
+  }
+
+  @Public()
+  @Get('events/:id')
+  @ApiOperation({ summary: 'Müzayede etkinlik detayları' })
+  async findEventDetails(@Param('id', ParseUUIDPipe) id: string) {
+    return this.auctionService.findEventDetails(id);
   }
 
   @Public()

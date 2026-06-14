@@ -16,25 +16,7 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.base,
   },
-  icon: {
-    alignItems: 'center',
-    borderRadius: BorderRadius.lg,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  iconPrimary: {
-    backgroundColor: Colors.primaryFixed,
-  },
-  iconSecondary: {
-    backgroundColor: Colors.secondaryContainer,
-  },
-  iconAccent: {
-    backgroundColor: Colors.tertiaryFixed,
-  },
-  iconNeutral: {
-    backgroundColor: Colors.slate100,
-  },
+
   text: {
     color: Colors.onSurface,
     flex: 1,

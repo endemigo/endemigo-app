@@ -6,6 +6,7 @@ import { Colors } from '../../constants/theme';
 import { detectNegotiationPolicyViolation } from '../../hooks/useNegotiations';
 import type { Product, StartNegotiationInput } from '../../types';
 import { formatAmount } from '../../utils/transactionFormatters';
+import { formatPriceInput, parsePriceInput } from '../../utils/priceInputMask';
 import { styles } from './AskPriceModal.styles';
 
 interface AskPriceModalProps {
@@ -33,14 +34,14 @@ export function AskPriceModal({
 
   useEffect(() => {
     if (visible) {
-      setAmount(minimumAmount > 0 ? String(minimumAmount) : '');
+      setAmount(minimumAmount > 0 ? formatPriceInput(String(minimumAmount)) : '');
       setQuantity('1');
       setNote('');
     }
   }, [minimumAmount, visible]);
 
   const canSubmit = useMemo(() => {
-    const parsedAmount = Number(amount);
+    const parsedAmount = parsePriceInput(amount) ?? 0;
     return parsedAmount > 0 && parsedAmount >= minimumAmount && Number(quantity) > 0 && !isPending;
   }, [amount, isPending, minimumAmount, quantity]);
 
@@ -53,7 +54,7 @@ export function AskPriceModal({
     }
     onSubmit({
       productId: product.id,
-      amount: Number(amount),
+      amount: parsePriceInput(amount) ?? 0,
       quantity: Number(quantity),
       note: trimmedNote || undefined,
     });
@@ -92,8 +93,8 @@ export function AskPriceModal({
             <TextInput
               style={[styles.input, styles.amountInput]}
               value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
+              onChangeText={(val) => setAmount(formatPriceInput(val))}
+              keyboardType="decimal-pad"
               placeholder={t('negotiation.askPrice.amountPlaceholder')}
               placeholderTextColor={Colors.slate400}
             />

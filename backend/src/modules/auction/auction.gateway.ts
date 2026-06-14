@@ -65,22 +65,42 @@ export class AuctionGateway
       client.data.authenticated = false;
       this.logger.debug(`Client connected without auth: ${client.id}`);
     }
+
+    client.on('disconnecting', () => {
+      client.rooms.forEach((room) => {
+        if (room.startsWith('event:')) {
+          const eventId = room.replace('event:', '');
+          const count = Math.max(
+            0,
+            (this.eventViewerCounts.get(eventId) || 1) - 1,
+          );
+          if (count <= 0) this.eventViewerCounts.delete(eventId);
+          else this.eventViewerCounts.set(eventId, count);
+          this.server.to(room).emit('event:viewer_count', {
+            eventId,
+            count,
+            serverTime: new Date().toISOString(),
+          });
+        }
+        if (room.startsWith('auction:')) {
+          const auctionId = room.replace('auction:', '');
+          const count = Math.max(
+            0,
+            (this.viewerCounts.get(auctionId) || 1) - 1,
+          );
+          if (count <= 0) this.viewerCounts.delete(auctionId);
+          else this.viewerCounts.set(auctionId, count);
+          this.server.to(room).emit('auction:viewer_count', {
+            auctionId,
+            count,
+            serverTime: new Date().toISOString(),
+          });
+        }
+      });
+    });
   }
 
   handleDisconnect(client: Socket) {
-    client.rooms.forEach((room) => {
-      if (room.startsWith('auction:')) {
-        const auctionId = room.replace('auction:', '');
-        const count = (this.viewerCounts.get(auctionId) || 1) - 1;
-        if (count <= 0) this.viewerCounts.delete(auctionId);
-        else this.viewerCounts.set(auctionId, count);
-        this.server.to(room).emit('auction:viewer_count', {
-          auctionId,
-          count: Math.max(0, count),
-          serverTime: new Date().toISOString(),
-        });
-      }
-    });
     this.logger.debug(`Client disconnected: ${client.id}`);
   }
 
