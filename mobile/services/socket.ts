@@ -5,7 +5,7 @@ import ENV from '../lib/config';
 let socket: Socket | null = null;
 
 export async function getAuctionSocket(): Promise<Socket> {
-  if (socket?.connected) return socket;
+  if (socket) return socket;
 
   const token = (await storage.getToken()) || '';
 
@@ -25,8 +25,8 @@ export async function getAuctionSocket(): Promise<Socket> {
     console.log(`[Socket] Disconnected: ${reason}`);
   });
 
-  socket.on('connect_error', (err: Error) => {
-    console.warn(`[Socket] Connection error: ${err.message}`);
+  socket.on('connect_error', (err: any) => {
+    console.warn(`[Socket] Connection error: ${err.message}`, err.description ? err.description : err);
   });
 
   return socket;

@@ -436,6 +436,22 @@ export class AuctionGateway
       .emit('event:active_lot_changed', { eventId, ...payload, serverTime });
   }
 
+  emitLotTransition(
+    eventId: string,
+    payload: {
+      nextLotId: string | null;
+      lotNumber: string | null;
+      productTitle: string | null;
+      transitionSeconds: number;
+      transitionEndTime: string;
+    },
+  ) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`event:${eventId}`)
+      .emit('event:lot_transition', { eventId, ...payload, serverTime });
+  }
+
   emitEventStatusChanged(
     eventId: string,
     payload: { status: string },
@@ -444,5 +460,12 @@ export class AuctionGateway
     this.server
       .to(`event:${eventId}`)
       .emit('event:status_changed', { eventId, ...payload, serverTime });
+  }
+
+  emitEventAutoProgressChanged(eventId: string, enabled: boolean) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`event:${eventId}`)
+      .emit('event:auto_progress_changed', { eventId, enabled, serverTime });
   }
 }

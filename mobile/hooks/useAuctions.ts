@@ -38,6 +38,7 @@ interface Auction {
   maxExtensions?: number;
   currentExtensions?: number;
   culturalAssetRestricted?: boolean;
+  pausedRemainingSeconds?: number;
   createdAt?: string;
 }
 
@@ -236,6 +237,8 @@ interface AuctionEvent {
   submissionDeadline?: string | null;
   activeLotId?: string | null;
   lotCount?: number;
+  categoryId?: string | null;
+  categoryName?: string | null;
 }
 
 interface AuctionEventDetailsResponse {
@@ -249,7 +252,7 @@ export function useInfiniteAuctionEvents() {
   return useInfiniteQuery({
     queryKey: ['auction-events', 'infinite'],
     queryFn: async ({ pageParam = 1 }) => {
-      if (ENV.USE_MOCK) return { items: [], page: pageParam, hasNextPage: false };
+      if (ENV.USE_MOCK) return mockService.getAuctionEvents(pageParam);
       const { data } = await api.get(`/auctions/events?page=${pageParam}&limit=10`);
       return {
         items: data.items,
@@ -269,12 +272,26 @@ export function useAuctionEventDetails(id: string) {
     queryKey: ['auction-event-details', id],
     queryFn: async () => {
       if (ENV.USE_MOCK) {
-        throw new Error('Not implemented in mock mode');
+        return mockService.getAuctionEventDetails(id);
       }
       const { data } = await api.get(`/auctions/events/${id}`);
       return data;
     },
     enabled: !!id,
+  });
+}
+
+export function useSkipLot() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      if (ENV.USE_MOCK) return { code: 'SUCCESS', message: 'Sıradaki Lot\'a geçildi' };
+      const { data } = await api.patch(`/admin-operations/auction-events/${eventId}/skip`);
+      return data;
+    },
+    onSuccess: (_, eventId) => {
+      queryClient.invalidateQueries({ queryKey: ['auction-event-details', eventId] });
+    },
   });
 }
 

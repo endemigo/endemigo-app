@@ -495,7 +495,6 @@
                       <th>Teklif Veren</th>
                       <th>Tutar</th>
                       <th>Max</th>
-                      <th>Prim</th>
                       <th>Durum</th>
                       <th>Tarih</th>
                     </tr>
@@ -515,7 +514,6 @@
                       </td>
                       <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
                       <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
-                      <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
                       <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
                     </tr>
@@ -1060,6 +1058,136 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              </article>
+            </section>
+          </template>
+          <template v-else-if="isOrderResource">
+            <section class="overview-grid">
+              <article class="overview-hero-card">
+                <header class="overview-hero-header">
+                  <div>
+                    <p class="overview-eyebrow">Sipariş Genel Durum</p>
+                    <h3 class="overview-title">Sipariş #{{ shortId(getString(overview, 'id')) }}</h3>
+                  </div>
+                  <span class="status-pill status-order" :class="getString(overview, 'status')">{{ getString(overview, 'status') }}</span>
+                </header>
+                <div class="overview-kpi-grid">
+                  <article class="overview-kpi">
+                    <p>Toplam Tutar</p>
+                    <strong>{{ formatMoney(Number(getString(overview, 'amount') || 0), getString(overview, 'currency') || 'TRY') }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Ödeme Durumu (Escrow)</p>
+                    <strong>{{ getString(overview, 'escrowStatus') }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Kaynak</p>
+                    <strong>{{ getString(overview, 'source') }}</strong>
+                  </article>
+                  <article class="overview-kpi">
+                    <p>Oluşturulma Tarihi</p>
+                    <strong>{{ formatDate(getString(overview, 'createdAt')) }}</strong>
+                  </article>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Sipariş Detayları</h4>
+                <div class="metric-row">
+                  <span>Alıcı</span>
+                  <button type="button" class="link-inline" @click="goToUserDetail(getString(overview, 'buyerId'))">
+                    {{ shortId(getString(overview, 'buyerId')) }} <i class="pi pi-external-link"></i>
+                  </button>
+                </div>
+                <div class="metric-row">
+                  <span>Satıcı</span>
+                  <button type="button" class="link-inline" @click="goToSellerDetail(getString(overview, 'sellerId'))">
+                    {{ shortId(getString(overview, 'sellerId')) }} <i class="pi pi-external-link"></i>
+                  </button>
+                </div>
+                <div class="metric-row">
+                  <span>Ürün</span>
+                  <button type="button" class="link-inline" @click="goToProductDetail(getString(overview, 'productId'))">
+                    {{ shortId(getString(overview, 'productId')) }} <i class="pi pi-external-link"></i>
+                  </button>
+                </div>
+                <div class="metric-row" v-if="getString(overview, 'paymentId')">
+                  <span>Ödeme ID</span>
+                  <strong class="text-mono">{{ getString(overview, 'paymentId') }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Referans ID</span>
+                  <strong class="text-mono">{{ getString(overview, 'sourceReferenceId') }}</strong>
+                </div>
+              </article>
+
+              <article class="overview-card">
+                <h4>Süreç Zamanlamaları</h4>
+                <div class="metric-row" v-if="getString(overview, 'autoConfirmAt')">
+                  <span>Otomatik Onay</span>
+                  <strong>{{ formatDate(getString(overview, 'autoConfirmAt')) }}</strong>
+                </div>
+                <div class="metric-row" v-if="getString(overview, 'deliveryConfirmedAt')">
+                  <span>Teslimat Onay</span>
+                  <strong>{{ formatDate(getString(overview, 'deliveryConfirmedAt')) }}</strong>
+                </div>
+                <div class="metric-row" v-if="getString(overview, 'completedAt')">
+                  <span>Tamamlanma</span>
+                  <strong>{{ formatDate(getString(overview, 'completedAt')) }}</strong>
+                </div>
+                <div class="metric-row" v-if="getString(overview, 'updatedAt')">
+                  <span>Son Güncelleme</span>
+                  <strong>{{ formatDate(getString(overview, 'updatedAt')) }}</strong>
+                </div>
+              </article>
+
+              <!-- İADE TALEBİ BİLGİLERİ -->
+              <article v-if="getString(overview, 'returnReasonCode') || (overview.returnImages && Array.isArray(overview.returnImages) && overview.returnImages.length > 0)" class="overview-card span-12 return-details-card">
+                <h4>İade Talebi Bilgileri</h4>
+                <div class="return-info-grid">
+                  <div class="return-info-fields">
+                    <div class="metric-row" v-if="getString(overview, 'returnReasonCode')">
+                      <span>İade Nedeni</span>
+                      <strong class="reason-badge">{{ getString(overview, 'returnReasonCode') }}</strong>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'returnReasonNote')">
+                      <span>İade Notu</span>
+                      <span class="return-note-text">{{ getString(overview, 'returnReasonNote') }}</span>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'returnShipmentId')">
+                      <span>İade Kargo ID</span>
+                      <strong class="text-mono">{{ getString(overview, 'returnShipmentId') }}</strong>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'returnRequestedAt')">
+                      <span>Talep Tarihi</span>
+                      <strong>{{ formatDate(getString(overview, 'returnRequestedAt')) }}</strong>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'returnApprovedAt')">
+                      <span>Onay Tarihi</span>
+                      <strong>{{ formatDate(getString(overview, 'returnApprovedAt')) }}</strong>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'returnDeliveredAt')">
+                      <span>Teslim Tarihi</span>
+                      <strong>{{ formatDate(getString(overview, 'returnDeliveredAt')) }}</strong>
+                    </div>
+                    <div class="metric-row" v-if="getString(overview, 'refundedAt')">
+                      <span>Geri Ödeme Tarihi</span>
+                      <strong>{{ formatDate(getString(overview, 'refundedAt')) }}</strong>
+                    </div>
+                  </div>
+
+                  <div class="return-gallery-section" v-if="overview.returnImages && Array.isArray(overview.returnImages) && overview.returnImages.length > 0">
+                    <h5>İade Kanıt Görselleri</h5>
+                    <div class="return-gallery">
+                      <a v-for="(imgUrl, idx) in (overview.returnImages as string[])" :key="idx" :href="imgUrl" target="_blank" class="gallery-item">
+                        <img :src="imgUrl" alt="İade Kanıtı" />
+                        <span class="zoom-overlay">
+                          <i class="pi pi-search-plus"></i>
+                        </span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </article>
             </section>
@@ -1955,7 +2083,6 @@
                       <th>Teklif Veren</th>
                       <th>Tutar</th>
                       <th>Maksimum Tutar</th>
-                      <th>Prim</th>
                       <th>Durum</th>
                       <th>Tarih</th>
                     </tr>
@@ -1975,7 +2102,6 @@
                       </td>
                       <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
                       <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
-                      <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
                       <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
                     </tr>
@@ -2087,14 +2213,6 @@
               <article class="summary-card">
                 <p class="summary-label">En Yüksek Teklif</p>
                 <strong>{{ formatMoney(bidRelated.summary.highestBidAmount, 'TRY') }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Prim</p>
-                <strong>{{ formatMoney(bidRelated.summary.highestPremiumAmount, 'TRY') }}</strong>
-              </article>
-              <article class="summary-card">
-                <p class="summary-label">Toplam (Teklif+Prim)</p>
-                <strong>{{ formatMoney(bidRelated.summary.highestTotalAmount, 'TRY') }}</strong>
               </article>
             </div>
 
@@ -2214,8 +2332,6 @@
                       <th>Kullanıcı</th>
                       <th>Tutar</th>
                       <th>Max</th>
-                      <th>Prim</th>
-                      <th>Toplam</th>
                       <th>Durum</th>
                       <th>Tarih</th>
                     </tr>
@@ -2230,8 +2346,6 @@
                       </td>
                       <td>{{ formatMoney(bid.amount, 'TRY') }}</td>
                       <td>{{ bid.maxAmount === null ? '-' : formatMoney(bid.maxAmount, 'TRY') }}</td>
-                      <td>{{ formatMoney(bid.premiumAmount, 'TRY') }}</td>
-                      <td>{{ formatMoney(bid.totalAmount, 'TRY') }}</td>
                       <td><span class="status-pill">{{ formatStatus(bid.status) }}{{ bid.isWinningBid ? ' (Kazanan)' : '' }}</span></td>
                       <td>{{ formatDate(bid.createdAt) }}</td>
                     </tr>
@@ -2335,8 +2449,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { getAuctionSocket, disconnectAuctionSocket } from '../../services/socket';
 import AdminDrawerForm, {
   type DrawerConfirmPayload,
   type DrawerField,
@@ -2645,7 +2760,6 @@ interface ProductBidItem {
   bidderEmail: string;
   amount: number;
   maxAmount: number | null;
-  premiumAmount: number;
   status: string;
   isWinningBid: boolean;
   createdAt: string;
@@ -2719,7 +2833,6 @@ interface BidAuctionOverview {
   reservePrice: number | null;
   reserveMet: boolean;
   minIncrement: number;
-  buyerPremiumRate: number;
   bidCount: number;
   startTime: string;
   endTime: string;
@@ -2730,8 +2843,6 @@ interface BidAuctionSummary {
   totalBidCount: number;
   uniqueBidderCount: number;
   highestBidAmount: number;
-  highestPremiumAmount: number;
-  highestTotalAmount: number;
   winningBidAmount: number;
   winningBidderName: string;
   lastBidAt: string | null;
@@ -2755,8 +2866,6 @@ interface BidAuctionBid {
   bidderEmail: string;
   amount: number;
   maxAmount: number | null;
-  premiumAmount: number;
-  totalAmount: number;
   status: string;
   isWinningBid: boolean;
   createdAt: string;
@@ -3201,6 +3310,7 @@ const endpoint = computed(() => `/admin/${props.resource}/${props.id}`);
 const isUserResource = computed(() => props.resource === 'users');
 const isSellerResource = computed(() => props.resource === 'sellers');
 const isProductResource = computed(() => props.resource === 'products');
+const isOrderResource = computed(() => props.resource === 'orders');
 const isBidResource = computed(() => props.resource === 'bids');
 const isAuctionResource = computed(() => props.resource === 'auctions');
 const isAuditResource = computed(() => props.resource === 'audit-logs');
@@ -3823,6 +3933,11 @@ function goToUserDetail(userId: string): void {
   void router.push(`/users/${userId}`);
 }
 
+function goToSellerDetail(sellerId: string): void {
+  if (!sellerId) return;
+  void router.push(`/sellers/${sellerId}`);
+}
+
 function goToOrderDetail(orderId: string): void {
   if (!orderId) return;
   void router.push(`/orders/${orderId}`);
@@ -4079,13 +4194,62 @@ watch(
     void loadVariationOptions();
     void loadListingTemplatesOptions();
     void loadDetail();
+    setupSocketConnection();
   },
 );
 
-onMounted(loadDetail);
+let activeSocket: any = null;
+
+function setupSocketConnection() {
+  cleanupSocketConnection();
+
+  if (props.resource !== 'auctions' || !props.id) return;
+
+  activeSocket = getAuctionSocket();
+  activeSocket.emit('auction:join', { auctionId: props.id });
+
+  activeSocket.on('bid:new', (data: any) => {
+    console.log('[Admin Socket] bid:new received for auction', data);
+    if (data.auctionId === props.id) {
+      loadDetail();
+    }
+  });
+
+  activeSocket.on('auction:extended', (data: any) => {
+    console.log('[Admin Socket] auction:extended received for auction', data);
+    if (data.auctionId === props.id) {
+      loadDetail();
+    }
+  });
+
+  activeSocket.on('auction:ended', (data: any) => {
+    console.log('[Admin Socket] auction:ended received for auction', data);
+    if (data.auctionId === props.id) {
+      loadDetail();
+    }
+  });
+}
+
+function cleanupSocketConnection() {
+  if (activeSocket) {
+    activeSocket.emit('auction:leave', { auctionId: props.id });
+    activeSocket.off('bid:new');
+    activeSocket.off('auction:extended');
+    activeSocket.off('auction:ended');
+    activeSocket = null;
+  }
+  disconnectAuctionSocket();
+}
+
+onMounted(() => {
+  loadDetail();
+  setupSocketConnection();
+});
 onMounted(loadCategoryParentOptions);
 onMounted(loadVariationOptions);
 onMounted(loadListingTemplatesOptions);
+
+onUnmounted(cleanupSocketConnection);
 </script>
 
 <style scoped>
@@ -4778,5 +4942,117 @@ onMounted(loadListingTemplatesOptions);
   color: #b91c1c;
   opacity: 0.9;
   margin-top: 4px;
+}
+
+/* Order & Return Specific Styles */
+.status-order {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.span-12 {
+  grid-column: span 12 !important;
+}
+
+.return-details-card {
+  border: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.return-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.return-info-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reason-badge {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.return-note-text {
+  color: var(--text-normal);
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg-elevated);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--border-soft);
+}
+
+.return-gallery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.return-gallery-section h5 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.return-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+}
+
+.gallery-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-elevated);
+  display: block;
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.gallery-item:hover img {
+  transform: scale(1.05);
+}
+
+.zoom-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.gallery-item:hover .zoom-overlay {
+  opacity: 1;
+}
+
+.zoom-overlay i {
+  color: #fff;
+  font-size: 18px;
 }
 </style>

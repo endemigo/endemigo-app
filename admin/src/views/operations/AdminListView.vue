@@ -548,8 +548,8 @@ const auctionEventStatusOptions = [
 ];
 
 const auctionTypeOptions = [
-  { label: 'Canlı (Realtime)', value: 'REALTIME' },
-  { label: 'Süreli (Timed)', value: 'TIMED' },
+  { label: 'Canlı', value: 'REALTIME' },
+  { label: 'Süreli', value: 'TIMED' },
 ];
 
 const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] => {
@@ -614,6 +614,14 @@ const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] 
       required: true,
       value: row ? String(row.extensionDuration ?? 60) : '60',
       description: 'Tetiklenme gerçekleştiğinde bitiş süresine eklenecek saniye miktarı.',
+    },
+    {
+      key: 'lotTransitionSeconds',
+      label: 'Lot Geçiş Bekleme Süresi (Saniye)',
+      type: 'number',
+      required: true,
+      value: row ? String(row.lotTransitionSeconds ?? 30) : '30',
+      description: 'Bir lot bittiğinde, sıradaki lota geçmeden önce bu kadar saniye beklenir.',
     }
   );
 
@@ -1378,7 +1386,7 @@ function normalizeListingTemplateRow(row: Record<string, unknown>): Record<strin
 
 function normalizeAuctionEventRow(row: Record<string, unknown>): Record<string, unknown> {
   const type = getString(row, 'auctionType');
-  const auctionType = type === 'REALTIME' ? 'Canlı (Realtime)' : 'Süreli (Timed)';
+  const auctionType = type === 'REALTIME' ? 'Canlı' : 'Süreli';
   return {
     ...row,
     auctionType,

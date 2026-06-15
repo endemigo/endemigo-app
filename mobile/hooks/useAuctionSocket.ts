@@ -77,10 +77,10 @@ export function useAuctionSocket(auctionId: string) {
         }));
       };
 
-      socket.emit('auction:join', { auctionId });
-
-      const onConnect = () =>
+      const onConnect = () => {
         setState((s) => ({ ...s, isConnected: true }));
+        socket.emit('auction:join', { auctionId });
+      };
       const onDisconnect = () =>
         setState((s) => ({ ...s, isConnected: false }));
 
@@ -88,7 +88,7 @@ export function useAuctionSocket(auctionId: string) {
       socket.on('disconnect', onDisconnect);
 
       if (socket.connected) {
-        setState((s) => ({ ...s, isConnected: true }));
+        onConnect();
       }
 
       socket.on('auction:joined', (data: { auctionId: string; viewerCount: number; serverTime?: string }) => {

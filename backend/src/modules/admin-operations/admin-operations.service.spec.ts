@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { AdminAuditAction, AdminRole, PayoutRequestStatus, RC } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { SellerStatus } from '../user/entities/seller-profile.entity';
@@ -394,5 +394,50 @@ describe('AdminOperationsService', () => {
     expect(result.relatedRecords.pagination.cart.hasMore).toBe(true);
     expect(result.relatedRecords.pagination.couponDefinitions.hasMore).toBe(true);
     expect(result.relatedRecords.pagination.couponUsage.hasMore).toBe(true);
+  });
+
+  describe('reorderLots', () => {
+    const mockActor = { id: 'admin-1', roles: [AdminRole.OPERATIONS] };
+
+    it('successfully updates sequence for non-finished lots', async () => {
+      const mockEvent = { id: 'event-1', title: 'Live Event' };
+      repos[8].findOne.mockResolvedValueOnce(mockEvent); // findOneOrFail resolves mockEvent
+
+      const mockLots = [
+        { id: 'lot-1', eventId: 'event-1', status: 'PUBLISHED', sequenceNumber: 1, lotNumber: '1' },
+        { id: 'lot-2', eventId: 'event-1', status: 'ACTIVE', sequenceNumber: 2, lotNumber: '2' },
+      ];
+      repos[7].find.mockResolvedValueOnce(mockLots);
+
+      const result = await service.reorderLots(
+        'event-1',
+        { 'lot-1': 2, 'lot-2': 1 },
+        mockActor
+      );
+
+      expect(result.code).toBe(RC.SUCCESS);
+      expect(mockLots[0].sequenceNumber).toBe(2);
+      expect(mockLots[1].sequenceNumber).toBe(1);
+      expect(repos[7].save).toHaveBeenCalledWith(mockLots);
+    });
+
+    it('throws BadRequestException when trying to reorder a finished lot', async () => {
+      const mockEvent = { id: 'event-1', title: 'Live Event' };
+      repos[8].findOne.mockResolvedValueOnce(mockEvent);
+
+      const mockLots = [
+        { id: 'lot-1', eventId: 'event-1', status: 'ENDED', sequenceNumber: 1, lotNumber: '1' },
+        { id: 'lot-2', eventId: 'event-1', status: 'PUBLISHED', sequenceNumber: 2, lotNumber: '2' },
+      ];
+      repos[7].find.mockResolvedValueOnce(mockLots);
+
+      await expect(
+        service.reorderLots(
+          'event-1',
+          { 'lot-1': 2, 'lot-2': 1 },
+          mockActor
+        )
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

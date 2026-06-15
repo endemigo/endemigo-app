@@ -115,12 +115,12 @@ export default function CategoriesScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
     >
-      <View style={styles.heroCard}>
-        <Text style={styles.heroBadge}>{t('categories.premiumBadge')}</Text>
-        <Text style={styles.heroTitle}>{t('categories.heroTitle')}</Text>
-        <Text style={styles.heroSubtitle}>{t('categories.heroSubtitle')}</Text>
-        <View style={styles.searchInputWrap}>
-          <Ionicons name="search" size={18} color={Colors.slate500} />
+      <View style={styles.headerSection}>
+        <Text style={styles.headerEyebrow}>{t('categories.premiumBadge')}</Text>
+        <Text style={styles.headerTitle}>{t('categories.heroTitle')}</Text>
+        <Text style={styles.headerSubtitle}>{t('categories.heroSubtitle')}</Text>
+        <View style={styles.searchBarWrap}>
+          <Ionicons name="search" size={18} color={Colors.slate500} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -130,25 +130,34 @@ export default function CategoriesScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {searchQuery.length > 0 ? (
+            <TouchableOpacity
+              style={styles.searchClearButton}
+              activeOpacity={0.7}
+              onPress={() => setSearchQuery('')}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.slate400} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
-      <View style={styles.sortRow}>
+      <View style={styles.sortSection}>
         <TouchableOpacity
-          style={[styles.sortChip, sortKey === 'POPULAR' && styles.sortChipActive]}
+          style={[styles.sortButton, sortKey === 'POPULAR' && styles.sortButtonActive]}
           activeOpacity={0.85}
           onPress={() => setSortKey('POPULAR')}
         >
-          <Text style={[styles.sortChipText, sortKey === 'POPULAR' && styles.sortChipTextActive]}>
+          <Text style={[styles.sortButtonText, sortKey === 'POPULAR' && styles.sortButtonTextActive]}>
             {t('categories.sortPopular')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.sortChip, sortKey === 'A_Z' && styles.sortChipActive]}
+          style={[styles.sortButton, sortKey === 'A_Z' && styles.sortButtonActive]}
           activeOpacity={0.85}
           onPress={() => setSortKey('A_Z')}
         >
-          <Text style={[styles.sortChipText, sortKey === 'A_Z' && styles.sortChipTextActive]}>
+          <Text style={[styles.sortButtonText, sortKey === 'A_Z' && styles.sortButtonTextActive]}>
             {t('categories.sortAlphabetic')}
           </Text>
         </TouchableOpacity>
@@ -156,42 +165,50 @@ export default function CategoriesScreen() {
 
       {featuredCategories.length > 0 ? (
         <>
-          <Text style={styles.sectionTitle}>{t('categories.featuredTitle')}</Text>
-          {featuredCategories.map((cat) => {
-            const { icon, color } = getCategoryIcon(cat.slug);
-            const hasImage = Boolean(cat.imageUrl) && !imageErrors[cat.id];
-            return (
-              <TouchableOpacity
-                key={`featured-${cat.id}`}
-                style={styles.featuredCard}
-                activeOpacity={0.86}
-                onPress={() => handleOpenCategory(cat)}
-              >
-                {hasImage ? (
-                  <Image
-                    source={{ uri: cat.imageUrl ?? undefined }}
-                    style={styles.featuredImage}
-                    onError={() => setImageErrors((prev) => ({ ...prev, [cat.id]: true }))}
-                  />
-                ) : (
-                  <View style={[styles.featuredIconWrap, { backgroundColor: `${color}1A` }]}>
-                    <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{t('categories.featuredTitle')}</Text>
+          </View>
+          <View style={styles.featuredList}>
+            {featuredCategories.map((cat) => {
+              const { icon, color } = getCategoryIcon(cat.slug);
+              const hasImage = Boolean(cat.imageUrl) && !imageErrors[cat.id];
+              return (
+                <TouchableOpacity
+                  key={`featured-${cat.id}`}
+                  style={[styles.featuredCard, { borderLeftWidth: 4, borderLeftColor: color }]}
+                  activeOpacity={0.86}
+                  onPress={() => handleOpenCategory(cat)}
+                >
+                  {hasImage ? (
+                    <Image
+                      source={{ uri: cat.imageUrl ?? undefined }}
+                      style={styles.featuredImage}
+                      onError={() => setImageErrors((prev) => ({ ...prev, [cat.id]: true }))}
+                    />
+                  ) : (
+                    <View style={[styles.featuredIconWrap, { backgroundColor: `${color}15` }]}>
+                      <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
+                    </View>
+                  )}
+                  <View style={styles.featuredContent}>
+                    <Text style={styles.featuredName} numberOfLines={1}>{cat.name}</Text>
+                    <View style={styles.featuredBadge}>
+                      <Text style={styles.featuredBadgeText}>
+                        {t('categories.productCount_other', { count: cat.productCount ?? 0 })}
+                      </Text>
+                    </View>
                   </View>
-                )}
-                <View style={styles.featuredContent}>
-                  <Text style={styles.featuredTitle} numberOfLines={1}>{cat.name}</Text>
-                  <Text style={styles.featuredCount}>
-                    {t('categories.productCount_other', { count: cat.productCount ?? 0 })}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-              </TouchableOpacity>
-            );
-          })}
+                  <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </>
       ) : null}
 
-      <Text style={styles.sectionTitle}>{t('categories.allCategoriesTitle')}</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{t('categories.allCategoriesTitle')}</Text>
+      </View>
       <View style={styles.grid}>
         {gridCategories.map((cat) => {
           const { icon, color } = getCategoryIcon(cat.slug);
@@ -199,27 +216,29 @@ export default function CategoriesScreen() {
           return (
             <TouchableOpacity
               key={cat.id}
-              style={styles.card}
+              style={styles.gridCard}
               activeOpacity={0.7}
               onPress={() => handleOpenCategory(cat)}
             >
+              {cat.productCount != null && (
+                <View style={styles.gridCardBadge}>
+                  <Text style={styles.gridCardBadgeText}>
+                    {cat.productCount}
+                  </Text>
+                </View>
+              )}
               {hasImage ? (
                 <Image
                   source={{ uri: cat.imageUrl ?? undefined }}
-                  style={styles.categoryImage}
+                  style={styles.gridImage}
                   onError={() => setImageErrors((prev) => ({ ...prev, [cat.id]: true }))}
                 />
               ) : (
-                <View style={[styles.iconBox, { backgroundColor: `${color}1A` }]}>
+                <View style={[styles.gridIconWrap, { backgroundColor: `${color}15` }]}>
                   <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={28} color={color} />
                 </View>
               )}
-              <Text style={styles.cardName} numberOfLines={2}>{cat.name}</Text>
-              {cat.productCount != null && (
-                <Text style={styles.cardCount}>
-                  {t('categories.productCount_other', { count: cat.productCount })}
-                </Text>
-              )}
+              <Text style={styles.gridCardName} numberOfLines={2}>{cat.name}</Text>
             </TouchableOpacity>
           );
         })}
@@ -230,7 +249,6 @@ export default function CategoriesScreen() {
           <Text style={styles.emptySearchText}>{t('categories.emptySearch')}</Text>
         </View>
       ) : null}
-      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }

@@ -304,4 +304,206 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+
+  // Search Input Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate200,
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    marginHorizontal: Spacing.base,
+    marginVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    height: 44,
+    ...Shadows.sm,
+  },
+  searchIcon: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: FontSize.body,
+    color: Colors.onSurface,
+  },
+  clearButton: {
+    padding: 4,
+  },
+
+  // Filters Wrapper
+  filtersWrapper: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+    paddingBottom: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+
+  // Category Filter Chips
+  categoriesContainer: {
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  categoryChip: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.slate100,
+    borderWidth: 1,
+    borderColor: Colors.slate200,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    ...Shadows.colored(Colors.primary),
+  },
+  categoryChipText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.slate600,
+  },
+  categoryChipTextActive: {
+    color: Colors.white,
+  },
+
+  // Status Filter Chips
+  statusContainer: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    gap: Spacing.xs,
+  },
+  statusChipActive: {
+    backgroundColor: Colors.slate900,
+    borderColor: Colors.slate900,
+  },
+  statusChipText: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate500,
+  },
+  statusChipTextActive: {
+    color: Colors.white,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  // Event Category Badge
+  eventCategoryBadge: {
+    position: 'absolute',
+    bottom: Spacing.base,
+    right: Spacing.base,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.md,
+  },
+  eventCategoryBadgeText: {
+    color: Colors.white,
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+
+  // Dropdown Filter Styles
+  dropdownsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  dropdownSelector: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate200,
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    height: 44,
+  },
+  dropdownSelectorText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate500,
+  },
+  dropdownSelectorActiveText: {
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.primary,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius['3xl'],
+    borderTopRightRadius: BorderRadius['3xl'],
+    paddingBottom: Spacing.xl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+  },
+  modalTitle: {
+    fontSize: FontSize.bodyXl,
+    fontFamily: FontFamily.headline,
+    fontWeight: '700',
+    color: Colors.onSurface,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalList: {
+    paddingVertical: Spacing.sm,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate50,
+  },
+  modalItemActive: {
+    backgroundColor: `${Colors.primary}0A`,
+  },
+  modalItemText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.body,
+    color: Colors.slate700,
+  },
+  modalItemTextActive: {
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.primary,
+  },
 });

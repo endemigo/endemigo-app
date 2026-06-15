@@ -20,12 +20,28 @@ export class AuctionProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<{ auctionId: string; minutesLeft?: number; errorMessage?: string }>,
+    job: Job<{
+      auctionId?: string;
+      eventId?: string;
+      nextLotId?: string;
+      minutesLeft?: number;
+      errorMessage?: string;
+    }>,
   ) {
-    const { auctionId } = job.data;
+    const { eventId, nextLotId } = job.data;
+    const auctionId = job.data.auctionId as string;
 
     try {
+
       switch (job.name) {
+        case 'start-next-lot': {
+          this.logger.log(`Starting next lot ${nextLotId} for event ${eventId}`);
+          if (eventId && nextLotId) {
+            await this.auctionService.startNextLot(eventId, nextLotId);
+          }
+          break;
+        }
+
         case 'start-auction': {
           this.logger.log(`Starting auction ${auctionId}`);
           const auction = await this.auctionService.activateAuction(auctionId);

@@ -22,7 +22,10 @@ export function resolveApiErrorMessage(
   }
 
   const responseData = error.response?.data;
-  const payload = responseData?.error ?? responseData;
+  const payload =
+    responseData?.error && typeof responseData.error === 'object'
+      ? responseData.error
+      : responseData;
   const fallbackMessage = payload?.message ?? fallback;
 
   if (!payload?.code) {

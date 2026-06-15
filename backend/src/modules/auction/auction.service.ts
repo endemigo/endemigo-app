@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Logger,
   Optional,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Not, Repository } from 'typeorm';
@@ -40,8 +41,10 @@ type AuctionProductOwnership = {
 };
 
 @Injectable()
-export class AuctionService {
+export class AuctionService implements OnApplicationBootstrap {
   private readonly logger = new Logger(AuctionService.name);
+  private readonly pausedRemainingSecondsMap = new Map<string, number>();
+  private readonly eventAutoProgressMap = new Map<string, boolean>();
 
   constructor(
     @InjectRepository(Auction)
@@ -59,6 +62,97 @@ export class AuctionService {
     @Optional()
     private readonly notificationService?: NotificationService,
   ) {}
+
+  async onApplicationBootstrap() {
+    this.logger.log('Müzayede durumu eşitleme ve kurtarma motoru başlatılıyor...');
+    try {
+      await this.reconcileActiveAuctions();
+      await this.reconcilePendingPayments();
+    } catch (err) {
+      this.logger.error(`Kurtarma motoru çalışırken hata oluştu: ${err}`);
+    }
+  }
+
+  private async reconcileActiveAuctions() {
+    const activeAuctions = await this.auctionRepo.find({
+      where: { status: AuctionStatus.ACTIVE }
+    });
+
+    for (const auction of activeAuctions) {
+      const now = new Date();
+      if (auction.endTime <= now) {
+        this.logger.warn(`Sunucu kapalıyken süresi dolan lot sonlandırılıyor: ${auction.id}`);
+        try {
+          await this.finalizeAuction(auction.id);
+        } catch (err) {
+          this.logger.error(`Aktif lot (${auction.id}) sonlandırılırken hata: ${err}`);
+        }
+      } else {
+        const delay = auction.endTime.getTime() - now.getTime();
+        this.logger.log(`Aktif lot için bitiş görevi yeniden planlanıyor: ${auction.id} (Kalan: ${Math.round(delay / 1000)}sn)`);
+        try {
+          // Remove old job if exists
+          try {
+            const oldJob = await this.auctionQueue.getJob(`end-${auction.id}`);
+            if (oldJob) await oldJob.remove();
+          } catch {}
+          
+          await this.auctionQueue.add(
+            'end-auction',
+            { auctionId: auction.id },
+            { delay, jobId: `end-${auction.id}` }
+          );
+        } catch (err) {
+          this.logger.error(`Aktif lot (${auction.id}) BullMQ planlaması başarısız: ${err}`);
+        }
+      }
+    }
+  }
+
+  private async reconcilePendingPayments() {
+    const pendingAuctions = await this.auctionRepo.find({
+      where: { 
+        status: AuctionStatus.ENDED,
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING 
+      }
+    });
+
+    for (const auction of pendingAuctions) {
+      if (!auction.winnerPaymentDeadlineAt) continue;
+
+      const now = new Date();
+      if (auction.winnerPaymentDeadlineAt <= now) {
+        this.logger.warn(`Ödeme süresi geçen lot için yedek alıcı akışı başlatılıyor: ${auction.id}`);
+        try {
+          await this.processWinnerPaymentExpiry(auction.id);
+        } catch (err) {
+          this.logger.error(`Ödeme süresi geçen lot (${auction.id}) işlenirken hata: ${err}`);
+        }
+      } else {
+        this.logger.log(`Ödeme zaman aşımı görevi yeniden planlanıyor: ${auction.id}`);
+        try {
+          // Remove old jobs if exists
+          const round = auction.fallbackRound;
+          try {
+            const oldExpiry = await this.auctionQueue.getJob(`winner-payment-expiry-${auction.id}-r${round}`);
+            if (oldExpiry) await oldExpiry.remove();
+          } catch {}
+          try {
+            const oldReminder = await this.auctionQueue.getJob(`winner-payment-reminder-${auction.id}-r${round}`);
+            if (oldReminder) await oldReminder.remove();
+          } catch {}
+
+          await this.scheduleWinnerPaymentJobs(
+            auction.id,
+            auction.winnerPaymentDeadlineAt,
+            auction.fallbackRound
+          );
+        } catch (err) {
+          this.logger.error(`Ödeme görevleri (${auction.id}) planlanırken hata: ${err}`);
+        }
+      }
+    }
+  }
 
   // ─── Apply to Event (Model 2) ───────────────────────────
 
@@ -141,7 +235,6 @@ export class AuctionService {
         minIncrement: dto.minIncrement || 1,
         reservePrice: dto.reservePrice ?? null,
         reserveMet: false,
-        buyerPremiumRate: dto.buyerPremiumRate ?? 0.25,
         auctionType: event.auctionType, // Etkinlik türünü miras alır
         antiSnipingEnabled: event.antiSnipingEnabled ?? (dto.antiSnipingEnabled ?? true),
         extensionSeconds: event.extensionSeconds ?? (dto.extensionSeconds ?? 60),
@@ -244,7 +337,6 @@ export class AuctionService {
         minIncrement: dto.minIncrement || 1,
         reservePrice: dto.reservePrice ?? null,
         reserveMet: false,
-        buyerPremiumRate: dto.buyerPremiumRate ?? 0.25,
         auctionType: dto.auctionType || AuctionType.REALTIME,
         antiSnipingEnabled: dto.antiSnipingEnabled ?? true,
         extensionSeconds: dto.extensionSeconds ?? 60,
@@ -372,8 +464,6 @@ export class AuctionService {
       auction.reserveMet = false;
     }
     if (dto.minIncrement !== undefined) auction.minIncrement = dto.minIncrement;
-    if (dto.buyerPremiumRate !== undefined)
-      auction.buyerPremiumRate = dto.buyerPremiumRate;
     if (dto.auctionType !== undefined) auction.auctionType = dto.auctionType;
     if (dto.antiSnipingEnabled !== undefined)
       auction.antiSnipingEnabled = dto.antiSnipingEnabled;
@@ -451,6 +541,7 @@ export class AuctionService {
     const qb = this.auctionRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.product', 'product')
+      .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('a.seller', 'seller')
       .where('a.status IN (:...statuses)', {
         statuses: [
@@ -481,7 +572,8 @@ export class AuctionService {
   }
 
   async findEvents(status?: AuctionEventStatus, page = 1, limit = 20) {
-    const qb = this.auctionRepo.manager.createQueryBuilder(AuctionEvent, 'e');
+    const qb = this.auctionRepo.manager.createQueryBuilder(AuctionEvent, 'e')
+      .leftJoinAndSelect('e.category', 'category');
     if (status) {
       qb.where('e.status = :status', { status });
     }
@@ -505,6 +597,7 @@ export class AuctionService {
   async findEventDetails(id: string) {
     const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
       where: { id },
+      relations: ['category'],
     });
     if (!event) {
       throw this.notFound(RC.NOT_FOUND, 'Müzayede etkinliği bulunamadı');
@@ -519,11 +612,22 @@ export class AuctionService {
       order: { sequenceNumber: 'ASC' },
     });
 
+    const mappedLots = lots.map((lot) => {
+      const resp = this.toResponse(lot);
+      if (lot.status === AuctionStatus.PUBLISHED) {
+        const pausedSec = this.getPausedRemainingSeconds(lot.id);
+        if (pausedSec !== undefined) {
+          (resp as any).pausedRemainingSeconds = pausedSec;
+        }
+      }
+      return resp;
+    });
+
     return {
       code: RC.SUCCESS,
       message: 'Müzayede etkinliği detayları getirildi',
       event,
-      lots: lots.map((lot) => this.toResponse(lot)),
+      lots: mappedLots,
     };
   }
 
@@ -538,7 +642,7 @@ export class AuctionService {
   private async loadAuctionResponse(id: string) {
     const auction = await this.auctionRepo.findOne({
       where: { id },
-      relations: ['product', 'seller', 'winner'],
+      relations: ['product', 'product.category', 'seller', 'winner'],
     });
     if (!auction)
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
@@ -653,9 +757,6 @@ export class AuctionService {
           minimumBid: minBid,
           minIncrement,
         });
-        const leadingPremiumAmount =
-          effectiveCurrentPrice * Number(auction.buyerPremiumRate);
-
         await this.walletService.releaseHold(
           auctionId,
           bidderId,
@@ -669,12 +770,11 @@ export class AuctionService {
         await this.walletService.createHold(
           auctionId,
           previousLeadBid.bidderId,
-          effectiveCurrentPrice + leadingPremiumAmount,
+          effectiveCurrentPrice,
           queryRunner.manager,
         );
 
         previousLeadBid.amount = effectiveCurrentPrice;
-        previousLeadBid.premiumAmount = leadingPremiumAmount;
         previousLeadBid.isWinningBid = true;
         previousLeadBid.status = BidStatus.ACTIVE;
         await queryRunner.manager.save(previousLeadBid);
@@ -684,7 +784,6 @@ export class AuctionService {
           bidderId,
           amount: submittedMaxAmount,
           maxAmount: submittedMaxAmount,
-          premiumAmount: submittedMaxAmount * Number(auction.buyerPremiumRate),
           status: BidStatus.OUTBID,
           isWinningBid: false,
         });
@@ -761,10 +860,10 @@ export class AuctionService {
             id: losingBid.id,
             amount: Number(losingBid.amount),
             maxAmount: submittedMaxAmount,
-            premiumAmount: Number(losingBid.premiumAmount),
-            buyerPremiumAmount: Number(losingBid.premiumAmount),
+            premiumAmount: 0,
+            buyerPremiumAmount: 0,
             estimatedTotal:
-              Number(losingBid.amount) + Number(losingBid.premiumAmount),
+              Number(losingBid.amount),
             createdAt: losingBid.createdAt,
             isLeadingBid: false,
             outbidImmediately: true,
@@ -793,10 +892,6 @@ export class AuctionService {
             })
           : dto.amount;
 
-      const premiumAmount =
-        effectiveCurrentPrice * Number(auction.buyerPremiumRate);
-      const totalWithPremium = effectiveCurrentPrice + premiumAmount;
-
       // 9-10. Wallet hold reservation uses WalletService so wallet row locks and
       // ledger movements are part of the same bid transaction.
       await this.walletService.releaseHold(
@@ -807,7 +902,7 @@ export class AuctionService {
       await this.walletService.createHold(
         auctionId,
         bidderId,
-        totalWithPremium,
+        effectiveCurrentPrice,
         queryRunner.manager,
       );
 
@@ -833,7 +928,6 @@ export class AuctionService {
         bidderId,
         amount: effectiveCurrentPrice,
         maxAmount: submittedMaxAmount,
-        premiumAmount,
         status: BidStatus.ACTIVE,
         isWinningBid: true,
       });
@@ -931,9 +1025,9 @@ export class AuctionService {
             id: bid.id,
             amount: Number(bid.amount),
             maxAmount: submittedMaxAmount,
-            premiumAmount: Number(bid.premiumAmount),
-            buyerPremiumAmount: Number(bid.premiumAmount),
-            estimatedTotal: Number(bid.amount) + Number(bid.premiumAmount),
+            premiumAmount: 0,
+            buyerPremiumAmount: 0,
+            estimatedTotal: Number(bid.amount),
             createdAt: bid.createdAt,
             isLeadingBid: true,
             outbidImmediately: false,
@@ -1147,7 +1241,7 @@ export class AuctionService {
   // ═══ Finalization (Plan 05-04: BIZ-12 bid lifecycle) ══════
   // ═══════════════════════════════════════════════════════════
 
-  async finalizeAuction(auctionId: string) {
+  async finalizeAuction(auctionId: string, force = false) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1189,7 +1283,7 @@ export class AuctionService {
         await queryRunner.commitTransaction();
         transactionCommitted = true;
 
-        await this.handleSequentialLotProgression(auction);
+        await this.handleSequentialLotProgression(auction, force);
 
         this.auctionGateway.emitAuctionEnded(auctionId, {
           finalPrice: Number(auction.startPrice),
@@ -1220,7 +1314,7 @@ export class AuctionService {
         transactionCommitted = true;
 
         await this.walletService.releaseAllHoldsForAuction(auctionId);
-        await this.handleSequentialLotProgression(auction);
+        await this.handleSequentialLotProgression(auction, force);
         this.auctionGateway.emitAuctionEnded(auctionId, {
           finalPrice: Number(auction.currentPrice),
           winnerId: null,
@@ -1302,7 +1396,7 @@ export class AuctionService {
 
       // ─── Post-commit: Gateway events + wallet operations ───
       await this.runFinalizationSideEffects(auction, winningBid);
-      await this.handleSequentialLotProgression(auction);
+      await this.handleSequentialLotProgression(auction, force);
 
       // WR-03: Clean up viewer count for ended auction
       this.auctionGateway.clearViewerCount(auctionId);
@@ -1394,8 +1488,7 @@ export class AuctionService {
       auction.fallbackRound,
     );
 
-    const premiumAmount =
-      Number(winningBid.amount) * Number(auction.buyerPremiumRate);
+    const premiumAmount = 0;
 
     this.auctionGateway.emitAuctionEnded(auctionId, {
       finalPrice: Number(auction.currentPrice),
@@ -1633,8 +1726,7 @@ export class AuctionService {
         });
         this.auctionGateway.emitBidWinner(auction.id, auction.winnerId, {
           finalPrice: Number(fallbackBid.amount),
-          premiumAmount:
-            Number(fallbackBid.amount) * Number(auction.buyerPremiumRate),
+          premiumAmount: 0,
         });
       } else {
         this.auctionGateway.emitAuctionEnded(auction.id, {
@@ -1700,7 +1792,7 @@ export class AuctionService {
         await this.walletService.createHold(
           auction.id,
           candidate.bidderId,
-          Number(candidate.amount) + Number(candidate.premiumAmount),
+          Number(candidate.amount),
           manager,
         );
       } catch {
@@ -1825,7 +1917,7 @@ export class AuctionService {
           b.maxAmount !== null && b.maxAmount !== undefined
             ? Number(b.maxAmount)
             : null,
-        premiumAmount: Number(b.premiumAmount),
+        premiumAmount: 0,
         status: b.status,
         isWinningBid: b.isWinningBid,
         bidderName: b.bidder
@@ -1860,9 +1952,7 @@ export class AuctionService {
       id: auction.id,
       status: auction.status,
       finalPrice: Number(auction.currentPrice),
-      buyerPremium: auction.winnerId
-        ? Number(auction.currentPrice) * Number(auction.buyerPremiumRate)
-        : 0,
+      buyerPremium: 0,
       bidCount: auction.bidCount,
       reservePrice:
         auction.reservePrice !== null && auction.reservePrice !== undefined
@@ -1930,6 +2020,8 @@ export class AuctionService {
       productId: auction.productId,
       productTitle: auction.product?.title || null,
       productImage: auction.product?.imageUrl || null,
+      categoryId: auction.product?.categoryId || null,
+      categoryName: auction.product?.category?.name || null,
       sellerId: auction.sellerId,
       sellerName: auction.seller
         ? `${auction.seller.firstName || ''} ${auction.seller.lastName || ''}`.trim()
@@ -1942,7 +2034,7 @@ export class AuctionService {
           ? Number(auction.reservePrice)
           : null,
       reserveMet: auction.reserveMet,
-      buyerPremiumRate: Number(auction.buyerPremiumRate),
+      buyerPremiumRate: 0,
       status: auction.status,
       auctionType: auction.auctionType,
       startTime: auction.startTime,
@@ -2030,11 +2122,31 @@ export class AuctionService {
 
   // ─── Ortak Müzayede Etkinliği (Model 2) Canlı Akış & Yönetici Kontrolleri ───
 
-  async handleSequentialLotProgression(auction: Auction) {
+  async handleSequentialLotProgression(auction: Auction, force = false) {
     if (!auction.eventId || auction.auctionType !== AuctionType.REALTIME) return;
 
+    // Otomatik lot geçişi aktif mi kontrol et (force=true ise bypass et)
+    const autoProgress = this.isAutoProgressEnabled(auction.eventId);
+    if (!autoProgress && !force) {
+      this.logger.log(`Otomatik lot geçişi kapalı. Event: ${auction.eventId}`);
+      // Aktif lot alanını temizle ama etkinliği ACTIVE olarak bırak
+      await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
+        activeLotId: null,
+        status: AuctionEventStatus.ACTIVE,
+      });
+
+      this.auctionGateway.emitActiveLotChanged(auction.eventId, {
+        activeLotId: null,
+        lotNumber: null,
+        productTitle: null,
+        currentPrice: 0,
+        endTime: new Date().toISOString(),
+      });
+      return;
+    }
+
     // Sıradaki onaylanmış Lot'u bul
-    const nextLot = await this.auctionRepo
+    let nextLot = await this.auctionRepo
       .createQueryBuilder('a')
       .where('a.eventId = :eventId', { eventId: auction.eventId })
       .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
@@ -2043,48 +2155,138 @@ export class AuctionService {
       .orderBy('a.sequenceNumber', 'ASC')
       .getOne();
 
-    if (nextLot) {
-      // Bir sonraki Lot'u otomatik olarak başlat
-      const now = new Date();
-      nextLot.startTime = now;
-      nextLot.endTime = new Date(now.getTime() + 3 * 60 * 1000); // Varsayılan 3 dakika canlı ihale süresi
-      nextLot.status = AuctionStatus.ACTIVE;
-      await this.auctionRepo.save(nextLot);
+    // Eğer sequenceNumber ile bulunamadıysa, herhangi bir tamamlanmamış APPROVED lotu yedek olarak bul
+    if (!nextLot) {
+      nextLot = await this.auctionRepo
+        .createQueryBuilder('a')
+        .where('a.eventId = :eventId', { eventId: auction.eventId })
+        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .andWhere('a.id != :currentId', { currentId: auction.id })
+        .andWhere('a.status IN (:...pendingStatuses)', {
+          pendingStatuses: [AuctionStatus.PUBLISHED, AuctionStatus.DRAFT],
+        })
+        .orderBy('a.sequenceNumber', 'ASC')
+        .getOne();
+    }
 
-      // Etkinliğin aktif Lot alanını güncelle
+    if (nextLot) {
+      // Müzayede odasının transition bekleme süresini alalım
+      const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+        where: { id: auction.eventId },
+      });
+      const transitionSeconds = event?.lotTransitionSeconds ?? 30;
+
+      // Etkinliğin aktif Lot alanını güncelle ama durumunu ACTIVE yapma
       await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
         activeLotId: nextLot.id,
-        status: AuctionEventStatus.ACTIVE,
       });
 
-      // WebSocket odasına aktif Lot değişim bildirimini gönder
       const product = await this.auctionRepo.manager.findOne('Product', {
         where: { id: nextLot.productId },
       }) as any;
 
-      this.auctionGateway.emitActiveLotChanged(auction.eventId, {
-        activeLotId: nextLot.id,
+      const transitionEndTime = new Date(Date.now() + transitionSeconds * 1000).toISOString();
+
+      // WebSocket odasına bekleme (geçiş) bildirimini gönder
+      this.auctionGateway.emitLotTransition(auction.eventId, {
+        nextLotId: nextLot.id,
         lotNumber: nextLot.lotNumber,
         productTitle: product?.title ?? null,
-        currentPrice: Number(nextLot.startPrice),
-        endTime: nextLot.endTime.toISOString(),
+        transitionSeconds,
+        transitionEndTime,
       });
 
-      // Müzayede bitişi için BullMQ görevini programla
-      const delay = nextLot.endTime.getTime() - Date.now();
+      // BullMQ ile sonraki lotu başlatacak gecikmeli job planla
       await this.auctionQueue.add(
-        'end-auction',
-        { auctionId: nextLot.id },
-        { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` }
+        'start-next-lot',
+        { eventId: auction.eventId, nextLotId: nextLot.id },
+        { delay: transitionSeconds * 1000, jobId: `start-next-${nextLot.id}` }
       );
     } else {
-      // Etkinlikteki tüm Lot'lar tamamlandı! Etkinliği sonlandır
-      await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
-        activeLotId: null,
-        status: AuctionEventStatus.ENDED,
-      });
-      this.auctionGateway.emitEventStatusChanged(auction.eventId, { status: AuctionEventStatus.ENDED });
+      // Sıradaki lot yok. Gerçekten tamamlanmamış lot var mı diye kontrol et (onaylı olsun olmasın)
+      const unfinishedLotsCount = await this.auctionRepo
+        .createQueryBuilder('a')
+        .where('a.eventId = :eventId', { eventId: auction.eventId })
+        .andWhere('a.status NOT IN (:...endedStatuses)', {
+          endedStatuses: [
+            AuctionStatus.ENDED,
+            AuctionStatus.COMPLETED,
+            AuctionStatus.CANCELLED,
+            AuctionStatus.FAILED,
+          ],
+        })
+        .getCount();
+
+      if (unfinishedLotsCount > 0) {
+        this.logger.log(`Müzayede ${auction.eventId} içinde ${unfinishedLotsCount} tamamlanmamış lot var. Etkinlik sonlandırılmıyor.`);
+        
+        await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
+          activeLotId: null,
+          status: AuctionEventStatus.ACTIVE,
+        });
+
+        this.auctionGateway.emitActiveLotChanged(auction.eventId, {
+          activeLotId: null,
+          lotNumber: null,
+          productTitle: null,
+          currentPrice: 0,
+          endTime: new Date().toISOString(),
+        });
+      } else {
+        // Etkinlikteki tüm Lot'lar tamamlandı! Etkinliği sonlandır
+        await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
+          activeLotId: null,
+          status: AuctionEventStatus.ENDED,
+        });
+        this.auctionGateway.emitEventStatusChanged(auction.eventId, { status: AuctionEventStatus.ENDED });
+      }
     }
+  }
+
+  async startNextLot(eventId: string, nextLotId: string) {
+    const lot = await this.auctionRepo.findOne({ where: { id: nextLotId } });
+    if (!lot) return;
+
+    // Eğer lot zaten aktifse veya bitmişse işlem yapma (örn: admin skip etmiş olabilir)
+    if (
+      lot.status === AuctionStatus.ACTIVE ||
+      lot.status === AuctionStatus.ENDED ||
+      lot.status === AuctionStatus.COMPLETED
+    ) {
+      return;
+    }
+
+    const now = new Date();
+    lot.startTime = now;
+    lot.endTime = new Date(now.getTime() + 5 * 60 * 1000); // Varsayılan 5 dakika canlı ihale süresi
+    lot.status = AuctionStatus.ACTIVE;
+    await this.auctionRepo.save(lot);
+
+    await this.auctionRepo.manager.update(AuctionEvent, eventId, {
+      activeLotId: lot.id,
+      status: AuctionEventStatus.ACTIVE,
+    });
+
+    const product = await this.auctionRepo.manager.findOne('Product', {
+      where: { id: lot.productId },
+    }) as any;
+
+    this.auctionGateway.emitActiveLotChanged(eventId, {
+      activeLotId: lot.id,
+      lotNumber: lot.lotNumber,
+      productTitle: product?.title ?? null,
+      currentPrice: Number(lot.startPrice),
+      endTime: lot.endTime.toISOString(),
+    });
+
+    this.auctionGateway.emitEventStatusChanged(eventId, { status: 'ACTIVE' });
+
+    const delay = lot.endTime.getTime() - Date.now();
+    await this.auctionQueue.add(
+      'end-auction',
+      { auctionId: lot.id },
+      { delay: Math.max(0, delay), jobId: `end-${lot.id}` }
+    );
   }
 
   async pauseAuction(eventId: string) {
@@ -2108,7 +2310,8 @@ export class AuctionService {
 
     const remainingMs = lot.endTime.getTime() - Date.now();
     lot.status = AuctionStatus.PUBLISHED; // Bids can't be placed while paused
-    (lot as any).pausedRemainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+    this.pausedRemainingSecondsMap.set(lot.id, remainingSec);
     await this.auctionRepo.save(lot);
 
     // Bitiş BullMQ görevini kaldır
@@ -2140,7 +2343,8 @@ export class AuctionService {
       });
     }
 
-    const remainingSec = (lot as any).pausedRemainingSeconds || 60;
+    const remainingSec = this.pausedRemainingSecondsMap.get(lot.id) || 60;
+    this.pausedRemainingSecondsMap.delete(lot.id);
     const now = new Date();
     lot.status = AuctionStatus.ACTIVE;
     lot.endTime = new Date(now.getTime() + remainingSec * 1000);
@@ -2173,25 +2377,119 @@ export class AuctionService {
     const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
       where: { id: eventId },
     });
-    if (!event || !event.activeLotId) {
+    if (!event) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Aktif müzayede odası bulunamadı',
+        message: 'Müzayede odası bulunamadı',
       });
     }
 
-    const lot = await this.auctionRepo.findOne({ where: { id: event.activeLotId } });
-    if (!lot) return { code: RC.SUCCESS };
+    if (event.activeLotId) {
+      const lot = await this.auctionRepo.findOne({ where: { id: event.activeLotId } });
+      if (!lot) return { code: RC.SUCCESS };
 
-    lot.endTime = new Date(Date.now() - 1000);
-    await this.auctionRepo.save(lot);
+      if (lot.status === AuctionStatus.ACTIVE) {
+        // Normal skip: Aktif lotu sonlandır
+        lot.endTime = new Date(Date.now() - 1000);
+        await this.auctionRepo.save(lot);
 
-    try {
-      const endJob = await this.auctionQueue.getJob(`end-${lot.id}`);
-      if (endJob) await endJob.remove();
-    } catch {}
+        try {
+          const endJob = await this.auctionQueue.getJob(`end-${lot.id}`);
+          if (endJob) await endJob.remove();
+        } catch {}
 
-    await this.finalizeAuction(lot.id);
-    return { code: RC.SUCCESS, message: 'Sıradaki Lot\'a geçildi' };
+        await this.finalizeAuction(lot.id, true);
+        return { code: RC.SUCCESS, message: 'Sıradaki Lot\'a geçildi' };
+      } else {
+        // Geçiş aşaması (Transition): Bekleyen job'ı iptal et ve hemen başlat
+        try {
+          const startJob = await this.auctionQueue.getJob(`start-next-${lot.id}`);
+          if (startJob) await startJob.remove();
+        } catch {}
+
+        await this.startNextLot(event.id, lot.id);
+        return { code: RC.SUCCESS, message: 'Bekleme süresi atlandı ve Lot başlatıldı' };
+      }
+    } else {
+      // Sıradaki onaylı ve yayınlanmış lotu bul
+      let nextLot = await this.auctionRepo
+        .createQueryBuilder('a')
+        .where('a.eventId = :eventId', { eventId: event.id })
+        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .andWhere('a.status = :published', { published: AuctionStatus.PUBLISHED })
+        .orderBy('a.sequenceNumber', 'ASC')
+        .getOne();
+
+      if (!nextLot) {
+        nextLot = await this.auctionRepo
+          .createQueryBuilder('a')
+          .where('a.eventId = :eventId', { eventId: event.id })
+          .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+          .andWhere('a.status IN (:...pendingStatuses)', {
+            pendingStatuses: [AuctionStatus.PUBLISHED, AuctionStatus.DRAFT],
+          })
+          .orderBy('a.sequenceNumber', 'ASC')
+          .getOne();
+      }
+
+      if (nextLot) {
+        const now = new Date();
+        nextLot.startTime = now;
+        nextLot.endTime = new Date(now.getTime() + 5 * 60 * 1000);
+        nextLot.status = AuctionStatus.ACTIVE;
+        await this.auctionRepo.save(nextLot);
+
+        await this.auctionRepo.manager.update(AuctionEvent, event.id, {
+          activeLotId: nextLot.id,
+          status: AuctionEventStatus.ACTIVE,
+        });
+
+        const product = await this.auctionRepo.manager.findOne('Product', {
+          where: { id: nextLot.productId },
+        }) as any;
+
+        this.auctionGateway.emitActiveLotChanged(event.id, {
+          activeLotId: nextLot.id,
+          lotNumber: nextLot.lotNumber,
+          productTitle: product?.title ?? null,
+          currentPrice: Number(nextLot.startPrice),
+          endTime: nextLot.endTime.toISOString(),
+        });
+
+        const delay = nextLot.endTime.getTime() - Date.now();
+        await this.auctionQueue.add(
+          'end-auction',
+          { auctionId: nextLot.id },
+          { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` }
+        );
+
+        this.auctionGateway.emitEventStatusChanged(event.id, { status: AuctionEventStatus.ACTIVE });
+        return { code: RC.SUCCESS, message: 'Sıradaki Lot başlatıldı' };
+      } else {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Müzayedede başlatılacak onaylı lot kalmadı',
+        });
+      }
+    }
+  }
+
+  isAutoProgressEnabled(eventId: string): boolean {
+    const val = this.eventAutoProgressMap.get(eventId);
+    return val !== false; // defaults to true
+  }
+
+  setAutoProgress(eventId: string, enabled: boolean) {
+    this.eventAutoProgressMap.set(eventId, enabled);
+    this.auctionGateway.emitEventAutoProgressChanged(eventId, enabled);
+    return {
+      code: RC.SUCCESS,
+      message: `Otomatik geçiş ${enabled ? 'açıldı' : 'kapatıldı'}`,
+      enabled,
+    };
+  }
+
+  getPausedRemainingSeconds(lotId: string): number | undefined {
+    return this.pausedRemainingSecondsMap.get(lotId);
   }
 }

@@ -47,6 +47,7 @@ interface RawOrder {
   productImageUrl?: string | null;
   returnReasonCode?: string | null;
   returnReasonNote?: string | null;
+  returnImages?: string[] | null;
 }
 
 interface RawCargoEvent {
@@ -107,6 +108,7 @@ interface TransitionSellerOrderResponse extends ApiResponseEnvelope {
 interface ReturnRequestPayload {
   reasonCode: string;
   note?: string;
+  images?: string[];
 }
 
 interface ReturnReviewPayload {
@@ -278,6 +280,7 @@ export function useOrderDetail(orderId?: string) {
         submittedReview: normalizeReview(data.submittedReview),
         returnReasonCode: order.returnReasonCode ?? null,
         returnReasonNote: order.returnReasonNote ?? null,
+        returnImages: order.returnImages ?? null,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
       };
@@ -335,6 +338,36 @@ export function useOrderReturnRequest(orderId?: string) {
     },
     onSuccess: () => {
       invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
+export function useUploadReturnImage(orderId?: string) {
+  return useMutation<{ url: string; images: string[] }, Error, { uri: string; fileName: string; mimeType: string }>({
+    mutationFn: async (fileInfo) => {
+      if (!orderId) throw new Error('Order id is required');
+      if (ENV.USE_MOCK) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return { url: fileInfo.uri, images: [fileInfo.uri] };
+      }
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: fileInfo.uri,
+        name: fileInfo.fileName || `return-${Date.now()}.jpg`,
+        type: fileInfo.mimeType || 'image/jpeg',
+      } as any);
+
+      const { data } = await api.post<{ url: string; images: string[] }>(
+        `/orders/${orderId}/return-images`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        },
+      );
+      return data;
     },
   });
 }

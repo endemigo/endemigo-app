@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../../styles/tabs/ExploreScreen.styles';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
+import { useDebounce } from '../../hooks/useDebounce';
 
 type ExploreSectionKey = 'all' | 'products' | 'auctions' | 'blogs';
 
@@ -108,34 +109,37 @@ export default function ExploreScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const [query, setQuery] = React.useState('');
+  const debouncedQuery = useDebounce(query, 400);
   const [activeSection, setActiveSection] = React.useState<ExploreSectionKey>(
     normalizeSection(params.section),
   );
   const hasQuery = query.trim().length >= 2;
+  const searchEnabled = debouncedQuery.trim().length >= 2 && hasQuery;
+  const isDebouncing = hasQuery && debouncedQuery !== query;
 
   const products = useProducts(1);
   const auctions = useAuctions(1);
   const categories = useCategories();
   const blogs = useBlogs();
   const searchProducts = useSearchProducts(
-    { q: query.trim(), sort: 'popular', limit: 8 },
-    hasQuery,
+    { q: debouncedQuery.trim(), sort: 'popular', limit: 8 },
+    searchEnabled,
   );
   const searchAuctions = useSearchAuctions(
-    { q: query.trim(), sort: 'ending_soon', limit: 6 },
-    hasQuery,
+    { q: debouncedQuery.trim(), sort: 'ending_soon', limit: 6 },
+    searchEnabled,
   );
 
   const filteredBlogs = React.useMemo(() => {
     const items = blogs.data ?? [];
     if (!hasQuery) return items.slice(0, 5);
-    const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR');
+    const normalizedQuery = debouncedQuery.trim().toLocaleLowerCase('tr-TR');
     return items.filter((item) =>
       `${item.title} ${item.excerpt}`
         .toLocaleLowerCase('tr-TR')
         .includes(normalizedQuery),
     );
-  }, [blogs.data, hasQuery, query]);
+  }, [blogs.data, hasQuery, debouncedQuery]);
 
   const featuredCategories = React.useMemo(
     () => ((categories.data as Category[]) ?? []).slice(0, 6),
@@ -316,7 +320,7 @@ export default function ExploreScreen() {
       {(activeSection === 'all' || activeSection === 'products') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('exploreScreen.products')}</Text>
-          {searchProducts.isLoading ? (
+          {searchProducts.isLoading || isDebouncing ? (
             <ActivityIndicator size="small" color={Colors.primary} />
           ) : (
             renderProductGrid(
@@ -330,7 +334,7 @@ export default function ExploreScreen() {
       {(activeSection === 'all' || activeSection === 'auctions') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('exploreScreen.auctions')}</Text>
-          {searchAuctions.isLoading ? (
+          {searchAuctions.isLoading || isDebouncing ? (
             <ActivityIndicator size="small" color={Colors.auctionGreen} />
           ) : (
             renderAuctionList(
@@ -344,7 +348,7 @@ export default function ExploreScreen() {
       {(activeSection === 'all' || activeSection === 'blogs') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('exploreScreen.blogs')}</Text>
-          {blogs.isLoading ? (
+          {blogs.isLoading || isDebouncing ? (
             <ActivityIndicator size="small" color={Colors.primary} />
           ) : (
             renderBlogList(filteredBlogs, 'exploreScreen.noBlogs')
@@ -563,13 +567,7 @@ export default function ExploreScreen() {
           {renderSearchResults()}
         </View>
       ) : (
-        <>
-          <View style={styles.hintCard}>
-            <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
-            <Text style={styles.hintText}>{t('exploreScreen.searchHint')}</Text>
-          </View>
-          {renderDiscoveryState()}
-        </>
+        renderDiscoveryState()
       )}
     </ScrollView>
   );

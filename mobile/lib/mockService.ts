@@ -332,6 +332,49 @@ export const MOCK_AUCTIONS: MockAuction[] = [
   },
 ];
 
+// ─── Auction Events ──────────────────────────────────────────────
+export const MOCK_EVENTS = [
+  {
+    id: 'evt-1',
+    title: 'Anadolu Halı & Kilim Canlı Müzayedesi',
+    description: 'Tarihi ve el dokuması eşsiz Anadolu halı ve kilimleri bu salonda açık artırmaya sunuluyor.',
+    coverImageUrl: 'https://images.unsplash.com/photo-1600166898405-da9535204843?w=600&q=80',
+    status: 'ACTIVE',
+    auctionType: 'REALTIME',
+    startTime: new Date(Date.now() - 3600000).toISOString(),
+    endTime: new Date(Date.now() + 10800000).toISOString(),
+    lotCount: 3,
+    categoryId: 'cat-4',
+    categoryName: 'Halı & Kilim',
+  },
+  {
+    id: 'evt-2',
+    title: 'Antika & Koleksiyon Canlı Müzayedesi',
+    description: '19. yüzyıldan kalma el işi gümüşler, bakır mangallar ve nadide antika parçalar.',
+    coverImageUrl: 'https://images.unsplash.com/photo-1462212210333-335063b67695?w=600&q=80',
+    status: 'UPCOMING',
+    auctionType: 'REALTIME',
+    startTime: new Date(Date.now() + 86400000).toISOString(),
+    endTime: new Date(Date.now() + 100800000).toISOString(),
+    lotCount: 2,
+    categoryId: 'cat-2',
+    categoryName: 'Antika & Koleksiyon',
+  },
+  {
+    id: 'evt-3',
+    title: 'Geleneksel El Sanatları & Sanat Müzayedesi',
+    description: 'Usta ellerden çıkmış seramikler ve özgün sanat eserleri.',
+    coverImageUrl: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=600&q=80',
+    status: 'ENDED',
+    auctionType: 'REALTIME',
+    startTime: new Date(Date.now() - 172800000).toISOString(),
+    endTime: new Date(Date.now() - 158400000).toISOString(),
+    lotCount: 1,
+    categoryId: 'cat-3',
+    categoryName: 'Sanat',
+  }
+];
+
 // ─── Bids ────────────────────────────────────────────────────────
 export const MOCK_BIDS: Record<string, MockBid[]> = {
   'auc-1': [
@@ -757,7 +800,14 @@ export const mockService = {
   async getAuctions(page = 1, limit = 20) {
     await delay(500);
     const start = (page - 1) * limit;
-    const items = MOCK_AUCTIONS.slice(start, start + limit);
+    const items = MOCK_AUCTIONS.slice(start, start + limit).map((item) => {
+      const product = MOCK_PRODUCTS_ENRICHED.find((p) => p.id === item.productId);
+      return {
+        ...item,
+        categoryId: product?.categoryId || null,
+        categoryName: product?.categoryName || null,
+      };
+    });
     return { items, total: MOCK_AUCTIONS.length, page, totalPages: 1 };
   },
 
@@ -765,9 +815,46 @@ export const mockService = {
     await delay(400);
     const auction = MOCK_AUCTIONS.find((a) => a.id === id);
     if (!auction) throw new Error('Müzayede bulunamadı');
+    const product = MOCK_PRODUCTS_ENRICHED.find((p) => p.id === auction.productId);
     return {
       ...auction,
+      categoryId: product?.categoryId || null,
+      categoryName: product?.categoryName || null,
       timeLeftMs: Math.max(0, new Date(auction.endTime).getTime() - Date.now()),
+    };
+  },
+
+  async getAuctionEvents(page = 1, limit = 10) {
+    await delay(400);
+    const start = (page - 1) * limit;
+    const items = MOCK_EVENTS.slice(start, start + limit);
+    return {
+      items,
+      page,
+      hasNextPage: start + limit < MOCK_EVENTS.length,
+    };
+  },
+
+  async getAuctionEventDetails(id: string) {
+    await delay(400);
+    const event = MOCK_EVENTS.find((e) => e.id === id);
+    if (!event) throw new Error('Müzayede salonu bulunamadı');
+    
+    // Mapped lots inside event
+    const lots = MOCK_AUCTIONS.map((auc) => {
+      const product = MOCK_PRODUCTS_ENRICHED.find((p) => p.id === auc.productId);
+      return {
+        ...auc,
+        categoryId: product?.categoryId || null,
+        categoryName: product?.categoryName || null,
+      };
+    });
+
+    return {
+      code: 'SUCCESS',
+      message: 'Müzayede salon detayları getirildi',
+      event,
+      lots,
     };
   },
 

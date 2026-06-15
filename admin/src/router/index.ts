@@ -111,7 +111,7 @@ const operationRoutes: RouteRecordRaw[] = [
   {
     path: 'auction-events',
     name: 'auction-events',
-    component: AdminListView,
+    component: () => import('../views/operations/AuctionEventsListView.vue'),
     props: { resource: 'auction-events', title: 'Müzayede Etkinlikleri' },
   },
   {
@@ -129,12 +129,8 @@ const operationRoutes: RouteRecordRaw[] = [
   {
     path: 'auctions/:id',
     name: 'auctions-detail',
-    component: AdminDetailView,
-    props: (route) => ({
-      resource: 'auctions',
-      id: String(route.params.id),
-      title: 'Müzayede Detayı',
-    }),
+    component: () => import('../views/operations/AuctionDetailView.vue'),
+    props: (route) => ({ id: String(route.params.id) }),
   },
   {
     path: 'orders',

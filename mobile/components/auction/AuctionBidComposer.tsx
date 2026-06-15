@@ -110,7 +110,7 @@ export function AuctionBidComposer({
         ))}
       </View>
 
-      {/* Optional Auto Bid (Max Bid) */}
+      {/* Optional Auto Bid (Max Bid) - Temporarily Hidden
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           {t('auction.maxBidLabel', 'Maksimum Teklif Limiti (Otomatik Teklif)')}
@@ -127,6 +127,7 @@ export function AuctionBidComposer({
           />
         </View>
       </View>
+      */}
 
       {/* Status / Warnings */}
       {statusMessage || proxyMessage ? (

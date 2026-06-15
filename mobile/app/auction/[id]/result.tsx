@@ -173,19 +173,7 @@ export default function AuctionResultScreen() {
             </Text>
           </View>
         ) : null}
-        {hasWinner ? (
-          <>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t('auction.buyerPremium')}</Text>
-              <Text style={styles.premiumVal}>+{formatCurrency(result.buyerPremium)}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={styles.totalLabel}>{t('auction.totalLabel')}</Text>
-              <Text style={styles.totalValue}>{formatCurrency(totalCost)}</Text>
-            </View>
-          </>
-        ) : null}
+
         <View style={styles.row}>
           <Text style={styles.label}>{t('auction.totalBids')}</Text>
           <Text style={styles.value}>{result.bidCount}</Text>

@@ -12,7 +12,6 @@ type AuctionSummaryPanelProps = {
   currentPrice: number;
   startPrice: number;
   minBid: number;
-  buyerPremiumRate: number;
   bidCount: number;
   viewerCount: number;
   walletAvailable?: number;
@@ -42,7 +41,6 @@ export function AuctionSummaryPanel({
   currentPrice,
   startPrice,
   minBid,
-  buyerPremiumRate,
   bidCount,
   viewerCount,
   walletAvailable,
@@ -62,7 +60,6 @@ export function AuctionSummaryPanel({
   onViewResult,
   t,
 }: AuctionSummaryPanelProps) {
-  const premiumAmount = currentPrice * buyerPremiumRate;
   const summaryTitle = isEnded ? t('auction.resultTitleEnded') : t('auction.overviewTitle');
   const leadMetricLabel = isEnded ? t('auction.finalBid') : t('auction.nextBid');
   const leadMetricValue = isEnded ? Number(finalPrice ?? currentPrice) : minBid;
@@ -127,14 +124,6 @@ export function AuctionSummaryPanel({
           >
             {formatCurrency(leadMetricValue)}
           </Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>
-            {t('auction.buyerPremiumRate', {
-              rate: (buyerPremiumRate * 100).toFixed(0),
-            })}
-          </Text>
-          <Text style={styles.metricValue}>{formatCurrency(premiumAmount)}</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{t('auction.bidCountLabel', { count: bidCount })}</Text>

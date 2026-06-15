@@ -18,7 +18,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fthkrtl.endemigo"
+      "bundleIdentifier": "com.endemigo.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +26,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.fthkrtl.endemigo"
+      "package": "com.endemigo.app"
     },
     "web": {
       "output": "static",

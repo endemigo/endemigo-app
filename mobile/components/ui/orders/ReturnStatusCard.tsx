@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
 import { OrderStatus } from '@endemigo/shared';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../../constants/theme';
@@ -9,6 +9,7 @@ interface ReturnStatusCardProps {
   status: OrderStatus;
   reasonCode?: string | null;
   note?: string | null;
+  returnImages?: string[] | null;
   canApprove: boolean;
   canReject: boolean;
   canConfirmDelivered: boolean;
@@ -22,6 +23,7 @@ export function ReturnStatusCard({
   status,
   reasonCode,
   note,
+  returnImages,
   canApprove,
   canReject,
   canConfirmDelivered,
@@ -58,6 +60,23 @@ export function ReturnStatusCard({
         <Text style={styles.note}>{t(`orders.returnReasons.${reasonCode}`)}</Text>
       ) : null}
       {note ? <Text style={styles.body}>{note}</Text> : null}
+      
+      {returnImages && returnImages.length > 0 ? (
+        <View>
+          <Text style={styles.proofImageLabel}>İade Kanıt Görselleri</Text>
+          <View style={styles.imagesContainer}>
+            {returnImages.map((url, idx) => (
+              <Image
+                key={`${url}-${idx}`}
+                source={{ uri: url }}
+                style={styles.proofImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {(canApprove || canReject || canConfirmDelivered) ? (
         <View style={styles.buttonRow}>
           {canApprove ? (

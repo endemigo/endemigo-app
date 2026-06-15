@@ -5,7 +5,7 @@ import { storage } from '../lib/storage';
 let negotiationSocket: Socket | null = null;
 
 export async function getNegotiationSocket(): Promise<Socket> {
-  if (negotiationSocket?.connected) return negotiationSocket;
+  if (negotiationSocket) return negotiationSocket;
 
   const token = (await storage.getToken()) || '';
 

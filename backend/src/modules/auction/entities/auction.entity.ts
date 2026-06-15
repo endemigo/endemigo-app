@@ -36,8 +36,6 @@ export class Auction extends BaseEntity {
   @Column({ default: false })
   reserveMet: boolean;
 
-  @Column({ type: 'decimal', precision: 5, scale: 4, default: 0.25 })
-  buyerPremiumRate: number;
 
   @Column({ type: 'enum', enum: AuctionStatus, default: AuctionStatus.DRAFT })
   status: AuctionStatus;

@@ -11,8 +11,8 @@ test('calculateAuctionBidEstimate includes buyer premium in live total', () => {
   });
 
   assert.equal(estimate.hammerAmount, 1000);
-  assert.equal(estimate.buyerPremiumAmount, 250);
-  assert.equal(estimate.estimatedTotal, 1250);
+  assert.equal(estimate.buyerPremiumAmount, 0);
+  assert.equal(estimate.estimatedTotal, 1000);
   assert.equal(estimate.isWalletSufficient, true);
   assert.equal(estimate.walletShortfall, 0);
 });
@@ -21,10 +21,10 @@ test('calculateAuctionBidEstimate closes bid gate when wallet cannot cover total
   const estimate = calculateAuctionBidEstimate({
     bidAmount: 1000,
     buyerPremiumRate: 0.25,
-    walletAvailable: 1200,
+    walletAvailable: 800,
   });
 
-  assert.equal(estimate.estimatedTotal, 1250);
+  assert.equal(estimate.estimatedTotal, 1000);
   assert.equal(estimate.isWalletSufficient, false);
-  assert.equal(estimate.walletShortfall, 50);
+  assert.equal(estimate.walletShortfall, 200);
 });

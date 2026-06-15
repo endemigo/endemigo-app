@@ -639,7 +639,7 @@
         },
         "wallet": {
           "title": "Cüzdan blokajı ve ödemeler",
-          "body1": "Müzayedeye katılmak ve teklif vermek için tahmini toplam tutarın (çekiç fiyatı ve komisyon) cüzdanınızda bulunması gereklidir.",
+          "body1": "Müzayedeye katılmak ve teklif vermek için teklif tutarının cüzdanınızda bulunması gereklidir.",
           "body2": "En yüksek teklif sahibi olduğunuzda teklif tutarınız cüzdanınızda bloke edilir. Müzayede kazanıldığında ödeme bloke tutardan tahsil edilir, kaybedildiğinde blokaj kaldırılır."
         },
         "moderation": {
@@ -839,8 +839,11 @@
   },
   "auction": {
     "finalPrice": "Final Fiyat",
-    "buyerPremium": "Alıcı Primi",
     "totalLabel": "Toplam",
+    "filterCategory": "Kategori Seç",
+    "filterStatus": "Durum Seç",
+    "selectCategoryTitle": "Kategori Seçin",
+    "selectStatusTitle": "Müzayede Durumu",
     "totalBids": "Toplam Teklif",
     "winner": "Kazanan",
     "you": "Siz!",
@@ -879,11 +882,9 @@
     "proxyOutbidTitle": "Proxy teklif devrede",
     "proxyOutbidMessage": "Daha yüksek bir maksimum teklif sizi anında geçti. Güncel fiyat: ₺{{amount}}",
     "bidErrorFallback": "Teklif verilemedi",
-    "buyerPremiumRate": "Alıcı Primi (%{{rate}})",
     "auctionEnded": "Müzayede Bitti",
     "bidCountLabel": "{{count}} teklif",
     "walletAvailable": "Bakiye: {{amount}}₺",
-    "premiumTotal": "Alıcı primi dahil toplam: ₺{{amount}}",
     "hammerPriceLabel": "Çekiç fiyatı",
     "estimatedTotalLabel": "Tahmini toplam",
     "walletGateTitle": "Bakiye yetersiz",
@@ -944,7 +945,6 @@
     "leadBidderLabel": "Lider teklif",
     "previousBidLabel": "Önceki teklif",
     "proxyMaxLabel": "Maksimum teklif: {{amount}}",
-    "bidPremiumLabel": "Prim dahil: {{amount}}",
     "noBidsPremiumHint": "İlk hamleyi yapıp bu lot için lider konumu alın.",
     "stickyBidSubtitle": "Canlı rekabete aşağıdan anında katılın.",
     "bidComposerHint": "Teklif verince blokaj otomatik güncellenir.",

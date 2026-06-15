@@ -95,12 +95,12 @@ type AdminResource =
   | 'geo-indications'
   | 'feature-badges';
 
-interface CreatedEntity {
+export interface CreatedEntity {
   id: string;
   createdAt: Date;
 }
 
-interface AdminProductPayload {
+export interface AdminProductPayload {
   sellerId?: string;
   title?: string;
   description?: string;
@@ -144,7 +144,7 @@ interface AdminProductPayload {
   adminFormSnapshot?: Record<string, unknown> | string;
 }
 
-interface AdminCreateMemberPayload {
+export interface AdminCreateMemberPayload {
   email?: string;
   password?: string;
   firstName?: string;
@@ -152,7 +152,7 @@ interface AdminCreateMemberPayload {
   memberType?: string;
 }
 
-interface AdminSellerPayload {
+export interface AdminSellerPayload {
   businessName?: string;
   phone?: string;
   taxOffice?: string;
@@ -161,14 +161,14 @@ interface AdminSellerPayload {
   status?: SellerStatus;
 }
 
-interface ProductExtendedContent {
+export interface ProductExtendedContent {
   notes: string;
   certificateImageUrls: string[];
   deliveryLocations: string[];
   adminFormSnapshot?: Record<string, unknown>;
 }
 
-interface DashboardRange {
+export interface DashboardRange {
   period: AdminDashboardPeriod;
   from: Date;
   to: Date;
@@ -179,7 +179,7 @@ interface DashboardRange {
 
 type TrendUnit = 'day' | 'week' | 'month';
 
-interface UserOrderRow {
+export interface UserOrderRow {
   id: string;
   productId: string;
   productTitle: string;
@@ -192,7 +192,7 @@ interface UserOrderRow {
   createdAt: string;
 }
 
-interface UserCouponDefinitionRow {
+export interface UserCouponDefinitionRow {
   id: string;
   code: string;
   status: string;
@@ -206,7 +206,7 @@ interface UserCouponDefinitionRow {
   isExhausted: boolean;
 }
 
-interface UserCouponUsageRow {
+export interface UserCouponUsageRow {
   id: string;
   couponId: string;
   couponCode: string;
@@ -217,7 +217,7 @@ interface UserCouponUsageRow {
   createdAt: string;
 }
 
-interface SellerProductRow {
+export interface SellerProductRow {
   id: string;
   title: string;
   status: string;
@@ -226,7 +226,7 @@ interface SellerProductRow {
   createdAt: string;
 }
 
-interface SellerAuctionRow {
+export interface SellerAuctionRow {
   id: string;
   productId: string;
   status: string;
@@ -239,7 +239,7 @@ interface SellerAuctionRow {
   createdAt: string;
 }
 
-interface SellerPayoutRow {
+export interface SellerPayoutRow {
   id: string;
   amount: number;
   currency: string;
@@ -248,7 +248,7 @@ interface SellerPayoutRow {
   reviewedAt: string | null;
 }
 
-interface SellerCouponRow {
+export interface SellerCouponRow {
   id: string;
   code: string;
   status: string;
@@ -259,7 +259,7 @@ interface SellerCouponRow {
   maxUses: number | null;
 }
 
-interface SellerPaymentRow {
+export interface SellerPaymentRow {
   id: string;
   orderId: string;
   status: string;
@@ -269,7 +269,7 @@ interface SellerPaymentRow {
   createdAt: string;
 }
 
-interface SellerAddressRow {
+export interface SellerAddressRow {
   id: string;
   type: string;
   title: string;
@@ -285,7 +285,7 @@ interface SellerAddressRow {
   createdAt: string;
 }
 
-interface BidAuctionListRow {
+export interface BidAuctionListRow {
   id: string;
   auctionId: string;
   auctionStatus: string;
@@ -310,7 +310,7 @@ interface BidAuctionListRow {
   createdAt: string;
 }
 
-interface BidAuctionParticipantRow {
+export interface BidAuctionParticipantRow {
   bidderId: string;
   bidderName: string;
   bidderEmail: string;
@@ -319,7 +319,7 @@ interface BidAuctionParticipantRow {
   latestBidAt: string;
 }
 
-interface BidAuctionBidRow {
+export interface BidAuctionBidRow {
   id: string;
   bidderId: string;
   bidderName: string;
@@ -333,7 +333,7 @@ interface BidAuctionBidRow {
   createdAt: string;
 }
 
-interface AdminOrderListRow {
+export interface AdminOrderListRow {
   id: string;
   buyerId: string;
   sellerId: string;
@@ -350,9 +350,17 @@ interface AdminOrderListRow {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  returnReasonCode?: string | null;
+  returnReasonNote?: string | null;
+  returnShipmentId?: string | null;
+  returnRequestedAt?: string | null;
+  returnApprovedAt?: string | null;
+  returnDeliveredAt?: string | null;
+  refundedAt?: string | null;
+  returnImages?: string[] | null;
 }
 
-interface ProductOrderRow {
+export interface ProductOrderRow {
   id: string;
   buyerId: string;
   buyerName: string;
@@ -365,7 +373,7 @@ interface ProductOrderRow {
   completedAt: string | null;
 }
 
-interface ProductBuyerRow {
+export interface ProductBuyerRow {
   buyerId: string;
   buyerName: string;
   buyerEmail: string;
@@ -374,7 +382,7 @@ interface ProductBuyerRow {
   lastOrderAt: string;
 }
 
-interface ProductFavoriteRow {
+export interface ProductFavoriteRow {
   id: string;
   userId: string;
   userName: string;
@@ -382,7 +390,7 @@ interface ProductFavoriteRow {
   createdAt: string;
 }
 
-interface ProductCartRow {
+export interface ProductCartRow {
   id: string;
   userId: string;
   userName: string;
@@ -391,7 +399,7 @@ interface ProductCartRow {
   createdAt: string;
 }
 
-interface ProductBidRow {
+export interface ProductBidRow {
   id: string;
   auctionId: string;
   bidderId: string;
@@ -405,7 +413,7 @@ interface ProductBidRow {
   createdAt: string;
 }
 
-interface ProductPaymentRow {
+export interface ProductPaymentRow {
   id: string;
   orderId: string | null;
   buyerId: string;
@@ -419,7 +427,7 @@ interface ProductPaymentRow {
   createdAt: string;
 }
 
-interface PaginationMeta {
+export interface PaginationMeta {
   page: number;
   limit: number;
   total: number;
@@ -850,6 +858,14 @@ export class AdminOperationsService {
         'o."completedAt" as "completedAt"',
         'o."createdAt" as "createdAt"',
         'o."updatedAt" as "updatedAt"',
+        'o."returnReasonCode" as "returnReasonCode"',
+        'o."returnReasonNote" as "returnReasonNote"',
+        'o."returnShipmentId" as "returnShipmentId"',
+        'o."returnRequestedAt" as "returnRequestedAt"',
+        'o."returnApprovedAt" as "returnApprovedAt"',
+        'o."returnDeliveredAt" as "returnDeliveredAt"',
+        'o."refundedAt" as "refundedAt"',
+        'o."returnImages" as "returnImages"',
       ])
       .getRawOne<{
         id: string;
@@ -868,6 +884,14 @@ export class AdminOperationsService {
         completedAt: Date | string | null;
         createdAt: Date | string;
         updatedAt: Date | string;
+        returnReasonCode: string | null;
+        returnReasonNote: string | null;
+        returnShipmentId: string | null;
+        returnRequestedAt: Date | string | null;
+        returnApprovedAt: Date | string | null;
+        returnDeliveredAt: Date | string | null;
+        refundedAt: Date | string | null;
+        returnImages: string[] | null;
       }>();
 
     if (!row) {
@@ -894,6 +918,14 @@ export class AdminOperationsService {
       completedAt: row.completedAt ? this.toIsoDate(row.completedAt) : null,
       createdAt: this.toIsoDate(row.createdAt),
       updatedAt: this.toIsoDate(row.updatedAt),
+      returnReasonCode: row.returnReasonCode,
+      returnReasonNote: row.returnReasonNote,
+      returnShipmentId: row.returnShipmentId,
+      returnRequestedAt: row.returnRequestedAt ? this.toIsoDate(row.returnRequestedAt) : null,
+      returnApprovedAt: row.returnApprovedAt ? this.toIsoDate(row.returnApprovedAt) : null,
+      returnDeliveredAt: row.returnDeliveredAt ? this.toIsoDate(row.returnDeliveredAt) : null,
+      refundedAt: row.refundedAt ? this.toIsoDate(row.refundedAt) : null,
+      returnImages: row.returnImages,
     };
 
     return {
@@ -953,7 +985,7 @@ export class AdminOperationsService {
         'auction.reservePrice as "reservePrice"',
         'auction.reserveMet as "reserveMet"',
         'auction.minIncrement as "minIncrement"',
-        'auction.buyerPremiumRate as "buyerPremiumRate"',
+        '0 as "buyerPremiumRate"',
         'auction.bidCount as "bidCount"',
         'auction.lotNumber as "lotNumber"',
         'auction.status as status',
@@ -1263,7 +1295,7 @@ export class AdminOperationsService {
         'COUNT(bid.id) as "totalBidCount"',
         'COUNT(DISTINCT bid."bidderId") as "uniqueBidderCount"',
         'COALESCE(MAX(bid.amount), 0) as "highestBidAmount"',
-        'COALESCE(MAX(bid."premiumAmount"), 0) as "highestPremiumAmount"',
+        '0 as "highestPremiumAmount"',
         'MAX(bid."createdAt") as "lastBidAt"',
       ])
       .groupBy('auction.id')
@@ -1432,7 +1464,7 @@ export class AdminOperationsService {
           'bid.bidderId as "bidderId"',
           'bid.amount as amount',
           'bid."maxAmount" as "maxAmount"',
-          'bid.premiumAmount as "premiumAmount"',
+          '0 as "premiumAmount"',
           'bid.status as status',
           'bid.isWinningBid as "isWinningBid"',
           'bid.createdAt as "createdAt"',
@@ -1631,7 +1663,7 @@ export class AdminOperationsService {
             : Number(auction.reservePrice),
         reserveMet: this.toBooleanValue(auction.reserveMet),
         minIncrement: Number(auction.minIncrement ?? 0),
-        buyerPremiumRate: Number(auction.buyerPremiumRate ?? 0),
+        buyerPremiumRate: 0,
         bidCount: Number(auction.bidCount ?? 0),
         startTime: auction.startTime.toISOString(),
         endTime: auction.endTime.toISOString(),
@@ -3994,7 +4026,7 @@ export class AdminOperationsService {
         'bid.bidderId as "bidderId"',
         'bid.amount as amount',
         'bid."maxAmount" as "maxAmount"',
-        'bid.premiumAmount as "premiumAmount"',
+        '0 as "premiumAmount"',
         'bid.status as status',
         'bid.isWinningBid as "isWinningBid"',
         'bid.createdAt as "createdAt"',
@@ -5070,6 +5102,7 @@ export class AdminOperationsService {
     event.title = payload.title;
     event.description = payload.description ?? null;
     event.coverImageUrl = payload.coverImageUrl ?? null;
+    event.categoryId = payload.categoryId ?? null;
     event.status = payload.status || AuctionEventStatus.DRAFT;
     event.auctionType = payload.auctionType || AuctionType.REALTIME;
     event.startTime = new Date(payload.startTime);
@@ -5080,6 +5113,7 @@ export class AdminOperationsService {
     event.maxExtensions = payload.maxExtensions !== undefined ? this.toNumber(payload.maxExtensions, 5) : 5;
     event.extensionSeconds = payload.extensionSeconds !== undefined ? this.toNumber(payload.extensionSeconds, 60) : 60;
     event.extensionDuration = payload.extensionDuration !== undefined ? this.toNumber(payload.extensionDuration, 60) : 60;
+    event.lotTransitionSeconds = payload.lotTransitionSeconds !== undefined ? this.toNumber(payload.lotTransitionSeconds, 30) : 30;
 
     const saved = await this.auctionEventRepo.save(event);
     await this.record(actor, AdminAuditAction.AUCTION_EVENT_CREATED, 'AUCTION_EVENT', saved.id, dto, {}, this.toRecord(saved));
@@ -5094,6 +5128,7 @@ export class AdminOperationsService {
     if (payload.title !== undefined) event.title = payload.title;
     if (payload.description !== undefined) event.description = payload.description;
     if (payload.coverImageUrl !== undefined) event.coverImageUrl = payload.coverImageUrl;
+    if (payload.categoryId !== undefined) event.categoryId = payload.categoryId;
     if (payload.status !== undefined) event.status = payload.status;
     if (payload.auctionType !== undefined) event.auctionType = payload.auctionType;
     if (payload.startTime !== undefined) event.startTime = new Date(payload.startTime);
@@ -5106,6 +5141,7 @@ export class AdminOperationsService {
     if (payload.maxExtensions !== undefined) event.maxExtensions = this.toNumber(payload.maxExtensions, 5);
     if (payload.extensionSeconds !== undefined) event.extensionSeconds = this.toNumber(payload.extensionSeconds, 60);
     if (payload.extensionDuration !== undefined) event.extensionDuration = this.toNumber(payload.extensionDuration, 60);
+    if (payload.lotTransitionSeconds !== undefined) event.lotTransitionSeconds = this.toNumber(payload.lotTransitionSeconds, 30);
 
     const saved = await this.auctionEventRepo.save(event);
 
@@ -5153,7 +5189,7 @@ export class AdminOperationsService {
     }
 
     const [items, total] = await qb
-      .orderBy('e.startTime', 'ASC')
+      .orderBy('e.startTime', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -5193,7 +5229,16 @@ export class AdminOperationsService {
   }
 
   async detailAuctionEvent(id: string) {
-    const event = await this.findOneOrFail(this.auctionEventRepo, id);
+    const event = await this.auctionEventRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+    if (!event) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Kayıt bulunamadı',
+      });
+    }
 
     // Etkinliğe kabul edilmiş ve sıralanmış Lot'lar
     const approvedLots = await this.auctionRepo
@@ -5244,9 +5289,25 @@ export class AdminOperationsService {
       where: { id: In(auctionIds), eventId },
     });
 
+    const finishedStatuses = [
+      AuctionStatus.ENDED,
+      AuctionStatus.COMPLETED,
+      AuctionStatus.CANCELLED,
+      AuctionStatus.FAILED,
+    ];
+
     for (const auction of auctions) {
       const newSequence = sequenceMap[auction.id];
       if (newSequence !== undefined) {
+        if (
+          finishedStatuses.includes(auction.status) &&
+          newSequence !== auction.sequenceNumber
+        ) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: `Bitmiş lotların (#${auction.lotNumber}) sıralaması değiştirilemez.`,
+          });
+        }
         auction.sequenceNumber = newSequence;
       }
     }

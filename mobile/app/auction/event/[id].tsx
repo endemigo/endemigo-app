@@ -21,6 +21,7 @@ import {
   usePlaceBid,
   useWithdrawBid,
   useAuctionBids,
+  useSkipLot,
 } from '../../../hooks/useAuctions';
 import { useAuctionEventSocket } from '../../../hooks/useAuctionEventSocket';
 import { useWalletBalance, useWalletHolds } from '../../../hooks/useWallet';
@@ -43,7 +44,7 @@ export default function LiveEventRoomScreen() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const { user } = useAuthStore();
-  const { showModal } = useModalStore();
+  const { showModal, hideModal } = useModalStore();
 
   const { data: eventDetails, isLoading: isDetailsLoading, refetch: refetchDetails } = useAuctionEventDetails(id);
   const socket = useAuctionEventSocket(id);
@@ -52,6 +53,7 @@ export default function LiveEventRoomScreen() {
   const { data: walletHolds = [] } = useWalletHolds();
   const placeBid = usePlaceBid();
   const withdrawBid = useWithdrawBid();
+  const skipLot = useSkipLot();
 
   const [activeSubTab, setActiveSubTab] = useState<'catalog' | 'feed' | 'rules'>('catalog');
   const [bidAmount, setBidAmount] = useState('');
@@ -65,6 +67,7 @@ export default function LiveEventRoomScreen() {
 
   // Local state for ticking countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(0);
+  const [transitionLeftSeconds, setTransitionLeftSeconds] = useState<number>(0);
 
   // Find active lot details from pre-fetched lots list or state
   const activeLotId = socket.activeLotId || eventDetails?.event.activeLotId;
@@ -128,6 +131,12 @@ export default function LiveEventRoomScreen() {
     }
   }, [socket.wasOutbid]);
 
+  useEffect(() => {
+    if (socket.eventStatus) {
+      refetchDetails();
+    }
+  }, [refetchDetails, socket.eventStatus]);
+
   // Handle active lot changes - reset bid compose form values
   useEffect(() => {
     if (activeLotId) {
@@ -187,6 +196,11 @@ export default function LiveEventRoomScreen() {
 
   // Run countdown timer locally
   useEffect(() => {
+    if (activeLotDetails?.status === 'PUBLISHED') {
+      setTimeLeftSeconds(activeLotDetails.pausedRemainingSeconds || 0);
+      return;
+    }
+
     if (!endTime) {
       setTimeLeftSeconds(0);
       return;
@@ -207,7 +221,36 @@ export default function LiveEventRoomScreen() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endTime, serverTime]);
+  }, [endTime, serverTime, activeLotDetails?.status, activeLotDetails?.pausedRemainingSeconds]);
+
+  useEffect(() => {
+    if (!socket.isTransitioning || !socket.transitionEndTime) {
+      setTransitionLeftSeconds(0);
+      return;
+    }
+
+    const calculateTransitionLeft = () => {
+      const end = new Date(socket.transitionEndTime!).getTime();
+      const now = Date.now();
+      const diff = Math.max(0, Math.round((end - now) / 1000));
+      return diff;
+    };
+
+    setTransitionLeftSeconds(calculateTransitionLeft());
+
+    const interval = setInterval(() => {
+      setTransitionLeftSeconds((prev) => {
+        const next = calculateTransitionLeft();
+        if (next <= 0) {
+          clearInterval(interval);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [socket.isTransitioning, socket.transitionEndTime]);
 
   useEffect(() => {
     if (activeLotDetails?.minIncrement) {
@@ -297,22 +340,12 @@ export default function LiveEventRoomScreen() {
 
   const bidEstimate = calculateAuctionBidEstimate({
     bidAmount: premiumBaseAmount,
-    buyerPremiumRate: activeLotDetails ? Number(activeLotDetails.buyerPremiumRate) : 0.05,
+    buyerPremiumRate: 0,
     walletAvailable: walletAvailableForBid,
   });
   const isWalletGateClosed = !bidEstimate.isWalletSufficient;
 
   const feeEstimateRows = [
-    {
-      key: 'hammer',
-      label: t('auction.hammerPriceLabel'),
-      value: formatCurrency(bidEstimate.hammerAmount),
-    },
-    {
-      key: 'premium',
-      label: t('auction.buyerPremium'),
-      value: formatCurrency(bidEstimate.buyerPremiumAmount),
-    },
     {
       key: 'total',
       label: t('auction.estimatedTotalLabel'),
@@ -366,6 +399,21 @@ export default function LiveEventRoomScreen() {
     : null;
 
   const handleBid = async () => {
+    if (!user) {
+      showModal({
+        title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+        message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
+        type: 'info',
+        confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+        cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(auth)/login');
+        },
+      });
+      return;
+    }
+
     if (!activeLotId) return;
 
     if (isBidEmpty) {
@@ -542,6 +590,10 @@ export default function LiveEventRoomScreen() {
     );
   };
 
+  const isEventActive =
+    socket.eventStatus === 'ACTIVE' ||
+    (socket.eventStatus === 'UPCOMING' && eventDetails?.event.status === 'ACTIVE');
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -555,9 +607,9 @@ export default function LiveEventRoomScreen() {
             {event.title}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {socket.eventStatus === 'ACTIVE'
+            {isEventActive
               ? t('auctions.live', { defaultValue: 'Canlı' })
-              : t('auctions.waiting', { defaultValue: 'Yakında' })}
+              : t('auctions.waiting', { defaultValue: 'Bekliyor' })}
           </Text>
         </View>
 
@@ -566,11 +618,18 @@ export default function LiveEventRoomScreen() {
             <Ionicons name="people-outline" size={14} color={Colors.slate500} />
             <Text style={styles.metricText}>{socket.viewerCount}</Text>
           </View>
-          {socket.isConnected && (
+          {socket.isConnected ? (
             <View style={[styles.metricBadge, { backgroundColor: `${Colors.auctionGreen}10` }]}>
               <View style={[styles.liveDot, { backgroundColor: Colors.auctionGreen }]} />
               <Text style={[styles.metricText, { color: Colors.auctionGreen }]}>
                 {t('auction.connectionLive', { defaultValue: 'Bağlı' })}
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.metricBadge, { backgroundColor: `${Colors.error}10` }]}>
+              <View style={[styles.liveDot, { backgroundColor: Colors.error }]} />
+              <Text style={[styles.metricText, { color: Colors.error }]}>
+                {t('auction.connectionOffline', { defaultValue: 'Bağlantı Kesildi' })}
               </Text>
             </View>
           )}
@@ -579,7 +638,36 @@ export default function LiveEventRoomScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Dynamic Center Section - Active Lot or Waiting Banner */}
-        {activeLotId && activeLotDetails ? (
+        {socket.isTransitioning ? (
+          <View style={styles.transitionContainer}>
+            <View style={styles.transitionCard}>
+              <View style={styles.transitionBadge}>
+                <View style={[styles.liveDot, { backgroundColor: '#0097D8', width: 8, height: 8, marginRight: 6 }]} />
+                <Text style={styles.transitionBadgeText}>
+                  {t('auction.nextLotPreparing', { defaultValue: 'SIRADAKİ LOT HAZIRLANIYOR' })}
+                </Text>
+              </View>
+              <Text style={styles.transitionLotNumber}>Lot #{socket.lotNumber}</Text>
+              <Text style={styles.transitionLotTitle}>{socket.productTitle}</Text>
+              
+              <View style={styles.transitionTimerContainer}>
+                <Ionicons name="time-outline" size={24} color="#0097D8" style={{ marginRight: 8 }} />
+                <Text style={styles.transitionTimerText}>
+                  {t('auction.startingInSeconds', { defaultValue: '{{count}} saniye sonra başlıyor', count: transitionLeftSeconds })}
+                </Text>
+              </View>
+
+              <View style={styles.progressBarContainer}>
+                <View 
+                  style={[
+                    styles.progressBarFill, 
+                    { width: `${Math.min(100, Math.max(0, (transitionLeftSeconds / (socket.transitionSeconds || 30)) * 100))}%` }
+                  ]} 
+                />
+              </View>
+            </View>
+          </View>
+        ) : activeLotId && activeLotDetails ? (
           <View style={styles.activeLotContainer}>
             <View style={styles.activeLotImageContainer}>
               <ProductImageCarousel
@@ -834,16 +922,64 @@ export default function LiveEventRoomScreen() {
         )}
       </ScrollView>
 
-      {/* Sticky Bottom Place Bid Composer Bar */}
-      {activeLotId && activeLotDetails && !isSeller && (
+      {/* Sticky Bottom Place Bid Composer Bar or Admin Skip Lot Bar */}
+      {activeLotId && activeLotDetails && !socket.isTransitioning && (
         <View style={styles.stickyComposer}>
-          <TouchableOpacity
-            style={styles.openComposerButton}
-            onPress={() => setShowComposer(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
-          </TouchableOpacity>
+          {!isSeller ? (
+            <TouchableOpacity
+              style={styles.openComposerButton}
+              onPress={() => {
+                if (!user) {
+                  showModal({
+                    title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+                    message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
+                    type: 'info',
+                    confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+                    cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+                    onConfirm: () => {
+                      hideModal();
+                      router.push('/(auth)/login');
+                    },
+                  });
+                  return;
+                }
+                setShowComposer(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.openComposerButton, { backgroundColor: Colors.error }]}
+              onPress={async () => {
+                try {
+                  await skipLot.mutateAsync(id);
+                  showModal({
+                    title: t('common.success'),
+                    message: t('auction.skippedLotSuccess', { defaultValue: 'Sıradaki Lot\'a başarıyla geçildi.' }),
+                    type: 'success',
+                  });
+                } catch (err) {
+                  showModal({
+                    title: t('common.error'),
+                    message: t('auction.skippedLotError', { defaultValue: 'Sıradaki Lot\'a geçilirken hata oluştu.' }),
+                    type: 'error',
+                  });
+                }
+              }}
+              disabled={skipLot.isPending}
+              activeOpacity={0.85}
+            >
+              {skipLot.isPending ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <Text style={styles.openComposerButtonText}>
+                  {t('auction.skipLot', { defaultValue: 'Sıradaki Lot\'a Geç' })}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

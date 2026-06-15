@@ -554,7 +554,22 @@ export class AdminOperationsController {
 
   @Get('auction-events/:id')
   async auctionEvent(@Param('id') id: string) {
-    return this.adminOperationsService.detail('auction-events', id);
+    const detail = await this.adminOperationsService.detail('auction-events', id);
+    if (detail && detail.overview) {
+      (detail.overview as any).autoProgress = this.auctionService.isAutoProgressEnabled(id);
+    }
+    const anyDetail = detail as any;
+    if (anyDetail && anyDetail.approvedLots) {
+      for (const lot of anyDetail.approvedLots) {
+        if (lot.status === 'PUBLISHED') {
+          const pausedSec = this.auctionService.getPausedRemainingSeconds(lot.id);
+          if (pausedSec !== undefined) {
+            (lot as any).pausedRemainingSeconds = pausedSec;
+          }
+        }
+      }
+    }
+    return detail;
   }
 
   @Post('auction-events')
@@ -616,5 +631,14 @@ export class AdminOperationsController {
     @Param('id') id: string,
   ) {
     return this.auctionService.skipLot(id);
+  }
+
+  @Patch('auction-events/:id/auto-progress')
+  @ApiOperation({ summary: 'Müzayede otomatik lot geçişini açar/kapatır' })
+  async toggleAutoProgress(
+    @Param('id') id: string,
+    @Body() dto: { enabled: boolean },
+  ) {
+    return this.auctionService.setAutoProgress(id, dto.enabled);
   }
 }

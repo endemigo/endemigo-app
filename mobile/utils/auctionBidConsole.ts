@@ -22,9 +22,8 @@ export function calculateAuctionBidEstimate({
   walletAvailable,
 }: AuctionBidEstimateInput): AuctionBidFeeEstimate {
   const hammerAmount = normalizeNonNegativeAmount(bidAmount);
-  const premiumRate = normalizeNonNegativeAmount(buyerPremiumRate);
-  const buyerPremiumAmount = hammerAmount * premiumRate;
-  const estimatedTotal = hammerAmount + buyerPremiumAmount;
+  const buyerPremiumAmount = 0;
+  const estimatedTotal = hammerAmount;
   const availableAmount =
     typeof walletAvailable === 'number' && Number.isFinite(walletAvailable)
       ? walletAvailable

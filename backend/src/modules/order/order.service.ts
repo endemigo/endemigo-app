@@ -49,6 +49,8 @@ import {
 import { MembershipService } from '../membership/membership.service';
 import { PaymentService } from '../payment/payment.service';
 import { EmailService } from '../../shared/email/email.service';
+import { STORAGE_SERVICE } from '../../shared/storage/storage.interface';
+import type { IStorageService } from '../../shared/storage/storage.interface';
 
 export const ALLOWED_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]: [
@@ -172,6 +174,9 @@ export class OrderService {
     private readonly paymentService?: PaymentService,
     @Optional()
     private readonly emailService?: EmailService,
+    @Optional()
+    @Inject(STORAGE_SERVICE)
+    private readonly storage?: IStorageService,
   ) {}
 
   async createFromDirectSale(buyerId: string, dto: CreateOrderDto) {
@@ -609,6 +614,7 @@ export class OrderService {
     order.returnRequestedAt = new Date();
     order.returnReasonCode = dto.reasonCode;
     order.returnReasonNote = dto.note?.trim() || null;
+    order.returnImages = dto.images || null;
 
     const saved = await this.persistStatusUpdate(
       order,
@@ -766,6 +772,47 @@ export class OrderService {
       code: RC.RETURN_REFUNDED,
       message: 'Return refunded',
       order: saved,
+    };
+  }
+
+  async uploadReturnImage(
+    buyerId: string,
+    orderId: string,
+    file: Express.Multer.File,
+  ) {
+    const order = await this.requireOrder(orderId);
+    if (order.buyerId !== buyerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Bu sipariş size ait değil',
+      });
+    }
+
+    if (order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.RETURN_REQUESTED) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Görsel sadece tamamlanmış veya iade aşamasındaki siparişler için yüklenebilir',
+      });
+    }
+
+    if (!this.storage) {
+      throw new BadRequestException({
+        code: RC.FILE_REQUIRED,
+        message: 'Storage service is unavailable',
+      });
+    }
+
+    const url = await this.storage.upload(file, `returns/${orderId}`);
+    const currentImages = Array.isArray(order.returnImages) ? order.returnImages : [];
+    currentImages.push(url);
+    order.returnImages = currentImages;
+    await this.orderRepository?.save(order);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'İade görseli başarıyla yüklendi',
+      url,
+      images: currentImages,
     };
   }
 

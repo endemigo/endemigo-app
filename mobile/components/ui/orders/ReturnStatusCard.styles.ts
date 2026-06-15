@@ -75,4 +75,22 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.body,
     fontWeight: '700',
   },
+  imagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  proofImage: {
+    borderRadius: BorderRadius.lg,
+    height: 80,
+    width: 80,
+  },
+  proofImageLabel: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.caption,
+    fontWeight: '600',
+    marginTop: Spacing.xs,
+  },
 });

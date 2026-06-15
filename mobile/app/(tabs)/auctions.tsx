@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDefaultMobileExperienceConfig } from '@endemigo/shared';
 import { useAuctions, useInfiniteAuctionEvents } from '../../hooks/useAuctions';
+import { useCategories } from '../../hooks/useProducts';
 import { useAuctionsSocket } from '../../hooks/useAuctionsSocket';
 import { useMobileConfig } from '../../hooks/useMobileConfig';
 import type { Auction, AuctionEvent } from '../../hooks/useAuctions';
@@ -22,7 +23,6 @@ import {
   resolveMobileAudience,
 } from '../../utils/mobileConfig';
 import { formatCurrency } from '../../utils/transactionFormatters';
-
 
 function formatTimeLeft(ms: number, t: (k: string) => string) {
   if (ms <= 0) return t('auctions.ended');
@@ -62,9 +62,18 @@ export default function AuctionsScreen() {
   const insets = useSafeAreaInsets();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const showModal = useModalStore((state) => state.showModal);
+  
   const [activeTab, setActiveTab] = useState<'single' | 'events'>('events');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'ended'>('all');
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
 
+  // Data fetching hooks
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useCategories();
   const { data, isLoading, refetch } = useAuctions(1);
   const {
     data: eventsInfiniteData,
@@ -75,8 +84,9 @@ export default function AuctionsScreen() {
     isFetchingNextPage,
   } = useInfiniteAuctionEvents();
 
-  const eventsData = React.useMemo(() => {
-    return eventsInfiniteData?.pages.flatMap((page) => page.items) ?? [];
+  const eventsData = useMemo(() => {
+    const items = eventsInfiniteData?.pages.flatMap((page) => page.items) ?? [];
+    return items.filter((item: AuctionEvent) => item.status !== 'APPLICATION');
   }, [eventsInfiniteData]);
 
   useAuctionsSocket(data?.items);
@@ -97,7 +107,7 @@ export default function AuctionsScreen() {
   const { data: mobileConfigData } = useMobileConfig();
   const user = useAuthStore((state) => state.user);
   const activeMode = useRoleModeStore((state) => state.activeMode);
-  const [now, setNow] = useState(Date.now());
+  
   const mobileConfig = mobileConfigData ?? getDefaultMobileExperienceConfig();
   const locale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const audience = resolveMobileAudience(user, activeMode);
@@ -142,6 +152,62 @@ export default function AuctionsScreen() {
 
     storage.setLaunchSplashImages(launchImages).catch(() => {});
   }, [data?.items]);
+
+  // Client-side filtering logic
+  const filteredItems = useMemo(() => {
+    const currentItems = activeTab === 'single' ? data?.items : eventsData;
+    if (!currentItems) return [];
+
+    return currentItems.filter((item: any) => {
+      // 1. Text Search Filter
+      const query = searchQuery.trim().toLowerCase();
+      let matchesSearch = true;
+      if (query) {
+        if (activeTab === 'single') {
+          matchesSearch = (item.productTitle || '').toLowerCase().includes(query);
+        } else {
+          matchesSearch =
+            (item.title || '').toLowerCase().includes(query) ||
+            (item.description || '').toLowerCase().includes(query);
+        }
+      }
+
+      // 2. Category Filter
+      let matchesCategory = true;
+      if (selectedCategoryId) {
+        matchesCategory = item.categoryId === selectedCategoryId;
+      }
+
+      // 3. Status Filter
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        const nowMs = now;
+        if (activeTab === 'single') {
+          const endMs = new Date(item.endTime).getTime();
+          const startMs = new Date(item.startTime).getTime();
+          const isLive = item.status === AuctionStatus.ACTIVE && endMs > nowMs;
+          const isUpcoming = (item.status === AuctionStatus.PUBLISHED || item.status === AuctionStatus.DRAFT) && startMs > nowMs;
+          const isEnded = endMs <= nowMs || item.status === AuctionStatus.ENDED || item.status === AuctionStatus.COMPLETED;
+
+          if (statusFilter === 'live') matchesStatus = isLive;
+          else if (statusFilter === 'upcoming') matchesStatus = isUpcoming;
+          else if (statusFilter === 'ended') matchesStatus = isEnded;
+        } else {
+          const eventEndMs = new Date(item.endTime).getTime();
+          const eventStartMs = new Date(item.startTime).getTime();
+          const isLive = item.status === 'ACTIVE' && eventEndMs > nowMs;
+          const isUpcoming = (item.status === 'UPCOMING' || item.status === 'DRAFT') && eventStartMs > nowMs;
+          const isEnded = eventEndMs <= nowMs || item.status === 'ENDED' || item.status === 'COMPLETED';
+
+          if (statusFilter === 'live') matchesStatus = isLive;
+          else if (statusFilter === 'upcoming') matchesStatus = isUpcoming;
+          else if (statusFilter === 'ended') matchesStatus = isEnded;
+        }
+      }
+
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [activeTab, data?.items, eventsData, searchQuery, selectedCategoryId, statusFilter, now]);
 
   const renderSingleAuction = ({ item }: { item: Auction }) => {
     const endMs = new Date(item.endTime).getTime();
@@ -253,7 +319,6 @@ export default function AuctionsScreen() {
     const est = hasEventEnded
       ? eventStatusConfig.ENDED
       : (eventStatusConfig[item.status as keyof typeof eventStatusConfig] || eventStatusConfig.DRAFT);
-    const isLive = item.status === 'ACTIVE' && !hasEventEnded;
 
     const formattedDate = new Date(item.startTime).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
       day: 'numeric',
@@ -276,6 +341,11 @@ export default function AuctionsScreen() {
           <View style={[styles.eventBadge, { backgroundColor: est.bg }]}>
             <Text style={[styles.eventBadgeText, { color: est.color }]}>{est.label}</Text>
           </View>
+          {item.categoryName && (
+            <View style={styles.eventCategoryBadge}>
+              <Text style={styles.eventCategoryBadgeText}>{item.categoryName}</Text>
+            </View>
+          )}
         </View>
         <View style={styles.eventInfo}>
           <Text style={styles.eventTitle} numberOfLines={1}>
@@ -302,7 +372,6 @@ export default function AuctionsScreen() {
   };
 
   const isCurrentLoading = activeTab === 'single' ? isLoading : isEventsLoading;
-  const currentItems = activeTab === 'single' ? data?.items : eventsData;
 
   return (
     <View style={styles.container}>
@@ -353,47 +422,124 @@ export default function AuctionsScreen() {
         <Text style={styles.headerTitle}>{t('auctions.title')}</Text>
       </View>
 
-      {/* Tabs Selector hidden for now
+      {/* Modern Search Input */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={18} color={Colors.slate400} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder={t('common.search')}
+          placeholderTextColor={Colors.slate400}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+            <Ionicons name="close-circle" size={16} color={Colors.slate400} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Tabs Selector */}
       <View style={styles.segmentContainer}>
         <TouchableOpacity
-          style={[styles.segmentButton, activeTab === 'single' && styles.segmentButtonActive]}
-          onPress={() => setActiveTab('single')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.segmentButtonText, activeTab === 'single' && styles.segmentButtonTextActive]}>
-            {t('auctions.singleTab', { defaultValue: 'Tekli Müzayedeler' })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.segmentButton, activeTab === 'events' && styles.segmentButtonActive]}
-          onPress={() => setActiveTab('events')}
+          onPress={() => {
+            setActiveTab('events');
+            setSelectedCategoryId(null);
+          }}
           activeOpacity={0.8}
         >
           <Text style={[styles.segmentButtonText, activeTab === 'events' && styles.segmentButtonTextActive]}>
             {t('auctions.eventsTab', { defaultValue: 'Canlı Salonlar' })}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentButton, activeTab === 'single' && styles.segmentButtonActive]}
+          onPress={() => {
+            setActiveTab('single');
+            setSelectedCategoryId(null);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.segmentButtonText, activeTab === 'single' && styles.segmentButtonTextActive]}>
+            {t('auctions.singleTab', { defaultValue: 'Tekli Müzayedeler' })}
+          </Text>
+        </TouchableOpacity>
       </View>
-      */}
+
+      {/* Dropdown Filter Selector */}
+      <View style={styles.dropdownsRow}>
+        <TouchableOpacity
+          style={styles.dropdownSelector}
+          onPress={() => setIsCategoryModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text 
+            style={[
+              styles.dropdownSelectorText,
+              selectedCategoryId ? styles.dropdownSelectorActiveText : null
+            ]}
+            numberOfLines={1}
+          >
+            {selectedCategoryId 
+              ? categoriesData?.find(c => c.id === selectedCategoryId)?.name 
+              : t('auction.filterCategory')}
+          </Text>
+          <Ionicons 
+            name="chevron-down" 
+            size={16} 
+            color={selectedCategoryId ? Colors.primary : Colors.slate400} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.dropdownSelector}
+          onPress={() => setIsStatusModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text 
+            style={[
+              styles.dropdownSelectorText,
+              statusFilter !== 'all' ? styles.dropdownSelectorActiveText : null
+            ]}
+            numberOfLines={1}
+          >
+            {statusFilter === 'live' 
+              ? t('auctions.live') 
+              : statusFilter === 'upcoming' 
+              ? t('auctions.waiting') 
+              : statusFilter === 'ended' 
+              ? t('auctions.ended') 
+              : t('auction.filterStatus')}
+          </Text>
+          <Ionicons 
+            name="chevron-down" 
+            size={16} 
+            color={statusFilter !== 'all' ? Colors.primary : Colors.slate400} 
+          />
+        </TouchableOpacity>
+      </View>
 
       {isCurrentLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.auctionGreen} />
           <Text style={styles.loadingText}>{t('auctions.loading')}</Text>
         </View>
-      ) : !currentItems?.length ? (
+      ) : !filteredItems?.length ? (
         <View style={styles.center}>
           <Ionicons name="hammer-outline" size={64} color={Colors.slate300} />
           <Text style={styles.emptyText}>
             {activeTab === 'single' ? t('auctions.empty') : t('auctions.eventEmpty', { defaultValue: 'Aktif etkinlik bulunmuyor' })}
           </Text>
           <Text style={styles.emptySubtext}>
-            {activeTab === 'single' ? t('auctions.emptySub') : t('auctions.eventEmptySub', { defaultValue: 'Yeni müzayede salonları planlandığında burada görünecek' })}
+            {t('auctions.eventEmptySub', { defaultValue: 'Aradığınız kriterlere uygun müzayede bulunamadı.' })}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={currentItems}
+          data={filteredItems}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -417,6 +563,184 @@ export default function AuctionsScreen() {
           renderItem={activeTab === 'single' ? renderSingleAuction : renderAuctionEvent as any}
         />
       )}
+
+      {/* Category Selection Modal */}
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('auction.selectCategoryTitle')}</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setIsCategoryModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color={Colors.slate500} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalList}>
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  !selectedCategoryId ? styles.modalItemActive : null
+                ]}
+                onPress={() => {
+                  setSelectedCategoryId(null);
+                  setIsCategoryModalVisible(false);
+                }}
+              >
+                <Text 
+                  style={[
+                    styles.modalItemText,
+                    !selectedCategoryId ? styles.modalItemTextActive : null
+                  ]}
+                >
+                  {t('common.all')}
+                </Text>
+                {!selectedCategoryId && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+              {categoriesData?.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.modalItem,
+                    selectedCategoryId === cat.id ? styles.modalItemActive : null
+                  ]}
+                  onPress={() => {
+                    setSelectedCategoryId(cat.id);
+                    setIsCategoryModalVisible(false);
+                  }}
+                >
+                  <Text 
+                    style={[
+                      styles.modalItemText,
+                      selectedCategoryId === cat.id ? styles.modalItemTextActive : null
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                  {selectedCategoryId === cat.id && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Status Selection Modal */}
+      <Modal
+        visible={isStatusModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsStatusModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('auction.selectStatusTitle')}</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton} 
+                onPress={() => setIsStatusModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color={Colors.slate500} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalList}>
+              {/* All Option */}
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  statusFilter === 'all' ? styles.modalItemActive : null
+                ]}
+                onPress={() => {
+                  setStatusFilter('all');
+                  setIsStatusModalVisible(false);
+                }}
+              >
+                <Text 
+                  style={[
+                    styles.modalItemText,
+                    statusFilter === 'all' ? styles.modalItemTextActive : null
+                  ]}
+                >
+                  {t('common.all')}
+                </Text>
+                {statusFilter === 'all' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+
+              {/* Live Option */}
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  statusFilter === 'live' ? styles.modalItemActive : null
+                ]}
+                onPress={() => {
+                  setStatusFilter('live');
+                  setIsStatusModalVisible(false);
+                }}
+              >
+                <Text 
+                  style={[
+                    styles.modalItemText,
+                    statusFilter === 'live' ? styles.modalItemTextActive : null
+                  ]}
+                >
+                  {t('auctions.live')}
+                </Text>
+                {statusFilter === 'live' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+
+              {/* Upcoming Option */}
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  statusFilter === 'upcoming' ? styles.modalItemActive : null
+                ]}
+                onPress={() => {
+                  setStatusFilter('upcoming');
+                  setIsStatusModalVisible(false);
+                }}
+              >
+                <Text 
+                  style={[
+                    styles.modalItemText,
+                    statusFilter === 'upcoming' ? styles.modalItemTextActive : null
+                  ]}
+                >
+                  {t('auctions.waiting')}
+                </Text>
+                {statusFilter === 'upcoming' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+
+              {/* Ended Option */}
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  statusFilter === 'ended' ? styles.modalItemActive : null
+                ]}
+                onPress={() => {
+                  setStatusFilter('ended');
+                  setIsStatusModalVisible(false);
+                }}
+              >
+                <Text 
+                  style={[
+                    styles.modalItemText,
+                    statusFilter === 'ended' ? styles.modalItemTextActive : null
+                  ]}
+                >
+                  {t('auctions.ended')}
+                </Text>
+                {statusFilter === 'ended' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

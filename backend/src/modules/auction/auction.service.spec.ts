@@ -127,7 +127,6 @@ describe('AuctionService', () => {
     minIncrement: 100,
     reservePrice: null,
     reserveMet: false,
-    buyerPremiumRate: 0.25,
     auctionType: AuctionType.REALTIME,
     antiSnipingEnabled: true,
     extensionSeconds: 60,
@@ -322,7 +321,6 @@ describe('AuctionService', () => {
 
       expect(auctionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          buyerPremiumRate: 0.25,
           auctionType: AuctionType.REALTIME,
           antiSnipingEnabled: true,
           extensionSeconds: 60,
@@ -497,8 +495,7 @@ describe('AuctionService', () => {
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
       expect(mockQueryRunner.release).toHaveBeenCalled();
       expect(result.bid.amount).toBe(1100);
-      expect(result.bid.buyerPremiumAmount).toBe(275);
-      expect(result.bid.estimatedTotal).toBe(1375);
+      expect(result.bid.estimatedTotal).toBe(1100);
     });
 
     it('max bid verilirse maxAmount saklanmali ama hold gorunur lider teklif uzerinden alinmali', async () => {
@@ -512,7 +509,7 @@ describe('AuctionService', () => {
       expect(walletService.createHold).toHaveBeenCalledWith(
         'auction-1',
         'buyer-1',
-        1375,
+        1100,
         mockQueryRunner.manager,
       );
       expect(result.bid.maxAmount).toBe(1600);
@@ -551,12 +548,11 @@ describe('AuctionService', () => {
       expect(walletService.createHold).toHaveBeenCalledWith(
         'auction-1',
         'buyer-2',
-        1875,
+        1500,
         mockQueryRunner.manager,
       );
       expect(result.bid.isLeadingBid).toBe(false);
-      expect(result.bid.buyerPremiumAmount).toBe(350);
-      expect(result.bid.estimatedTotal).toBe(1750);
+      expect(result.bid.estimatedTotal).toBe(1400);
       expect(result.auction.currentPrice).toBe(1500);
       expect(result.auction.leadingBidderId).toBe('buyer-2');
     });
@@ -609,7 +605,7 @@ describe('AuctionService', () => {
       expect(walletService.createHold).toHaveBeenCalledWith(
         'auction-1',
         'buyer-1',
-        1375,
+        1100,
         mockQueryRunner.manager,
       );
       expect(mockQueryRunner.manager.create).not.toHaveBeenCalledWith(
@@ -1271,7 +1267,6 @@ describe('AuctionService', () => {
         auctionId: 'auction-1',
         bidderId: 'buyer-1',
         amount: 1500,
-        premiumAmount: 375,
         status: BidStatus.ACTIVE,
         isWinningBid: true,
         createdAt: new Date(),
@@ -1316,7 +1311,6 @@ describe('AuctionService', () => {
         auctionId: 'auction-1',
         bidderId: 'buyer-1',
         amount: 1700,
-        premiumAmount: 425,
         status: BidStatus.ACTIVE,
         isWinningBid: true,
         createdAt: new Date(),
@@ -1326,7 +1320,6 @@ describe('AuctionService', () => {
         auctionId: 'auction-1',
         bidderId: 'buyer-2',
         amount: 1500,
-        premiumAmount: 375,
         status: BidStatus.OUTBID,
         isWinningBid: false,
         createdAt: new Date(),
@@ -1409,7 +1402,6 @@ describe('AuctionService', () => {
         auctionId: 'auction-1',
         bidderId: 'buyer-1',
         amount: 2000,
-        premiumAmount: 500,
         status: BidStatus.WON,
         isWinningBid: true,
       };
@@ -1419,7 +1411,6 @@ describe('AuctionService', () => {
         bidderId: 'buyer-2',
         amount: 1800,
         maxAmount: 1900,
-        premiumAmount: 450,
         status: BidStatus.OUTBID,
         isWinningBid: false,
         createdAt: new Date('2026-05-18T10:00:00.000Z'),
@@ -1443,7 +1434,7 @@ describe('AuctionService', () => {
       expect(walletService.createHold).toHaveBeenCalledWith(
         'auction-1',
         'buyer-2',
-        2250,
+        1800,
         mockQueryRunner.manager,
       );
       expect(result).toMatchObject({
@@ -1470,7 +1461,6 @@ describe('AuctionService', () => {
         auctionId: 'auction-1',
         bidderId: 'buyer-1',
         amount: 2000,
-        premiumAmount: 500,
         status: BidStatus.WON,
         isWinningBid: true,
       };
@@ -1524,7 +1514,6 @@ describe('AuctionService', () => {
           id: 'bid-1',
           amount: 1500,
           maxAmount: 1800,
-          premiumAmount: 375,
           status: BidStatus.ACTIVE,
           isWinningBid: true,
           bidder: mockBuyer,

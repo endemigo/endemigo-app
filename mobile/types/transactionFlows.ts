@@ -210,6 +210,7 @@ export interface OrderDetail {
   submittedReview: SubmittedOrderReview | null;
   returnReasonCode?: string | null;
   returnReasonNote?: string | null;
+  returnImages?: string[] | null;
   createdAt: string;
   updatedAt: string;
 }

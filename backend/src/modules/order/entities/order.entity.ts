@@ -77,4 +77,7 @@ export class Order extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   refundedAt: Date | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  returnImages: string[] | null;
 }

@@ -29,6 +29,10 @@ interface AuctionEventSocketState {
   lotEnded: boolean;
   isWinner: boolean;
   finalPrice: number | null;
+  isTransitioning: boolean;
+  transitionSeconds: number;
+  transitionEndTime: string | null;
+  nextLotId: string | null;
 }
 
 export function useAuctionEventSocket(eventId: string) {
@@ -51,6 +55,10 @@ export function useAuctionEventSocket(eventId: string) {
     lotEnded: false,
     isWinner: false,
     finalPrice: null,
+    isTransitioning: false,
+    transitionSeconds: 30,
+    transitionEndTime: null,
+    nextLotId: null,
   });
 
   const socketRef = useRef<Socket | null>(null);
@@ -84,17 +92,17 @@ export function useAuctionEventSocket(eventId: string) {
         }));
       };
 
-      // Ortak Müzayede Odasına Katıl
-      socket.emit('event:join', { eventId });
-
-      const onConnect = () => setState((s) => ({ ...s, isConnected: true }));
+      const onConnect = () => {
+        setState((s) => ({ ...s, isConnected: true }));
+        socket.emit('event:join', { eventId });
+      };
       const onDisconnect = () => setState((s) => ({ ...s, isConnected: false }));
 
       socket.on('connect', onConnect);
       socket.on('disconnect', onDisconnect);
 
       if (socket.connected) {
-        setState((s) => ({ ...s, isConnected: true }));
+        onConnect();
       }
 
       socket.on('event:joined', (data: { eventId: string; viewerCount: number; serverTime?: string }) => {
@@ -163,6 +171,8 @@ export function useAuctionEventSocket(eventId: string) {
             lotEnded: false,
             isWinner: false,
             finalPrice: null,
+            isTransitioning: false,
+            nextLotId: null,
           }));
           if (data.activeLotId) {
             Vibration.vibrate(150);
@@ -176,6 +186,38 @@ export function useAuctionEventSocket(eventId: string) {
               'accent',
             );
           }
+        }
+      });
+
+      socket.on('event:lot_transition', (data: {
+        eventId: string;
+        nextLotId: string | null;
+        lotNumber: string | null;
+        productTitle: string | null;
+        transitionSeconds: number;
+        transitionEndTime: string;
+        serverTime?: string;
+      }) => {
+        if (data.eventId === eventId) {
+          setState((s) => ({
+            ...s,
+            isTransitioning: true,
+            transitionSeconds: data.transitionSeconds,
+            transitionEndTime: data.transitionEndTime,
+            nextLotId: data.nextLotId,
+            lotNumber: data.lotNumber,
+            productTitle: data.productTitle,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
+          appendActivity(
+            t('auction.transitionStartedTitle', { defaultValue: 'Sıradaki Lot Hazırlanıyor' }),
+            t('auction.transitionStartedBody', {
+              defaultValue: 'Lot #{{num}}: {{title}} için bekleme süresi başladı.',
+              num: data.lotNumber,
+              title: data.productTitle
+            }),
+            'primary'
+          );
         }
       });
 
@@ -349,6 +391,7 @@ export function useAuctionEventSocket(eventId: string) {
         socket.off('event:viewer_count');
         socket.off('event:status_changed');
         socket.off('event:active_lot_changed');
+        socket.off('event:lot_transition');
         socket.off('bid:new');
         socket.off('bid:outbid');
         socket.off('bid:winner');

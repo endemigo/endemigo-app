@@ -10,6 +10,7 @@ import {
   useOrderConfirmDelivery,
   useOrderDetail,
   useOrderReturnRequest,
+  useUploadReturnImage,
   useOrderSubmitReview,
   useSellerReturnReview,
   useSellerOrderTransition,
@@ -41,6 +42,7 @@ export default function OrderDetailScreen() {
   const returnReview = useSellerReturnReview(orderId);
   const confirmReturnDelivered = useConfirmReturnDelivered(orderId);
   const submitReview = useOrderSubmitReview(orderId);
+  const uploadReturnImage = useUploadReturnImage(orderId);
 
   const handleRefresh = async () => {
     await order.refetch();
@@ -69,9 +71,32 @@ export default function OrderDetailScreen() {
     });
   };
 
-  const handleReturnRequest = async (payload: { reasonCode: string; note?: string }) => {
+  const handleReturnRequest = async (payload: {
+    reasonCode: string;
+    note?: string;
+    localImages?: any[];
+  }) => {
     try {
-      await returnRequest.mutateAsync(payload);
+      const uploadedUrls: string[] = [];
+      if (payload.localImages && payload.localImages.length > 0) {
+        for (const localImg of payload.localImages) {
+          const res = await uploadReturnImage.mutateAsync({
+            uri: localImg.uri,
+            fileName: localImg.fileName || `return-${Date.now()}.jpg`,
+            mimeType: localImg.mimeType || 'image/jpeg',
+          });
+          if (res.url) {
+            uploadedUrls.push(res.url);
+          }
+        }
+      }
+
+      await returnRequest.mutateAsync({
+        reasonCode: payload.reasonCode,
+        note: payload.note,
+        images: uploadedUrls,
+      });
+
       showModal({
         title: t('orders.returnRequestSuccessTitle'),
         message: t('orders.returnRequestSuccessMessage'),
@@ -252,6 +277,7 @@ export default function OrderDetailScreen() {
         status={order.data.status}
         reasonCode={order.data.returnReasonCode}
         note={order.data.returnReasonNote}
+        returnImages={order.data.returnImages}
         canApprove={
           activeMode === 'seller' && order.data.status === OrderStatus.RETURN_REQUESTED
         }

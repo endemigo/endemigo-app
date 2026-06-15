@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import {
   BorderRadius,
   Colors,
@@ -15,7 +15,7 @@ export const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.base,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: Platform.OS === 'ios' ? 140 : 110,
     gap: Spacing.xl,
   },
   heroCard: {

@@ -41,7 +41,7 @@ export default function AuctionDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useAuthStore();
-  const { showModal } = useModalStore();
+  const { showModal, hideModal } = useModalStore();
   const { data: auction, isLoading, refetch } = useAuction(id);
   const { data: bids, refetch: refetchBids } = useAuctionBids(id);
   const { data: wallet } = useWalletBalance();
@@ -166,21 +166,11 @@ export default function AuctionDetailScreen() {
       : undefined;
   const bidEstimate = calculateAuctionBidEstimate({
     bidAmount: premiumBaseAmount,
-    buyerPremiumRate: Number(auction.buyerPremiumRate),
+    buyerPremiumRate: 0,
     walletAvailable: walletAvailableForBid,
   });
   const isWalletGateClosed = !bidEstimate.isWalletSufficient;
   const feeEstimateRows = [
-    {
-      key: 'hammer',
-      label: t('auction.hammerPriceLabel'),
-      value: formatCurrency(bidEstimate.hammerAmount),
-    },
-    {
-      key: 'premium',
-      label: t('auction.buyerPremium'),
-      value: formatCurrency(bidEstimate.buyerPremiumAmount),
-    },
     {
       key: 'total',
       label: t('auction.estimatedTotalLabel'),
@@ -240,6 +230,21 @@ export default function AuctionDetailScreen() {
   const statusLabel = getAuctionStatusLabel(isActive, isEnded, t);
 
   const handleBid = async () => {
+    if (!user) {
+      showModal({
+        title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+        message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
+        type: 'info',
+        confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+        cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(auth)/login');
+        },
+      });
+      return;
+    }
+
     if (isBidEmpty) {
       showModal({
         title: t('common.error'),
@@ -388,7 +393,6 @@ export default function AuctionDetailScreen() {
             currentPrice={currentPrice}
             startPrice={Number(auction.startPrice)}
             minBid={minBid}
-            buyerPremiumRate={Number(auction.buyerPremiumRate)}
             bidCount={bidCount}
             viewerCount={socket.viewerCount}
             walletAvailable={wallet?.available}
@@ -434,7 +438,23 @@ export default function AuctionDetailScreen() {
         <View style={styles.stickyComposer}>
           <TouchableOpacity
             style={styles.openComposerButton}
-            onPress={() => setShowComposer(true)}
+            onPress={() => {
+              if (!user) {
+                showModal({
+                  title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+                  message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
+                  type: 'info',
+                  confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+                  cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+                  onConfirm: () => {
+                    hideModal();
+                    router.push('/(auth)/login');
+                  },
+                });
+                return;
+              }
+              setShowComposer(true);
+            }}
             activeOpacity={0.85}
           >
             <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
