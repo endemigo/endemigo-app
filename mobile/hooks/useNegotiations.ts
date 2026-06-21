@@ -222,16 +222,18 @@ export function useStartNegotiation() {
           seller: { id: 'seller-mock', name: 'Satıcı' },
           status: NegotiationStatus.OPEN,
           unreadCount: 0,
-          latestOffer: {
-            id: `offer-${Date.now()}`,
-            negotiationId,
-            amount: input.amount,
-            quantity: input.quantity,
-            currency: 'TRY',
-            status: NegotiationOfferStatus.PENDING,
-            createdById: 'user-mock',
-            createdAt: new Date().toISOString(),
-          },
+          latestOffer: input.amount
+            ? {
+                id: `offer-${Date.now()}`,
+                negotiationId,
+                amount: input.amount,
+                quantity: input.quantity,
+                currency: 'TRY',
+                status: NegotiationOfferStatus.PENDING,
+                createdById: 'user-mock',
+                createdAt: new Date().toISOString(),
+              }
+            : null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };

@@ -8,6 +8,7 @@ import { AdminAuthModule } from '../admin-auth/admin-auth.module';
 import { NotificationModule } from '../notification/notification.module';
 import { OrderModule } from '../order/order.module';
 import { Product } from '../product/entities/product.entity';
+import { Category } from '../product/entities/category.entity';
 import { TrustModule } from '../trust/trust.module';
 import { User } from '../user/entities/user.entity';
 import { AiModerationService } from './ai-moderation.service';
@@ -23,14 +24,6 @@ import { ViolationLog } from './entities/violation-log.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Conversation,
-      Offer,
-      NegotiationMessage,
-      ViolationLog,
-      Product,
-      User,
-    ]),
     BullModule.registerQueue({
       name: 'negotiation',
       defaultJobOptions: {
@@ -40,6 +33,15 @@ import { ViolationLog } from './entities/violation-log.entity';
         removeOnFail: 500,
       },
     }),
+    TypeOrmModule.forFeature([
+      Conversation,
+      Offer,
+      NegotiationMessage,
+      ViolationLog,
+      Product,
+      User,
+      Category,
+    ]),
     JwtModule.register({}),
     ConfigModule,
     OrderModule,

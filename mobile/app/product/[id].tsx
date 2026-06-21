@@ -31,7 +31,9 @@ import { ProductCard, SectionHeader } from '../../components/ui';
 import { formatCurrency } from '../../utils/transactionFormatters';
 import { formatProductPrice } from '../../utils/productPriceFormatter';
 import { resolveApiErrorMessage } from '../../utils/apiError';
-import type { Product } from '../../types';
+import type { Product, StartNegotiationInput } from '../../types';
+import { ListingType } from '@endemigo/shared';
+import { useAuctionByProduct, useAuctionEventDetails } from '../../hooks/useAuctions';
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x300/F8F9FA/0097D8?text=Endemigo';
 const GEO_BADGE_LOGOS = {
@@ -164,6 +166,7 @@ function PurchasePanel({
   onDecreaseQuantity,
   onIncreaseQuantity,
   onAskPrice,
+  onAskQuestion,
 }: {
   isAskPrice: boolean;
   product: Product;
@@ -174,13 +177,16 @@ function PurchasePanel({
   onDecreaseQuantity: () => void;
   onIncreaseQuantity: () => void;
   onAskPrice: () => void;
+  onAskQuestion: () => void;
 }) {
   return (
     <View style={styles.purchaseCard}>
-      <View style={styles.purchasePriceRow}>
-        <Text style={styles.purchasePrice}>{formatProductPrice(product, t)}</Text>
-        <Text style={styles.purchaseUnitText}>{t('product.perUnit')}</Text>
-      </View>
+      {!isAskPrice && (
+        <View style={styles.purchasePriceRow}>
+          <Text style={styles.purchasePrice}>{formatProductPrice(product, t)}</Text>
+          <Text style={styles.purchaseUnitText}>{t('product.perUnit')}</Text>
+        </View>
+      )}
 
       {isAskPrice ? (
         <TouchableOpacity style={styles.primaryActionButton} activeOpacity={0.85} onPress={onAskPrice}>
@@ -204,6 +210,12 @@ function PurchasePanel({
         </TouchableOpacity>
       )}
 
+      {Boolean(product.askQuestionEnabled) && (
+        <TouchableOpacity style={styles.secondaryActionButton} activeOpacity={0.85} onPress={onAskQuestion}>
+          <Ionicons name="chatbubble-outline" size={16} color={Colors.onSurface} />
+          <Text style={styles.secondaryActionText}>{t('product.askQuestion', { defaultValue: 'Soru Sor' })}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -213,12 +225,27 @@ export default function ProductDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { data: product, isLoading } = useProduct(id);
+  const { data: auction } = useAuctionByProduct(id, product?.listingType === ListingType.AUCTION);
+  const { data: eventDetails } = useAuctionEventDetails(auction?.eventId ?? '');
+
+  const { prevLot, nextLot, currentLotIndex, totalLots } = React.useMemo(() => {
+    const lots = eventDetails?.lots ?? [];
+    if (!lots.length || !auction) return { prevLot: null, nextLot: null, currentLotIndex: -1, totalLots: 0 };
+    const idx = lots.findIndex((l) => l.id === auction.id);
+    return {
+      prevLot: idx > 0 ? lots[idx - 1] : null,
+      nextLot: idx !== -1 && idx < lots.length - 1 ? lots[idx + 1] : null,
+      currentLotIndex: idx,
+      totalLots: lots.length,
+    };
+  }, [eventDetails, auction]);
   const { data: productsData } = useProducts(1);
   const addItem = useCartStore((state) => state.addItem);
   const updateItemQuantity = useCartStore((state) => state.updateItemQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const cartItems = useCartStore((state) => state.items);
   const showModal = useModalStore((state) => state.showModal);
+  const hideModal = useModalStore((state) => state.hideModal);
   const showToast = useToastStore((state) => state.showToast);
   const toggleFavorite = useToggleFavorite();
   const startNegotiation = useStartNegotiation();
@@ -337,11 +364,9 @@ export default function ProductDetailScreen() {
   }, [id, latestComments.length]);
 
   React.useEffect(() => {
-    const defaultColor = colorVariants.find((option) => option.inStock !== false) ?? colorVariants[0] ?? null;
-    const defaultSize = sizeVariants.find((option) => option.inStock !== false) ?? sizeVariants[0] ?? null;
-    setSelectedColorVariantId(defaultColor?.id ?? null);
-    setSelectedSizeVariantId(defaultSize?.id ?? null);
-  }, [id, colorVariants, sizeVariants]);
+    setSelectedColorVariantId(null);
+    setSelectedSizeVariantId(null);
+  }, [id]);
 
   React.useEffect(() => {
     if (latestComments.length <= 1) return undefined;
@@ -389,7 +414,8 @@ export default function ProductDetailScreen() {
   }
 
   const productImageUri = getProductImageUri(product, PLACEHOLDER_IMAGE);
-  const isAskPrice = Boolean(product.askPriceEnabled);
+  const hasPrice = product.price !== undefined && product.price !== null && !isNaN(Number(product.price)) && Number(product.price) > 0;
+  const isAskPrice = Boolean(product.askPriceEnabled) || !hasPrice;
   const resolvedGeoTypes = product.geoIndicationTypes?.length
     ? product.geoIndicationTypes
     : product.geoIndicationType
@@ -414,12 +440,7 @@ export default function ProductDetailScreen() {
   const reviewCount = Number.isFinite(product.reviewCount) ? Number(product.reviewCount) : 0;
   const hasRatingAndReviews = reviewCount > 0 || reviewItems.length > 0 || (normalizedRating !== null && normalizedRating > 0);
 
-  const handleAskPriceSubmit = (input: {
-    productId: string;
-    amount: number;
-    quantity: number;
-    note?: string;
-  }) => {
+  const handleAskPriceSubmit = (input: StartNegotiationInput) => {
     startNegotiation.mutate(input, {
       onSuccess: (negotiation) => {
         setAskPriceVisible(false);
@@ -429,6 +450,40 @@ export default function ProductDetailScreen() {
         showModal({
           title: t('common.error'),
           message: t('negotiation.askPrice.error'),
+          type: 'error',
+        });
+      },
+    });
+  };
+
+  const handleAskQuestion = () => {
+    if (!isLoggedIn) {
+      showModal({
+        title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+        message: t('auth.loginRequiredMessage', { defaultValue: 'Soru sormak için lütfen önce giriş yapın.' }),
+        type: 'info',
+        confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+        cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(auth)/login');
+        },
+      });
+      return;
+    }
+
+    startNegotiation.mutate({
+      productId: product.id,
+      amount: null,
+      quantity: 1,
+    }, {
+      onSuccess: (negotiation) => {
+        router.push(`/negotiation/${negotiation.id}` as never);
+      },
+      onError: () => {
+        showModal({
+          title: t('common.error'),
+          message: t('negotiation.askQuestion.error', { defaultValue: 'Soru sorma işlemi başlatılamadı.' }),
           type: 'error',
         });
       },
@@ -462,6 +517,24 @@ export default function ProductDetailScreen() {
   };
 
   const handleAddToCart = async () => {
+    if (colorVariants.length > 0 && !selectedColorVariantId) {
+      showModal({
+        title: t('common.error'),
+        message: t('product.pleaseSelectColor', { defaultValue: 'Lütfen bir renk seçin.' }),
+        type: 'error',
+      });
+      return;
+    }
+
+    if (sizeVariants.length > 0 && !selectedSizeVariantId) {
+      showModal({
+        title: t('common.error'),
+        message: t('product.pleaseSelectSize', { defaultValue: 'Lütfen bir beden veya numara seçin.' }),
+        type: 'error',
+      });
+      return;
+    }
+
     if (productVariantSkus.length > 0 && !selectedProductVariantSku) {
       showModal({
         title: t('common.error'),
@@ -634,6 +707,15 @@ export default function ProductDetailScreen() {
         onFavorite={handleToggleFavorite}
         isFavoriteActive={favoriteActive}
       />
+      {product.listingType === ListingType.AUCTION && auction && (
+        <View style={styles.auctionHeaderBanner}>
+          <Ionicons name="time-outline" size={16} color={Colors.white} style={{ marginRight: 6 }} />
+          <Text style={styles.auctionHeaderBannerText} numberOfLines={1}>
+            {eventDetails?.event?.title ? `${eventDetails.event.title} | ` : ''}
+            {t('auction.lotNumber', { defaultValue: 'Lot Kodu' })}: {auction.lotNumber}
+          </Text>
+        </View>
+      )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollView}
@@ -726,31 +808,112 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          <View
-            onLayout={({ nativeEvent }) => {
-              const { y, height } = nativeEvent.layout;
-              setPurchasePanelBottomY(y + height);
-            }}
-          >
-            <PurchasePanel
-              isAskPrice={isAskPrice}
-              product={product}
-              t={t}
-              cartQuantity={cartQuantity}
-              cartUnitLabel={cartUnitLabel}
-              onAddToCart={handleAddToCart}
-              onDecreaseQuantity={handleDecreaseQuantity}
-              onIncreaseQuantity={handleIncreaseQuantity}
-              onAskPrice={() => setAskPriceVisible(true)}
-            />
-          </View>
+          {product.listingType === ListingType.AUCTION && auction ? (
+            <View style={styles.lotNavigationCard}>
+              <View style={styles.lotNavigationRow}>
+                <TouchableOpacity
+                  style={[styles.lotNavButton, !prevLot && styles.lotNavButtonDisabled]}
+                  disabled={!prevLot}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (prevLot) {
+                      router.replace({ pathname: '/product/[id]', params: { id: prevLot.productId } });
+                    }
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={14} color={Colors.onSurfaceVariant} />
+                  <Text style={styles.lotNavButtonText}>{t('common.previous', { defaultValue: 'Önceki' })}</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.lotNavCenterText}>
+                  {t('auction.lot', { defaultValue: 'Lot' })} {auction.sequenceNumber ?? currentLotIndex + 1} / {totalLots || 1}
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.lotNavButton, !nextLot && styles.lotNavButtonDisabled]}
+                  disabled={!nextLot}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (nextLot) {
+                      router.replace({ pathname: '/product/[id]', params: { id: nextLot.productId } });
+                    }
+                  }}
+                >
+                  <Text style={styles.lotNavButtonText}>{t('common.next', { defaultValue: 'Sonraki' })}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={Colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: Spacing.base }} />
+
+              <TouchableOpacity
+                style={styles.auctionBidActionButton}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (!isLoggedIn) {
+                    showModal({
+                      title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+                      message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
+                      type: 'info',
+                      confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+                      cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+                      onConfirm: () => {
+                        hideModal();
+                        router.push('/(auth)/login');
+                      },
+                    });
+                  } else if (auction) {
+                    router.push(`/auction/${auction.id}` as never);
+                  }
+                }}
+              >
+                <Ionicons name="hammer-outline" size={16} color={Colors.white} />
+                <Text style={styles.auctionBidActionText}>{t('auction.placeBid', { defaultValue: 'Teklif Ver' })}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.saveItemButton}
+                activeOpacity={0.85}
+                onPress={handleToggleFavorite}
+              >
+                <Ionicons
+                  name={favoriteActive ? 'heart' : 'heart-outline'}
+                  size={16}
+                  color={favoriteActive ? Colors.accent : Colors.onSurface}
+                />
+                <Text style={styles.saveItemButtonText}>
+                  {favoriteActive ? t('product.favorited', { defaultValue: 'Favorilerde' }) : t('product.saveItem', { defaultValue: 'Favoriye Ekle' })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View
+              onLayout={({ nativeEvent }) => {
+                const { y, height } = nativeEvent.layout;
+                setPurchasePanelBottomY(y + height);
+              }}
+            >
+              <PurchasePanel
+                isAskPrice={isAskPrice}
+                product={product}
+                t={t}
+                cartQuantity={cartQuantity}
+                cartUnitLabel={cartUnitLabel}
+                onAddToCart={handleAddToCart}
+                onDecreaseQuantity={handleDecreaseQuantity}
+                onIncreaseQuantity={handleIncreaseQuantity}
+                onAskPrice={() => setAskPriceVisible(true)}
+                onAskQuestion={handleAskQuestion}
+              />
+            </View>
+          )}
 
           {colorVariants.length > 0 || sizeVariants.length > 0 ? (
             <View style={styles.variantSectionCard}>
               {colorVariants.length > 0 ? (
                 <View style={styles.variantGroupWrap}>
                   <Text style={styles.variantGroupTitle}>
-                    {`${t('product.variantColorLabel')}: ${selectedColorVariant?.label ?? colorVariants[0]?.label ?? ''}`}
+                    {`${t('product.variantColorLabel')}: ${selectedColorVariant?.label ?? t('common.select', { defaultValue: 'Seçiniz' })}`}
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorVariantRow}>
                     {colorVariants.map((variant) => {
@@ -804,7 +967,7 @@ export default function ProductDetailScreen() {
               {sizeVariants.length > 0 ? (
                 <View style={styles.variantGroupWrap}>
                   <Text style={styles.variantGroupTitle}>
-                    {`${t('product.variantSizeLabel')}: ${selectedSizeVariant?.label ?? sizeVariants[0]?.label ?? ''}`}
+                    {`${t('product.variantSizeLabel')}: ${selectedSizeVariant?.label ?? t('common.select', { defaultValue: 'Seçiniz' })}`}
                   </Text>
                   <View style={styles.sizeVariantWrap}>
                     {sizeVariants.map((variant) => {
@@ -1078,47 +1241,49 @@ export default function ProductDetailScreen() {
 
 
 
-      <Animated.View
-        pointerEvents={showStickyAddToCart ? 'auto' : 'none'}
-        style={[styles.stickyCartCtaWrap, stickyCtaAnimatedStyle]}
-      >
-        <View style={styles.stickyCartCtaRow}>
-          <TouchableOpacity
-            style={styles.stickyCartUtilityButton}
-            activeOpacity={0.85}
-            onPress={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
-          >
-            <Ionicons name="share-outline" size={18} color={Colors.onSurfaceVariant} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.stickyCartUtilityButton}
-            activeOpacity={0.85}
-            onPress={handleToggleFavorite}
-          >
-            <Ionicons
-              name={favoriteActive ? 'heart' : 'heart-outline'}
-              size={18}
-              color={favoriteActive ? Colors.accent : Colors.onSurfaceVariant}
-            />
-          </TouchableOpacity>
-          {cartQuantity > 0 ? (
-            <View style={styles.stickyQuantityStepper}>
-              <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleDecreaseQuantity}>
-                <Ionicons name="remove" size={16} color={Colors.white} />
-              </TouchableOpacity>
-              <Text style={styles.stickyQuantityValue}>{`${cartQuantity} ${cartUnitLabel} ${t('product.inCartSuffix')}`}</Text>
-              <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleIncreaseQuantity}>
-                <Ionicons name="add" size={16} color={Colors.white} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.stickyCartCtaButton} activeOpacity={0.85} onPress={handleAddToCart}>
-              <Ionicons name="cart-outline" size={16} color={Colors.white} />
-              <Text style={styles.stickyCartCtaText}>{t('product.addToCart')}</Text>
+      {product.listingType !== ListingType.AUCTION && (
+        <Animated.View
+          pointerEvents={showStickyAddToCart ? 'auto' : 'none'}
+          style={[styles.stickyCartCtaWrap, stickyCtaAnimatedStyle]}
+        >
+          <View style={styles.stickyCartCtaRow}>
+            <TouchableOpacity
+              style={styles.stickyCartUtilityButton}
+              activeOpacity={0.85}
+              onPress={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
+            >
+              <Ionicons name="share-outline" size={18} color={Colors.onSurfaceVariant} />
             </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
+            <TouchableOpacity
+              style={styles.stickyCartUtilityButton}
+              activeOpacity={0.85}
+              onPress={handleToggleFavorite}
+            >
+              <Ionicons
+                name={favoriteActive ? 'heart' : 'heart-outline'}
+                size={18}
+                color={favoriteActive ? Colors.accent : Colors.onSurfaceVariant}
+              />
+            </TouchableOpacity>
+            {cartQuantity > 0 ? (
+              <View style={styles.stickyQuantityStepper}>
+                <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleDecreaseQuantity}>
+                  <Ionicons name="remove" size={16} color={Colors.white} />
+                </TouchableOpacity>
+                <Text style={styles.stickyQuantityValue}>{`${cartQuantity} ${cartUnitLabel} ${t('product.inCartSuffix')}`}</Text>
+                <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleIncreaseQuantity}>
+                  <Ionicons name="add" size={16} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.stickyCartCtaButton} activeOpacity={0.85} onPress={handleAddToCart}>
+                <Ionicons name="cart-outline" size={16} color={Colors.white} />
+                <Text style={styles.stickyCartCtaText}>{t('product.addToCart')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }

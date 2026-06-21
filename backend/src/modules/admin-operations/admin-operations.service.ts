@@ -5384,4 +5384,44 @@ export class AdminOperationsService {
       auction: saved,
     };
   }
+
+  async updateBiddingLimit(userId: string, newLimit: number, actor: AdminActor) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Kullanıcı bulunamadı',
+      });
+    }
+
+    const currentDeposit = Number(user.totalDeposit ?? 0);
+    const maxAllowedLimit = Math.max(250000, 50000 + currentDeposit * 5);
+
+    if (newLimit > maxAllowedLimit) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: `Depozitosuz/manuel limit artışı maksimum ${maxAllowedLimit.toLocaleString('tr-TR')} TL olabilir. Üstü için depozito ödenmelidir.`,
+      });
+    }
+
+    const before = this.toRecord(user);
+    user.biddingLimit = newLimit;
+    const saved = await this.userRepo.save(user);
+
+    await this.record(
+      actor,
+      AdminAuditAction.USER_REACTIVATED,
+      'USER',
+      userId,
+      { reason: 'Manuel limit güncellemesi', metadata: { newLimit } },
+      before,
+      this.toRecord(saved),
+    );
+
+    return {
+      code: RC.SUCCESS,
+      message: `Kullanıcı limiti başarıyla ${newLimit.toLocaleString('tr-TR')} TL olarak güncellendi.`,
+      user: saved,
+    };
+  }
 }

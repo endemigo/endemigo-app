@@ -16,6 +16,7 @@ import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
+import { Category } from '../product/entities/category.entity';
 import { TrustFlagType } from '../trust/entities/trust-flag.entity';
 import { TrustService } from '../trust/trust.service';
 import { ContentModerationService } from './content-moderation.service';
@@ -157,6 +158,7 @@ describe('NegotiationService', () => {
         { provide: getRepositoryToken(NegotiationMessage), useValue: messageRepo },
         { provide: getRepositoryToken(ViolationLog), useValue: violationRepo },
         { provide: getRepositoryToken(Product), useValue: productRepo },
+        { provide: getRepositoryToken(Category), useValue: { findOne: jest.fn() } },
         { provide: getQueueToken('negotiation'), useValue: queue },
         { provide: OrderService, useValue: orderService },
         { provide: NotificationService, useValue: notificationService },

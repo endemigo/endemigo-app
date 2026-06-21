@@ -129,4 +129,7 @@ export class Auction extends BaseEntity {
   // ─── Kültür Varlığı (AUCT-18) ─────────────────────────
   @Column({ default: false })
   culturalAssetRestricted: boolean;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.00 })
+  requiredDeposit: number;
 }

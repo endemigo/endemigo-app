@@ -6,6 +6,8 @@ import {
   Logger,
   Optional,
   OnApplicationBootstrap,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Not, Repository } from 'typeorm';
@@ -14,13 +16,15 @@ import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
 import { AuctionEvent } from './entities/auction-event.entity';
+import { AuctionRegistration } from './entities/auction-registration.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
+import { AuctionRegistrationStatus } from '@endemigo/shared';
 import { BidStatus } from '../../shared/types/bid-status.enum';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
-import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
+import { CreateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
 import { OrderService } from '../order/order.service';
 import {
   AuctionPaymentStatus,
@@ -30,6 +34,7 @@ import {
   AuctionEventStatus,
 } from '@endemigo/shared';
 import { NotificationService } from '../notification/notification.service';
+import { PaymentService } from '../payment/payment.service';
 
 const WINNER_PAYMENT_WINDOW_HOURS = 24;
 const WINNER_PAYMENT_REMINDER_HOURS = 1;
@@ -51,17 +56,22 @@ export class AuctionService implements OnApplicationBootstrap {
     private readonly auctionRepo: Repository<Auction>,
     @InjectRepository(Bid)
     private readonly bidRepo: Repository<Bid>,
+    @InjectRepository(AuctionRegistration)
+    private readonly registrationRepo: Repository<AuctionRegistration>,
     @InjectQueue('auction')
     private readonly auctionQueue: Queue,
     private readonly dataSource: DataSource,
     private readonly auctionGateway: AuctionGateway,
     private readonly walletService: WalletService,
     private readonly userService: UserService,
+    @Inject(forwardRef(() => PaymentService))
+    private readonly paymentService: PaymentService,
     @Optional()
     private readonly orderService?: OrderService,
     @Optional()
     private readonly notificationService?: NotificationService,
   ) {}
+
 
   async onApplicationBootstrap() {
     this.logger.log('Müzayede durumu eşitleme ve kurtarma motoru başlatılıyor...');
@@ -536,7 +546,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
   // ─── List ─────────────────────────────────────────────────
 
-  async findAll(page = 1, limit = 20, auctionType?: AuctionType) {
+  async findAll(page = 1, limit = 20, auctionType?: AuctionType, productId?: string) {
     // BIZ-13: Only show public-visible statuses
     const qb = this.auctionRepo
       .createQueryBuilder('a')
@@ -553,6 +563,10 @@ export class AuctionService implements OnApplicationBootstrap {
 
     if (auctionType) {
       qb.andWhere('a.auctionType = :auctionType', { auctionType });
+    }
+
+    if (productId) {
+      qb.andWhere('a.productId = :productId', { productId });
     }
 
     const [items, total] = await qb
@@ -675,8 +689,65 @@ export class AuctionService implements OnApplicationBootstrap {
         });
       }
 
+      // Check bidding limit (Deposit-backed Bidding Limit check)
+      const wonUnpaidAuctions = await queryRunner.manager.find(Auction, {
+        where: {
+          winnerId: bidderId,
+          winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+        }
+      });
+      const wonUnpaidTotal = wonUnpaidAuctions.reduce((sum, a) => sum + Number(a.currentPrice), 0);
+
+      const activeLeadingAuctions = await queryRunner.manager.find(Auction, {
+        where: [
+          { status: AuctionStatus.ACTIVE, winnerId: bidderId },
+          { status: AuctionStatus.PUBLISHED, winnerId: bidderId },
+        ]
+      });
+      const activeLeadingTotal = activeLeadingAuctions
+        .filter(a => a.id !== auctionId)
+        .reduce((sum, a) => sum + Number(a.currentPrice), 0);
+
+      const newBidAmount = dto.maxAmount !== undefined && dto.maxAmount !== null 
+        ? Number(dto.maxAmount) 
+        : Number(dto.amount);
+
+      const totalRisk = wonUnpaidTotal + activeLeadingTotal + newBidAmount;
+      const biddingLimit = Number(bidder.biddingLimit ?? 50000);
+      
+      if (totalRisk > biddingLimit) {
+        const requiredDeposit = (totalRisk - 50000) * 0.20 - Number(bidder.totalDeposit ?? 0);
+        throw new ForbiddenException({
+          code: 'BIDDING_LIMIT_EXCEEDED',
+          message: 'Müzayede limitiniz yetersizdir. Limiti yükseltmek için depozito ödemesi yapın.',
+          currentLimit: biddingLimit,
+          requiredLimit: totalRisk,
+          requiredDeposit: Math.max(0, requiredDeposit),
+        });
+      }
+
+      // Check if user is registered and approved for this auction or the event it belongs to
+      const registration = await this.registrationRepo.findOne({
+        where: [
+          { userId: bidderId, auctionId: auction.id },
+          ...(auction.eventId ? [{ userId: bidderId, eventId: auction.eventId }] : []),
+        ],
+      });
+
+      if (!registration || registration.status !== AuctionRegistrationStatus.APPROVED) {
+        throw this.forbidden(
+          RC.AUCTION_REGISTRATION_REQUIRED,
+          registration?.status === AuctionRegistrationStatus.PENDING
+            ? 'Müzayede katılım onayınız bekleniyor'
+            : 'Müzayedeye katılabilmek için şartnameyi kabul edip kayıt olmalısınız',
+        );
+      }
+
       // 2. Status check
-      if (auction.status !== AuctionStatus.ACTIVE) {
+      if (
+        auction.status !== AuctionStatus.ACTIVE &&
+        auction.status !== AuctionStatus.PUBLISHED
+      ) {
         throw this.badRequest(RC.AUCTION_NOT_ACTIVE, 'Müzayede aktif değil');
       }
 
@@ -2491,5 +2562,214 @@ export class AuctionService implements OnApplicationBootstrap {
 
   getPausedRemainingSeconds(lotId: string): number | undefined {
     return this.pausedRemainingSecondsMap.get(lotId);
+  }
+
+  async getIcsContent(id: string): Promise<string> {
+    const auction = await this.auctionRepo.findOne({
+      where: { id },
+      relations: ['product'],
+    });
+    if (!auction) {
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    }
+
+    const formatDate = (date: Date) => {
+      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    const start = formatDate(new Date(auction.startTime));
+    const end = formatDate(new Date(auction.endTime));
+    const title = auction.product?.title || 'Müzayede';
+    const details = `Endemigo Muzayede Ilani: ${auction.product?.description || ''}\\nLink: https://endemigo.com/auctions/${id}`;
+
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      `URL:https://endemigo.com/auctions/${id}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${title}`,
+      `DESCRIPTION:${details}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+  }
+
+  async registerToAuction(userId: string, auctionId: string, dto?: RegisterToAuctionDto) {
+    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    if (!auction) {
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    }
+
+    const bidder = await this.userService.findById(userId);
+    if (!bidder?.isActive) {
+      throw this.forbidden(RC.ACCOUNT_DISABLED, 'Kullanıcı bulunamadı veya devre dışı');
+    }
+
+    // Check if there is already a registration (either for this specific auction, or for the event it belongs to)
+    let registration = await this.registrationRepo.findOne({
+      where: [
+        { userId, auctionId },
+        ...(auction.eventId ? [{ userId, eventId: auction.eventId }] : []),
+      ],
+    });
+
+    if (registration && registration.status === AuctionRegistrationStatus.APPROVED) {
+      return {
+        code: RC.SUCCESS,
+        message: 'Müzayede katılım kaydı zaten onaylanmış',
+        registration,
+      };
+    }
+
+    // Check if user has saved cards
+    const savedCardsRes = await this.paymentService.listSavedCards(userId);
+    const hasSavedCard = savedCardsRes.cards && savedCardsRes.cards.length > 0;
+
+    let shouldApprove = hasSavedCard;
+    let cardRegistered = false;
+
+    // If card details are supplied in the request, register the new card (simulating 1 TL validation charge and refund)
+    if (dto && dto.cardNumber && dto.cardHolderName && dto.expireMonth && dto.expireYear && dto.cvc) {
+      try {
+        await this.paymentService.registerCard(userId, {
+          cardHolderName: dto.cardHolderName,
+          cardNumber: dto.cardNumber,
+          expireMonth: dto.expireMonth,
+          expireYear: dto.expireYear,
+          cvc: dto.cvc,
+        });
+        shouldApprove = true;
+        cardRegistered = true;
+      } catch (err) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: err.message || 'Kredi kartı doğrulanamadı',
+        });
+      }
+    }
+
+    if (!shouldApprove) {
+      throw new BadRequestException({
+        code: RC.AUCTION_REGISTRATION_REQUIRED,
+        message: 'Müzayedeye katılabilmek için doğrulanmış bir kredi kartınızın bulunması gerekmektedir.',
+      });
+    }
+
+    // High-value entry deposit check
+    if (auction.requiredDeposit > 0) {
+      try {
+        await this.paymentService.payDeposit(userId, {
+          amount: auction.requiredDeposit,
+          cardDetails: cardRegistered && dto ? {
+            cardHolderName: dto.cardHolderName!,
+            cardNumber: dto.cardNumber!,
+            expireMonth: dto.expireMonth!,
+            expireYear: dto.expireYear!,
+            cvc: dto.cvc!,
+          } : undefined,
+        });
+      } catch (err) {
+        throw new BadRequestException({
+          code: RC.AUCTION_REGISTRATION_REQUIRED,
+          message: `Müzayede giriş depozitosu (${auction.requiredDeposit} TL) tahsil edilemedi: ${err.message}`,
+        });
+      }
+    }
+
+    // Create or update registration
+    if (!registration) {
+      registration = this.registrationRepo.create({
+        userId,
+        auctionId: auction.eventId ? null : auctionId,
+        eventId: auction.eventId || null,
+        status: AuctionRegistrationStatus.APPROVED,
+        acceptedTermsAt: new Date(),
+      });
+    } else {
+      registration.status = AuctionRegistrationStatus.APPROVED;
+    }
+
+    const saved = await this.registrationRepo.save(registration);
+    return {
+      code: RC.AUCTION_REGISTRATION_APPROVED_SUCCESS,
+      message: 'Kredi kartınız doğrulandı ve müzayede kaydınız başarıyla onaylandı.',
+      registration: saved,
+    };
+  }
+
+  async getRegistrationStatus(userId: string, auctionId: string) {
+    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    if (!auction) {
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    }
+
+    const registration = await this.registrationRepo.findOne({
+      where: [
+        { userId, auctionId },
+        ...(auction.eventId ? [{ userId, eventId: auction.eventId }] : []),
+      ],
+    });
+
+    return {
+      code: RC.AUCTION_REGISTRATION_STATUS,
+      message: 'Müzayede katılım durumu getirildi',
+      registration,
+    };
+  }
+
+  async listRegistrationsForAdmin(status?: AuctionRegistrationStatus, page = 1, limit = 20) {
+    const queryBuilder = this.registrationRepo.createQueryBuilder('reg')
+      .leftJoinAndSelect('reg.user', 'user')
+      .leftJoinAndSelect('reg.auction', 'auction')
+      .leftJoinAndSelect('auction.product', 'product')
+      .leftJoinAndSelect('reg.event', 'event')
+      .orderBy('reg.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (status) {
+      queryBuilder.andWhere('reg.status = :status', { status });
+    }
+
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede katılım talepleri listelendi',
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
+  }
+
+  async updateRegistrationStatus(registrationId: string, status: AuctionRegistrationStatus, adminId?: string) {
+    const registration = await this.registrationRepo.findOne({
+      where: { id: registrationId },
+    });
+    if (!registration) {
+      throw this.notFound(RC.AUCTION_REGISTRATION_NOT_FOUND, 'Müzayede katılım kaydı bulunamadı');
+    }
+
+    registration.status = status;
+    const saved = await this.registrationRepo.save(registration);
+
+    const code = status === AuctionRegistrationStatus.APPROVED
+      ? RC.AUCTION_REGISTRATION_APPROVED_SUCCESS
+      : RC.AUCTION_REGISTRATION_REJECTED_SUCCESS;
+
+    const message = status === AuctionRegistrationStatus.APPROVED
+      ? 'Müzayede katılımı onaylandı'
+      : 'Müzayede katılımı reddedildi';
+
+    return {
+      code,
+      message,
+      registration: saved,
+    };
   }
 }

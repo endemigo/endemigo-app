@@ -179,7 +179,7 @@ export class OrderService {
     private readonly storage?: IStorageService,
   ) {}
 
-  async createFromDirectSale(buyerId: string, dto: CreateOrderDto) {
+  async createFromDirectSale(buyerId: string, dto: CreateOrderDto, manager?: EntityManager) {
     const product = await this.loadDirectSaleProduct(dto.productId);
     const productAmount = Number(product.price);
     const currency = dto.currency ?? 'TRY';
@@ -231,7 +231,7 @@ export class OrderService {
       sourceReferenceId:
         dto.idempotencyKey ?? `direct-sale:${product.id}:${buyerId}`,
       discountResult,
-    });
+    }, manager);
 
     if (
       result.message === 'Order created' &&
@@ -530,12 +530,26 @@ export class OrderService {
     }
 
     if (order.status === OrderStatus.ESCROW_HELD) {
-      await this.transitionOrder(
-        orderId,
-        OrderStatus.PREPARING_SHIPMENT,
-        order.sellerId,
-        'shipment_created',
-      );
+      if (order.groupId && order.sellerId && this.orderRepository) {
+        const siblingOrders = await this.orderRepository.find({
+          where: { groupId: order.groupId, sellerId: order.sellerId, status: OrderStatus.ESCROW_HELD },
+        });
+        for (const sibling of siblingOrders) {
+          await this.transitionOrder(
+            sibling.id,
+            OrderStatus.PREPARING_SHIPMENT,
+            order.sellerId,
+            'shipment_created',
+          );
+        }
+      } else {
+        await this.transitionOrder(
+          orderId,
+          OrderStatus.PREPARING_SHIPMENT,
+          order.sellerId,
+          'shipment_created',
+        );
+      }
     }
 
     return this.cargoService?.createShipmentForOrder(orderId);
@@ -914,6 +928,30 @@ export class OrderService {
         (shipment) => shipment.shipmentType === CargoShipmentType.RETURN,
       ) ?? null;
 
+    let siblingOrders: any[] = [];
+    if (order.groupId && order.sellerId && this.orderRepository) {
+      const siblings = await this.orderRepository.find({
+        where: { groupId: order.groupId, sellerId: order.sellerId },
+        order: { createdAt: 'ASC' },
+      });
+      if (siblings.length > 0 && this.productRepository) {
+        const productIds = [...new Set(siblings.map((o) => o.productId))];
+        const products = await this.productRepository.find({
+          where: { id: In(productIds) },
+          select: ['id', 'title', 'imageUrl'],
+        });
+        const productMap = new Map(products.map((p) => [p.id, p]));
+        siblingOrders = siblings.map((s) => {
+          const prod = productMap.get(s.productId);
+          return {
+            ...s,
+            productTitle: prod?.title ?? null,
+            productImageUrl: prod?.imageUrl ?? null,
+          };
+        });
+      }
+    }
+
     return {
       code: RC.ORDER_FETCHED,
       message: 'Order fetched',
@@ -922,6 +960,7 @@ export class OrderService {
         productTitle: product?.title ?? null,
         productImageUrl: product?.imageUrl ?? null,
       },
+      siblingOrders,
       forwardShipment,
       returnShipment,
       shipments,
@@ -1653,5 +1692,27 @@ export class OrderService {
     );
     await this.notifyOrderStatusChanged(saved, nextStatus);
     return saved;
+  }
+
+  async markPaymentEscrowHeldForPayment(paymentId: string, actorId?: string | null) {
+    if (!this.orderRepository) return [];
+    const orders = await this.orderRepository.find({ where: { paymentId } });
+    const results = [];
+    for (const order of orders) {
+      const res = await this.markPaymentEscrowHeld(order.id, paymentId, actorId);
+      results.push(res);
+    }
+    return results;
+  }
+
+  async markPaymentFailedForPayment(paymentId: string) {
+    if (!this.orderRepository) return [];
+    const orders = await this.orderRepository.find({ where: { paymentId } });
+    const results = [];
+    for (const order of orders) {
+      const res = await this.markPaymentFailedForReview(order.id);
+      results.push(res);
+    }
+    return results;
   }
 }

@@ -29,6 +29,32 @@ import { styles } from '../../styles/tabs/wallet.styles';
 
 const FILTERS: WalletHistoryFilter[] = ['all', 'top_up', 'payment', 'hold', 'refund', 'payout'];
 
+const WalletTransactionItem = React.memo(({
+  item,
+  t,
+}: {
+  item: WalletHistoryItem;
+  t: any;
+}) => {
+  const isCredit = item.direction === 'CREDIT' || item.direction === 'credit';
+  return (
+    <View style={styles.transactionCard}>
+      <View style={styles.transactionTop}>
+        <Text style={styles.transactionType}>
+          {t(`walletTransactionTypes.${item.type}`)}
+        </Text>
+        <Text style={isCredit ? styles.transactionAmountCredit : styles.transactionAmountDebit}>
+          {isCredit ? '+' : '-'}{formatCurrency(item.amount, item.currency)}
+        </Text>
+      </View>
+      <Text style={styles.transactionDescription} numberOfLines={2}>
+        {item.description}
+      </Text>
+      <Text style={styles.transactionDate}>{formatShortDateTime(item.createdAt)}</Text>
+    </View>
+  );
+});
+
 export default function WalletScreen() {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<WalletHistoryFilter>('all');
@@ -63,25 +89,9 @@ export default function WalletScreen() {
     await Promise.all([wallet.refetch(), history.refetch(), payoutRequests.refetch()]);
   };
 
-  const renderTransaction = ({ item }: { item: WalletHistoryItem }) => {
-    const isCredit = item.direction === 'CREDIT' || item.direction === 'credit';
-    return (
-      <View style={styles.transactionCard}>
-        <View style={styles.transactionTop}>
-          <Text style={styles.transactionType}>
-            {t(`walletTransactionTypes.${item.type}`)}
-          </Text>
-          <Text style={isCredit ? styles.transactionAmountCredit : styles.transactionAmountDebit}>
-            {isCredit ? '+' : '-'}{formatCurrency(item.amount, item.currency)}
-          </Text>
-        </View>
-        <Text style={styles.transactionDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <Text style={styles.transactionDate}>{formatShortDateTime(item.createdAt)}</Text>
-      </View>
-    );
-  };
+  const renderTransaction = React.useCallback(({ item }: { item: WalletHistoryItem }) => (
+    <WalletTransactionItem item={item} t={t} />
+  ), [t]);
 
   if (wallet.isLoading) {
     return (
@@ -112,6 +122,10 @@ export default function WalletScreen() {
         contentContainerStyle={styles.listContent}
         data={transactions}
         keyExtractor={(item) => item.id}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
         renderItem={renderTransaction}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />

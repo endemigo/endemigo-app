@@ -30,6 +30,19 @@ import { resolveApiErrorMessage } from '../../utils/apiError';
 import { getTurkishDistrictsByProvinceName, TURKISH_PROVINCES } from '../../constants/turkishLocations';
 import { styles } from '../../styles/tabs/addresses.styles';
 
+const COUNTRIES = [
+  { code: 'TR', label: 'Türkiye' },
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'FR', label: 'France' },
+  { code: 'IT', label: 'Italy' },
+  { code: 'ES', label: 'Spain' },
+  { code: 'NL', label: 'Netherlands' },
+  { code: 'BE', label: 'Belgium' },
+  { code: 'GR', label: 'Greece' },
+];
+
 const DEFAULT_FORM_STATE: AddressPayload = {
   type: AddressType.SHIPPING,
   title: '',
@@ -56,15 +69,21 @@ export default function AddressesScreen() {
     (params.type === AddressType.SENDER && canUseSenderType)
       ? params.type
       : AddressType.SHIPPING;
+  const [activeTab, setActiveTab] = useState<AddressType>(
+    initialFormType === AddressType.SENDER ? AddressType.SHIPPING : initialFormType
+  );
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [isCityModalVisible, setCityModalVisible] = useState(false);
   const [isDistrictModalVisible, setDistrictModalVisible] = useState(false);
+  const [isCountryModalVisible, setCountryModalVisible] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const [districtSearch, setDistrictSearch] = useState('');
+  const [countrySearch, setCountrySearch] = useState('');
   const [editingAddress, setEditingAddress] = useState<AddressItem | null>(null);
+  const [alsoCreateOther, setAlsoCreateOther] = useState(false);
   const [formState, setFormState] = useState<AddressPayload>({
     ...DEFAULT_FORM_STATE,
-    type: initialFormType,
+    type: initialFormType === AddressType.SENDER ? AddressType.SHIPPING : initialFormType,
     fullName: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
     phone: user?.phone ?? '',
   });
@@ -75,9 +94,12 @@ export default function AddressesScreen() {
   const deleteAddress = useDeleteAddress();
   const setDefaultAddress = useSetDefaultAddress();
 
-  const availableTypes = user?.isSeller
-    ? [AddressType.SHIPPING, AddressType.BILLING, AddressType.SENDER]
-    : [AddressType.SHIPPING, AddressType.BILLING];
+  const filteredAddresses = (addresses.data ?? []).filter((address) => {
+    if (activeTab === AddressType.SHIPPING) {
+      return address.type === AddressType.SHIPPING || address.type === AddressType.SENDER;
+    }
+    return address.type === AddressType.BILLING;
+  });
   const addressTypeBadgeLabel = (type: AddressType) => {
     if (type === AddressType.SHIPPING) {
       const shippingKey = activeMode === 'seller'
@@ -99,11 +121,14 @@ export default function AddressesScreen() {
     setIsFormVisible(false);
     setCityModalVisible(false);
     setDistrictModalVisible(false);
+    setCountryModalVisible(false);
     setCitySearch('');
     setDistrictSearch('');
+    setCountrySearch('');
+    setAlsoCreateOther(false);
     setFormState({
       ...DEFAULT_FORM_STATE,
-      type: initialFormType,
+      type: activeTab,
       fullName: `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim(),
       phone: user?.phone ?? '',
     });
@@ -135,7 +160,15 @@ export default function AddressesScreen() {
           payload: formState,
         });
       } else {
-        await createAddress.mutateAsync(formState);
+        if (formState.type === AddressType.SHIPPING && alsoCreateOther) {
+          await createAddress.mutateAsync(formState);
+          await createAddress.mutateAsync({ ...formState, type: AddressType.BILLING });
+        } else if (formState.type === AddressType.BILLING && alsoCreateOther) {
+          await createAddress.mutateAsync(formState);
+          await createAddress.mutateAsync({ ...formState, type: AddressType.SHIPPING });
+        } else {
+          await createAddress.mutateAsync(formState);
+        }
       }
       resetForm();
     } catch (error: unknown) {
@@ -221,166 +254,29 @@ export default function AddressesScreen() {
         <Text style={styles.subtitle}>{t('addresses.subtitle')}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => {
-          setEditingAddress(null);
-          setIsFormVisible(true);
-        }}
-        activeOpacity={0.84}
-      >
-        <Ionicons name="add-circle-outline" size={18} color={Colors.white} />
-        <Text style={styles.addButtonText}>{t('addresses.addAction')}</Text>
-      </TouchableOpacity>
-
-      {isFormVisible && (
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>
-            {editingAddress ? t('addresses.editTitle') : t('addresses.createTitle')}
+      <View style={styles.segmentContainer}>
+        <TouchableOpacity
+          style={[styles.segmentButton, activeTab === AddressType.SHIPPING && styles.segmentButtonActive]}
+          onPress={() => setActiveTab(AddressType.SHIPPING)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.segmentButtonText, activeTab === AddressType.SHIPPING && styles.segmentButtonTextActive]}>
+            {t('addresses.types.SHIPPING')}
           </Text>
-          <Text style={styles.inlineLabel}>{t('addresses.fields.type')}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.formTypeRow}
-          >
-            {availableTypes.map((type) => {
-              const isActive = formState.type === type;
-              return (
-                <TouchableOpacity
-                  key={`form-type-${type}`}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                  onPress={() => setFormState((current) => ({ ...current, type }))}
-                  activeOpacity={0.82}
-                >
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {t(`addresses.types.${type}`)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <TextInput
-            style={styles.input}
-            value={formState.title}
-            onChangeText={(value) => setFormState((current) => ({ ...current, title: value }))}
-            placeholder={t('addresses.fields.title')}
-            placeholderTextColor={Colors.slate400}
-          />
-          <TextInput
-            style={styles.input}
-            value={formState.fullName}
-            onChangeText={(value) => setFormState((current) => ({ ...current, fullName: value }))}
-            placeholder={t('addresses.fields.fullName')}
-            placeholderTextColor={Colors.slate400}
-          />
-          <TextInput
-            style={styles.input}
-            value={formState.phone}
-            onChangeText={(value) => setFormState((current) => ({ ...current, phone: value }))}
-            placeholder={t('addresses.fields.phone')}
-            placeholderTextColor={Colors.slate400}
-            keyboardType="phone-pad"
-          />
-          <View style={styles.row}>
-            <TouchableOpacity
-              style={[styles.input, styles.rowInput, styles.selectInput]}
-              onPress={() => setCityModalVisible(true)}
-              activeOpacity={0.85}
-            >
-              <Text style={formState.city ? styles.selectInputText : styles.selectInputPlaceholder}>
-                {formState.city || t('addresses.fields.city')}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.input, styles.rowInput, styles.selectInput]}
-              onPress={() => {
-                if (!formState.city) {
-                  showModal({
-                    title: t('common.error'),
-                    message: t('addresses.selectProvinceFirst'),
-                    type: 'error',
-                  });
-                  return;
-                }
-                setDistrictModalVisible(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={formState.district ? styles.selectInputText : styles.selectInputPlaceholder}>
-                {formState.district || t('addresses.fields.district')}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
-            </TouchableOpacity>
-          </View>
-          <TextInput
-            style={styles.input}
-            value={formState.neighborhood ?? ''}
-            onChangeText={(value) => setFormState((current) => ({ ...current, neighborhood: value }))}
-            placeholder={t('addresses.fields.neighborhood')}
-            placeholderTextColor={Colors.slate400}
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={formState.addressLine}
-            onChangeText={(value) => setFormState((current) => ({ ...current, addressLine: value }))}
-            placeholder={t('addresses.fields.addressLine')}
-            placeholderTextColor={Colors.slate400}
-            multiline
-          />
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              value={formState.postalCode ?? ''}
-              onChangeText={(value) => setFormState((current) => ({ ...current, postalCode: value }))}
-              placeholder={t('addresses.fields.postalCode')}
-              placeholderTextColor={Colors.slate400}
-            />
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              value={formState.country ?? 'TR'}
-              onChangeText={(value) => setFormState((current) => ({ ...current, country: value }))}
-              placeholder={t('addresses.fields.country')}
-              placeholderTextColor={Colors.slate400}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.checkboxRow}
-            onPress={() =>
-              setFormState((current) => ({
-                ...current,
-                isDefault: !current.isDefault,
-              }))
-            }
-            activeOpacity={0.82}
-          >
-            <Ionicons
-              name={formState.isDefault ? 'checkbox' : 'square-outline'}
-              size={20}
-              color={formState.isDefault ? Colors.primary : Colors.slate400}
-            />
-            <Text style={styles.checkboxLabel}>{t('addresses.fields.isDefault')}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.formActions}>
-            <TouchableOpacity style={styles.ghostButton} onPress={resetForm} activeOpacity={0.82}>
-              <Text style={styles.ghostButtonText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleSubmit}
-              activeOpacity={0.84}
-            >
-              <Text style={styles.primaryButtonText}>{t('common.save')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentButton, activeTab === AddressType.BILLING && styles.segmentButtonActive]}
+          onPress={() => setActiveTab(AddressType.BILLING)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.segmentButtonText, activeTab === AddressType.BILLING && styles.segmentButtonTextActive]}>
+            {t('addresses.types.BILLING')}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.list}>
-        {(addresses.data ?? []).map((address) => (
+        {filteredAddresses.map((address) => (
           <View key={address.id} style={styles.addressCard}>
             <View style={styles.addressHeader}>
               <View>
@@ -431,13 +327,196 @@ export default function AddressesScreen() {
         ))}
       </View>
 
-      {(addresses.data ?? []).length === 0 && (
+      {filteredAddresses.length === 0 && (
         <View style={styles.emptyCard}>
           <Ionicons name="map-outline" size={34} color={Colors.slate300} />
           <Text style={styles.emptyTitle}>{t('addresses.emptyTitle')}</Text>
           <Text style={styles.emptyBody}>{t('addresses.emptyBody')}</Text>
         </View>
       )}
+
+      {!isFormVisible && (
+        <TouchableOpacity
+          style={styles.addButtonBottom}
+          onPress={() => {
+            setEditingAddress(null);
+            setFormState((current) => ({
+              ...current,
+              type: activeTab,
+            }));
+            setIsFormVisible(true);
+          }}
+          activeOpacity={0.84}
+        >
+          <Ionicons name="add-circle-outline" size={18} color={Colors.white} />
+          <Text style={styles.addButtonText}>{t('addresses.addAction')}</Text>
+        </TouchableOpacity>
+      )}
+
+      <Modal
+        visible={isFormVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={resetForm}
+      >
+        <TouchableWithoutFeedback onPress={resetForm}>
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.bottomSheetCard, { maxHeight: '85%' }]}>
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>
+                    {editingAddress ? t('addresses.editTitle') : t('addresses.createTitle')}
+                  </Text>
+                  <TouchableOpacity onPress={resetForm} activeOpacity={0.8}>
+                    <Ionicons name="close" size={24} color={Colors.onSurface} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                  <TextInput
+                    style={styles.input}
+                    value={formState.title}
+                    onChangeText={(value) => setFormState((current) => ({ ...current, title: value }))}
+                    placeholder={t('addresses.fields.title')}
+                    placeholderTextColor={Colors.slate400}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={formState.fullName}
+                    onChangeText={(value) => setFormState((current) => ({ ...current, fullName: value }))}
+                    placeholder={t('addresses.fields.fullName')}
+                    placeholderTextColor={Colors.slate400}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={formState.phone}
+                    onChangeText={(value) => setFormState((current) => ({ ...current, phone: value }))}
+                    placeholder={t('addresses.fields.phone')}
+                    placeholderTextColor={Colors.slate400}
+                    keyboardType="phone-pad"
+                  />
+                  <View style={styles.row}>
+                    <TouchableOpacity
+                      style={[styles.input, styles.rowInput, styles.selectInput]}
+                      onPress={() => setCityModalVisible(true)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={formState.city ? styles.selectInputText : styles.selectInputPlaceholder}>
+                        {formState.city || t('addresses.fields.city')}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.input, styles.rowInput, styles.selectInput]}
+                      onPress={() => {
+                        if (!formState.city) {
+                          showModal({
+                            title: t('common.error'),
+                            message: t('addresses.selectProvinceFirst'),
+                            type: 'error',
+                          });
+                          return;
+                        }
+                        setDistrictModalVisible(true);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={formState.district ? styles.selectInputText : styles.selectInputPlaceholder}>
+                        {formState.district || t('addresses.fields.district')}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={formState.neighborhood ?? ''}
+                    onChangeText={(value) => setFormState((current) => ({ ...current, neighborhood: value }))}
+                    placeholder={t('addresses.fields.neighborhood')}
+                    placeholderTextColor={Colors.slate400}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={formState.addressLine}
+                    onChangeText={(value) => setFormState((current) => ({ ...current, addressLine: value }))}
+                    placeholder={t('addresses.fields.addressLine')}
+                    placeholderTextColor={Colors.slate400}
+                    multiline
+                  />
+                  <View style={styles.row}>
+                    <TextInput
+                      style={[styles.input, styles.rowInput]}
+                      value={formState.postalCode ?? ''}
+                      onChangeText={(value) => setFormState((current) => ({ ...current, postalCode: value }))}
+                      placeholder={t('addresses.fields.postalCode')}
+                      placeholderTextColor={Colors.slate400}
+                    />
+                    <TouchableOpacity
+                      style={[styles.input, styles.rowInput, styles.selectInput]}
+                      onPress={() => setCountryModalVisible(true)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={formState.country ? styles.selectInputText : styles.selectInputPlaceholder}>
+                        {COUNTRIES.find((c) => c.code === formState.country)?.label || formState.country || t('addresses.fields.country')}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color={Colors.slate500} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() =>
+                      setFormState((current) => ({
+                        ...current,
+                        isDefault: !current.isDefault,
+                      }))
+                    }
+                    activeOpacity={0.82}
+                  >
+                    <Ionicons
+                      name={formState.isDefault ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={formState.isDefault ? Colors.primary : Colors.slate400}
+                    />
+                    <Text style={styles.checkboxLabel}>{t('addresses.fields.isDefault')}</Text>
+                  </TouchableOpacity>
+
+                  {!editingAddress && (
+                    <TouchableOpacity
+                      style={styles.checkboxRow}
+                      onPress={() => setAlsoCreateOther((val) => !val)}
+                      activeOpacity={0.82}
+                    >
+                      <Ionicons
+                        name={alsoCreateOther ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={alsoCreateOther ? Colors.primary : Colors.slate400}
+                      />
+                      <Text style={styles.checkboxLabel}>
+                        {activeTab === AddressType.SHIPPING
+                          ? 'Fatura adresi olarak da kullan'
+                          : 'Teslimat adresi olarak da kullan'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <View style={styles.formActions}>
+                    <TouchableOpacity style={styles.ghostButton} onPress={resetForm} activeOpacity={0.82}>
+                      <Text style={styles.ghostButtonText}>{t('common.cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      onPress={handleSubmit}
+                      activeOpacity={0.84}
+                    >
+                      <Text style={styles.primaryButtonText}>{t('common.save')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       <Modal
         visible={isCityModalVisible}
@@ -523,6 +602,53 @@ export default function AddressesScreen() {
                       activeOpacity={0.8}
                     >
                       <Text style={styles.bottomSheetItemText}>{district}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal
+        visible={isCountryModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCountryModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setCountryModalVisible(false)}>
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.bottomSheetCard}>
+                <View style={styles.bottomSheetHeader}>
+                  <Text style={styles.bottomSheetTitle}>{t('addresses.fields.country')}</Text>
+                  <TouchableOpacity onPress={() => setCountryModalVisible(false)} activeOpacity={0.8}>
+                    <Ionicons name="close" size={20} color={Colors.onSurface} />
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={styles.bottomSheetSearch}
+                  value={countrySearch}
+                  onChangeText={(val) => setCountrySearch(val)}
+                  placeholder={t('listing.originCountrySearchPlaceholder', { defaultValue: 'Ülke ara...' })}
+                  placeholderTextColor={Colors.slate400}
+                />
+                <ScrollView style={styles.bottomSheetList}>
+                  {COUNTRIES.filter((c) =>
+                    c.label.toLocaleLowerCase('tr-TR').includes(countrySearch.trim().toLocaleLowerCase('tr-TR'))
+                    || c.code.toLocaleLowerCase('tr-TR').includes(countrySearch.trim().toLocaleLowerCase('tr-TR'))
+                  ).map((country) => (
+                    <TouchableOpacity
+                      key={`country-${country.code}`}
+                      style={styles.bottomSheetItem}
+                      onPress={() => {
+                        setFormState((current) => ({ ...current, country: country.code }));
+                        setCountryModalVisible(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.bottomSheetItemText}>{country.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>

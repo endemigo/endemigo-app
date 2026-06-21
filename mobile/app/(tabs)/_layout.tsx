@@ -319,8 +319,20 @@ export default function TabLayout() {
       <Tabs.Screen name="settings" options={getSubpageOptions('settings.title')} />
       <Tabs.Screen name="edit-profile" options={getSubpageOptions('profile.editProfile')} />
       <Tabs.Screen name="wallet" options={getSubpageOptions('wallet.title')} />
-      <Tabs.Screen name="orders" options={getSubpageOptions('tabs.orders')} />
-      <Tabs.Screen name="orders/[orderId]" options={getSubpageOptions('orders.detailTitle', '/(tabs)/orders')} />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          ...getSubpageOptions(activeMode === 'seller' ? 'orders.sellerHeaderTitle' : 'orders.buyerHeaderTitle'),
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="orders/[orderId]"
+        options={{
+          ...getSubpageOptions('orders.detailTitle', '/(tabs)/orders'),
+          tabBarStyle: { display: 'none' },
+        }}
+      />
       <Tabs.Screen name="notifications" options={getSubpageOptions('notifications.title')} />
       <Tabs.Screen name="notification-preferences" options={getSubpageOptions('notifications.preferencesTitle', '/(tabs)/notifications')} />
       <Tabs.Screen

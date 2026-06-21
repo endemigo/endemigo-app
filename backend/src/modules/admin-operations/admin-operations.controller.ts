@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AdminRole, RC } from '@endemigo/shared';
+import { AdminRole, RC, AuctionRegistrationStatus } from '@endemigo/shared';
 import { Public } from '../../common/decorators/public.decorator';
 import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
@@ -29,6 +29,26 @@ import { CreateAdminVariantNumberDto } from './dto/create-admin-variant-number.d
 import { UpdateAdminVariantNumberDto } from './dto/update-admin-variant-number.dto';
 import { AdminOperationsService } from './admin-operations.service';
 import { AuctionService } from '../auction/auction.service';
+
+function parsePositiveIntQuery(
+  value: unknown,
+  field: string,
+  defaultValue: number,
+  maxValue?: number,
+): number {
+  const rawValue = value ?? defaultValue;
+  const parsed =
+    typeof rawValue === 'number' ? rawValue : Number(String(rawValue));
+
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    throw new BadRequestException({
+      code: RC.VALIDATION_ERROR,
+      message: `${field} must be a positive integer`,
+    });
+  }
+
+  return maxValue ? Math.min(parsed, maxValue) : parsed;
+}
 
 interface AdminOperationsRequest {
   adminUser: {
@@ -640,5 +660,38 @@ export class AdminOperationsController {
     @Body() dto: { enabled: boolean },
   ) {
     return this.auctionService.setAutoProgress(id, dto.enabled);
+  }
+
+  @Get('auctions/registrations')
+  @ApiOperation({ summary: 'Müzayede katılım taleplerini listele' })
+  async getAuctionRegistrations(
+    @Query('status') status?: AuctionRegistrationStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const safePage = parsePositiveIntQuery(page, 'page', 1);
+    const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 50);
+    return this.auctionService.listRegistrationsForAdmin(status, safePage, safeLimit);
+  }
+
+  @Patch('auctions/registrations/:id/status')
+  @ApiOperation({ summary: 'Müzayede katılım talebini onayla/reddet' })
+  async updateAuctionRegistrationStatus(
+    @Param('id') id: string,
+    @Body() dto: { status: AuctionRegistrationStatus },
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.auctionService.updateRegistrationStatus(id, dto.status, request.adminUser.id);
+  }
+
+  @Patch('users/:id/bidding-limit')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin updates a user\'s bidding limit' })
+  async updateBiddingLimit(
+    @Param('id') id: string,
+    @Body() dto: { limit: number },
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.updateBiddingLimit(id, dto.limit, request.adminUser);
   }
 }

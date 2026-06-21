@@ -51,6 +51,7 @@ export class ProductItemResponseDto {
   @ApiPropertyOptional({ type: [String] }) geoBadgeSelections?: string[];
   @ApiPropertyOptional({ type: [ProductVariantOptionResponseDto] }) variantOptions?: ProductVariantOptionResponseDto[];
   @ApiPropertyOptional({ type: [ProductVariantSkuResponseDto] }) variantSkus?: ProductVariantSkuResponseDto[];
+  @ApiPropertyOptional() askQuestionEnabled?: boolean;
   @ApiProperty() createdAt: Date;
 }
 

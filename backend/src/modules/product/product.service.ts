@@ -678,7 +678,9 @@ export class ProductService {
       if (!product.description || product.description.trim().length < 10)
         errors.push('Ürün açıklaması en az 10 karakter olmalıdır');
       if (!product.categoryId) errors.push('Kategori seçimi zorunludur');
-      if (product.price < 1) errors.push('Fiyat en az 1₺ olmalıdır');
+      if (!product.askPriceEnabled && (!product.price || Number(product.price) < 1)) {
+        errors.push('Fiyat en az 1₺ olmalıdır');
+      }
       if (errors.length > 0) {
         throw new BadRequestException({
           code: RC.PRODUCT_ACTIVATION_FAILED,
@@ -877,9 +879,12 @@ export class ProductService {
       .take(limit)
       .getManyAndCount();
 
+    const categoryCache = new Map<string, boolean>();
     const responseItems = await this.applyMembershipVisibilityBoost(
       await this.annotateSponsoredProducts(
-        await this.attachTrustBadges(items.map((p) => this.toResponse(p))),
+        await this.attachTrustBadges(
+          await Promise.all(items.map((p) => this.toResponse(p, undefined, false, categoryCache))),
+        ),
         AdPlacementType.CATEGORY_SHOWCASE,
       ),
     );
@@ -907,11 +912,12 @@ export class ProductService {
       take: limit,
     });
 
+    const categoryCache = new Map<string, boolean>();
     return {
       code: RC.PRODUCT_LIST,
       message: 'Satıcı ürünleri listelendi',
       items: await this.attachTrustBadges(
-        items.map((p) => this.toResponse(p, undefined, true)),
+        await Promise.all(items.map((p) => this.toResponse(p, undefined, true, categoryCache))),
       ),
       total,
       page,
@@ -999,7 +1005,7 @@ export class ProductService {
     const [response] = await this.applyMembershipVisibilityBoost(
       await this.annotateSponsoredProducts(
         await this.attachTrustBadges([
-          this.toResponse(product, isFavorited, userId === product.sellerId),
+          await this.toResponse(product, isFavorited, userId === product.sellerId),
         ]),
         AdPlacementType.CATEGORY_SHOWCASE,
         product.categoryId ?? undefined,
@@ -1232,14 +1238,39 @@ export class ProductService {
     ].some((keyword) => slug.includes(keyword));
   }
 
+  private async checkAskQuestionEnabled(categoryId: string | null): Promise<boolean> {
+    if (!categoryId) {
+      return false;
+    }
+    let currentId: string | null = categoryId;
+    for (let depth = 0; depth < 10; depth++) {
+      const category = await this.categoryRepo.findOne({
+        where: { id: currentId },
+        select: ['id', 'parentId', 'metadata'],
+      });
+      if (!category) {
+        break;
+      }
+      if (category.metadata?.isCommunicationEnabled === true) {
+        return true;
+      }
+      if (!category.parentId) {
+        break;
+      }
+      currentId = category.parentId;
+    }
+    return false;
+  }
+
   // ==========================================
   // Response Mapper
   // ==========================================
 
-  private toResponse(
+  private async toResponse(
     product: Product,
     isFavorited?: boolean,
     revealAskPriceAmounts = false,
+    categoryCache?: Map<string, boolean>,
   ) {
     const hideAskPriceAmounts =
       product.askPriceEnabled && !revealAskPriceAmounts;
@@ -1247,6 +1278,19 @@ export class ProductService {
       .filter((item) => item.isActive !== false)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const variantOptions = this.buildVariantOptionsFromSkus(activeVariantSkus);
+
+    let askQuestionEnabled = false;
+    if (product.categoryId) {
+      if (categoryCache && categoryCache.has(product.categoryId)) {
+        askQuestionEnabled = categoryCache.get(product.categoryId)!;
+      } else {
+        askQuestionEnabled = await this.checkAskQuestionEnabled(product.categoryId);
+        if (categoryCache) {
+          categoryCache.set(product.categoryId, askQuestionEnabled);
+        }
+      }
+    }
+
     return {
       id: product.id,
       title: product.title,
@@ -1343,6 +1387,7 @@ export class ProductService {
         : null,
       weight: product.weight ? Number(product.weight) : null,
       favoriteCount: product.favoriteCount,
+      askQuestionEnabled,
       ...(isFavorited !== undefined ? { isFavorited } : {}),
       createdAt: product.createdAt,
     };

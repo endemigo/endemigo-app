@@ -6,6 +6,7 @@ import { AuctionPaymentStatus, AuctionStatus } from '@endemigo/shared';
 
 interface Auction {
   id: string;
+  eventId?: string | null;
   productId: string;
   productTitle: string | null;
   productImage: string | null;
@@ -39,6 +40,7 @@ interface Auction {
   currentExtensions?: number;
   culturalAssetRestricted?: boolean;
   pausedRemainingSeconds?: number;
+  requiredDeposit?: number;
   createdAt?: string;
 }
 
@@ -111,6 +113,22 @@ export function useAuction(id: string) {
       return data;
     },
     enabled: !!id,
+  });
+}
+
+export function useAuctionByProduct(productId: string, enabled = true) {
+  return useQuery<Auction | null>({
+    queryKey: ['auction-by-product', productId],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) {
+        const auctions = await mockService.getAuctions(1, 100);
+        const match = auctions.items.find((a) => a.productId === productId);
+        return match ? mockService.getAuction(match.id) : null;
+      }
+      const { data } = await api.get(`/auctions?productId=${productId}`);
+      return data.items && data.items.length > 0 ? data.items[0] : null;
+    },
+    enabled: !!productId && enabled,
   });
 }
 
@@ -292,6 +310,120 @@ export function useSkipLot() {
     onSuccess: (_, eventId) => {
       queryClient.invalidateQueries({ queryKey: ['auction-event-details', eventId] });
     },
+  });
+}
+
+export function useAuctionRegistrationStatus(auctionId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['auction-registration-status', auctionId],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'SUCCESS',
+          message: 'Müzayede katılım durumu getirildi',
+          registration: {
+            id: 'mock-reg-id',
+            userId: 'mock-user-id',
+            auctionId,
+            status: 'APPROVED',
+            acceptedTermsAt: new Date().toISOString(),
+          },
+        };
+      }
+      const { data } = await api.get(`/auctions/${auctionId}/registration-status`);
+      return data;
+    },
+    enabled: !!auctionId && enabled,
+  });
+}
+
+export function useRegisterToAuction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ auctionId, cardDetails }: { auctionId: string; cardDetails?: any }) => {
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'AUCTION_REGISTRATION_APPROVED_SUCCESS',
+          message: 'Kredi kartınız doğrulandı ve müzayede kaydınız başarıyla onaylandı.',
+          registration: {
+            id: 'mock-reg-id',
+            userId: 'mock-user-id',
+            auctionId,
+            status: 'APPROVED',
+            acceptedTermsAt: new Date().toISOString(),
+          },
+        };
+      }
+      const { data } = await api.post(`/auctions/${auctionId}/register`, cardDetails || {});
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['auction-registration-status', variables.auctionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['saved-cards'],
+      });
+    },
+  });
+}
+
+export function useSavedCards(enabled = true) {
+  return useQuery({
+    queryKey: ['saved-cards'],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'SUCCESS',
+          cards: [
+            { id: 'mock-card-1', cardHolderName: 'John Doe', maskedPan: '411111******1111' }
+          ]
+        };
+      }
+      const { data } = await api.get('/payments/cards');
+      return data;
+    },
+    enabled,
+  });
+}
+
+export function useRegisterCard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (cardDetails: any) => {
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'SUCCESS',
+          card: { id: 'mock-card-new', cardHolderName: cardDetails.cardHolderName, maskedPan: '411111******1111' }
+        };
+      }
+      const { data } = await api.post('/payments/cards', cardDetails);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-cards'] });
+    }
+  });
+}
+
+export function usePayDeposit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ amount, cardDetails }: { amount: number; cardDetails?: any }) => {
+      if (ENV.USE_MOCK) {
+        return {
+          code: 'SUCCESS',
+          message: `Depozito başarıyla tahsil edildi. Yeni limitiniz: ${50000 + amount * 5} TL.`,
+          amount,
+        };
+      }
+      const { data } = await api.post('/payments/deposits', { amount, cardDetails });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    }
   });
 }
 

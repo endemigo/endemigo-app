@@ -44,6 +44,9 @@ export class Order extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   paymentId: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  groupId: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   autoConfirmAt: Date | null;
 

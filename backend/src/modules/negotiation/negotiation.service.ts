@@ -26,6 +26,7 @@ import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
+import { Category } from '../product/entities/category.entity';
 import { TrustFlagType } from '../trust/entities/trust-flag.entity';
 import { TrustService } from '../trust/trust.service';
 import { User } from '../user/entities/user.entity';
@@ -87,6 +88,8 @@ export class NegotiationService {
     private readonly violationLogRepository: Repository<ViolationLog>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
     @InjectQueue('negotiation')
     private readonly negotiationQueue: Queue,
     private readonly contentModerationService: ContentModerationService,
@@ -622,6 +625,30 @@ export class NegotiationService {
     await this.conversationRepository.save(conversation);
   }
 
+  private async checkAskQuestionEnabled(categoryId: string | null): Promise<boolean> {
+    if (!categoryId) {
+      return false;
+    }
+    let currentId: string | null = categoryId;
+    for (let depth = 0; depth < 10; depth++) {
+      const category = await this.categoryRepository.findOne({
+        where: { id: currentId },
+        select: ['id', 'parentId', 'metadata'],
+      });
+      if (!category) {
+        break;
+      }
+      if (category.metadata?.isCommunicationEnabled === true) {
+        return true;
+      }
+      if (!category.parentId) {
+        break;
+      }
+      currentId = category.parentId;
+    }
+    return false;
+  }
+
   private async loadAskPriceProduct(productId: string) {
     const product = await this.productRepository.findOne({
       where: { id: productId },
@@ -633,14 +660,17 @@ export class NegotiationService {
         message: 'Ürün bulunamadı',
       });
     }
+
+    const askQuestionEnabled = await this.checkAskQuestionEnabled(product.categoryId);
+
     if (
       product.status !== ProductStatus.ACTIVE ||
       product.listingType === ListingType.AUCTION ||
-      product.askPriceEnabled !== true
+      (product.askPriceEnabled !== true && askQuestionEnabled !== true)
     ) {
       throw new BadRequestException({
         code: RC.ASK_PRICE_NOT_ENABLED,
-        message: 'Bu ürün için fiyat sor özelliği açık değil',
+        message: 'Bu ürün için fiyat sorma veya soru sorma özelliği açık değil',
       });
     }
     return product;

@@ -8,6 +8,8 @@ import {
   IsEnum,
   Min,
   Max,
+  IsString,
+  Matches,
 } from 'class-validator';
 import { AuctionType } from '@endemigo/shared';
 
@@ -105,3 +107,35 @@ export class PlaceBidDto {
   @IsOptional()
   maxAmount?: number;
 }
+
+export class RegisterToAuctionDto {
+  @ApiPropertyOptional({ example: 'John Doe' })
+  @IsString()
+  @IsOptional()
+  cardHolderName?: string;
+
+  @ApiPropertyOptional({ example: '4111111111111111' })
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{15,16}$/, { message: 'Kart numarası 15 veya 16 haneli rakam olmalıdır' })
+  cardNumber?: string;
+
+  @ApiPropertyOptional({ example: '12' })
+  @IsString()
+  @IsOptional()
+  @Matches(/^(0[1-9]|1[0-2])$/, { message: 'Geçersiz son kullanma ayı' })
+  expireMonth?: string;
+
+  @ApiPropertyOptional({ example: '2028' })
+  @IsString()
+  @IsOptional()
+  @Matches(/^(\d{2}|\d{4})$/, { message: 'Geçersiz son kullanma yılı' })
+  expireYear?: string;
+
+  @ApiPropertyOptional({ example: '123' })
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{3,4}$/, { message: 'CVC 3 veya 4 haneli rakam olmalıdır' })
+  cvc?: string;
+}
+

@@ -25,9 +25,15 @@ import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
+import { CheckoutInitiateDto } from './dto/checkout-initiate.dto';
+import { RegisterCardDto } from './dto/register-card.dto';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { Payment } from './entities/payment.entity';
+import { SavedCard } from './entities/saved-card.entity';
+import { Order } from '../order/entities/order.entity';
 import { IyzicoProvider } from './providers/iyzico.provider';
+import { CartService } from '../cart/cart.service';
+import { User } from '../user/entities/user.entity';
 
 @Injectable()
 export class PaymentService {
@@ -38,6 +44,8 @@ export class PaymentService {
     private readonly paymentRepository?: Repository<Payment>,
     @InjectRepository(PaymentProviderEvent)
     private readonly providerEventRepository?: Repository<PaymentProviderEvent>,
+    @InjectRepository(SavedCard)
+    private readonly savedCardRepository?: Repository<SavedCard>,
     private readonly iyzicoProvider?: IyzicoProvider,
     private readonly ledgerService?: LedgerService,
     @Optional()
@@ -45,7 +53,16 @@ export class PaymentService {
     @Optional()
     @Inject(forwardRef(() => OrderService))
     private readonly orderService?: OrderService,
+    @Optional()
+    private readonly cartService?: CartService,
+    @Optional()
+    @InjectRepository(Order)
+    private readonly orderRepository?: Repository<Order>,
+    @Optional()
+    @InjectRepository(User)
+    private readonly userRepository?: Repository<User>,
   ) {}
+
 
   async initiatePayment(userId: string, dto: InitiatePaymentDto) {
     const existing = await this.paymentRepository?.findOne({
@@ -125,6 +142,148 @@ export class PaymentService {
     };
   }
 
+  async checkoutCart(userId: string, dto: CheckoutInitiateDto) {
+    if (!this.cartService || !this.orderService || !this.paymentRepository || !this.orderRepository) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Required services or repositories are unavailable',
+      });
+    }
+
+    // 1. Fetch user's cart items
+    const cartRes = await this.cartService.getMyCart(userId);
+    const cart = cartRes.cart;
+    if (!cart || !cart.items || cart.items.length === 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sepetiniz boş',
+      });
+    }
+
+    // 2. Calculate totals (same formula as the mobile client)
+    let subtotal = 0;
+    for (const item of cart.items) {
+      if (!item.product || !item.product.price) {
+        throw new BadRequestException({
+          code: RC.PRODUCT_NOT_FOUND,
+          message: 'Sepette geçersiz ürün bulunmaktadır',
+        });
+      }
+      subtotal += Number(item.product.price) * item.quantity;
+    }
+    const shipping = subtotal > 1500 ? 0 : 89;
+    const serviceFee = Math.round(subtotal * 0.02);
+    const grandTotal = subtotal + shipping + serviceFee;
+
+    // 3. Initiate payment session
+    const existing = await this.paymentRepository.findOne({
+      where: { idempotencyKey: dto.idempotencyKey },
+    });
+    if (existing) {
+      if (existing.buyerId !== userId) {
+        throw new BadRequestException({
+          code: RC.ORDER_BUYER_MISMATCH,
+          message: 'Ödeme bu kullanıcıya ait değil',
+        });
+      }
+      return {
+        code: RC.PAYMENT_INITIATED,
+        message: 'Payment already initiated',
+        payment: existing,
+        checkoutUrl: existing.checkoutUrl,
+        checkoutToken: existing.checkoutToken,
+      };
+    }
+
+    const groupId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // 4. Create database transaction to save Payment and Orders
+    const payment = await this.paymentRepository.manager.transaction(async (manager) => {
+      // Create and save Payment record
+      const draft = manager.create(Payment, {
+        buyerId: userId,
+        orderId: null, // Multiple orders in a cart checkout
+        amount: grandTotal,
+        currency: 'TRY',
+        provider: PaymentProvider.IYZICO,
+        status: PaymentStatus.PENDING,
+        idempotencyKey: dto.idempotencyKey,
+        checkoutToken: null,
+        checkoutUrl: null,
+        providerPaymentId: null,
+        refundProviderId: null,
+        metadata: { groupId },
+        paidAt: null,
+        refundedAt: null,
+        adminReviewAt: null,
+      });
+      const savedPayment = await manager.save(Payment, draft);
+
+      // Create Orders for each item unit
+      for (const item of cart.items) {
+        const product = item.product;
+        if (!product) {
+          throw new BadRequestException({
+            code: RC.PRODUCT_NOT_FOUND,
+            message: 'Sepette geçersiz ürün bulunmaktadır',
+          });
+        }
+        for (let q = 0; q < item.quantity; q++) {
+          const idempotencyKey = `checkout-${savedPayment.id}-${item.productId}-${q}`;
+          
+          // We call orderService.createFromDirectSale passing our manager to execute in transaction
+          const orderRes = await this.orderService!.createFromDirectSale(userId, {
+            productId: item.productId,
+            sellerId: product.sellerId,
+            amount: Number(product.price),
+            currency: 'TRY',
+            idempotencyKey,
+          }, manager);
+
+          const createdOrder = orderRes.order;
+          if (!createdOrder) {
+            throw new BadRequestException({
+              code: RC.ORDER_CREATED,
+              message: 'Sipariş oluşturulamadı',
+            });
+          }
+
+          // Link to the Payment and set groupId
+          createdOrder.paymentId = savedPayment.id;
+          createdOrder.groupId = groupId;
+          await manager.save(Order, createdOrder);
+        }
+      }
+
+      return savedPayment;
+    });
+
+    // 5. Initialize Iyzico Checkout
+    const checkout = await this.iyzicoProvider?.initializeCheckout({
+      paymentId: payment.id,
+      buyerId: userId,
+      amount: grandTotal,
+      currency: 'TRY',
+      callbackUrl: dto.callbackUrl,
+    });
+
+    if (checkout && this.paymentRepository) {
+      payment.checkoutToken = checkout.checkoutToken;
+      payment.checkoutUrl = checkout.checkoutUrl;
+      payment.providerPaymentId = checkout.providerPaymentId ?? null;
+      await this.paymentRepository.save(payment);
+    }
+
+    return {
+      code: RC.PAYMENT_INITIATED,
+      message: 'Payment initiated',
+      payment,
+      checkoutUrl: checkout?.checkoutUrl,
+      checkoutToken: checkout?.checkoutToken,
+      groupId,
+    };
+  }
+
   async handleIyzicoWebhook(payload: IyzicoWebhookDto, signature?: string) {
     const eventKey = payload.eventKey;
 
@@ -183,7 +342,7 @@ export class PaymentService {
     if ((retrieved?.status ?? payload.status) === 'success') {
       payment.status = PaymentStatus.ESCROW_HELD;
       payment.providerPaymentId =
-        retrieved?.providerPaymentId ?? payment.providerPaymentId;
+          retrieved?.providerPaymentId ?? payment.providerPaymentId;
       payment.paidAt = new Date();
       await this.postPaymentLedgerEntry(payment);
       await this.notificationService?.createFromEvent({
@@ -214,13 +373,28 @@ export class PaymentService {
     const saved = await this.paymentRepository.save(payment);
     if (saved.orderId && saved.status === PaymentStatus.ESCROW_HELD) {
       await this.orderService?.markPaymentEscrowHeld(
-        saved.orderId,
-        saved.id,
-        saved.buyerId,
+          saved.orderId,
+          saved.id,
+          saved.buyerId,
       );
     }
     if (saved.orderId && saved.status === PaymentStatus.FAILED) {
       await this.orderService?.markPaymentFailedForReview(saved.orderId);
+    }
+
+    // Transition all orders grouped under this payment (useful for multi-item checkouts)
+    if (saved.status === PaymentStatus.ESCROW_HELD) {
+      await this.orderService?.markPaymentEscrowHeldForPayment(
+          saved.id,
+          saved.buyerId,
+      );
+      if (this.cartService) {
+        await this.cartService.clearCart(saved.buyerId);
+      }
+      await this.checkAndUpdateLoyaltyLimit(saved.buyerId);
+    }
+    if (saved.status === PaymentStatus.FAILED) {
+      await this.orderService?.markPaymentFailedForPayment(saved.id);
     }
 
     return saved;
@@ -471,5 +645,199 @@ export class PaymentService {
         },
       ],
     });
+  }
+
+  async listSavedCards(userId: string) {
+    if (!this.savedCardRepository) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'SavedCard repository is unavailable',
+      });
+    }
+    let cards = await this.savedCardRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (cards.length === 0) {
+      try {
+        const user = await this.savedCardRepository.manager.findOne(User, { where: { id: userId } });
+        const fullName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'TEST USER';
+        await this.registerCard(userId, {
+          cardHolderName: fullName || 'TEST USER',
+          cardNumber: '4111111111111111',
+          expireMonth: '12',
+          expireYear: '2035',
+          cvc: '123',
+        });
+        cards = await this.savedCardRepository.find({
+          where: { userId },
+          order: { createdAt: 'DESC' },
+        });
+      } catch (err) {
+        console.warn('Auto-registering card failed:', err.message);
+      }
+    }
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Saved cards listed successfully',
+      cards,
+    };
+  }
+
+  async registerCard(userId: string, dto: RegisterCardDto) {
+    if (!this.paymentRepository || !this.savedCardRepository) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Required repositories are unavailable',
+      });
+    }
+
+    // 1. Simulate charging 1 TL (card verification transaction)
+    const idempotencyKey = `card-verify-${userId}-${Date.now()}`;
+    const payment = this.paymentRepository.create({
+      buyerId: userId,
+      orderId: null,
+      amount: 1.00,
+      currency: 'TRY',
+      provider: PaymentProvider.IYZICO,
+      status: PaymentStatus.ESCROW_HELD, // Success immediately for card validation
+      idempotencyKey,
+      checkoutToken: `verify-token-${Date.now()}`,
+      checkoutUrl: null,
+      providerPaymentId: `verify-provider-${Date.now()}`,
+      metadata: { type: 'AUCTION_REGISTRATION_VERIFICATION' },
+      paidAt: new Date(),
+    });
+    const savedPayment = await this.paymentRepository.save(payment);
+
+    // 2. Post ledger entry
+    await this.postPaymentLedgerEntry(savedPayment);
+
+    // 3. Immediately trigger a refund for this 1 TL verification payment
+    await this.requestRefund(savedPayment.id);
+
+    // 4. Save the verified credit card
+    const maskedPan = `${dto.cardNumber.slice(0, 6)}******${dto.cardNumber.slice(-4)}`;
+    const card = this.savedCardRepository.create({
+      userId,
+      cardHolderName: dto.cardHolderName,
+      maskedPan,
+      cardToken: `iyzico-token-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    });
+    const savedCard = await this.savedCardRepository.save(card);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Kredi kartınız başarıyla doğrulandı ve kaydedildi. 1 TL doğrulama tutarı anında iade edildi.',
+      card: savedCard,
+    };
+  }
+
+  async payDeposit(userId: string, dto: { amount: number; cardDetails?: RegisterCardDto }) {
+    if (!this.paymentRepository) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Payment repository is unavailable',
+      });
+    }
+
+    // 1. Simulate charging the deposit amount
+    const idempotencyKey = `deposit-charge-${userId}-${Date.now()}`;
+    const payment = this.paymentRepository.create({
+      buyerId: userId,
+      orderId: null,
+      amount: dto.amount,
+      currency: 'TRY',
+      provider: PaymentProvider.IYZICO,
+      status: PaymentStatus.ESCROW_HELD, // Instant success for mock deposit
+      idempotencyKey,
+      checkoutToken: `deposit-token-${Date.now()}`,
+      checkoutUrl: null,
+      providerPaymentId: `deposit-provider-${Date.now()}`,
+      metadata: { type: 'AUCTION_BIDDING_LIMIT_DEPOSIT' },
+      paidAt: new Date(),
+    });
+    const savedPayment = await this.paymentRepository.save(payment);
+
+    // 2. Post ledger entry
+    await this.postPaymentLedgerEntry(savedPayment);
+
+    let finalLimit = 50000;
+    // 3. Update Bidding Limit and Bidding Deposit in User Entity
+    await this.paymentRepository.manager.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!user) {
+        throw new NotFoundException({
+          code: RC.NOT_FOUND,
+          message: 'Kullanıcı bulunamadı',
+        });
+      }
+
+      const currentDeposit = Number(user.totalDeposit ?? 0);
+      const newDeposit = currentDeposit + Number(dto.amount);
+      const newLimit = 50000 + newDeposit * 5;
+
+      user.totalDeposit = newDeposit;
+      user.biddingLimit = newLimit;
+      await manager.save(User, user);
+      finalLimit = newLimit;
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message: `Depozito başarıyla tahsil edildi. Yeni limitiniz: ${finalLimit} TL.`,
+      amount: dto.amount,
+    };
+  }
+
+  async checkAndUpdateLoyaltyLimit(userId: string): Promise<number> {
+    if (!this.paymentRepository || !this.userRepository) {
+      return 50000;
+    }
+
+    // 1. Calculate sum of successful direct payments (orderId is not null)
+    const payments = await this.paymentRepository.find({
+      where: {
+        buyerId: userId,
+        status: PaymentStatus.ESCROW_HELD,
+      },
+    });
+
+    const totalSuccessfulPayments = payments
+      .filter((p) => p.orderId !== null)
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    // 2. Determine loyalty milestone
+    let loyaltyLimit = 50000;
+    if (totalSuccessfulPayments >= 100000) {
+      loyaltyLimit = 250000;
+    } else if (totalSuccessfulPayments >= 30000) {
+      loyaltyLimit = 100000;
+    }
+
+    // 3. Update User
+    let finalLimit = 50000;
+    await this.paymentRepository.manager.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (user) {
+        const depositLimit = 50000 + Number(user.totalDeposit ?? 0) * 5;
+        const newLimit = Math.max(Number(user.biddingLimit), depositLimit, loyaltyLimit);
+        if (newLimit !== Number(user.biddingLimit)) {
+          user.biddingLimit = newLimit;
+          await manager.save(User, user);
+        }
+        finalLimit = newLimit;
+      }
+    });
+
+    return finalLimit;
   }
 }

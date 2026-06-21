@@ -36,7 +36,13 @@ export default function BuyNowScreen() {
   
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<string | null>(null);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = React.useState<string | null>(null);
   const [categoryImageErrors, setCategoryImageErrors] = React.useState<Record<string, boolean>>({});
+
+  const handleSelectCategory = (id: string | null) => {
+    setSelectedCategoryId(id);
+    setSelectedSubcategoryId(null);
+  };
 
   const { data: productsData, isLoading: isProductsLoading, isError: isProductsError, refetch: refetchProducts } = useProducts(1);
   const { data: categoriesData } = useCategories();
@@ -48,8 +54,14 @@ export default function BuyNowScreen() {
       if (item.listingType === 'AUCTION') return false;
 
       // 2. Filter by category
-      if (selectedCategoryId && item.categoryId !== selectedCategoryId) {
-        return false;
+      if (selectedSubcategoryId) {
+        if (item.categoryId !== selectedSubcategoryId) return false;
+      } else if (selectedCategoryId) {
+        const parentCat = categoriesData?.find(c => c.id === selectedCategoryId);
+        const childIds = parentCat?.children?.map(c => c.id) || [];
+        if (item.categoryId !== selectedCategoryId && !childIds.includes(item.categoryId)) {
+          return false;
+        }
       }
 
       // 3. Filter by search query
@@ -149,7 +161,7 @@ export default function BuyNowScreen() {
             <TouchableOpacity
               style={styles.categoryItem}
               activeOpacity={0.7}
-              onPress={() => setSelectedCategoryId(null)}
+              onPress={() => handleSelectCategory(null)}
             >
               <View style={[styles.categoryIcon, selectedCategoryId === null && styles.categoryIconActive]}>
                 <Ionicons
@@ -172,7 +184,7 @@ export default function BuyNowScreen() {
                   key={category.id}
                   style={styles.categoryItem}
                   activeOpacity={0.7}
-                  onPress={() => setSelectedCategoryId(category.id)}
+                  onPress={() => handleSelectCategory(category.id)}
                 >
                   {hasImage ? (
                     <Image
@@ -203,6 +215,47 @@ export default function BuyNowScreen() {
         </View>
       )}
 
+      {(() => {
+        const selectedCat = categoriesData?.find((c) => c.id === selectedCategoryId);
+        const subcategories = selectedCat?.children || [];
+        if (subcategories.length === 0) return null;
+        
+        return (
+          <View style={styles.subcategoriesRibbonContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.subcategoriesScroll}
+            >
+              <TouchableOpacity
+                style={[styles.subcategoryChip, selectedSubcategoryId === null && styles.subcategoryChipActive]}
+                activeOpacity={0.7}
+                onPress={() => setSelectedSubcategoryId(null)}
+              >
+                <Text style={[styles.subcategoryChipText, selectedSubcategoryId === null && styles.subcategoryChipTextActive]}>
+                  {t('common.all')}
+                </Text>
+              </TouchableOpacity>
+              {subcategories.map((sub: Category) => {
+                const isSubSelected = selectedSubcategoryId === sub.id;
+                return (
+                  <TouchableOpacity
+                    key={sub.id}
+                    style={[styles.subcategoryChip, isSubSelected && styles.subcategoryChipActive]}
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedSubcategoryId(sub.id)}
+                  >
+                    <Text style={[styles.subcategoryChipText, isSubSelected && styles.subcategoryChipTextActive]}>
+                      {sub.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        );
+      })()}
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -210,7 +263,6 @@ export default function BuyNowScreen() {
       >
         {/* Products Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('tabs.buyNow')}</Text>
           
           {isProductsLoading ? (
             <View style={styles.center}>

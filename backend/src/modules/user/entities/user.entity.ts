@@ -49,6 +49,12 @@ export class User extends BaseEntity {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 50000.00 })
+  biddingLimit: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.00 })
+  totalDeposit: number;
+
   @Column({ nullable: true })
   bio: string;
 

@@ -9,3 +9,5 @@ Kod yazmadan, refactor yapmadan veya test eklemeden önce `CONVENTIONS.md` dosya
 - Mobil UI kodunda style/component ayrımı, tema, i18n, type safety ve custom modal kuralları `CONVENTIONS.md` içindeki gibidir.
 - Backend API response code, PostgreSQL enum ve test standartları `CONVENTIONS.md` içindeki gibidir.
 - Bu kurallarla çelişen bir istek gelirse önce kullanıcıdan açık onay al.
+- Terminal komutlarını çalıştırırken her zaman `rtk` (Rust Token Killer) wrapper'ını kullan (Örn: `rtk jest`, `rtk npm run test`, `rtk tsc`, `rtk lint` vb.).
+- İletişimde her zaman token tasarrufu için `caveman` (full) modunu aktif tut.

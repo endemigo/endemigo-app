@@ -105,6 +105,38 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     gap: Spacing.lg,
   },
+  subcategoriesRibbonContainer: {
+    backgroundColor: Colors.white,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+  },
+  subcategoriesScroll: {
+    paddingHorizontal: Spacing.base,
+    gap: Spacing.sm,
+  },
+  subcategoryChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.slate50,
+    borderWidth: 1,
+    borderColor: Colors.slate200,
+  },
+  subcategoryChipActive: {
+    backgroundColor: `${Colors.primary}1A`,
+    borderColor: Colors.primary,
+  },
+  subcategoryChipText: {
+    fontSize: 13,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate600,
+  },
+  subcategoryChipTextActive: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodySemiBold,
+  },
   categoryItem: {
     alignItems: 'center',
     gap: Spacing.xs,

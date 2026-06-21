@@ -449,65 +449,71 @@ export function useCheckoutCart() {
   const queryClient = useQueryClient();
   const clearCart = useCartStore((state) => state.clearCart);
 
-  return useMutation<void, Error, CartItem[]>({
-    mutationFn: async (items) => {
-      if (!items || items.length === 0) {
-        throw new Error('Sepetiniz boş');
-      }
-
+  return useMutation<any, Error, void>({
+    mutationFn: async () => {
       if (ENV.USE_MOCK) {
         await new Promise((resolve) => setTimeout(resolve, 800));
         await clearCart();
         return;
       }
 
-      for (const item of items) {
-        if (!item.sellerId) {
-          throw new Error(`Ürünün satıcı bilgisi eksik: ${item.title}`);
-        }
+      const { data } = await api.post('/payments/checkout', {
+        idempotencyKey: `checkout-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        callbackUrl: 'endemigo://checkout/callback',
+      });
 
-        // Loop for the quantity of the item
-        for (let q = 0; q < item.quantity; q++) {
-          // 1. Create the direct-sale order for this item
-          const { data: orderData } = await api.post('/orders/direct-sale', {
-            productId: item.productId,
-            sellerId: item.sellerId,
-            amount: item.price,
-            currency: 'TRY',
-            idempotencyKey: `direct-${item.productId}-${Date.now()}-${q}-${Math.floor(Math.random() * 1000)}`,
-          });
-
-          const createdOrder = (orderData as any).order;
-          if (!createdOrder?.id) {
-            throw new Error('Sipariş oluşturulamadı');
-          }
-
-          // 2. Initiate payment for this order
-          const { data: paymentData } = await api.post('/payments/initiate', {
-            orderId: createdOrder.id,
-            amount: item.price,
-            currency: 'TRY',
-            idempotencyKey: `pay-${createdOrder.id}-${Date.now()}-${q}-${Math.floor(Math.random() * 1000)}`,
-          });
-
-          const payment = (paymentData as any).payment;
-          if (payment?.checkoutToken) {
-            // 3. Complete payment directly by calling webhook callback (development signature bypass enabled)
-            await api.post('/payments/iyzico/webhook', {
-              eventKey: payment.checkoutToken,
-              token: payment.checkoutToken,
-              status: 'success',
-            });
-          }
-        }
+      const payment = (data as any).payment;
+      if (payment?.checkoutToken) {
+        // Complete payment directly by calling webhook callback (development signature bypass enabled)
+        await api.post('/payments/iyzico/webhook', {
+          eventKey: payment.checkoutToken,
+          token: payment.checkoutToken,
+          status: 'success',
+        });
       }
 
-      // 4. Clear the cart upon success
-      await clearCart();
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
+    },
+  });
+}
+
+export function useInitiateOrderPayment(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, { amount: number; currency?: string }>({
+    mutationFn: async ({ amount, currency = 'TRY' }) => {
+      if (!orderId) throw new Error('Order id is required');
+      if (ENV.USE_MOCK) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return { success: true };
+      }
+
+      const { data } = await api.post('/payments/initiate', {
+        orderId,
+        amount,
+        currency,
+        idempotencyKey: `pay-order-${orderId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        callbackUrl: 'endemigo://payment/callback',
+      });
+
+      const payment = (data as any).payment;
+      if (payment?.checkoutToken) {
+        await api.post('/payments/iyzico/webhook', {
+          eventKey: payment.checkoutToken,
+          token: payment.checkoutToken,
+          status: 'success',
+        });
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
     },
   });

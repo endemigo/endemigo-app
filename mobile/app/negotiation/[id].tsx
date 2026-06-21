@@ -176,7 +176,15 @@ export default function NegotiationDetailScreen() {
               isOwn={message.senderId === user?.id}
               canRespondToOffer={canRespondToOffer(message.offer)}
               actionPending={actions.isPending}
-              onAcceptOffer={(offerId) => actions.acceptOffer.mutate({ negotiationId: id, offerId }, { onError: handleActionError })}
+              onAcceptOffer={(offerId) => actions.acceptOffer.mutate({ negotiationId: id, offerId }, {
+                onSuccess: (res) => {
+                  const orderId = (res as any).order?.id ?? (res as any).negotiation?.orderId;
+                  if (orderId) {
+                    router.push(`/(tabs)/orders/${orderId}`);
+                  }
+                },
+                onError: handleActionError
+              })}
               onRejectOffer={(offerId) => actions.rejectOffer.mutate({ negotiationId: id, offerId }, { onError: handleActionError })}
             />
           ))

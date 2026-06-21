@@ -41,7 +41,7 @@ function getStatusStyle(status: OrderStatus) {
   return styles.statusDefault;
 }
 
-export function OrderListItem({ item, onPress }: OrderListItemProps) {
+export const OrderListItem = React.memo(function OrderListItem({ item, onPress }: OrderListItemProps) {
   const { t } = useTranslation();
 
   return (
@@ -69,4 +69,4 @@ export function OrderListItem({ item, onPress }: OrderListItemProps) {
       </View>
     </TouchableOpacity>
   );
-}
+});

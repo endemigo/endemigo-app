@@ -62,6 +62,7 @@ export {
   VariantOptionKind,
   OrderReturnReasonCode,
   BannerActionType,
+  AuctionRegistrationStatus,
 } from './enums';
 
 // Constants

@@ -19,8 +19,8 @@ export class Product extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
-  price: number;
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  price: number | null;
 
   /** Primary image shortcut — backward compat with Phase 1 */
   @Column({ nullable: true })

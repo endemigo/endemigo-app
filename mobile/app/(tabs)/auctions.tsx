@@ -56,6 +56,198 @@ function getReserveBadgeConfig(
       };
 }
 
+const SingleAuctionCard = React.memo(({
+  item,
+  now,
+  statusConfig,
+  auctionCardConfig,
+  locale,
+  t,
+  onPress,
+}: {
+  item: Auction;
+  now: number;
+  statusConfig: any;
+  auctionCardConfig: any;
+  locale: any;
+  t: any;
+  onPress: (id: string) => void;
+}) => {
+  const endMs = new Date(item.endTime).getTime();
+  const startMs = new Date(item.startTime).getTime();
+  const startLeft = Math.max(0, startMs - now);
+  const isUpcoming =
+    (item.status === AuctionStatus.PUBLISHED ||
+      item.status === AuctionStatus.DRAFT) &&
+    startLeft > 0;
+
+  const timeLeft = Math.max(0, endMs - now);
+  const hasEndedByTime = timeLeft <= 0;
+  const canBid = item.status === AuctionStatus.ACTIVE && !hasEndedByTime;
+  const st = hasEndedByTime
+    ? statusConfig[AuctionStatus.ENDED]
+    : statusConfig[item.status as keyof typeof statusConfig];
+  const reserveBadge = getReserveBadgeConfig(
+    item.reservePrice,
+    item.reserveMet,
+    t,
+  );
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress(item.id)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.cardImage}>
+        <Image
+          source={{ uri: item.productImage || `https://placehold.co/100x100/F8F9FA/42b94b?text=${encodeURIComponent(t('tabs.auctions'))}` }}
+          style={styles.image}
+        />
+        {canBid && auctionCardConfig.liveBadgeLabel && (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>
+              {resolveLocalizedText(auctionCardConfig.liveBadgeLabel, locale, t('auctions.live'))}
+            </Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.productTitle}
+          </Text>
+        </View>
+        {auctionCardConfig.showTimer ? (
+          <Text style={styles.timer}>
+            {isUpcoming
+              ? t('auctions.startTime', { time: formatTimeLeft(startLeft, t) })
+              : t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
+          </Text>
+        ) : null}
+        <View style={styles.priceRow}>
+          <View>
+            <Text style={styles.priceLabel}>{t('auctions.highestBid')}</Text>
+            <Text style={styles.price}>
+              {formatCurrency(item.currentPrice)}
+            </Text>
+          </View>
+          {canBid ? (
+            <TouchableOpacity style={styles.bidButton} activeOpacity={0.8}>
+              <Text style={styles.bidButtonText}>
+                {resolveLocalizedText(auctionCardConfig.ctaLabel, locale, t('auctions.bid'))}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {(auctionCardConfig.showStatusBadge || auctionCardConfig.showBidCount) ? (
+          <View style={styles.metaRow}>
+            {auctionCardConfig.showStatusBadge ? (
+              <View style={[styles.statusBadge, { backgroundColor: st?.bg }]}>
+                <Text style={[styles.statusText, { color: st?.color }]}>{st?.label}</Text>
+              </View>
+            ) : <View />}
+            {reserveBadge ? (
+              <View
+                style={[
+                  styles.reserveBadge,
+                  { backgroundColor: reserveBadge.backgroundColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.reserveBadgeText,
+                    { color: reserveBadge.textColor },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {reserveBadge.label}
+                </Text>
+              </View>
+            ) : null}
+            {auctionCardConfig.showBidCount ? (
+              <Text style={styles.bidCount}>{t('auctions.bidCount', { count: item.bidCount })}</Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const AuctionEventCard = React.memo(({
+  item,
+  now,
+  eventStatusConfig,
+  locale,
+  t,
+  onPress,
+}: {
+  item: AuctionEvent;
+  now: number;
+  eventStatusConfig: any;
+  locale: any;
+  t: any;
+  onPress: (id: string) => void;
+}) => {
+  const eventEndMs = new Date(item.endTime).getTime();
+  const hasEventEnded = eventEndMs <= now || item.status === 'ENDED' || item.status === 'COMPLETED';
+  const est = hasEventEnded
+    ? eventStatusConfig.ENDED
+    : (eventStatusConfig[item.status as keyof typeof eventStatusConfig] || eventStatusConfig.DRAFT);
+
+  const formattedDate = new Date(item.startTime).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <TouchableOpacity
+      style={styles.eventCard}
+      onPress={() => onPress(item.id)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.eventCover}>
+        <Image
+          source={{ uri: item.coverImageUrl || `https://placehold.co/600x300/F8F9FA/0097D8?text=${encodeURIComponent(item.title)}` }}
+          style={styles.image}
+        />
+        <View style={[styles.eventBadge, { backgroundColor: est.bg }]}>
+          <Text style={[styles.eventBadgeText, { color: est.color }]}>{est.label}</Text>
+        </View>
+        {item.categoryName && (
+          <View style={styles.eventCategoryBadge}>
+            <Text style={styles.eventCategoryBadgeText}>{item.categoryName}</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.eventInfo}>
+        <Text style={styles.eventTitle} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.eventDescription} numberOfLines={2}>
+          {item.description || t('auction.storyFallback')}
+        </Text>
+        <View style={styles.eventMetaRow}>
+          <Text style={styles.eventMetaText}>
+            <Ionicons name="calendar-outline" size={14} color={Colors.slate400} />
+            {' '}{formattedDate}
+          </Text>
+          {item.lotCount !== undefined && (
+            <Text style={styles.eventMetaText}>
+              <Ionicons name="list-outline" size={14} color={Colors.slate400} />
+              {' '}{t('auctions.eventCount', { count: item.lotCount, defaultValue: `${item.lotCount} Ürün` })}
+            </Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 export default function AuctionsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
@@ -209,167 +401,36 @@ export default function AuctionsScreen() {
     });
   }, [activeTab, data?.items, eventsData, searchQuery, selectedCategoryId, statusFilter, now]);
 
-  const renderSingleAuction = ({ item }: { item: Auction }) => {
-    const endMs = new Date(item.endTime).getTime();
-    const startMs = new Date(item.startTime).getTime();
-    const startLeft = Math.max(0, startMs - now);
-    const isUpcoming =
-      (item.status === AuctionStatus.PUBLISHED ||
-        item.status === AuctionStatus.DRAFT) &&
-      startLeft > 0;
+  const handleSingleAuctionPress = React.useCallback((id: string) => {
+    router.push(`/auction/${id}` as never);
+  }, [router]);
 
-    const timeLeft = Math.max(0, endMs - now);
-    const hasEndedByTime = timeLeft <= 0;
-    const canBid = item.status === AuctionStatus.ACTIVE && !hasEndedByTime;
-    const st = hasEndedByTime
-      ? statusConfig[AuctionStatus.ENDED]
-      : statusConfig[item.status as keyof typeof statusConfig];
-    const reserveBadge = getReserveBadgeConfig(
-      item.reservePrice,
-      item.reserveMet,
-      t,
-    );
+  const handleAuctionEventPress = React.useCallback((id: string) => {
+    router.push(`/auction/event/${id}` as never);
+  }, [router]);
 
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => router.push(`/auction/${item.id}` as never)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardImage}>
-          <Image
-            source={{ uri: item.productImage || `https://placehold.co/100x100/F8F9FA/42b94b?text=${encodeURIComponent(t('tabs.auctions'))}` }}
-            style={styles.image}
-          />
-          {canBid && auctionCardConfig.liveBadgeLabel && (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>
-                {resolveLocalizedText(auctionCardConfig.liveBadgeLabel, locale, t('auctions.live'))}
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              {item.productTitle}
-            </Text>
-          </View>
-          {auctionCardConfig.showTimer ? (
-            <Text style={styles.timer}>
-              {isUpcoming
-                ? t('auctions.startTime', { time: formatTimeLeft(startLeft, t) })
-                : t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
-            </Text>
-          ) : null}
-          <View style={styles.priceRow}>
-            <View>
-              <Text style={styles.priceLabel}>{t('auctions.highestBid')}</Text>
-              <Text style={styles.price}>
-                {formatCurrency(item.currentPrice)}
-              </Text>
-            </View>
-            {canBid ? (
-              <TouchableOpacity style={styles.bidButton} activeOpacity={0.8}>
-                <Text style={styles.bidButtonText}>
-                  {resolveLocalizedText(auctionCardConfig.ctaLabel, locale, t('auctions.bid'))}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          {(auctionCardConfig.showStatusBadge || auctionCardConfig.showBidCount) ? (
-            <View style={styles.metaRow}>
-              {auctionCardConfig.showStatusBadge ? (
-                <View style={[styles.statusBadge, { backgroundColor: st?.bg }]}>
-                  <Text style={[styles.statusText, { color: st?.color }]}>{st?.label}</Text>
-                </View>
-              ) : <View />}
-              {reserveBadge ? (
-                <View
-                  style={[
-                    styles.reserveBadge,
-                    { backgroundColor: reserveBadge.backgroundColor },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.reserveBadgeText,
-                      { color: reserveBadge.textColor },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {reserveBadge.label}
-                  </Text>
-                </View>
-              ) : null}
-              {auctionCardConfig.showBidCount ? (
-                <Text style={styles.bidCount}>{t('auctions.bidCount', { count: item.bidCount })}</Text>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderSingleAuction = React.useCallback(({ item }: { item: Auction }) => (
+    <SingleAuctionCard
+      item={item}
+      now={now}
+      statusConfig={statusConfig}
+      auctionCardConfig={auctionCardConfig}
+      locale={locale}
+      t={t}
+      onPress={handleSingleAuctionPress}
+    />
+  ), [now, statusConfig, auctionCardConfig, locale, t, handleSingleAuctionPress]);
 
-  const renderAuctionEvent = ({ item }: { item: AuctionEvent }) => {
-    const eventEndMs = new Date(item.endTime).getTime();
-    const hasEventEnded = eventEndMs <= now || item.status === 'ENDED' || item.status === 'COMPLETED';
-    const est = hasEventEnded
-      ? eventStatusConfig.ENDED
-      : (eventStatusConfig[item.status as keyof typeof eventStatusConfig] || eventStatusConfig.DRAFT);
-
-    const formattedDate = new Date(item.startTime).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
-      day: 'numeric',
-      month: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    return (
-      <TouchableOpacity
-        style={styles.eventCard}
-        onPress={() => router.push(`/auction/event/${item.id}` as never)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.eventCover}>
-          <Image
-            source={{ uri: item.coverImageUrl || `https://placehold.co/600x300/F8F9FA/0097D8?text=${encodeURIComponent(item.title)}` }}
-            style={styles.image}
-          />
-          <View style={[styles.eventBadge, { backgroundColor: est.bg }]}>
-            <Text style={[styles.eventBadgeText, { color: est.color }]}>{est.label}</Text>
-          </View>
-          {item.categoryName && (
-            <View style={styles.eventCategoryBadge}>
-              <Text style={styles.eventCategoryBadgeText}>{item.categoryName}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.eventInfo}>
-          <Text style={styles.eventTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.eventDescription} numberOfLines={2}>
-            {item.description || t('auction.storyFallback')}
-          </Text>
-          <View style={styles.eventMetaRow}>
-            <Text style={styles.eventMetaText}>
-              <Ionicons name="calendar-outline" size={14} color={Colors.slate400} />
-              {formattedDate}
-            </Text>
-            {item.lotCount !== undefined && (
-              <Text style={styles.eventMetaText}>
-                <Ionicons name="list-outline" size={14} color={Colors.slate400} />
-                {t('auctions.eventCount', { count: item.lotCount, defaultValue: `${item.lotCount} Ürün` })}
-              </Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderAuctionEvent = React.useCallback(({ item }: { item: AuctionEvent }) => (
+    <AuctionEventCard
+      item={item}
+      now={now}
+      eventStatusConfig={eventStatusConfig}
+      locale={locale}
+      t={t}
+      onPress={handleAuctionEventPress}
+    />
+  ), [now, eventStatusConfig, locale, t, handleAuctionEventPress]);
 
   const isCurrentLoading = activeTab === 'single' ? isLoading : isEventsLoading;
 
@@ -542,6 +603,10 @@ export default function AuctionsScreen() {
           data={filteredItems}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={manualRefreshing}

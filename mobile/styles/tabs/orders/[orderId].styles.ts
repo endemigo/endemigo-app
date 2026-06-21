@@ -114,4 +114,36 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.price,
     fontSize: FontSize.bodyLg,
   },
+  paymentCard: {
+    backgroundColor: Colors.white,
+    borderColor: Colors.slate100,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  paymentTitle: {
+    color: Colors.onSurface,
+    fontFamily: FontFamily.headline,
+    fontSize: FontSize.bodyLg,
+    fontWeight: '700',
+  },
+  paymentBody: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.body,
+  },
+  payButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payButtonText: {
+    color: Colors.white,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.body,
+    fontWeight: '700',
+  },
 });

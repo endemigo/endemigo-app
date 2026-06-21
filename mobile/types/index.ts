@@ -73,6 +73,7 @@ export interface Category {
   color?: string;
   productCount?: number;
   listingTemplate?: ProductListingTemplate;
+  askQuestionEnabled?: boolean;
   children?: Category[];
 }
 
@@ -144,6 +145,7 @@ export interface Product {
   condition?: ProductCondition;
   status?: ProductStatus;
   askPriceEnabled?: boolean;
+  askQuestionEnabled?: boolean;
   askPriceMinAmount?: number | null;
   geoIndicationType?: GeoIndicationType | null;
   geoIndicationTypes?: GeoIndicationType[];
@@ -287,7 +289,7 @@ export interface Negotiation {
 
 export interface StartNegotiationInput {
   productId: string;
-  amount: number;
+  amount?: number | null;
   quantity: number;
   note?: string;
 }

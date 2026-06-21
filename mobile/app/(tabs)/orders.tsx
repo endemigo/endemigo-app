@@ -26,8 +26,54 @@ export default function OrdersScreen() {
   } = useInfiniteOrdersByMode();
 
   const allOrders = useMemo(
-    () => data?.pages.flatMap((page) => page.orders) ?? [],
-    [data],
+    () => {
+      const rawOrders = data?.pages.flatMap((page) => page.orders) ?? [];
+      if (activeMode !== 'seller') {
+        return rawOrders;
+      }
+
+      const groups: Record<string, typeof rawOrders> = {};
+      const individualOrders: typeof rawOrders = [];
+
+      for (const order of rawOrders) {
+        if (order.groupId) {
+          if (!groups[order.groupId]) {
+            groups[order.groupId] = [];
+          }
+          groups[order.groupId].push(order);
+        } else {
+          individualOrders.push(order);
+        }
+      }
+
+      const groupedList: typeof rawOrders = [];
+
+      for (const [groupId, items] of Object.entries(groups)) {
+        const firstItem = items[0];
+        const totalAmount = items.reduce((sum, item) => sum + Number(item.amount), 0);
+        
+        const titles = items.map((item) => item.title).filter(Boolean);
+        const uniqueTitles = Array.from(new Set(titles));
+        const summaryTitle = items.length > 1
+          ? `${items.length} ${t('orders.itemsCount', { defaultValue: 'Ürün' })}: ${uniqueTitles.join(', ')}`
+          : firstItem.title;
+
+        groupedList.push({
+          ...firstItem,
+          id: firstItem.id,
+          orderCode: groupId,
+          amount: totalAmount,
+          title: summaryTitle,
+        });
+      }
+
+      for (const order of individualOrders) {
+        groupedList.push(order);
+      }
+
+      return groupedList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    },
+    [data, activeMode, t],
   );
 
   if (isLoading) {
@@ -52,12 +98,27 @@ export default function OrdersScreen() {
     );
   }
 
+  const handleOrderPress = React.useCallback((id: string) => {
+    router.push(`/(tabs)/orders/${id}` as never);
+  }, [router]);
+
+  const renderOrderItem = React.useCallback(({ item }: { item: any }) => (
+    <OrderListItem
+      item={item}
+      onPress={() => handleOrderPress(item.id)}
+    />
+  ), [handleOrderPress]);
+
   return (
     <FlatList
       style={styles.container}
       contentContainerStyle={styles.listContent}
       data={allOrders}
       keyExtractor={(item) => item.id}
+      initialNumToRender={10}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      removeClippedSubviews={true}
       refreshControl={
         <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />
       }
@@ -72,31 +133,7 @@ export default function OrdersScreen() {
           <ActivityIndicator color={Colors.primary} size="small" style={{ paddingVertical: 12 }} />
         ) : null
       }
-      renderItem={({ item }) => (
-        <OrderListItem
-          item={item}
-          onPress={() => router.push(`/(tabs)/orders/${item.id}` as never)}
-        />
-      )}
-      ListHeaderComponent={(
-        <View style={styles.headerContainer}>
-          <View style={styles.heroCard}>
-            <View style={styles.titleRow}>
-              <Text style={styles.subtitle}>
-                {activeMode === 'seller' ? t('orders.sellerTitle') : t('orders.buyerTitle')}
-              </Text>
-              <View style={[styles.modeBadge, activeMode === 'seller' && styles.modeBadgeSeller]}>
-                <Text style={[
-                  styles.modeBadgeText,
-                  activeMode === 'seller' && styles.modeBadgeTextSeller,
-                ]}>
-                  {activeMode === 'seller' ? t('orders.roleSeller') : t('orders.roleBuyer')}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
+      renderItem={renderOrderItem}
       ListEmptyComponent={(
         <View style={styles.center}>
           <Ionicons name="file-tray-outline" size={48} color={Colors.slate300} />

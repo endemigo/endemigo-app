@@ -204,4 +204,124 @@ describe('CargoService', () => {
       }),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  it('groups forward shipments by groupId and sellerId and transitions all related orders', async () => {
+    const ordersMap = new Map<string, Order>([
+      [
+        'order-1',
+        {
+          id: 'order-1',
+          buyerId: 'buyer-1',
+          sellerId: 'seller-1',
+          productId: 'product-1',
+          status: OrderStatus.ESCROW_HELD,
+          groupId: 'group-1',
+        } as Order,
+      ],
+      [
+        'order-2',
+        {
+          id: 'order-2',
+          buyerId: 'buyer-1',
+          sellerId: 'seller-1',
+          productId: 'product-2',
+          status: OrderStatus.ESCROW_HELD,
+          groupId: 'group-1',
+        } as Order,
+      ],
+    ]);
+
+    const orderRepository = {
+      findOne: jest.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(ordersMap.get(where.id) ?? null),
+      ),
+      find: jest.fn(({ where }: { where: { groupId: string; sellerId: string } }) =>
+        Promise.resolve(
+          Array.from(ordersMap.values()).filter(
+            (o) => o.groupId === where.groupId && o.sellerId === where.sellerId,
+          ),
+        ),
+      ),
+      save: jest.fn((order: Order) => {
+        ordersMap.set(order.id, order);
+        return Promise.resolve(order);
+      }),
+    } as unknown as Repository<Order>;
+
+    const shipmentsMap = new Map<string, CargoShipment>();
+    const cargoRepository = {
+      findOne: jest.fn(({ where }: { where: { id?: string; groupId?: string; sellerId?: string; orderId?: string } }) => {
+        if (where.id) {
+          return Promise.resolve(shipmentsMap.get(where.id) ?? null);
+        }
+        if (where.groupId && where.sellerId) {
+          return Promise.resolve(
+            Array.from(shipmentsMap.values()).find(
+              (s) => s.groupId === where.groupId && s.sellerId === where.sellerId,
+            ) ?? null,
+          );
+        }
+        if (where.orderId) {
+          return Promise.resolve(
+            Array.from(shipmentsMap.values()).find((s) => s.orderId === where.orderId) ?? null,
+          );
+        }
+        return Promise.resolve(null);
+      }),
+      save: jest.fn((input: CargoShipment) => {
+        if (!input.id) input.id = 'shipment-new';
+        shipmentsMap.set(input.id, input);
+        return Promise.resolve(input);
+      }),
+      create: jest.fn((input: Partial<CargoShipment>) => input as CargoShipment),
+    } as unknown as Repository<CargoShipment>;
+
+    const mockCargoProvider = {
+      createShipment: jest.fn(() =>
+        Promise.resolve({
+          provider: CargoProvider.MOCK,
+          status: CargoStatus.PREPARING,
+        }),
+      ),
+      transitionShipment: jest.fn(),
+    } as unknown as MockCargoProvider;
+
+    const service = new CargoService(
+      cargoRepository,
+      createCargoEventRepository(),
+      undefined,
+      mockCargoProvider,
+      undefined,
+      undefined,
+      orderRepository,
+    );
+
+    // 1. Create shipment for first order
+    const result1 = await service.createShipmentForOrder('order-1');
+    expect(result1.code).toBe(RC.CARGO_TRACKING_CREATED);
+    expect(result1.shipment?.groupId).toBe('group-1');
+    expect(result1.shipment?.sellerId).toBe('seller-1');
+    expect(result1.shipment?.orderId).toBeNull();
+
+    // 2. Create shipment for second order should return the same shipment
+    const result2 = await service.createShipmentForOrder('order-2');
+    expect(result2.message).toBe('Cargo shipment already exists');
+    expect(result2.shipment?.id).toBe(result1.shipment?.id);
+
+    // 3. Transition shipment status to IN_TRANSIT
+    await service.transitionShipment(result1.shipment!.id!, CargoStatus.IN_TRANSIT);
+
+    // Verify all orders in the group updated to IN_TRANSIT
+    expect(ordersMap.get('order-1')?.status).toBe(OrderStatus.IN_TRANSIT);
+    expect(ordersMap.get('order-2')?.status).toBe(OrderStatus.IN_TRANSIT);
+
+    // 4. Transition shipment status to DELIVERED
+    await service.transitionShipment(result1.shipment!.id!, CargoStatus.DELIVERED);
+
+    // Verify all orders in the group updated to DELIVERED
+    expect(ordersMap.get('order-1')?.status).toBe(OrderStatus.DELIVERED);
+    expect(ordersMap.get('order-2')?.status).toBe(OrderStatus.DELIVERED);
+    expect(ordersMap.get('order-1')?.deliveryConfirmedAt).toBeInstanceOf(Date);
+    expect(ordersMap.get('order-2')?.deliveryConfirmedAt).toBeInstanceOf(Date);
+  });
 });

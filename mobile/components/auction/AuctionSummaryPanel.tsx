@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TFunction } from 'i18next';
 
@@ -33,7 +33,8 @@ type AuctionSummaryPanelProps = {
     body: string;
     tone: 'accent' | 'error' | 'primary';
   }[];
-  onViewResult: () => void;
+  winnerName?: string | null;
+  onViewResult?: () => void;
   t: TFunction;
 };
 
@@ -58,6 +59,7 @@ export function AuctionSummaryPanel({
   lastBid,
   activityFeed = [],
   onViewResult,
+  winnerName,
   t,
 }: AuctionSummaryPanelProps) {
   const summaryTitle = isEnded ? t('auction.resultTitleEnded') : t('auction.overviewTitle');
@@ -220,16 +222,47 @@ export function AuctionSummaryPanel({
         </View>
       ) : null}
 
-      {showResultButton ? (
-        <TouchableOpacity
-          style={styles.resultButton}
-          onPress={onViewResult}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="sparkles" size={18} color={Colors.white} />
-          <Text style={styles.resultButtonText}>{t('auction.seeResult')}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {isEnded && (
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: Colors.slate50,
+          padding: 12,
+          borderRadius: 12,
+          marginTop: 16,
+          borderWidth: 1,
+          borderColor: Colors.slate100,
+        }}>
+          <Text style={{ fontSize: 14, color: Colors.slate500 }}>
+            {t('auction.winner', { defaultValue: 'Kazanan' })}:
+          </Text>
+          {winnerName ? (
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: Colors.white,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 6,
+              borderWidth: 1,
+              borderColor: Colors.slate100,
+            }}>
+              <Ionicons name="trophy-outline" size={14} color={Colors.secondary} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>
+                {winnerName}
+              </Text>
+            </View>
+          ) : winnerName === undefined ? (
+            <ActivityIndicator size="small" color={Colors.secondary} />
+          ) : (
+            <Text style={{ fontSize: 14, color: Colors.slate500 }}>
+              {t('auction.resultTitleNoBid', { defaultValue: 'Teklif Alınamadı' })}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }

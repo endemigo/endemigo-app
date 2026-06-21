@@ -104,13 +104,24 @@ export class CargoService {
   ) {
     await this.assertOrderAccess(orderId, actor);
 
-    const shipments =
-      this.cargoShipmentRepository && 'find' in this.cargoShipmentRepository
-        ? await this.cargoShipmentRepository.find({
-            where: { orderId },
-            order: { createdAt: 'ASC' },
-          })
-        : [];
+    const order = await this.orderRepository?.findOne({ where: { id: orderId } });
+    let shipments: CargoShipment[] = [];
+    if (this.cargoShipmentRepository) {
+      if (order && order.groupId && order.sellerId) {
+        shipments = await this.cargoShipmentRepository.find({
+          where: [
+            { groupId: order.groupId, sellerId: order.sellerId },
+            { orderId },
+          ],
+          order: { createdAt: 'ASC' },
+        });
+      } else {
+        shipments = await this.cargoShipmentRepository.find({
+          where: { orderId },
+          order: { createdAt: 'ASC' },
+        });
+      }
+    }
 
     return {
       code: RC.CARGO_TRACKING_FETCHED,
@@ -136,7 +147,19 @@ export class CargoService {
     actor: { id: string; isAdmin?: boolean },
   ) {
     const shipment = await this.requireShipment(shipmentId);
-    await this.assertOrderAccess(shipment.orderId, actor);
+    if (shipment.orderId) {
+      await this.assertOrderAccess(shipment.orderId, actor);
+    } else {
+      const orders = await this.getOrdersForShipment(shipment);
+      if (orders.length > 0) {
+        await this.assertOrderAccess(orders[0].id, actor);
+      } else {
+        throw new NotFoundException({
+          code: RC.ORDER_NOT_FOUND,
+          message: 'No orders associated with this shipment',
+        });
+      }
+    }
     return this.getShipmentEvents(shipmentId);
   }
 
@@ -166,9 +189,18 @@ export class CargoService {
   }
 
   async getShipmentForOrder(orderId: string) {
-    const shipment = await this.cargoShipmentRepository?.findOne({
-      where: { orderId, shipmentType: CargoShipmentType.FORWARD },
-    });
+    const order = await this.orderRepository?.findOne({ where: { id: orderId } });
+    let shipment: CargoShipment | null = null;
+    if (order && order.groupId && order.sellerId) {
+      shipment = await this.cargoShipmentRepository?.findOne({
+        where: { groupId: order.groupId, sellerId: order.sellerId, shipmentType: CargoShipmentType.FORWARD },
+      }) ?? null;
+    }
+    if (!shipment) {
+      shipment = await this.cargoShipmentRepository?.findOne({
+        where: { orderId, shipmentType: CargoShipmentType.FORWARD },
+      }) ?? null;
+    }
 
     return {
       code: RC.CARGO_TRACKING_FETCHED,
@@ -220,6 +252,7 @@ export class CargoService {
     }
 
     await this.notifyCargoStatusChanged(shipment, nextStatus);
+    await this.syncOrderStatusForForwardShipment(shipment, nextStatus);
     await this.syncOrderStatusForReturnShipment(shipment, nextStatus);
 
     return {
@@ -234,17 +267,6 @@ export class CargoService {
     orderId: string,
     shipmentType: CargoShipmentType,
   ) {
-    const existing = await this.cargoShipmentRepository?.findOne({
-      where: { orderId, shipmentType },
-    });
-    if (existing) {
-      return {
-        code: RC.CARGO_TRACKING_CREATED,
-        message: 'Cargo shipment already exists',
-        shipment: existing,
-      };
-    }
-
     const order = await this.orderRepository?.findOne({
       where: { id: orderId },
     });
@@ -253,6 +275,25 @@ export class CargoService {
         code: RC.ORDER_NOT_FOUND,
         message: 'Order not found',
       });
+    }
+
+    let existing: CargoShipment | null = null;
+    if (shipmentType === CargoShipmentType.FORWARD && order.groupId && order.sellerId) {
+      existing = await this.cargoShipmentRepository?.findOne({
+        where: { groupId: order.groupId, sellerId: order.sellerId, shipmentType },
+      }) ?? null;
+    } else {
+      existing = await this.cargoShipmentRepository?.findOne({
+        where: { orderId, shipmentType },
+      }) ?? null;
+    }
+
+    if (existing) {
+      return {
+        code: RC.CARGO_TRACKING_CREATED,
+        message: 'Cargo shipment already exists',
+        shipment: existing,
+      };
     }
 
     if (
@@ -283,8 +324,12 @@ export class CargoService {
       trackingNumber,
     });
 
+    const isGroupedForward = shipmentType === CargoShipmentType.FORWARD && !!order.groupId;
+
     const shipment = this.cargoShipmentRepository?.create({
-      orderId,
+      orderId: isGroupedForward ? null : orderId,
+      groupId: isGroupedForward ? order.groupId : null,
+      sellerId: isGroupedForward ? order.sellerId : null,
       trackingNumber,
       provider: CargoProvider.MOCK,
       shipmentType,
@@ -423,6 +468,24 @@ export class CargoService {
     }
   }
 
+  private async getOrdersForShipment(shipment: CargoShipment): Promise<Order[]> {
+    if (!this.orderRepository) {
+      return [];
+    }
+    if (shipment.orderId) {
+      const order = await this.orderRepository.findOne({
+        where: { id: shipment.orderId },
+      });
+      return order ? [order] : [];
+    }
+    if (shipment.groupId && shipment.sellerId) {
+      return this.orderRepository.find({
+        where: { groupId: shipment.groupId, sellerId: shipment.sellerId },
+      });
+    }
+    return [];
+  }
+
   private async assertOrderAccess(
     orderId: string,
     actor: { id: string; isAdmin?: boolean },
@@ -479,6 +542,42 @@ export class CargoService {
     return shipment;
   }
 
+  private async syncOrderStatusForForwardShipment(
+    shipment: CargoShipment,
+    nextStatus: CargoStatus,
+  ) {
+    if (
+      shipment.shipmentType !== CargoShipmentType.FORWARD ||
+      !this.orderRepository
+    ) {
+      return;
+    }
+
+    const orders = await this.getOrdersForShipment(shipment);
+    for (const order of orders) {
+      if (
+        nextStatus === CargoStatus.IN_TRANSIT &&
+        order.status === OrderStatus.ESCROW_HELD
+      ) {
+        order.status = OrderStatus.IN_TRANSIT;
+        await this.orderRepository.save(order);
+      } else if (
+        nextStatus === CargoStatus.DELIVERED &&
+        order.status === OrderStatus.IN_TRANSIT
+      ) {
+        order.status = OrderStatus.DELIVERED;
+        order.deliveryConfirmedAt = new Date();
+        const autoConfirmHours = this.getAutoConfirmHours();
+        order.autoConfirmAt = new Date(Date.now() + autoConfirmHours * 60 * 60 * 1000);
+        await this.orderRepository.save(order);
+      }
+    }
+  }
+
+  private getAutoConfirmHours(): number {
+    return this.configService?.get<number>('ESCROW_AUTO_CONFIRM_HOURS') ?? 72;
+  }
+
   private async syncOrderStatusForReturnShipment(
     shipment: CargoShipment,
     nextStatus: CargoStatus,
@@ -487,6 +586,10 @@ export class CargoService {
       shipment.shipmentType !== CargoShipmentType.RETURN ||
       !this.orderRepository
     ) {
+      return;
+    }
+
+    if (!shipment.orderId) {
       return;
     }
 
@@ -524,12 +627,16 @@ export class CargoService {
       return;
     }
 
-    const order = await this.orderRepository.findOne({
-      where: { id: shipment.orderId },
-    });
+    const orders = await this.getOrdersForShipment(shipment);
+    if (orders.length === 0) {
+      return;
+    }
+
     const recipientIds = new Set<string>();
-    if (order?.buyerId) recipientIds.add(order.buyerId);
-    if (order?.sellerId) recipientIds.add(order.sellerId);
+    for (const order of orders) {
+      if (order.buyerId) recipientIds.add(order.buyerId);
+      if (order.sellerId) recipientIds.add(order.sellerId);
+    }
 
     const recipientList = Array.from(recipientIds);
 
@@ -543,7 +650,7 @@ export class CargoService {
             title: this.getCargoEmailSubject(nextStatus, shipment.shipmentType),
             body: this.getCargoEmailSummary(nextStatus, shipment.shipmentType),
             relatedEntityType: 'order',
-            relatedEntityId: shipment.orderId,
+            relatedEntityId: orders[0].id,
           }),
         ),
       );
@@ -564,7 +671,7 @@ export class CargoService {
           email: user.email,
           subject: this.getCargoEmailSubject(nextStatus, shipment.shipmentType),
           summary: this.getCargoEmailSummary(nextStatus, shipment.shipmentType),
-          orderId: shipment.orderId,
+          orderId: orders[0].id,
         }),
       ),
     );

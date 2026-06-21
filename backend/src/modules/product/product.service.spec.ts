@@ -922,6 +922,29 @@ describe('ProductService', () => {
       });
     });
 
+    it('should resolve askQuestionEnabled to true if parent category has isCommunicationEnabled true', async () => {
+      const mockProductWithCategory = {
+        ...mockProduct,
+        categoryId: 'child-cat',
+      };
+      productRepo.findOne.mockResolvedValue(mockProductWithCategory);
+
+      categoryRepo.findOne
+        .mockResolvedValueOnce({
+          id: 'child-cat',
+          parentId: 'parent-cat',
+          metadata: {},
+        })
+        .mockResolvedValueOnce({
+          id: 'parent-cat',
+          parentId: null,
+          metadata: { isCommunicationEnabled: true },
+        });
+
+      const result = await service.findById('product-1');
+      expect(result.askQuestionEnabled).toBe(true);
+    });
+
     it('should throw NotFoundException', async () => {
       productRepo.findOne.mockResolvedValue(null);
 

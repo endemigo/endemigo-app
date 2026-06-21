@@ -59,7 +59,7 @@ export default function CartScreen() {
       confirmText: t('common.confirm'),
       cancelText: t('common.cancel'),
       onConfirm: () => {
-        checkoutCart.mutate(items, {
+        checkoutCart.mutate(undefined, {
           onSuccess: () => {
             showModal({
               title: t('cart.checkoutSuccessTitle'),

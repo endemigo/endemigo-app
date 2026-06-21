@@ -9,7 +9,9 @@ import {
   Query,
   ParseUUIDPipe,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -19,12 +21,12 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
-import { CreateAuctionDto, PlaceBidDto } from './dto/auction.dto';
+import { CreateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { RC, AuctionEventStatus } from '@endemigo/shared';
+import { RC, AuctionEventStatus, AuctionRegistrationStatus } from '@endemigo/shared';
 
 function parsePositiveIntQuery(
   value: unknown,
@@ -148,10 +150,12 @@ export class AuctionController {
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'auctionType', required: false, enum: ['REALTIME', 'TIMED'] })
+  @ApiQuery({ name: 'productId', required: false })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('auctionType') auctionType?: string,
+    @Query('productId') productId?: string,
   ) {
     const safePage = parsePositiveIntQuery(page, 'page', 1);
     const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 50);
@@ -165,7 +169,7 @@ export class AuctionController {
       });
     }
     const validType = auctionType as AuctionType | undefined;
-    return this.auctionService.findAll(safePage, safeLimit, validType);
+    return this.auctionService.findAll(safePage, safeLimit, validType, productId);
   }
 
   @Public()
@@ -202,6 +206,28 @@ export class AuctionController {
     return this.auctionService.withdrawBid(auctionId, userId);
   }
 
+  @Post(':id/register')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Müzayedeye katılım başvurusu yap' })
+  @ApiResponse({ status: 201, description: 'Başvuru alındı veya zaten var' })
+  async registerToAuction(
+    @Param('id', ParseUUIDPipe) auctionId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: RegisterToAuctionDto,
+  ) {
+    return this.auctionService.registerToAuction(userId, auctionId, dto);
+  }
+
+  @Get(':id/registration-status')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kullanıcının müzayede katılım durumunu sorgula' })
+  async getRegistrationStatus(
+    @Param('id', ParseUUIDPipe) auctionId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.getRegistrationStatus(userId, auctionId);
+  }
+
   @Public()
   @Get(':id/bids')
   @ApiOperation({ summary: 'Teklif geçmişi (D-15: tam şeffaflık)' })
@@ -224,5 +250,18 @@ export class AuctionController {
     @CurrentUser('id') userId: string,
   ) {
     return this.auctionService.completeWinnerPayment(auctionId, userId);
+  }
+
+  @Public()
+  @Get(':id/ics')
+  @ApiOperation({ summary: 'Müzayede takvim dosyası (.ics) indir' })
+  async getIcs(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const icsContent = await this.auctionService.getIcsContent(id);
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="auction-${id}.ics"`);
+    return res.send(icsContent);
   }
 }

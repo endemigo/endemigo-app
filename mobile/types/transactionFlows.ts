@@ -141,6 +141,8 @@ export interface OrderListItem {
   createdAt: string;
   updatedAt: string;
   autoCompleteAt: string | null;
+  groupId?: string | null;
+  sellerId?: string | null;
 }
 
 export interface OrderListResponse {
@@ -213,6 +215,7 @@ export interface OrderDetail {
   returnImages?: string[] | null;
   createdAt: string;
   updatedAt: string;
+  siblingOrders?: any[];
 }
 
 export interface SellerDashboardSummary {

@@ -368,4 +368,41 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.body,
     fontWeight: '600',
   },
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.slate100,
+    borderRadius: BorderRadius.xl,
+    padding: 4,
+    marginBottom: Spacing.base,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+  },
+  segmentButtonActive: {
+    backgroundColor: Colors.white,
+    ...Shadows.sm,
+  },
+  segmentButtonText: {
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate500,
+  },
+  segmentButtonTextActive: {
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
+  addButtonBottom: {
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius['2xl'],
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    justifyContent: 'center',
+    marginTop: Spacing.base,
+    padding: Spacing.base,
+    ...Shadows.colored(Colors.primary),
+  },
 });

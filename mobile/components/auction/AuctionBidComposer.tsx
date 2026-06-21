@@ -1,5 +1,5 @@
-import React from 'react';
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TFunction } from 'i18next';
 
@@ -25,6 +25,7 @@ type AuctionBidComposerProps = {
   statusMessage?: string | null;
   proxyMessage?: string | null;
   walletGateMessage?: string | null;
+  validationError?: string | null;
   onChangeText: (value: string) => void;
   onChangeMaxBidText: (value: string) => void;
   onSelectQuickBid: (amount: string) => void;
@@ -36,6 +37,9 @@ type AuctionBidComposerProps = {
   onSubmit: () => void;
   onClose?: () => void;
   t: TFunction;
+  lotTitle?: string | null;
+  lotNumber?: string | number | null;
+  isPreBid?: boolean;
 };
 
 export function AuctionBidComposer({
@@ -46,6 +50,7 @@ export function AuctionBidComposer({
   statusMessage,
   proxyMessage,
   walletGateMessage,
+  validationError,
   onChangeText,
   onChangeMaxBidText,
   onSelectQuickBid,
@@ -57,66 +62,106 @@ export function AuctionBidComposer({
   onSubmit,
   onClose,
   t,
+  lotTitle,
+  lotNumber,
+  isPreBid = false,
 }: AuctionBidComposerProps) {
+  const [isMaxFocused, setIsMaxFocused] = useState(false);
+
   return (
     <View style={styles.shell}>
-      {/* Header */}
+      {/* Header Section */}
       <View style={styles.headerRow}>
         <View style={styles.headerTextWrap}>
-          <Text style={styles.title}>{t('auction.placeBid')}</Text>
+          {lotNumber ? (
+            <View style={styles.lotBadge}>
+              <Ionicons name="pricetag-outline" size={10} color={Colors.primary} style={{ marginRight: 4 }} />
+              <Text style={styles.lotBadgeText}>Lot #{lotNumber}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.title} numberOfLines={2}>
+            {lotTitle || t('auction.placeBid')}
+          </Text>
           <Text style={styles.minBidLabel}>
             {minBidText}
           </Text>
         </View>
         {onClose && (
           <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
-            <Ionicons name="close-circle" size={26} color={Colors.slate400} />
+            <Ionicons name="close-circle" size={24} color={Colors.slate400} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Main Bid Input */}
+      {/* Main Bid / Starting Bid Input */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{t('auction.bidAmountLabel', 'Teklif Tutarı')}</Text>
-        <View style={styles.mainInputShell}>
-          <Text style={styles.mainCurrency}>₺</Text>
+        <Text style={styles.sectionLabel}>
+          {isPreBid
+            ? t('auction.startBidAmountLabel', 'Başlangıç Teklif Tutarı (Sabit)')
+            : t('auction.bidAmountLabel', 'Teklif Tutarı')}
+        </Text>
+        <View
+          style={[
+            styles.mainInputShell,
+            validationError ? styles.inputErrorBorder : null,
+            isPreBid && styles.mainInputShellDisabled,
+          ]}
+        >
+          <Text
+            style={[
+              styles.mainCurrency,
+              validationError ? { color: Colors.error } : null,
+              isPreBid && { color: Colors.slate400 },
+            ]}
+          >
+            ₺
+          </Text>
           <TextInput
-            style={styles.mainInput}
+            style={[styles.mainInput, isPreBid && { color: Colors.slate400 }]}
             value={formatMasked(bidAmount)}
             onChangeText={(text) => onChangeText(text.replace(/\D/g, ''))}
             keyboardType="numeric"
             placeholder={formatMasked(placeholder)}
             placeholderTextColor={Colors.slate400}
+            editable={!isPreBid}
           />
+          {isPreBid && (
+            <Ionicons name="lock-closed" size={16} color={Colors.slate400} style={{ marginLeft: 8 }} />
+          )}
         </View>
+        {validationError ? (
+          <Text style={styles.errorText}>{validationError}</Text>
+        ) : null}
       </View>
 
       {/* Quick Bid Options */}
-      <View style={styles.quickBidRow}>
-        {quickBidOptions.map((option) => (
-          <TouchableOpacity
-            key={option.key}
-            style={styles.quickBidChip}
-            onPress={() => onSelectQuickBid(option.amount)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.quickBidChipText}>
-              {option.key === 'min' ? t('auction.quickBidMinLabel', 'Min') : option.key === 'plusOne' ? '+1 Artış' : '+3 Artış'}
-            </Text>
-            <Text style={styles.quickBidChipValue}>
-              ₺{formatMasked(option.amount)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {!isPreBid && (
+        <View style={styles.quickBidRow}>
+          {quickBidOptions.map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={styles.quickBidChip}
+              onPress={() => onSelectQuickBid(option.amount)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.quickBidChipText}>
+                {option.key === 'min' ? t('auction.quickBidMinLabel', 'Min') : option.key === 'plusOne' ? '+1 Artış' : '+3 Artış'}
+              </Text>
+              <Text style={styles.quickBidChipValue}>
+                ₺{formatMasked(option.amount)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-      {/* Optional Auto Bid (Max Bid) - Temporarily Hidden
+      {/* Optional Auto Bid (Max Bid) */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           {t('auction.maxBidLabel', 'Maksimum Teklif Limiti (Otomatik Teklif)')}
         </Text>
-        <View style={styles.subInputShell}>
-          <Text style={styles.subCurrency}>₺</Text>
+        <View style={[styles.subInputShell, isMaxFocused && styles.subInputShellFocused]}>
+          <Text style={[styles.subCurrency, isMaxFocused && { color: Colors.primary }]}>₺</Text>
           <TextInput
             style={styles.subInput}
             value={formatMasked(maxBidAmount)}
@@ -124,10 +169,21 @@ export function AuctionBidComposer({
             keyboardType="numeric"
             placeholder={maxPlaceholder}
             placeholderTextColor={Colors.slate400}
+            onFocus={() => setIsMaxFocused(true)}
+            onBlur={() => setIsMaxFocused(false)}
           />
         </View>
       </View>
-      */}
+
+      {/* Premium Info Banner (Shown when Max Bid input is focused) */}
+      {isMaxFocused && (
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
+          <Text style={styles.infoCardText}>
+            {t('auction.maxBidHint', 'İsterseniz sistem sizin adınıza maksimum teklif sınırınıza kadar otomatik artırır.')}
+          </Text>
+        </View>
+      )}
 
       {/* Status / Warnings */}
       {statusMessage || proxyMessage ? (
@@ -144,7 +200,7 @@ export function AuctionBidComposer({
         </View>
       ) : null}
 
-      {/* Fee Estimate */}
+      {/* Fee Estimate List */}
       <View style={styles.feeEstimatesContainer}>
         {feeEstimateRows.map((row, index) => {
           const isTotal = row.key === 'total';
@@ -184,9 +240,11 @@ export function AuctionBidComposer({
           <ActivityIndicator color={Colors.white} />
         ) : (
           <>
-            <Ionicons name="hammer-sharp" size={20} color={Colors.white} />
+            <Ionicons name="hammer-sharp" size={18} color={Colors.white} />
             <Text style={styles.actionButtonText}>
-              {t('auction.submitBidCta', 'Teklifi Onayla ve Gönder')}
+              {isPreBid
+                ? t('auction.submitPreBidCta', 'Ön Teklifi Onayla')
+                : t('auction.submitBidCta', 'Teklifi Onayla ve Gönder')}
             </Text>
           </>
         )}

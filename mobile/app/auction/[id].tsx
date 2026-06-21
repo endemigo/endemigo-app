@@ -8,20 +8,39 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuctionStatus } from '@endemigo/shared';
+import { Ionicons } from '@expo/vector-icons';
+import ENV from '../../lib/config';
 
-import { useAuction, useAuctionBids, usePlaceBid, useWithdrawBid } from '../../hooks/useAuctions';
+import {
+  useAuction,
+  useAuctionBids,
+  usePlaceBid,
+  useWithdrawBid,
+  useAuctionResult,
+  useCompleteAuctionPayment,
+  useAuctionRegistrationStatus,
+  useRegisterToAuction,
+  useSavedCards,
+  usePayDeposit,
+} from '../../hooks/useAuctions';
+import { CardVerificationModal } from '../../components/auction/CardVerificationModal';
+import { AuthRegisterWizardModal } from '../../components/auth/AuthRegisterWizardModal';
+import { BiddingLimitModal } from '../../components/auction/BiddingLimitModal';
 import { useAuctionSocket } from '../../hooks/useAuctionSocket';
 import { useWalletBalance, useWalletHolds } from '../../hooks/useWallet';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
+import { updateClockOffset, getSynchronizedTime } from '../../utils/clockSync';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import { formatAmount, formatCurrency } from '../../utils/transactionFormatters';
 import { calculateAuctionBidEstimate } from '../../utils/auctionBidConsole';
-import { Colors } from '../../constants/theme';
+import { Colors, Spacing } from '../../constants/theme';
 import { styles } from '../../styles/auction/_id.styles';
 import { useProduct } from '../../hooks/useProducts';
 import { getProductImageUri } from '../../utils/productImages';
@@ -48,8 +67,21 @@ export default function AuctionDetailScreen() {
   const { data: walletHolds = [] } = useWalletHolds();
   const placeBid = usePlaceBid();
   const withdrawBid = useWithdrawBid();
+  const { data: registrationData, refetch: refetchRegistrationStatus } = useAuctionRegistrationStatus(id, !!user);
+  const registerMutation = useRegisterToAuction();
+  const { data: cardsData } = useSavedCards(!!user);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [showAuthWizardModal, setShowAuthWizardModal] = useState(false);
+  const payDepositMutation = usePayDeposit();
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitModalData, setLimitModalData] = useState<{
+    currentLimit: number;
+    requiredLimit: number;
+    requiredDeposit: number;
+  } | null>(null);
   const socket = useAuctionSocket(id);
   const { data: product } = useProduct(auction?.productId ?? '');
+  const insets = useSafeAreaInsets();
   const [bidAmount, setBidAmount] = useState('');
   const [maxBidAmount, setMaxBidAmount] = useState('');
   const [activeProxyAmount, setActiveProxyAmount] = useState<number | null>(null);
@@ -62,6 +94,23 @@ export default function AuctionDetailScreen() {
   const bidCount = Math.max(auction?.bidCount || 0, socket.bidCount || 0);
   const endTime = socket.endTime || auction?.endTime || '';
   const serverTime = socket.serverTime || auction?.serverTime || '';
+
+  // Synchronize clock offset with server time
+  useEffect(() => {
+    updateClockOffset(serverTime);
+  }, [serverTime]);
+
+  const endMs = endTime ? new Date(endTime).getTime() : 0;
+  // eslint-disable-next-line react-hooks/purity
+  const isTimeEnded = endMs > 0 && endMs <= getSynchronizedTime();
+  const isEnded =
+    auction?.status === AuctionStatus.ENDED ||
+    auction?.status === AuctionStatus.COMPLETED ||
+    socket.auctionEnded ||
+    isTimeEnded;
+
+  const completeAuctionPayment = useCompleteAuctionPayment();
+  const { data: result } = useAuctionResult(isEnded ? id : '');
 
   useEffect(() => {
     if (socket.lastBid) {
@@ -78,6 +127,7 @@ export default function AuctionDetailScreen() {
 
   useEffect(() => {
     if (socket.wasOutbid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBidState('outbid');
       setActiveProxyAmount(null);
     }
@@ -86,6 +136,7 @@ export default function AuctionDetailScreen() {
   useEffect(() => {
     if (auction?.minIncrement) {
       const nextBidAmount = currentPrice + Number(auction.minIncrement);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBidAmount((prev) => {
         const parsedPrev = parseFloat(prev);
         if (!prev || isNaN(parsedPrev) || parsedPrev < nextBidAmount) {
@@ -93,6 +144,7 @@ export default function AuctionDetailScreen() {
         }
         return prev;
       });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMaxBidAmount((prev) => {
         const parsedPrev = parseFloat(prev);
         if (prev && !isNaN(parsedPrev) && parsedPrev < nextBidAmount) {
@@ -122,10 +174,6 @@ export default function AuctionDetailScreen() {
     );
   }
 
-  const isEnded =
-    auction.status === AuctionStatus.ENDED ||
-    auction.status === AuctionStatus.COMPLETED ||
-    socket.auctionEnded;
   const isActive = auction.status === AuctionStatus.ACTIVE && !isEnded;
   const isUpcoming =
     (auction.status === AuctionStatus.PUBLISHED ||
@@ -144,18 +192,123 @@ export default function AuctionDetailScreen() {
     !isMaxBidEmpty
     && !Number.isNaN(parsedMaxBidAmount)
     && parsedMaxBidAmount < parsedBidAmount;
-  const isBidInvalid =
-    isBidEmpty
-    || Number.isNaN(parsedBidAmount)
-    || isBidBelowMinimum
-    || isMaxBidBelowBid;
+  const minIncrement = Number(auction.minIncrement);
+  const isBidNotIncrementMultiple =
+    !isBidEmpty &&
+    !Number.isNaN(parsedBidAmount) &&
+    (Math.round((parsedBidAmount - currentPrice) * 100) % Math.round(minIncrement * 100) !== 0);
+
+  const isPreBid = isUpcoming;
+
+  const isBidInvalid = isPreBid
+    ? isMaxBidEmpty || Number.isNaN(parsedMaxBidAmount) || parsedMaxBidAmount < minBid
+    : (isBidEmpty
+       || Number.isNaN(parsedBidAmount)
+       || isBidBelowMinimum
+       || isMaxBidBelowBid
+       || isBidNotIncrementMultiple);
+
+  const validationError = (() => {
+    if (isBidEmpty || Number.isNaN(parsedBidAmount)) return null;
+    if (isBidBelowMinimum) {
+      return t('auction.bidBelowMinimumError', {
+        amount: formatAmount(minBid),
+      });
+    }
+    if (isBidNotIncrementMultiple) {
+      return t('auction.bidIncrementMultipleError', {
+        minIncrement: formatAmount(minIncrement),
+        val1: formatAmount(minBid),
+        val2: formatAmount(minBid + minIncrement),
+        val3: formatAmount(minBid + 2 * minIncrement),
+      });
+    }
+    return null;
+  })();
   const premiumBaseAmount = !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount)
     ? parsedMaxBidAmount
     : Number.isNaN(parsedBidAmount)
       ? 0
       : parsedBidAmount;
-  const showLoserState = isEnded && !socket.isWinner && socket.auctionEnded;
-  const showResultButton = isEnded && !socket.auctionEnded;
+  const resolvedIsWinner = socket.isWinner || (isEnded && auction.winnerId === user?.id);
+  const userFullName = user ? `${user.firstName} ${user.lastName}`.trim().toLowerCase() : '';
+  const hasUserBid = bids?.some((bid) => bid.bidderName.toLowerCase() === userFullName) ?? false;
+  const showLoserState = isEnded && !resolvedIsWinner && socket.auctionEnded && hasUserBid;
+  const showResultButton = isEnded;
+
+  const maskWinnerName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return 'Anonim';
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    const firstName = parts.slice(0, -1).join(' ');
+    const lastName = parts[parts.length - 1];
+    const lastInitial = lastName ? lastName.charAt(0) + '.' : '';
+    return `${firstName} ${lastInitial}`.trim();
+  };
+
+  const winnerName = result?.winner
+    ? (result.winner.id === user?.id
+      ? t('auction.you', { defaultValue: 'Siz' })
+      : maskWinnerName(result.winner.name))
+    : result === undefined
+      ? undefined
+      : null;
+
+  const showPaymentButton = isEnded && resolvedIsWinner && result?.paymentStatus === 'PENDING';
+  const showOrderButton = isEnded && resolvedIsWinner && result?.paymentStatus === 'PAID' && !!result.orderId;
+  const showCalendarButton = isUpcoming;
+
+  const handleAddToCalendar = () => {
+    const formatDate = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+    const start = formatDate(auction.startTime);
+    const end = formatDate(auction.endTime);
+    const rawTitle = auction.productTitle || t('auction.placeholderImage');
+    const rawDetails = `Endemigo Müzayede İlanı: ${product?.description || ''}\nLink: https://endemigo.com/auctions/${id}`;
+
+    if (Platform.OS === 'ios') {
+      const url = `${ENV.API_URL}/auctions/${id}/ics`;
+      Linking.openURL(url).catch(() => {
+        // Fallback to web link if data URI fails on iOS
+        const fallbackUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(rawTitle)}&dates=${start}/${end}&details=${encodeURIComponent(rawDetails)}`;
+        Linking.openURL(fallbackUrl);
+      });
+    } else {
+      const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(rawTitle)}&dates=${start}/${end}&details=${encodeURIComponent(rawDetails)}`;
+      Linking.openURL(url).catch(() => {
+        showModal({
+          title: t('common.error'),
+          message: t('common.genericError'),
+          type: 'error',
+        });
+      });
+    }
+  };
+
+  const handleCompletePayment = async () => {
+    try {
+      await completeAuctionPayment.mutateAsync({ auctionId: id });
+      showModal({
+        title: t('auction.paymentSuccessTitle', { defaultValue: 'Ödeme Başarılı!' }),
+        message: t('auction.paymentSuccessMessage', { defaultValue: 'Ödemeniz başarıyla alındı.' }),
+        type: 'success',
+        confirmText: t('common.ok'),
+        onConfirm: () => {
+          hideModal();
+          refetch();
+        },
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
   const activeHoldForAuction = walletHolds.find(
     (hold) => hold.auctionId === id && !hold.releasedAt && !hold.capturedAt,
   );
@@ -210,7 +363,7 @@ export default function AuctionDetailScreen() {
           ? 'auction.leaderStateLeading'
           : 'auction.leaderStateOutbid',
       )
-    : t('auction.leaderStateWatching');
+    : null;
   const proxyMessage = activeProxyAmount
     ? t('auction.proxyActiveMessage', {
         amount: formatAmount(activeProxyAmount),
@@ -231,6 +384,7 @@ export default function AuctionDetailScreen() {
 
   const handleBid = async () => {
     if (!user) {
+      setShowComposer(false);
       showModal({
         title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
         message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
@@ -246,6 +400,7 @@ export default function AuctionDetailScreen() {
     }
 
     if (isBidEmpty) {
+      setShowComposer(false);
       showModal({
         title: t('common.error'),
         message: t('auction.emptyBidError'),
@@ -256,6 +411,7 @@ export default function AuctionDetailScreen() {
 
     const amount = parsedBidAmount;
     if (Number.isNaN(amount) || amount < minBid) {
+      setShowComposer(false);
       showModal({
         title: t('common.error'),
         message: t('auction.minBidError', {
@@ -267,6 +423,7 @@ export default function AuctionDetailScreen() {
     }
 
     if (isMaxBidBelowBid) {
+      setShowComposer(false);
       showModal({
         title: t('common.error'),
         message: t('auction.maxBidError'),
@@ -276,6 +433,7 @@ export default function AuctionDetailScreen() {
     }
 
     if (isWalletGateClosed) {
+      setShowComposer(false);
       showModal({
         title: t('auction.walletGateTitle'),
         message: t('auction.walletGateModalMessage', {
@@ -297,6 +455,7 @@ export default function AuctionDetailScreen() {
             : undefined,
       });
       if (result?.bid?.isLeadingBid === false) {
+        setShowComposer(false);
         setBidState('outbid');
         setActiveProxyAmount(null);
         showModal({
@@ -308,6 +467,7 @@ export default function AuctionDetailScreen() {
         });
         return;
       }
+      setShowComposer(false);
       setBidState('leading');
       setActiveProxyAmount(
         !isMaxBidEmpty && !Number.isNaN(parsedMaxBidAmount) && parsedMaxBidAmount > amount
@@ -321,7 +481,24 @@ export default function AuctionDetailScreen() {
         }),
         type: 'success',
       });
-    } catch (error: unknown) {
+    } catch (error: any) {
+      setShowComposer(false);
+      const responseData = error.response?.data;
+      const errorPayload =
+        responseData?.error && typeof responseData.error === 'object'
+          ? responseData.error
+          : responseData || error;
+
+      if (errorPayload?.code === 'BIDDING_LIMIT_EXCEEDED') {
+        setLimitModalData({
+          currentLimit: Number(errorPayload.currentLimit),
+          requiredLimit: Number(errorPayload.requiredLimit),
+          requiredDeposit: Number(errorPayload.requiredDeposit),
+        });
+        setShowLimitModal(true);
+        return;
+      }
+
       const message = resolveApiErrorMessage(
         error,
         t,
@@ -361,6 +538,72 @@ export default function AuctionDetailScreen() {
         }
       },
     });
+  };
+
+  const handleOpenComposerClick = async () => {
+    // Pre-fill bid amount and reset max amount on open
+    const lotCurrentPrice = Number(auction?.currentPrice || 0);
+    const lotMinIncrement = Number(auction?.minIncrement || 1);
+    const lotMinBid = lotCurrentPrice + lotMinIncrement;
+    setBidAmount(lotMinBid.toString());
+    setMaxBidAmount('');
+
+    if (!user) {
+      setShowAuthWizardModal(true);
+      return;
+    }
+
+    const hasSavedCard = cardsData?.cards && cardsData.cards.length > 0;
+    if (!hasSavedCard) {
+      setShowCardModal(true);
+      return;
+    }
+
+    const registration = registrationData?.registration;
+    if (!registration) {
+      try {
+        showModal({
+          title: t('common.loading', { defaultValue: 'Yükleniyor...' }),
+          message: t('auction.registeringWithSavedCard', { defaultValue: 'Kayıtlı kartınızla müzayede kaydı oluşturuluyor...' }),
+          type: 'info',
+        });
+        await registerMutation.mutateAsync({ auctionId: id });
+        await refetchRegistrationStatus();
+        hideModal();
+        setShowComposer(true);
+      } catch (err) {
+        showModal({
+          title: t('common.error'),
+          message: resolveApiErrorMessage(err, t, 'common.genericError'),
+          type: 'error',
+        });
+      }
+      return;
+    }
+
+    if (registration.status === 'PENDING') {
+      showModal({
+        title: t('auction.registrationPending'),
+        message: t('auction.registrationPendingMessage'),
+        type: 'info',
+        confirmText: t('common.ok'),
+        onConfirm: () => hideModal(),
+      });
+      return;
+    }
+
+    if (registration.status === 'REJECTED') {
+      showModal({
+        title: t('common.error'),
+        message: t('auction.registrationRejectedMessage'),
+        type: 'error',
+        confirmText: t('common.ok'),
+        onConfirm: () => hideModal(),
+      });
+      return;
+    }
+
+    setShowComposer(true);
   };
 
   // Auction state remains the source of truth for pricing and timing,
@@ -403,13 +646,13 @@ export default function AuctionDetailScreen() {
             isUpcoming={isUpcoming}
             isEnded={isEnded}
             isSeller={isSeller}
-            isWinner={socket.isWinner}
+            isWinner={resolvedIsWinner}
             showLoserState={showLoserState}
             showResultButton={showResultButton}
             finalPrice={socket.finalPrice}
             lastBid={socket.lastBid}
             activityFeed={socket.activityFeed}
-            onViewResult={() => router.push(`/auction/${id}/result` as never)}
+            winnerName={winnerName}
             t={t}
           />
 
@@ -435,26 +678,10 @@ export default function AuctionDetailScreen() {
       </ScrollView>
 
       {isActive && !isSeller ? (
-        <View style={styles.stickyComposer}>
+        <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
           <TouchableOpacity
             style={styles.openComposerButton}
-            onPress={() => {
-              if (!user) {
-                showModal({
-                  title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
-                  message: t('auth.loginRequiredMessage', { defaultValue: 'Teklif vermek için lütfen önce giriş yapın.' }),
-                  type: 'info',
-                  confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
-                  cancelText: t('common.cancel', { defaultValue: 'İptal' }),
-                  onConfirm: () => {
-                    hideModal();
-                    router.push('/(auth)/login');
-                  },
-                });
-                return;
-              }
-              setShowComposer(true);
-            }}
+            onPress={handleOpenComposerClick}
             activeOpacity={0.85}
           >
             <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
@@ -474,6 +701,80 @@ export default function AuctionDetailScreen() {
             </TouchableOpacity>
           ) : null}
         </View>
+      ) : showPaymentButton ? (
+        <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
+          <TouchableOpacity
+            style={styles.openComposerButton}
+            onPress={handleCompletePayment}
+            activeOpacity={0.85}
+            disabled={completeAuctionPayment.isPending}
+          >
+            {completeAuctionPayment.isPending ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <>
+                <Ionicons name="card" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+                <Text style={styles.openComposerButtonText}>
+                  {t('auction.completePayment')}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : showOrderButton ? (
+        <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
+          <TouchableOpacity
+            style={[styles.openComposerButton, { backgroundColor: Colors.secondary }]}
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/orders/[orderId]',
+                params: { orderId: result?.orderId ?? '' },
+              } as never)
+            }
+            activeOpacity={0.85}
+          >
+            <Text style={styles.openComposerButtonText}>
+              {t('auction.viewOrder')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : showCalendarButton ? (
+        isSeller ? (
+          <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
+            <TouchableOpacity
+              style={styles.upcomingCalendarButton}
+              onPress={handleAddToCalendar}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+              <Text style={styles.openComposerButtonText}>
+                {t('auction.addToCalendar', { defaultValue: 'Takvime Ekle (Hatırlatıcı)' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={[styles.upcomingComposerRow, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
+            <TouchableOpacity
+              style={styles.upcomingCalendarButton}
+              onPress={handleAddToCalendar}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+              <Text style={styles.openComposerButtonText}>
+                {t('auction.addToCalendarShort', { defaultValue: 'Takvim' })}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.upcomingPreBidButton}
+              onPress={handleOpenComposerClick}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.openComposerButtonText}>
+                {t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )
       ) : null}
 
       <Modal
@@ -500,6 +801,7 @@ export default function AuctionDetailScreen() {
               statusMessage={bidStatusMessage}
               proxyMessage={proxyMessage}
               walletGateMessage={walletGateMessage}
+              validationError={validationError}
               onChangeText={setBidAmount}
               onChangeMaxBidText={setMaxBidAmount}
               onSelectQuickBid={setBidAmount}
@@ -513,7 +815,155 @@ export default function AuctionDetailScreen() {
               onSubmit={handleBid}
               onClose={() => setShowComposer(false)}
               t={t}
+              lotTitle={product?.title}
+              lotNumber={auction.lotNumber}
+              isPreBid={isPreBid}
             />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showCardModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCardModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setShowCardModal(false)}
+          />
+          <View style={styles.modalContent}>
+            <CardVerificationModal
+              onClose={() => setShowCardModal(false)}
+              onVerify={async (cardDetails) => {
+                try {
+                  await registerMutation.mutateAsync({
+                    auctionId: id,
+                    cardDetails,
+                  });
+                  await refetchRegistrationStatus();
+                  setShowCardModal(false);
+                  setShowComposer(true);
+                } catch (error) {
+                  showModal({
+                    title: t('common.error'),
+                    message: resolveApiErrorMessage(error, t, 'common.genericError'),
+                    type: 'error',
+                  });
+                }
+              }}
+              isPending={registerMutation.isPending}
+              requiredDeposit={Number(auction?.requiredDeposit ?? 0)}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showAuthWizardModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAuthWizardModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setShowAuthWizardModal(false)}
+          />
+          <View style={styles.modalContent}>
+            <AuthRegisterWizardModal
+              onClose={() => setShowAuthWizardModal(false)}
+              onVerifyAndRegister={async (cardDetails) => {
+                try {
+                  await registerMutation.mutateAsync({
+                    auctionId: id,
+                    cardDetails,
+                  });
+                  await refetchRegistrationStatus();
+                  setShowAuthWizardModal(false);
+                  setShowComposer(true);
+                } catch (error) {
+                  showModal({
+                    title: t('common.error'),
+                    message: resolveApiErrorMessage(error, t, 'common.genericError'),
+                    type: 'error',
+                  });
+                }
+              }}
+              onLoginComplete={async () => {
+                await refetchRegistrationStatus();
+                setShowAuthWizardModal(false);
+              }}
+              isPending={registerMutation.isPending}
+              requiredDeposit={Number(auction?.requiredDeposit ?? 0)}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showLimitModal && !!limitModalData}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLimitModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalBackgroundClose}
+            activeOpacity={1}
+            onPress={() => setShowLimitModal(false)}
+          />
+          <View style={styles.modalContent}>
+            {limitModalData && (
+              <BiddingLimitModal
+                onClose={() => setShowLimitModal(false)}
+                onPayDeposit={async (amount, cardDetails) => {
+                  try {
+                    await payDepositMutation.mutateAsync({
+                      amount,
+                      cardDetails,
+                    });
+                    setShowLimitModal(false);
+                    showModal({
+                      title: t('auction.depositSuccessTitle'),
+                      message: t('auction.depositSuccessMessage', {
+                        limit: (limitModalData.currentLimit + amount * 5).toLocaleString('tr-TR'),
+                      }),
+                      type: 'success',
+                      confirmText: t('common.ok'),
+                      onConfirm: () => {
+                        hideModal();
+                        setShowComposer(true);
+                      },
+                    });
+                  } catch (error) {
+                    showModal({
+                      title: t('common.error'),
+                      message: resolveApiErrorMessage(error, t, 'common.genericError'),
+                      type: 'error',
+                    });
+                  }
+                }}
+                currentLimit={limitModalData.currentLimit}
+                requiredLimit={limitModalData.requiredLimit}
+                requiredDeposit={limitModalData.requiredDeposit}
+                isPending={payDepositMutation.isPending}
+                hasSavedCard={!!(cardsData?.cards && cardsData.cards.length > 0)}
+              />
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>

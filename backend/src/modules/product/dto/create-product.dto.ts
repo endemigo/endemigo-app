@@ -80,10 +80,11 @@ export class CreateProductDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 45000, minimum: 0.01 })
+  @ApiPropertyOptional({ example: 45000, minimum: 0.01 })
   @IsNumber()
   @Min(0.01)
-  price: number;
+  @IsOptional()
+  price?: number;
 
   @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000' })
   @IsUUID()

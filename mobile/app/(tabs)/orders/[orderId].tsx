@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { ActivityIndicator, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CargoStatus, OrderStatus } from '@endemigo/shared';
 import { Colors } from '../../../constants/theme';
@@ -14,6 +14,7 @@ import {
   useOrderSubmitReview,
   useSellerReturnReview,
   useSellerOrderTransition,
+  useInitiateOrderPayment,
 } from '../../../hooks/useOrders';
 import { CargoSummaryCard } from '../../../components/ui/orders/CargoSummaryCard';
 import { DeliveryConfirmActions } from '../../../components/ui/orders/DeliveryConfirmActions';
@@ -27,14 +28,26 @@ import { useModalStore } from '../../../store/modalStore';
 import { useRoleModeStore } from '../../../store/roleModeStore';
 import { resolveApiErrorMessage } from '../../../utils/apiError';
 import { styles } from '../../../styles/tabs/orders/[orderId].styles';
+import { styles as layoutStyles } from '../../../styles/tabs/_layout.styles';
 
 export default function OrderDetailScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ orderId: string }>();
   const orderId = params.orderId;
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const { showModal } = useModalStore();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: () => (
+        <Text style={layoutStyles.headerProfileTitle}>
+          {t('orders.detailTitle')}
+        </Text>
+      ),
+    });
+  }, [navigation, t]);
   const order = useOrderDetail(orderId);
   const confirmDelivery = useOrderConfirmDelivery(orderId);
   const sellerTransition = useSellerOrderTransition(orderId);
@@ -43,6 +56,42 @@ export default function OrderDetailScreen() {
   const confirmReturnDelivered = useConfirmReturnDelivered(orderId);
   const submitReview = useOrderSubmitReview(orderId);
   const uploadReturnImage = useUploadReturnImage(orderId);
+  const payOrder = useInitiateOrderPayment(orderId);
+
+  const handlePayOrder = () => {
+    if (!order.data) return;
+    showModal({
+      title: t('orders.paymentConfirmTitle', { defaultValue: 'Ödeme Onayı' }),
+      message: t('orders.paymentConfirmMessage', {
+        defaultValue: 'Bu siparişin ödemesini kredi kartı ile yapmak istediğinize emin misiniz?',
+      }),
+      type: 'info',
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onConfirm: () => {
+        payOrder.mutate({ amount: order.data!.amount, currency: order.data!.currency }, {
+          onSuccess: () => {
+            showModal({
+              title: t('orders.paymentSuccessTitle', { defaultValue: 'Ödeme Başarılı' }),
+              message: t('orders.paymentSuccessMessage', { defaultValue: 'Ödemeniz başarıyla alındı.' }),
+              type: 'success',
+              confirmText: t('common.ok'),
+              onConfirm: () => {
+                order.refetch();
+              },
+            });
+          },
+          onError: (error) => {
+            showModal({
+              title: t('common.error'),
+              message: error.message || t('common.genericError'),
+              type: 'error',
+            });
+          },
+        });
+      },
+    });
+  };
 
   const handleRefresh = async () => {
     await order.refetch();
@@ -232,28 +281,81 @@ export default function OrderDetailScreen() {
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.productCard}
-        onPress={() => router.push(`/product/${order.data?.productId}` as never)}
-        activeOpacity={0.75}
-      >
-        {order.data.productImage ? (
-          <Image source={{ uri: order.data.productImage }} style={styles.productImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.productImagePlaceholder}>
-            <Ionicons name="cube-outline" size={26} color={Colors.primary} />
+      {order.data.siblingOrders && order.data.siblingOrders.length > 1 ? (
+        order.data.siblingOrders.map((sibling: any) => (
+          <TouchableOpacity
+            key={sibling.id}
+            style={[styles.productCard, { marginBottom: 8 }]}
+            onPress={() => router.push(`/product/${sibling.productId}` as never)}
+            activeOpacity={0.75}
+          >
+            {sibling.productImageUrl ? (
+              <Image source={{ uri: sibling.productImageUrl }} style={styles.productImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.productImagePlaceholder}>
+                <Ionicons name="cube-outline" size={26} color={Colors.primary} />
+              </View>
+            )}
+            <View style={styles.productInfo}>
+              <Text style={styles.productTitle} numberOfLines={2}>
+                {sibling.productTitle || sibling.title}
+              </Text>
+              <Text style={styles.productPrice}>
+                {formatCurrency(sibling.amount, sibling.currency)} (1 {t('product.unitPiece')})
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+          </TouchableOpacity>
+        ))
+      ) : (
+        <TouchableOpacity
+          style={styles.productCard}
+          onPress={() => router.push(`/product/${order.data?.productId}` as never)}
+          activeOpacity={0.75}
+        >
+          {order.data.productImage ? (
+            <Image source={{ uri: order.data.productImage }} style={styles.productImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.productImagePlaceholder}>
+              <Ionicons name="cube-outline" size={26} color={Colors.primary} />
+            </View>
+          )}
+          <View style={styles.productInfo}>
+            <Text style={styles.productTitle} numberOfLines={2}>
+              {order.data.title}
+            </Text>
+            <Text style={styles.productPrice}>
+              {formatCurrency(order.data.amount, order.data.currency)} (1 {t('product.unitPiece')})
+            </Text>
           </View>
-        )}
-        <View style={styles.productInfo}>
-          <Text style={styles.productTitle} numberOfLines={2}>
-            {order.data.title}
+          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
+        </TouchableOpacity>
+      )}
+
+      {order.data.status === OrderStatus.PAYMENT_PENDING && activeMode === 'buyer' && (
+        <View style={styles.paymentCard}>
+          <Text style={styles.paymentTitle}>{t('orders.paymentRequiredTitle', { defaultValue: 'Ödeme Bekliyor' })}</Text>
+          <Text style={styles.paymentBody}>
+            {t('orders.paymentRequiredBody', {
+              defaultValue: 'Bu siparişin ödemesi henüz yapılmamıştır. Güvenli ödeme adımları ile ödemenizi şimdi tamamlayabilirsiniz.',
+            })}
           </Text>
-          <Text style={styles.productPrice}>
-            {formatCurrency(order.data.amount, order.data.currency)} (1 {t('product.unitPiece')})
-          </Text>
+          <TouchableOpacity
+            style={styles.payButton}
+            onPress={handlePayOrder}
+            activeOpacity={0.8}
+            disabled={payOrder.isPending}
+          >
+            {payOrder.isPending ? (
+              <ActivityIndicator color={Colors.white} size="small" />
+            ) : (
+              <Text style={styles.payButtonText}>
+                {t('orders.payNow', { defaultValue: 'Şimdi Öde' })} ({formatCurrency(order.data.amount, order.data.currency)})
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.slate400} />
-      </TouchableOpacity>
+      )}
 
       <OrderStatusTimeline
         status={order.data.status}
