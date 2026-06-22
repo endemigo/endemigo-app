@@ -112,7 +112,9 @@ export function canContinueProductCreateStep(
     const hasBasics = state.title.trim().length >= 3;
     const hasPricing = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
       ? isPositiveNumber(state.auctionStartPrice)
-      : isPositiveNumber(state.directSalePrice) && (!state.askPriceEnabled || isPositiveNumber(state.askPriceMinAmount));
+      : state.askPriceEnabled
+        ? true
+        : isPositiveNumber(state.directSalePrice);
     const hasDetails = state.description.trim().length >= 3 && isNonNegativeInteger(state.stockQuantity);
     return hasBasics && hasPricing && hasDetails;
   }

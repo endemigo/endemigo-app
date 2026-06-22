@@ -26,7 +26,8 @@ import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { RC, AuctionEventStatus, AuctionRegistrationStatus } from '@endemigo/shared';
+import { RC, AuctionEventStatus, AuctionRegistrationStatus, AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
+
 
 function parsePositiveIntQuery(
   value: unknown,
@@ -264,4 +265,99 @@ export class AuctionController {
     res.setHeader('Content-Disposition', `attachment; filename="auction-${id}.ics"`);
     return res.send(icsContent);
   }
+
+  @Post('pre-contract/accept')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Müzayede ön sözleşmesini kabul et' })
+  async acceptPreContract(
+    @CurrentUser('id') userId: string,
+    @Body('eventType') eventType: 'INDEPENDENT' | 'JOINT',
+  ) {
+    if (!['INDEPENDENT', 'JOINT'].includes(eventType)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz eventType. INDEPENDENT veya JOINT olmalıdır.',
+      });
+    }
+    return this.auctionService.acceptPreContract(userId, eventType);
+  }
+
+  @Post('events')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Müzayede etkinliği oluştur (Model 1 veya Model 2)' })
+  async createEvent(
+    @CurrentUser('id') userId: string,
+    @Body() dto: {
+      title: string;
+      description?: string;
+      coverImageUrl?: string;
+      categoryId?: string;
+      auctionType?: AuctionType;
+      startTime: string;
+      endTime: string;
+      submissionDeadline?: string;
+      eventType: AuctionEventSystemType;
+      jointManagementType?: JointManagementType;
+      minProductsCount?: number;
+      maxProductsCount?: number;
+    },
+  ) {
+    return this.auctionService.createEvent(userId, dto);
+  }
+
+  @Post('events/:eventId/submit')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Müzayede etkinliğini onaya sun' })
+  async submitEventForApproval(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.submitEventForApproval(eventId, userId);
+  }
+
+  @Post('events/:eventId/invite')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Ortak müzayedeye tedarikçi davet et' })
+  async inviteToEvent(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser('id') userId: string,
+    @Body('inviteeId', ParseUUIDPipe) inviteeId: string,
+  ) {
+    return this.auctionService.sendInvitation(eventId, userId, inviteeId);
+  }
+
+  @Get('invitations')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Gelen ortak müzayede davetlerini listele' })
+  async getInvitations(@CurrentUser('id') userId: string) {
+    return this.auctionService.getInvitations(userId);
+  }
+
+  @Post('invitations/:invitationId/accept')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Ortak müzayede davetini kabul et' })
+  async acceptInvitation(
+    @Param('invitationId', ParseUUIDPipe) invitationId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.acceptInvitation(invitationId, userId);
+  }
+
+  @Post('invitations/:invitationId/reject')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Ortak müzayede davetini reddet' })
+  async rejectInvitation(
+    @Param('invitationId', ParseUUIDPipe) invitationId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.rejectInvitation(invitationId, userId);
+  }
 }
+

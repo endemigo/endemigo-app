@@ -68,7 +68,7 @@ export function OfferCard({
             activeOpacity={0.8}
             disabled={isPending}
           >
-            <Ionicons name="checkmark" size={16} color={Colors.white} />
+            <Ionicons name="cart-outline" size={16} color={Colors.white} />
             <Text style={styles.acceptText}>{t('negotiation.actions.accept')}</Text>
           </TouchableOpacity>
         </View>

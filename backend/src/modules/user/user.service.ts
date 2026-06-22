@@ -497,6 +497,29 @@ export class UserService {
     };
   }
 
+  async acceptPreContract(userId: string, eventType: 'INDEPENDENT' | 'JOINT') {
+    const profile = await this.sellerProfileRepo.findOne({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException({
+        code: RC.SELLER_PROFILE_NOT_FOUND,
+        message: 'Satıcı profili bulunamadı',
+      });
+    }
+
+    if (eventType === 'INDEPENDENT') {
+      profile.independentPreContractAcceptedAt = new Date();
+    } else {
+      profile.jointPreContractAcceptedAt = new Date();
+    }
+
+    await this.sellerProfileRepo.save(profile);
+    return {
+      code: RC.SUCCESS,
+      message: 'Ön sözleşme başarıyla onaylandı',
+    };
+  }
+
+
   // ==========================================
   // Seller Public Profile
   // ==========================================

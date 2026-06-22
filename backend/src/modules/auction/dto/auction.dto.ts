@@ -93,7 +93,13 @@ export class CreateAuctionDto {
   @IsBoolean()
   @IsOptional()
   culturalAssetRestricted?: boolean;
+
+  @ApiPropertyOptional({ example: true, default: false })
+  @IsBoolean()
+  @IsOptional()
+  guaranteeAccepted?: boolean;
 }
+
 
 export class PlaceBidDto {
   @ApiProperty({ example: 1100, minimum: 0.01 })

@@ -86,8 +86,35 @@ describe('CartService', () => {
 
     const result = await service.clearCart('user-1');
 
-    expect(cartRepo.delete).toHaveBeenCalledWith({ userId: 'user-1' });
+    expect(cartRepo.delete).toHaveBeenCalledWith({ userId: 'user-1', auctionId: IsNull() });
     expect(result.code).toBe(RC.CART_CLEARED);
     expect(result.cart.itemCount).toBe(0);
+  });
+
+  it('clears all cart items when forced', async () => {
+    const { service, cartRepo } = buildService();
+
+    const result = await service.clearCart('user-1', true);
+
+    expect(cartRepo.delete).toHaveBeenCalledWith({ userId: 'user-1' });
+    expect(result.code).toBe(RC.CART_CLEARED);
+  });
+
+  it('blocks updating quantity of won auction items', async () => {
+    const { service, cartRepo } = buildService();
+    cartRepo.findOne.mockResolvedValue({ id: 'item-1', userId: 'user-1', auctionId: 'auction-1', quantity: 1 });
+
+    await expect(
+      service.updateItem('user-1', 'item-1', { quantity: 2 }),
+    ).rejects.toThrow('Kazanılan müzayede ürünlerinin adedi güncellenemez');
+  });
+
+  it('blocks removing won auction items from cart', async () => {
+    const { service, cartRepo } = buildService();
+    cartRepo.findOne.mockResolvedValue({ id: 'item-1', userId: 'user-1', auctionId: 'auction-1', quantity: 1 });
+
+    await expect(
+      service.removeItem('user-1', 'item-1'),
+    ).rejects.toThrow('Kazanılan müzayede ürünleri sepetten çıkarılamaz');
   });
 });

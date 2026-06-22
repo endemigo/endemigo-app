@@ -19,7 +19,6 @@ import { Colors, Spacing } from '../../constants/theme';
 import { styles } from '../../styles/product/_id.styles';
 import { getProductImageUri } from '../../utils/productImages';
 import { useCartStore } from '../../store/cartStore';
-import { AskPriceModal } from '../../components/negotiation';
 import { useStartNegotiation } from '../../hooks/useNegotiations';
 import { useToggleFavorite } from '../../hooks/useSearch';
 import { useModalStore } from '../../store/modalStore';
@@ -249,7 +248,6 @@ export default function ProductDetailScreen() {
   const showToast = useToastStore((state) => state.showToast);
   const toggleFavorite = useToggleFavorite();
   const startNegotiation = useStartNegotiation();
-  const [askPriceVisible, setAskPriceVisible] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<ProductTabKey>('story');
   const [tabsHintDirection, setTabsHintDirection] = React.useState<'right' | 'left'>('right');
   const [reviewModalVisible, setReviewModalVisible] = React.useState(false);
@@ -440,16 +438,35 @@ export default function ProductDetailScreen() {
   const reviewCount = Number.isFinite(product.reviewCount) ? Number(product.reviewCount) : 0;
   const hasRatingAndReviews = reviewCount > 0 || reviewItems.length > 0 || (normalizedRating !== null && normalizedRating > 0);
 
-  const handleAskPriceSubmit = (input: StartNegotiationInput) => {
-    startNegotiation.mutate(input, {
+  const handleAskPrice = () => {
+    if (!isLoggedIn) {
+      showModal({
+        title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+        message: t('auth.loginRequiredMessage', { defaultValue: 'Fiyat sormak için lütfen önce giriş yapın.' }),
+        type: 'info',
+        confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+        cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(auth)/login');
+        },
+      });
+      return;
+    }
+
+    startNegotiation.mutate({
+      productId: product.id,
+      amount: null,
+      quantity: 1,
+      note: t('negotiation.askPrice.defaultMessage', { defaultValue: 'Merhaba, bu ürünün fiyatını öğrenebilir miyim?' }),
+    }, {
       onSuccess: (negotiation) => {
-        setAskPriceVisible(false);
         router.push(`/negotiation/${negotiation.id}` as never);
       },
       onError: () => {
         showModal({
           title: t('common.error'),
-          message: t('negotiation.askPrice.error'),
+          message: t('negotiation.askPrice.error', { defaultValue: 'Fiyat sorma işlemi başlatılamadı.' }),
           type: 'error',
         });
       },
@@ -902,7 +919,7 @@ export default function ProductDetailScreen() {
                 onAddToCart={handleAddToCart}
                 onDecreaseQuantity={handleDecreaseQuantity}
                 onIncreaseQuantity={handleIncreaseQuantity}
-                onAskPrice={() => setAskPriceVisible(true)}
+                onAskPrice={handleAskPrice}
                 onAskQuestion={handleAskQuestion}
               />
             </View>
@@ -1163,14 +1180,6 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      <AskPriceModal
-        product={product}
-        visible={askPriceVisible}
-        isPending={startNegotiation.isPending}
-        onClose={() => setAskPriceVisible(false)}
-        onSubmit={handleAskPriceSubmit}
-        onPolicyViolation={handlePolicyViolation}
-      />
       <Modal
         visible={reviewModalVisible}
         transparent

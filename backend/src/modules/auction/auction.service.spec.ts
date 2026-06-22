@@ -10,9 +10,10 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { OrderService } from '../order/order.service';
-import { AuctionPaymentStatus, RC, AuctionApprovalStatus, AuctionRegistrationStatus } from '@endemigo/shared';
+import { AuctionPaymentStatus, RC, AuctionApprovalStatus, AuctionRegistrationStatus, AuctionEventStatus, AuctionEventSystemType, JointManagementType, InvitationStatus } from '@endemigo/shared';
 import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { PaymentService } from '../payment/payment.service';
 import { AuctionType } from '../../shared/types/auction-type.enum';
@@ -107,6 +108,7 @@ describe('AuctionService', () => {
   let auctionGateway: MockAuctionGateway;
   let mockQueryRunner: MockQueryRunner;
   let paymentService: any;
+  let cartItemRepo: any;
 
   const mockSeller = {
     id: 'seller-1',
@@ -164,6 +166,7 @@ describe('AuctionService', () => {
       find: jest.fn().mockResolvedValue([]),
       create: jest.fn((data) => ({ id: 'auction-new', bidCount: 0, ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
+      count: jest.fn().mockResolvedValue(0),
       createQueryBuilder: jest.fn().mockReturnValue({
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
@@ -181,8 +184,17 @@ describe('AuctionService', () => {
           sellerId: 'seller-1',
         }),
         query: jest.fn().mockResolvedValue([]), // CR-02: advisory lock mock
+        save: jest.fn((entityOrTarget: unknown, maybeEntity?: unknown) =>
+          Promise.resolve(maybeEntity ?? entityOrTarget),
+        ),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn((_entityClass: unknown, data: Record<string, unknown>) => ({
+          id: `new-${Date.now()}`,
+          ...data,
+        })),
       },
     };
+
 
     bidRepo = {
       findOne: jest.fn(),
@@ -217,7 +229,16 @@ describe('AuctionService', () => {
 
     userService = {
       findById: jest.fn().mockResolvedValue(mockBuyer),
+      getSellerProfile: jest.fn().mockResolvedValue({
+        sellerProfile: {
+          independentPreContractAcceptedAt: new Date(),
+          jointPreContractAcceptedAt: new Date(),
+        },
+      }),
+      acceptPreContract: jest.fn(),
     };
+
+
 
     orderService = {
       createFromAuction: jest
@@ -268,6 +289,12 @@ describe('AuctionService', () => {
       payDeposit: jest.fn(),
     };
 
+    cartItemRepo = {
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+      create: jest.fn((data) => ({ id: 'cart-item-new', ...data })),
+      save: jest.fn((entity) => Promise.resolve(entity)),
+    };
+
     // Mock queryRunner for transaction-based placeBid
     mockQueryRunner = {
       connect: jest.fn(),
@@ -312,6 +339,7 @@ describe('AuctionService', () => {
         { provide: OrderService, useValue: orderService },
         { provide: getQueueToken('auction'), useValue: auctionQueue },
         { provide: PaymentService, useValue: paymentService },
+        { provide: getRepositoryToken(CartItem), useValue: cartItemRepo },
       ],
     }).compile();
 
@@ -1684,6 +1712,7 @@ describe('AuctionService', () => {
       extensionSeconds: 60,
       maxExtensions: 3,
       minIncrement: 10,
+      guaranteeAccepted: true,
     };
 
     it('should throw ForbiddenException if user is not a seller', async () => {
@@ -1707,6 +1736,7 @@ describe('AuctionService', () => {
       userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
       auctionRepo.manager.findOne.mockResolvedValueOnce({
         id: 'event-1',
+        eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
         status: 'ACTIVE',
         submissionDeadline: null,
       });
@@ -1720,6 +1750,7 @@ describe('AuctionService', () => {
       userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
       auctionRepo.manager.findOne.mockResolvedValueOnce({
         id: 'event-1',
+        eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
         status: 'APPLICATION',
         submissionDeadline: new Date(Date.now() - 10000), // passed
       });
@@ -1734,6 +1765,7 @@ describe('AuctionService', () => {
       auctionRepo.manager.findOne
         .mockResolvedValueOnce({
           id: 'event-1',
+          eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
           status: 'APPLICATION',
           submissionDeadline: new Date(Date.now() + 100000), // future
         })
@@ -1968,4 +2000,237 @@ describe('AuctionService', () => {
       });
     });
   });
+
+  describe('New Auction Models and Rules', () => {
+    describe('createEvent', () => {
+      it('should throw BadRequest if independent pre-contract is not accepted', async () => {
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: { independentPreContractAcceptedAt: null },
+        });
+
+        await expect(
+          service.createEvent('seller-1', {
+            title: 'Independent Event',
+            startTime: '2026-06-30T10:00:00Z',
+            endTime: '2026-06-30T12:00:00Z',
+            eventType: AuctionEventSystemType.INDEPENDENT,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should throw BadRequest if joint pre-contract is not accepted', async () => {
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: { jointPreContractAcceptedAt: null },
+        });
+
+        await expect(
+          service.createEvent('seller-1', {
+            title: 'Joint Event',
+            startTime: '2026-06-30T10:00:00Z',
+            endTime: '2026-06-30T12:00:00Z',
+            eventType: AuctionEventSystemType.JOINT,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should create event successfully if contract is accepted', async () => {
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: {
+            independentPreContractAcceptedAt: new Date(),
+          },
+        });
+        auctionRepo.manager.save.mockResolvedValueOnce({
+          id: 'event-new',
+          title: 'Independent Event',
+        });
+
+        const result = await service.createEvent('seller-1', {
+          title: 'Independent Event',
+          startTime: '2026-06-30T10:00:00Z',
+          endTime: '2026-06-30T12:00:00Z',
+          eventType: AuctionEventSystemType.INDEPENDENT,
+        });
+
+        expect(result.code).toBe(RC.SUCCESS);
+        expect(result.event).toBeDefined();
+      });
+    });
+
+    describe('submitEventForApproval', () => {
+      it('should throw Forbidden if seller is not the owner', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-2',
+          status: AuctionEventStatus.DRAFT,
+        });
+
+        await expect(
+          service.submitEventForApproval('event-1', 'seller-1'),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('should throw BadRequest for Independent event with less than 40 lots', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          status: AuctionEventStatus.DRAFT,
+          eventType: AuctionEventSystemType.INDEPENDENT,
+        });
+        auctionRepo.find.mockResolvedValueOnce(new Array(39).fill({}));
+
+        await expect(
+          service.submitEventForApproval('event-1', 'seller-1'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should throw BadRequest for Joint event with less than 60 lots', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          status: AuctionEventStatus.DRAFT,
+          eventType: AuctionEventSystemType.JOINT,
+        });
+        auctionRepo.find.mockResolvedValueOnce(new Array(59).fill({}));
+
+        await expect(
+          service.submitEventForApproval('event-1', 'seller-1'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should throw BadRequest for Joint event if any seller has less than 20 lots', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          status: AuctionEventStatus.DRAFT,
+          eventType: AuctionEventSystemType.JOINT,
+        });
+        // Total 65 lots but seller-2 contributed only 15
+        const lots = [
+          ...new Array(45).fill({ sellerId: 'seller-1' }),
+          ...new Array(15).fill({ sellerId: 'seller-2' }),
+          ...new Array(5).fill({ sellerId: 'seller-3' }),
+        ];
+        auctionRepo.find.mockResolvedValueOnce(lots);
+
+        await expect(
+          service.submitEventForApproval('event-1', 'seller-1'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should submit successfully if all rules are satisfied', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          status: AuctionEventStatus.DRAFT,
+          eventType: AuctionEventSystemType.JOINT,
+        });
+        const lots = [
+          ...new Array(35).fill({ sellerId: 'seller-1' }),
+          ...new Array(25).fill({ sellerId: 'seller-2' }),
+        ];
+        auctionRepo.find.mockResolvedValueOnce(lots);
+        auctionRepo.manager.save.mockImplementationOnce((_, e) => Promise.resolve(e));
+
+        const result = await service.submitEventForApproval('event-1', 'seller-1');
+        expect(result.code).toBe(RC.SUCCESS);
+        expect(result.event.status).toBe(AuctionEventStatus.APPLICATION);
+      });
+    });
+
+    describe('applyToEvent validations', () => {
+      it('should throw BadRequest for Endemigo-Managed if supplier exceeds 5 products limit', async () => {
+        userService.findById.mockResolvedValueOnce({ id: 'seller-1', isSeller: true });
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          status: AuctionEventStatus.APPLICATION,
+          eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
+        });
+        userService.getSellerProfile.mockResolvedValueOnce({ sellerProfile: {} });
+        auctionRepo.count.mockResolvedValueOnce(5);
+
+        await expect(
+          service.applyToEvent('seller-1', 'event-1', {
+            productId: 'product-1',
+            startPrice: 100,
+            guaranteeAccepted: true,
+          } as any),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should throw BadRequest if guaranteeAccepted is false or missing', async () => {
+        userService.findById.mockResolvedValueOnce({ id: 'seller-1', isSeller: true });
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          status: AuctionEventStatus.APPLICATION,
+          eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
+        });
+        userService.getSellerProfile.mockResolvedValueOnce({ sellerProfile: {} });
+
+        await expect(
+          service.applyToEvent('seller-1', 'event-1', {
+            productId: 'product-1',
+            startPrice: 100,
+          } as any),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('should throw Forbidden for Joint if seller is not owner and has no accepted invitation', async () => {
+        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          status: AuctionEventStatus.APPLICATION,
+          eventType: AuctionEventSystemType.JOINT,
+        });
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: { jointPreContractAcceptedAt: new Date() },
+        });
+        auctionRepo.manager.findOne.mockResolvedValueOnce(null);
+
+        await expect(
+          service.applyToEvent('seller-2', 'event-1', {
+            productId: 'product-1',
+            startPrice: 100,
+            guaranteeAccepted: true,
+          } as any),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    describe('Invitations', () => {
+      it('should send invitation successfully', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          eventType: AuctionEventSystemType.JOINT,
+          status: AuctionEventStatus.DRAFT,
+        });
+        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        auctionRepo.manager.count.mockResolvedValueOnce(25);
+        auctionRepo.manager.findOne.mockResolvedValueOnce(null);
+        auctionRepo.manager.create.mockReturnValue({ id: 'invite-1' });
+        auctionRepo.manager.save.mockResolvedValueOnce({ id: 'invite-1' });
+
+        const result = await service.sendInvitation('event-1', 'seller-1', 'seller-2');
+        expect(result.code).toBe(RC.SUCCESS);
+        expect(result.invitation).toBeDefined();
+      });
+
+      it('should throw BadRequest if invitee has less than 20 products', async () => {
+        auctionRepo.manager.findOne.mockResolvedValueOnce({
+          id: 'event-1',
+          ownerId: 'seller-1',
+          eventType: AuctionEventSystemType.JOINT,
+          status: AuctionEventStatus.DRAFT,
+        });
+        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        auctionRepo.manager.count.mockResolvedValueOnce(15);
+
+        await expect(
+          service.sendInvitation('event-1', 'seller-1', 'seller-2'),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+  });
 });
+

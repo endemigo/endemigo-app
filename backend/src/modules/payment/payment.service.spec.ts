@@ -235,7 +235,7 @@ describe('PaymentService', () => {
       'payment-1',
       'buyer-1',
     );
-    expect(cartService.clearCart).toHaveBeenCalledWith('buyer-1');
+    expect(cartService.clearCart).toHaveBeenCalledWith('buyer-1', true);
   });
 
   it('marks the linked order for review after failed payment retrieval', async () => {

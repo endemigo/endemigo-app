@@ -383,8 +383,8 @@
     "previous": "Back",
     "next": "Continue",
     "publish": "Publish",
-    "askPriceEnabled": "Open to offers",
-    "askPriceHint": "Let buyers send offers.",
+    "askPriceEnabled": "Ask Price",
+    "askPriceHint": "Allows buyers to ask for the price if not specified.",
     "askPriceMinAmount": "Minimum Offer",
     "barcodeNo": "Product Barcode No (GTIN)",
     "barcodeNoPlaceholder": "Example: 8681234567890",
@@ -664,6 +664,7 @@
     "title": "My Cart",
     "empty": "Your cart is empty",
     "emptySub": "Start shopping to add items",
+    "auctionWonLabel": "Auction Won Lot",
     "startShopping": "Start Shopping",
     "addedToCart": "Added to cart",
     "premiumLabel": "Premium",
@@ -803,7 +804,7 @@
       }
     },
     "actions": {
-      "accept": "Accept",
+      "accept": "Buy with this Price",
       "reject": "Reject",
       "close": "Close"
     },
@@ -824,7 +825,8 @@
       "quantityPlaceholder": "Qty",
       "notePlaceholder": "Short note to seller",
       "sending": "Sending...",
-      "error": "Ask Price conversation could not be started."
+      "error": "Ask Price conversation could not be started.",
+      "defaultMessage": "Hello, could I get price information for this product?"
     },
     "askQuestion": {
       "error": "Ask Question conversation could not be started."

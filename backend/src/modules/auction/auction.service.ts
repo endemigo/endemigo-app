@@ -17,6 +17,8 @@ import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
 import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
+import { AuctionEventInvitation } from './entities/auction-event-invitation.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { AuctionRegistrationStatus } from '@endemigo/shared';
@@ -32,9 +34,15 @@ import {
   RC,
   AuctionApprovalStatus,
   AuctionEventStatus,
+  AuctionEventSystemType,
+  JointManagementType,
+  InvitationStatus,
+  ProductStatus,
 } from '@endemigo/shared';
+
 import { NotificationService } from '../notification/notification.service';
 import { PaymentService } from '../payment/payment.service';
+
 
 const WINNER_PAYMENT_WINDOW_HOURS = 24;
 const WINNER_PAYMENT_REMINDER_HOURS = 1;
@@ -58,6 +66,8 @@ export class AuctionService implements OnApplicationBootstrap {
     private readonly bidRepo: Repository<Bid>,
     @InjectRepository(AuctionRegistration)
     private readonly registrationRepo: Repository<AuctionRegistration>,
+    @InjectRepository(CartItem)
+    private readonly cartItemRepo: Repository<CartItem>,
     @InjectQueue('auction')
     private readonly auctionQueue: Queue,
     private readonly dataSource: DataSource,
@@ -184,12 +194,101 @@ export class AuctionService implements OnApplicationBootstrap {
         message: 'Müzayede etkinliği bulunamadı',
       });
     }
-    if (event.status !== AuctionEventStatus.APPLICATION) {
-      throw new BadRequestException({
-        code: RC.VALIDATION_ERROR,
-        message: 'Bu müzayede etkinliği başvurulara kapalı',
+
+    // Get seller profile for pre-contract acceptance check
+    const profileRes = await this.userService.getSellerProfile(sellerId);
+    const profile = profileRes.sellerProfile;
+
+    // Validate based on event system type
+    if (event.eventType === AuctionEventSystemType.ENDEMIGO_MANAGED) {
+      if (event.status !== AuctionEventStatus.APPLICATION) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Bu müzayede etkinliği başvurulara kapalı',
+        });
+      }
+
+      // Check product count limit (max 5)
+      const existingCount = await this.auctionRepo.count({
+        where: { eventId, sellerId },
       });
+      if (existingCount >= 5) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Endemigo müzayedelerine en fazla 5 ürün ile katılabilirsiniz',
+        });
+      }
+
+      if (!dto.guaranteeAccepted) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+        });
+      }
+    } else if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
+      if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Bu müzayede etkinliği başvurulara kapalı',
+        });
+      }
+
+      if (event.ownerId !== sellerId) {
+        throw new ForbiddenException({
+          code: RC.FORBIDDEN,
+          message: 'Sadece kendi oluşturduğunuz bağımsız müzayedelere ürün ekleyebilirsiniz',
+        });
+      }
+
+      if (!profile.independentPreContractAcceptedAt) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+        });
+      }
+
+      if (!dto.guaranteeAccepted) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+        });
+      }
+    } else if (event.eventType === AuctionEventSystemType.JOINT) {
+      if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Bu müzayede etkinliği başvurulara kapalı',
+        });
+      }
+
+      if (!profile.jointPreContractAcceptedAt) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ortak müzayede katılımı için önce ön sözleşmeyi kabul etmelisiniz',
+        });
+      }
+
+      if (!dto.guaranteeAccepted) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+        });
+      }
+
+      // Check if not owner, must have accepted invitation
+      if (event.ownerId !== sellerId) {
+        const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
+          where: { eventId, inviteeId: sellerId, status: InvitationStatus.ACCEPTED },
+        });
+        if (!invitation) {
+          throw new ForbiddenException({
+            code: RC.FORBIDDEN,
+            message: 'Bu ortak müzayedeye katılmak için davet edilmeli ve kabul etmelisiniz',
+          });
+        }
+      }
     }
+
     if (event.submissionDeadline && new Date() > new Date(event.submissionDeadline)) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -228,6 +327,7 @@ export class AuctionService implements OnApplicationBootstrap {
         message: 'Bu ürün zaten aktif veya yayında bir müzayedede',
       });
     }
+
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -1549,6 +1649,25 @@ export class AuctionService implements OnApplicationBootstrap {
     winningBid: Bid,
   ): Promise<void> {
     const auctionId = auction.id;
+
+    try {
+      await this.cartItemRepo.delete({
+        userId: winningBid.bidderId,
+        productId: auction.productId,
+      });
+
+      const cartItem = this.cartItemRepo.create({
+        userId: winningBid.bidderId,
+        productId: auction.productId,
+        auctionId: auction.id,
+        customPrice: Number(winningBid.amount),
+        quantity: 1,
+      });
+      await this.cartItemRepo.save(cartItem);
+    } catch (cartError) {
+      this.logger.error(`Failed to add won auction ${auction.id} to cart for user ${winningBid.bidderId}: ${cartError}`);
+    }
+
     await this.walletService.releaseAllHoldsForAuction(
       auctionId,
       winningBid.bidderId,
@@ -2772,4 +2891,308 @@ export class AuctionService implements OnApplicationBootstrap {
       registration: saved,
     };
   }
+
+  async acceptPreContract(userId: string, eventType: 'INDEPENDENT' | 'JOINT') {
+    return this.userService.acceptPreContract(userId, eventType);
+  }
+
+  async createEvent(
+    sellerId: string,
+    dto: {
+      title: string;
+      description?: string;
+      coverImageUrl?: string;
+      categoryId?: string;
+      auctionType?: AuctionType;
+      startTime: string;
+      endTime: string;
+      submissionDeadline?: string;
+      eventType: AuctionEventSystemType;
+      jointManagementType?: JointManagementType;
+      minProductsCount?: number;
+      maxProductsCount?: number;
+    },
+  ) {
+    const profileRes = await this.userService.getSellerProfile(sellerId);
+    const profile = profileRes.sellerProfile;
+
+    if (dto.eventType === AuctionEventSystemType.INDEPENDENT) {
+      if (!profile.independentPreContractAcceptedAt) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+        });
+      }
+    } else if (dto.eventType === AuctionEventSystemType.JOINT) {
+      if (!profile.jointPreContractAcceptedAt) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ortak müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+        });
+      }
+    } else {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Tedarikçiler sadece Bağımsız veya Ortak müzayede oluşturabilir',
+      });
+    }
+
+    const event = new AuctionEvent();
+    event.title = dto.title;
+    event.description = dto.description ?? null;
+    event.coverImageUrl = dto.coverImageUrl ?? null;
+    event.categoryId = dto.categoryId ?? null;
+    event.status = AuctionEventStatus.DRAFT;
+    event.auctionType = dto.auctionType || AuctionType.REALTIME;
+    event.startTime = new Date(dto.startTime);
+    event.endTime = new Date(dto.endTime);
+    event.submissionDeadline = dto.submissionDeadline ? new Date(dto.submissionDeadline) : null;
+    event.activeLotId = null;
+    event.ownerId = sellerId;
+    event.eventType = dto.eventType;
+    event.jointManagementType = dto.jointManagementType ?? null;
+    event.minProductsCount = dto.minProductsCount ?? (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 40 : 60);
+    event.maxProductsCount = dto.maxProductsCount ?? (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 0 : 100);
+
+    const saved = await this.auctionRepo.manager.save(AuctionEvent, event);
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede etkinliği oluşturuldu. Admin onayı bekleniyor.',
+      event: saved,
+    };
+  }
+
+  async submitEventForApproval(eventId: string, sellerId: string) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Müzayede etkinliği bulunamadı',
+      });
+    }
+
+    if (event.ownerId !== sellerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Sadece müzayede sahibi bu işlemi yapabilir',
+      });
+    }
+
+    if (event.status !== AuctionEventStatus.DRAFT) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece taslak aşamasındaki müzayedeler onaya sunulabilir',
+      });
+    }
+
+    const lots = await this.auctionRepo.find({ where: { eventId } });
+
+    if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
+      if (lots.length < 40) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: `Bağımsız müzayede oluşturabilmek için en az 40 ürün eklemelisiniz. Mevcut: ${lots.length}`,
+        });
+      }
+    } else if (event.eventType === AuctionEventSystemType.JOINT) {
+      if (lots.length < 60 || lots.length > 100) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: `Ortak müzayede en az 60, en fazla 100 ürünle açılabilir. Mevcut: ${lots.length}`,
+        });
+      }
+
+      // Her katılımcının en az 20 ürün eklediğini doğrula
+      const countsMap = new Map<string, number>();
+      lots.forEach((l) => {
+        countsMap.set(l.sellerId, (countsMap.get(l.sellerId) || 0) + 1);
+      });
+
+      for (const [sId, count] of countsMap.entries()) {
+        if (count < 20) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: `Tedarikçi (ID: ${sId}) ortak müzayedeye en az 20 ürün ile katılmalıdır. Mevcut: ${count}`,
+          });
+        }
+      }
+    }
+
+    event.status = AuctionEventStatus.APPLICATION;
+    const saved = await this.auctionRepo.manager.save(AuctionEvent, event);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Müzayede etkinliği onaya sunuldu',
+      event: saved,
+    };
+  }
+
+  async sendInvitation(eventId: string, hostSellerId: string, inviteeId: string) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Müzayede etkinliği bulunamadı',
+      });
+    }
+
+    if (event.eventType !== AuctionEventSystemType.JOINT || event.ownerId !== hostSellerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Sadece kendi düzenlediğiniz ortak müzayedeler için davet gönderebilirsiniz',
+      });
+    }
+
+    if (event.status !== AuctionEventStatus.DRAFT) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece taslak durumundaki müzayedeler için davet gönderebilirsiniz',
+      });
+    }
+
+    // Check if invitee exists and is seller
+    const invitee = await this.userService.findById(inviteeId);
+    if (!invitee || !invitee.isSeller) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Davet edilen kullanıcı aktif bir satıcı olmalıdır',
+      });
+    }
+
+    // Check if invitee has at least 20 active products
+    const productsCount = await this.auctionRepo.manager.count('Product', {
+      where: { sellerId: inviteeId, status: ProductStatus.ACTIVE },
+    });
+    if (productsCount < 20) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Davet edilecek tedarikçinin sistemde en az 20 ürünü bulunmalıdır',
+      });
+    }
+
+    // Check if already invited
+    const existing = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
+      where: { eventId, inviteeId },
+    });
+    if (existing) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Bu tedarikçi zaten bu müzayedeye davet edilmiş',
+      });
+    }
+
+    const invitation = this.auctionRepo.manager.create(AuctionEventInvitation, {
+      eventId,
+      inviteeId,
+      status: InvitationStatus.PENDING,
+    });
+
+    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    return {
+      code: RC.SUCCESS,
+      message: 'Davet gönderildi',
+      invitation: saved,
+    };
+  }
+
+  async acceptInvitation(invitationId: string, inviteeId: string) {
+    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
+      where: { id: invitationId },
+      relations: ['event'],
+    });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Davet bulunamadı',
+      });
+    }
+
+    if (invitation.inviteeId !== inviteeId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Bu davet size ait değil',
+      });
+    }
+
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece beklemedeki davetler kabul edilebilir',
+      });
+    }
+
+    // Double check product count
+    const productsCount = await this.auctionRepo.manager.count('Product', {
+      where: { sellerId: inviteeId, status: ProductStatus.ACTIVE },
+    });
+    if (productsCount < 20) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Katılabilmek için en az 20 ürününüz bulunmalıdır',
+      });
+    }
+
+    invitation.status = InvitationStatus.ACCEPTED;
+    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Davet kabul edildi',
+      invitation: saved,
+    };
+  }
+
+  async rejectInvitation(invitationId: string, inviteeId: string) {
+    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
+      where: { id: invitationId },
+    });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Davet bulunamadı',
+      });
+    }
+
+    if (invitation.inviteeId !== inviteeId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Bu davet size ait değil',
+      });
+    }
+
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece beklemedeki davetler reddedilebilir',
+      });
+    }
+
+    invitation.status = InvitationStatus.REJECTED;
+    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Davet reddedildi',
+      invitation: saved,
+    };
+  }
+
+  async getInvitations(inviteeId: string) {
+    const invitations = await this.auctionRepo.manager.find(AuctionEventInvitation, {
+      where: { inviteeId },
+      relations: ['event'],
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Davetler getirildi',
+      invitations,
+    };
+  }
 }
+

@@ -26,6 +26,8 @@ import {
   NotificationEventType,
   ProductStatus,
   RC,
+  AuctionStatus,
+  AuctionPaymentStatus,
 } from '@endemigo/shared';
 import { EntityManager, Repository, In } from 'typeorm';
 import { CargoService } from '../cargo/cargo.service';
@@ -41,6 +43,7 @@ import { Order } from './entities/order.entity';
 import { OrderReview } from './entities/order-review.entity';
 import { Product } from '../product/entities/product.entity';
 import { User } from '../user/entities/user.entity';
+import { Auction } from '../auction/entities/auction.entity';
 import { CampaignService } from '../campaign/campaign.service';
 import {
   DiscountEngineService,
@@ -119,6 +122,7 @@ interface AuctionOrderInput {
   amount: number;
   currency?: string;
   paymentId?: string | null;
+  isPending?: boolean;
 }
 
 interface AskPriceOrderInput {
@@ -257,7 +261,8 @@ export class OrderService {
   }
 
   async createFromAuction(input: AuctionOrderInput, manager?: EntityManager) {
-    return this.createFromSource(
+    const isPending = !!input.isPending;
+    const result = await this.createFromSource(
       {
         buyerId: input.buyerId,
         sellerId: input.sellerId,
@@ -266,13 +271,30 @@ export class OrderService {
         currency: input.currency ?? 'TRY',
         source: OrderSource.AUCTION,
         sourceReferenceId: input.auctionId,
-        initialStatus: OrderStatus.ESCROW_HELD,
-        initialEscrowStatus: EscrowStatus.HELD,
+        initialStatus: isPending ? OrderStatus.PAYMENT_PENDING : OrderStatus.ESCROW_HELD,
+        initialEscrowStatus: isPending ? EscrowStatus.NOT_FUNDED : EscrowStatus.HELD,
         paymentId: input.paymentId ?? null,
-        auditReason: 'auction_escrow_captured',
+        auditReason: isPending ? 'auction_checkout_initiated' : 'auction_escrow_captured',
       },
       manager,
     );
+
+    if (!isPending && result.order && input.auctionId) {
+      const repo = manager ? manager.getRepository(Auction) : this.orderRepository?.manager?.getRepository(Auction);
+      if (repo) {
+        const auction = await repo.findOne({ where: { id: input.auctionId } });
+        if (auction) {
+          auction.status = AuctionStatus.COMPLETED;
+          auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
+          auction.winnerPaymentCompletedAt = new Date();
+          auction.orderId = result.order.id;
+          auction.paymentAttemptCount = (auction.paymentAttemptCount || 0) + 1;
+          await repo.save(auction);
+        }
+      }
+    }
+
+    return result;
   }
 
   async createFromAskPriceHook(input: AskPriceOrderInput) {
@@ -1113,6 +1135,21 @@ export class OrderService {
       'payment_confirmed',
     );
     await this.notifyOrderStatusChanged(saved, OrderStatus.ESCROW_HELD);
+
+    if (saved.source === OrderSource.AUCTION && saved.sourceReferenceId) {
+      const repo = this.orderRepository?.manager?.getRepository(Auction);
+      if (repo) {
+        const auction = await repo.findOne({ where: { id: saved.sourceReferenceId } });
+        if (auction) {
+          auction.status = AuctionStatus.COMPLETED;
+          auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
+          auction.winnerPaymentCompletedAt = new Date();
+          auction.orderId = saved.id;
+          auction.paymentAttemptCount = (auction.paymentAttemptCount || 0) + 1;
+          await repo.save(auction);
+        }
+      }
+    }
 
     return {
       code: RC.ORDER_TRANSITIONED,

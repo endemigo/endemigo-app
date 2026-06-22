@@ -195,6 +195,7 @@ export default function NegotiationDetailScreen() {
         negotiationId={id}
         minimumAmount={negotiation.product.askPriceMinAmount}
         disabled={conversationClosed || actions.isPending}
+        showOfferAction={user?.id === negotiation.seller.id}
         onSendMessage={(input) => actions.sendMessage.mutate(input, { onError: handleActionError })}
         onCreateOffer={(input) => actions.createOffer.mutate(input, { onError: handleActionError })}
         onPolicyViolation={handlePolicyViolation}

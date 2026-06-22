@@ -8,6 +8,8 @@ export interface CartItem {
   productId: string;
   productVariantSkuId?: string | null;
   variantId?: string | null;
+  auctionId?: string | null;
+  customPrice?: number | null;
   title: string;
   price: number;
   imageUrl?: string;
@@ -44,6 +46,8 @@ interface CartApiResponse {
       productId: string;
       productVariantSkuId?: string | null;
       variantId?: string | null;
+      auctionId?: string | null;
+      customPrice?: number | string | null;
       quantity: number;
       addedAt?: string;
       product?: {
@@ -83,10 +87,12 @@ function mapApiItemsToStore(data: CartApiResponse): CartItem[] {
     productId: item.productId,
     productVariantSkuId: item.productVariantSkuId ?? null,
     variantId: item.variantId ?? null,
+    auctionId: item.auctionId ?? null,
+    customPrice: item.customPrice !== undefined && item.customPrice !== null ? Number(item.customPrice) : null,
     quantity: item.quantity,
     addedAt: item.addedAt,
     title: item.product?.title ?? '',
-    price: Number(item.product?.price ?? 0),
+    price: Number(item.customPrice !== undefined && item.customPrice !== null ? item.customPrice : (item.product?.price ?? 0)),
     imageUrl: item.product?.imageUrl,
     sellerId: (item as any).product?.sellerId,
   }));

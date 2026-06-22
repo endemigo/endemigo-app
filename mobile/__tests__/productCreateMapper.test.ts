@@ -144,3 +144,63 @@ test('buildAuctionCreatePayload maps auction wizard state to backend payload', (
   assert.equal(payload.auctionType, PRODUCT_CREATE_AUCTION_TYPES.REALTIME);
   assert.equal(payload.extensionSeconds, 60);
 });
+
+test('buildProductCreatePayload maps direct-sale with askPriceEnabled and empty price', () => {
+  const payload = buildProductCreatePayload({
+    listingType: PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE,
+    title: 'Vintage kahve makinesi',
+    categoryId: 'cat-1',
+    directSalePrice: '',
+    stockQuantity: '1',
+    description: 'Temiz kullanildi',
+    condition: PRODUCT_CREATE_CONDITIONS.GOOD,
+    originCountry: 'TR',
+    originRegion: '',
+    askPriceEnabled: true,
+    askPriceMinAmount: '',
+    auctionStartPrice: '',
+    auctionMinIncrement: '',
+    auctionReservePrice: '',
+    auctionStartTime: '',
+    auctionEndTime: '',
+    auctionType: PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
+    antiSnipingEnabled: true,
+    extensionSeconds: '60',
+    maxExtensions: '5',
+    sku: '',
+    geoIndicationCertNo: '',
+    geoIndicationRegion: '',
+    geoIndicationReceivedAt: '',
+    barcodeNo: '',
+    productContent: '',
+    sellerNotes: '',
+    brand: '',
+    isEndemigoBrandCandidate: false,
+    productionProvince: '',
+    productionDistrict: '',
+    productionSeasons: [],
+    salesMonths: [],
+    wholesalePrice: '',
+    retailPrice: '',
+    shippingProvince: '',
+    shippingDistrict: '',
+    shippingAddress: '',
+    deliveryTemplateDomestic: '',
+    deliveryTemplateInternational: '',
+    desiDomestic: '',
+    desiInternational: '',
+    featureBadges: [],
+    geoBadgeSelections: [],
+    additionalCertificates: '',
+    weight: '',
+    dimensionWidth: '',
+    dimensionHeight: '',
+    dimensionDepth: '',
+    dynamicFieldValues: {},
+    variantSkus: [],
+  });
+
+  assert.equal(payload.listingType, PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE);
+  assert.equal(payload.price, undefined);
+  assert.equal(payload.askPriceEnabled, true);
+});

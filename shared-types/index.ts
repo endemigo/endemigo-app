@@ -63,7 +63,11 @@ export {
   OrderReturnReasonCode,
   BannerActionType,
   AuctionRegistrationStatus,
+  AuctionEventSystemType,
+  JointManagementType,
+  InvitationStatus,
 } from './enums';
+
 
 // Constants
 export {

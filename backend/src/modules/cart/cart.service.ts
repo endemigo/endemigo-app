@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { AdminRole } from '@endemigo/shared';
@@ -74,14 +74,22 @@ export class CartService {
       },
     });
     if (item) {
-      item.quantity = Math.min(99, item.quantity + quantity);
+      if (dto.auctionId) {
+        item.auctionId = dto.auctionId;
+        item.customPrice = dto.customPrice ?? null;
+        item.quantity = 1;
+      } else {
+        item.quantity = Math.min(99, item.quantity + quantity);
+      }
     } else {
       item = this.cartRepo.create({
         userId,
         productId: dto.productId,
         productVariantSkuId,
         variantNumberId,
-        quantity,
+        auctionId: dto.auctionId ?? null,
+        customPrice: dto.customPrice ?? null,
+        quantity: dto.auctionId ? 1 : quantity,
       });
     }
     await this.cartRepo.save(item);
@@ -99,6 +107,9 @@ export class CartService {
     if (!item) {
       throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Sepet ürünü bulunamadı' });
     }
+    if (item.auctionId) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünlerinin adedi güncellenemez' });
+    }
     item.quantity = dto.quantity;
     await this.cartRepo.save(item);
 
@@ -115,6 +126,9 @@ export class CartService {
     if (!item) {
       throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Sepet ürünü bulunamadı' });
     }
+    if (item.auctionId) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünleri sepetten çıkarılamaz' });
+    }
 
     await this.cartRepo.remove(item);
     const items = await this.getUserCartItems(userId);
@@ -125,12 +139,17 @@ export class CartService {
     };
   }
 
-  async clearCart(userId: string) {
-    await this.cartRepo.delete({ userId });
+  async clearCart(userId: string, force = false) {
+    if (force) {
+      await this.cartRepo.delete({ userId });
+    } else {
+      await this.cartRepo.delete({ userId, auctionId: IsNull() });
+    }
+    const items = await this.getUserCartItems(userId);
     return {
       code: RC.CART_CLEARED,
       message: 'Sepet temizlendi',
-      cart: this.toCartResponse([]),
+      cart: this.toCartResponse(items),
     };
   }
 
@@ -267,6 +286,8 @@ export class CartService {
         productId: item.productId,
         productVariantSkuId: item.productVariantSkuId,
         variantId: item.variantNumberId,
+        auctionId: item.auctionId,
+        customPrice: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : null,
         variant: item.variantNumber
           ? {
               id: item.variantNumber.id,
@@ -291,7 +312,7 @@ export class CartService {
           ? {
               id: item.product.id,
               title: item.product.title,
-              price: item.product.price,
+              price: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : item.product.price,
               imageUrl: item.product.imageUrl,
               sellerId: item.product.sellerId,
             }

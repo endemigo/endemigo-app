@@ -163,13 +163,16 @@ export class PaymentService {
     // 2. Calculate totals (same formula as the mobile client)
     let subtotal = 0;
     for (const item of cart.items) {
-      if (!item.product || !item.product.price) {
+      if (!item.product) {
         throw new BadRequestException({
           code: RC.PRODUCT_NOT_FOUND,
           message: 'Sepette geçersiz ürün bulunmaktadır',
         });
       }
-      subtotal += Number(item.product.price) * item.quantity;
+      const price = item.customPrice !== null && item.customPrice !== undefined
+        ? Number(item.customPrice)
+        : Number(item.product.price);
+      subtotal += price * item.quantity;
     }
     const shipping = subtotal > 1500 ? 0 : 89;
     const serviceFee = Math.round(subtotal * 0.02);
@@ -228,17 +231,34 @@ export class PaymentService {
             message: 'Sepette geçersiz ürün bulunmaktadır',
           });
         }
+        const price = item.customPrice !== null && item.customPrice !== undefined
+          ? Number(item.customPrice)
+          : Number(product.price);
+
         for (let q = 0; q < item.quantity; q++) {
           const idempotencyKey = `checkout-${savedPayment.id}-${item.productId}-${q}`;
           
-          // We call orderService.createFromDirectSale passing our manager to execute in transaction
-          const orderRes = await this.orderService!.createFromDirectSale(userId, {
-            productId: item.productId,
-            sellerId: product.sellerId,
-            amount: Number(product.price),
-            currency: 'TRY',
-            idempotencyKey,
-          }, manager);
+          let orderRes;
+          if (item.auctionId) {
+            orderRes = await this.orderService!.createFromAuction({
+              auctionId: item.auctionId,
+              buyerId: userId,
+              sellerId: product.sellerId,
+              productId: item.productId,
+              amount: price,
+              currency: 'TRY',
+              paymentId: savedPayment.id,
+              isPending: true,
+            }, manager);
+          } else {
+            orderRes = await this.orderService!.createFromDirectSale(userId, {
+              productId: item.productId,
+              sellerId: product.sellerId,
+              amount: price,
+              currency: 'TRY',
+              idempotencyKey,
+            }, manager);
+          }
 
           const createdOrder = orderRes.order;
           if (!createdOrder) {
@@ -389,7 +409,7 @@ export class PaymentService {
           saved.buyerId,
       );
       if (this.cartService) {
-        await this.cartService.clearCart(saved.buyerId);
+        await this.cartService.clearCart(saved.buyerId, true);
       }
       await this.checkAndUpdateLoyaltyLimit(saved.buyerId);
     }

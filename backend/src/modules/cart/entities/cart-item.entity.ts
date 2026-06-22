@@ -4,6 +4,7 @@ import { User } from '../../user/entities/user.entity';
 import { Product } from '../../product/entities/product.entity';
 import { VariantNumber } from '../../product/entities/variant-number.entity';
 import { ProductVariantSku } from '../../product/entities/product-variant-sku.entity';
+import { Auction } from '../../auction/entities/auction.entity';
 
 @Entity('cart_items')
 @Index('UQ_cart_items_user_product_variant', ['userId', 'productId', 'variantNumberId'], { unique: true })
@@ -37,6 +38,16 @@ export class CartItem extends BaseEntity {
   @ManyToOne(() => ProductVariantSku, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'productVariantSkuId' })
   productVariantSku: ProductVariantSku | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  auctionId: string | null;
+
+  @ManyToOne(() => Auction, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'auctionId' })
+  auction: Auction | null;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
+  customPrice: number | null;
 
   @Column({ type: 'int', default: 1 })
   quantity: number;

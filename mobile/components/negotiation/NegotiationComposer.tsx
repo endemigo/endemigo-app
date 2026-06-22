@@ -14,6 +14,7 @@ interface NegotiationComposerProps {
   negotiationId: string;
   minimumAmount?: number | null;
   disabled?: boolean;
+  showOfferAction?: boolean;
   onSendMessage: (input: SendNegotiationMessageInput) => void;
   onCreateOffer: (input: CreateNegotiationOfferInput) => void;
   onPolicyViolation: () => void;
@@ -23,6 +24,7 @@ export function NegotiationComposer({
   negotiationId,
   minimumAmount = 0,
   disabled = false,
+  showOfferAction = false,
   onSendMessage,
   onCreateOffer,
   onPolicyViolation,
@@ -81,7 +83,7 @@ export function NegotiationComposer({
 
   return (
     <View style={styles.container}>
-      {offerVisible ? (
+      {showOfferAction && offerVisible ? (
         <View style={styles.offerPanel}>
           <View style={styles.offerHeader}>
             <Text style={styles.offerTitle}>{t('negotiation.composer.offerTitle')}</Text>
@@ -155,14 +157,16 @@ export function NegotiationComposer({
       ) : null}
 
       <View style={styles.messageRow}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => setOfferVisible((visible) => !visible)}
-          activeOpacity={0.8}
-          disabled={disabled}
-        >
-          <Ionicons name="cash-outline" size={20} color={Colors.primary} />
-        </TouchableOpacity>
+        {showOfferAction && (
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setOfferVisible((visible) => !visible)}
+            activeOpacity={0.8}
+            disabled={disabled}
+          >
+            <Ionicons name="cash-outline" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
         <TextInput
           style={styles.messageInput}
           value={message}

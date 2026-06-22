@@ -7,6 +7,8 @@ import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
 import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
+import { AuctionEventInvitation } from './entities/auction-event-invitation.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 import { AuctionService } from './auction.service';
 import { AuctionController } from './auction.controller';
 import { AuctionProcessor } from './auction.processor';
@@ -19,7 +21,15 @@ import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Auction, Bid, AuctionEvent, AuctionRegistration]),
+    TypeOrmModule.forFeature([
+      Auction,
+      Bid,
+      AuctionEvent,
+      AuctionRegistration,
+      AuctionEventInvitation,
+      CartItem,
+    ]),
+
     BullModule.registerQueue({
       name: 'auction',
       defaultJobOptions: {

@@ -1,6 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { AuctionEventStatus, AuctionType } from '@endemigo/shared';
+import { AuctionEventStatus, AuctionType, AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
 import { Category } from '../../product/entities/category.entity';
 
 @Entity('auction_events')
@@ -11,8 +11,33 @@ export class AuctionEvent extends BaseEntity {
   @ManyToOne(() => Category, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'categoryId' })
   category: Category | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  ownerId: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: AuctionEventSystemType,
+    default: AuctionEventSystemType.ENDEMIGO_MANAGED,
+  })
+  eventType: AuctionEventSystemType;
+
+  @Column({
+    type: 'enum',
+    enum: JointManagementType,
+    nullable: true,
+  })
+  jointManagementType: JointManagementType | null;
+
+  @Column({ type: 'int', default: 0 })
+  minProductsCount: number;
+
+  @Column({ type: 'int', default: 0 })
+  maxProductsCount: number;
+
   @Column()
   title: string;
+
 
   @Column({ type: 'text', nullable: true })
   description: string | null;

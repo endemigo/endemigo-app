@@ -129,8 +129,9 @@ export default function CartScreen() {
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <Swipeable
+            enabled={!item.auctionId}
             overshootRight={false}
-            renderRightActions={() => (
+            renderRightActions={() => item.auctionId ? null : (
               <TouchableOpacity
                 style={styles.swipeDeleteAction}
                 onPress={() => handleRemoveItem(item.id)}
@@ -150,23 +151,30 @@ export default function CartScreen() {
                 <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.itemMeta}>{t('cart.unitPrice')}: {formatCurrency(item.price)}</Text>
                 <View style={styles.bottomRow}>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleQuantityChange(item.id, item.quantity, -1)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="remove" size={14} color={Colors.onSurface} />
-                    </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{item.quantity}</Text>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleQuantityChange(item.id, item.quantity, 1)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="add" size={14} color={Colors.onSurface} />
-                    </TouchableOpacity>
-                  </View>
+                  {item.auctionId ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.secondaryContainer, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                      <Ionicons name="hammer-outline" size={12} color={Colors.onSecondaryContainer} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.onSecondaryContainer }}>{t('cart.auctionWonLabel')}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.stepper}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleQuantityChange(item.id, item.quantity, -1)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="remove" size={14} color={Colors.onSurface} />
+                      </TouchableOpacity>
+                      <Text style={styles.stepperValue}>{item.quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleQuantityChange(item.id, item.quantity, 1)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="add" size={14} color={Colors.onSurface} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   <Text style={styles.itemPrice}>{formatCurrency(item.price * item.quantity)}</Text>
                 </View>
               </View>

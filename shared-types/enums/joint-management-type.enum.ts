@@ -1,0 +1,4 @@
+export enum JointManagementType {
+  SELF_MANAGED = 'SELF_MANAGED',
+  ENDEMIGO_SUPPORTED = 'ENDEMIGO_SUPPORTED',
+}

@@ -8,7 +8,7 @@ import { parsePriceInput } from './priceInputMask.ts';
 interface ProductCreatePayload {
   title: string;
   description?: string;
-  price: number;
+  price?: number;
   retailPrice?: number;
   wholesalePrice?: number;
   categoryId: string;
@@ -61,6 +61,7 @@ interface AuctionCreatePayload {
   antiSnipingEnabled: boolean;
   extensionSeconds: number;
   maxExtensions: number;
+  guaranteeAccepted: boolean;
 }
 
 function parseOptionalNumber(value: string): number | undefined {
@@ -82,10 +83,11 @@ function resolveStringField(
 export function buildProductCreatePayload(
   state: ProductCreateWizardState,
 ): ProductCreatePayload {
-  const priceSource = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
-    ? state.auctionStartPrice
-    : state.directSalePrice;
-  const parsedPrice = normalizeMoneyScale(parsePriceInput(priceSource) ?? 0);
+  const priceSource = state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE
+    ? state.directSalePrice
+    : state.auctionStartPrice;
+  const priceVal = parsePriceInput(priceSource);
+  const parsedPrice = priceVal !== undefined && priceVal > 0 ? normalizeMoneyScale(priceVal) : undefined;
   const parsedRetailPrice = parseOptionalNumber(state.retailPrice);
   const parsedWholesalePrice = parseOptionalNumber(state.wholesalePrice);
   const parsedAskPriceMinAmount = parseOptionalNumber(state.askPriceMinAmount);
@@ -158,5 +160,6 @@ export function buildAuctionCreatePayload(
     antiSnipingEnabled: state.antiSnipingEnabled,
     extensionSeconds: Number(state.extensionSeconds || '60'),
     maxExtensions: Number(state.maxExtensions || '5'),
+    guaranteeAccepted: true,
   };
 }

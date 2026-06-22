@@ -558,7 +558,7 @@ export const mockService = {
   async createProduct(payload: {
     title: string;
     description?: string;
-    price: number;
+    price?: number;
     categoryId: string;
     stockQuantity: number;
     listingType: string;
@@ -573,8 +573,8 @@ export const mockService = {
       id: `prod-mock-${Date.now()}`,
       title: payload.title,
       description: payload.description ?? '',
-      price: payload.price,
-      originalPrice: payload.price,
+      price: payload.price ?? null,
+      originalPrice: payload.price ?? null,
       discountRate: 0,
       likeCount: 0,
       imageUrl: '',

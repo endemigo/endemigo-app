@@ -54,8 +54,15 @@ export class SellerProfile extends BaseEntity {
   @Column({ nullable: true })
   approvedAt: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  independentPreContractAcceptedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  jointPreContractAcceptedAt: Date | null;
+
   @Column()
   agreementAcceptedAt: Date;
+
 
   @Column({ default: '1.0.0' })
   agreementVersion: string;

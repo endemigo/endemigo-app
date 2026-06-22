@@ -21,6 +21,7 @@ import { OrderAuditEvent } from './entities/order-audit-event.entity';
 import { Order } from './entities/order.entity';
 import { OrderReview } from './entities/order-review.entity';
 import { OrderService } from './order.service';
+import { Auction } from '../auction/entities/auction.entity';
 
 type OrderStore = Map<string, Order>;
 
@@ -79,6 +80,12 @@ const createOrderRepository = (orders: OrderStore) =>
       orders.set(saved.id, saved as Order);
       return Promise.resolve(saved as Order);
     }),
+    manager: {
+      getRepository: jest.fn(() => ({
+        findOne: jest.fn().mockResolvedValue({ id: 'auction-1' }),
+        save: jest.fn((auction) => Promise.resolve(auction)),
+      })),
+    },
   }) as unknown as Repository<Order>;
 
 const createAuditRepository = () =>
@@ -213,6 +220,60 @@ describe('OrderService', () => {
         reason: 'auction_escrow_captured',
       }),
     );
+  });
+
+  it('creates auction orders as payment pending when isPending is true', async () => {
+    const orders: OrderStore = new Map();
+    const orderRepository = createOrderRepository(orders);
+    const auditRepository = createAuditRepository();
+    const service = new OrderService(orderRepository, auditRepository);
+    const pendingAuctionOrder = {
+      auctionId: 'auction-1',
+      buyerId: 'buyer-1',
+      sellerId: 'seller-1',
+      productId: 'product-1',
+      amount: 1200,
+      currency: 'TRY',
+      paymentId: '00000000-0000-4000-8000-000000000001',
+      isPending: true,
+    };
+
+    const result = await service.createFromAuction(pendingAuctionOrder);
+
+    expect(result.code).toBe(RC.ORDER_CREATED);
+    expect(result.order?.status).toBe(OrderStatus.PAYMENT_PENDING);
+    expect(result.order?.escrowStatus).toBe(EscrowStatus.NOT_FUNDED);
+    expect(auditRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toStatus: OrderStatus.PAYMENT_PENDING,
+        reason: 'auction_checkout_initiated',
+      }),
+    );
+  });
+
+  it('transitions pending auction order to escrow held later and updates auction status', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          id: 'order-1',
+          source: OrderSource.AUCTION,
+          sourceReferenceId: 'auction-1',
+          status: OrderStatus.PAYMENT_PENDING,
+          escrowStatus: EscrowStatus.NOT_FUNDED,
+        }),
+      ],
+    ]);
+    const orderRepository = createOrderRepository(orders);
+    const auditRepository = createAuditRepository();
+    const service = new OrderService(orderRepository, auditRepository);
+
+    const result = await service.markPaymentEscrowHeld('order-1', 'payment-1', 'buyer-1');
+
+    expect(result.code).toBe(RC.ORDER_TRANSITIONED);
+    expect(result.order?.status).toBe(OrderStatus.ESCROW_HELD);
+    expect(result.order?.escrowStatus).toBe(EscrowStatus.HELD);
+    expect(orderRepository.manager.getRepository).toHaveBeenCalledWith(Auction);
   });
 
   it('rejects direct-sale orders when client amount differs from product price', async () => {

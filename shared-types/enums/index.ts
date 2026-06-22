@@ -54,4 +54,8 @@ export { VariantOptionKind } from './variant-option-kind.enum';
 export { OrderReturnReasonCode } from './order-return-reason-code.enum';
 export { BannerActionType } from './banner-action-type.enum';
 export { AuctionRegistrationStatus } from './auction-registration-status.enum';
+export { AuctionEventSystemType } from './auction-event-system-type.enum';
+export { JointManagementType } from './joint-management-type.enum';
+export { InvitationStatus } from './invitation-status.enum';
+
 

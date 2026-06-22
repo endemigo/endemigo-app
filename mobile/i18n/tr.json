@@ -383,8 +383,8 @@
     "previous": "Geri",
     "next": "Devam Et",
     "publish": "Yayına Al",
-    "askPriceEnabled": "Pazarlığa açık",
-    "askPriceHint": "Alıcılar teklif bırakabilsin.",
+    "askPriceEnabled": "Fiyat Sor",
+    "askPriceHint": "Fiyatı olmayan ürünler için alıcının fiyat sormasını sağlar.",
     "askPriceMinAmount": "Minimum Teklif",
     "barcodeNo": "Ürün Barkod No (GTIN)",
     "barcodeNoPlaceholder": "Örn: 8681234567890",
@@ -664,6 +664,7 @@
     "title": "Sepetim",
     "empty": "Sepetiniz boş",
     "emptySub": "Ürün eklemek için alışverişe başlayın",
+    "auctionWonLabel": "Müzayede Kazanımı",
     "startShopping": "Alışverişe Başla",
     "addedToCart": "Ürün sepete eklendi",
     "premiumLabel": "Premium",
@@ -803,7 +804,7 @@
       }
     },
     "actions": {
-      "accept": "Kabul Et",
+      "accept": "Bu Fiyatla Satın Al",
       "reject": "Reddet",
       "close": "Kapat"
     },
@@ -824,7 +825,8 @@
       "quantityPlaceholder": "Adet",
       "notePlaceholder": "Satıcıya kısa not",
       "sending": "Gönderiliyor...",
-      "error": "Fiyat Sor görüşmesi başlatılamadı."
+      "error": "Fiyat Sor görüşmesi başlatılamadı.",
+      "defaultMessage": "Merhaba, bu ürünün fiyatını öğrenebilir miyim?"
     },
     "askQuestion": {
       "error": "Soru sor görüşmesi başlatılamadı."

@@ -27,4 +27,13 @@ export class AddCartItemDto {
   @Min(1)
   @Max(99)
   quantity?: number;
+
+  @ApiPropertyOptional()
+  @IsUUID()
+  @IsOptional()
+  auctionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  customPrice?: number;
 }

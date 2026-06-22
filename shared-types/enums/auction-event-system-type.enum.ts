@@ -1,0 +1,5 @@
+export enum AuctionEventSystemType {
+  INDEPENDENT = 'INDEPENDENT',
+  JOINT = 'JOINT',
+  ENDEMIGO_MANAGED = 'ENDEMIGO_MANAGED',
+}
