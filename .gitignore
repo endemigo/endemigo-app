@@ -88,3 +88,14 @@ GEMINI.md
 *.docx
 *.py
 AGENTS.md
+
+# Runtime uploads
+backend/uploads/
+
+# One-off debug/scratch scripts (not part of the app)
+admin/test-page.js
+backend/check-auctions.ts
+backend/create-seller.ts
+backend/fix-users.ts
+backend/test-product-uuid.ts
+backend/update-owners.ts
