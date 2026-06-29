@@ -3265,6 +3265,13 @@ export class AdminOperationsService {
     if (payload.commissionRate !== undefined) {
       sellerProfile.commissionRate = this.toNumber(payload.commissionRate, Number(sellerProfile.commissionRate ?? 0.15));
     }
+    // Faz 3: Müzayede açma kademesi (admin grant).
+    if ((payload as any).canCreateIndependent !== undefined) {
+      sellerProfile.canCreateIndependent = this.toBooleanValue((payload as any).canCreateIndependent);
+    }
+    if ((payload as any).canCreateJoint !== undefined) {
+      sellerProfile.canCreateJoint = this.toBooleanValue((payload as any).canCreateJoint);
+    }
     if (payload.status !== undefined) {
       sellerProfile.status = this.matchEnumValue<SellerStatus>(
         payload.status,
@@ -5358,7 +5365,20 @@ export class AdminOperationsService {
     event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
     this.validateEventDates(event.startTime, event.endTime, event.submissionDeadline);
     event.activeLotId = null;
-    event.ownerId = actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r)) ? actor.id : null;
+    event.ownerId = this.isPureSeller(actor) ? actor.id : null;
+    // Faz 6: Yayıncı varsayılanı = sahip; endemigo-yönetilende (ownerId yok) admin sonra atar.
+    event.auctioneerId = (payload as any).auctioneerId || event.ownerId;
+
+    // Faz 3: Kademe gate — satıcı yalnızca yetkili olduğu tür müzayedeyi açabilir.
+    if (this.isPureSeller(actor)) {
+      const profile = await this.sellerProfileRepo.findOne({ where: { userId: actor.id } });
+      if (event.eventType === AuctionEventSystemType.INDEPENDENT && !profile?.canCreateIndependent) {
+        throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Bağımsız müzayede açma yetkiniz yok. Yetki için endemigo ile iletişime geçin.' });
+      }
+      if (event.eventType === AuctionEventSystemType.JOINT && !profile?.canCreateJoint) {
+        throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Ortak müzayede açma yetkiniz yok. Yetki için endemigo ile iletişime geçin.' });
+      }
+    }
     event.antiSnipingEnabled = payload.antiSnipingEnabled !== undefined ? this.toBooleanValue(payload.antiSnipingEnabled) : true;
     event.maxExtensions = payload.maxExtensions !== undefined ? this.toNumber(payload.maxExtensions, 5) : 5;
     event.extensionSeconds = payload.extensionSeconds !== undefined ? this.toNumber(payload.extensionSeconds, 60) : 60;
@@ -5435,8 +5455,9 @@ export class AdminOperationsService {
     const payload = this.actionPayload<Partial<AuctionEvent>>(dto);
     const event = await this.findOneOrFail(this.auctionEventRepo, id);
     
-    if (actor?.roles?.includes('seller' as AdminRole) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
-      if (event.ownerId !== actor.id) {
+    if (this.isPureSeller(actor)) {
+      // Faz 6: sahip veya atanmış yayıncı (auctioneer) yönetebilir.
+      if (event.ownerId !== actor.id && event.auctioneerId !== actor.id) {
         throw new ForbiddenException({
           code: RC.ADMIN_FORBIDDEN,
           message: 'Bu etkinliği güncelleme yetkiniz yok',
@@ -5479,6 +5500,11 @@ export class AdminOperationsService {
       this.validateEventDates(event.startTime, event.endTime, event.submissionDeadline);
     }
     if (payload.activeLotId !== undefined) event.activeLotId = payload.activeLotId;
+    // Faz 6: Yayıncı ataması yalnızca admin veya sahip tarafından yapılabilir (yetki yükseltmeyi önler).
+    if ((payload as any).auctioneerId !== undefined) {
+      const canAssign = !this.isPureSeller(actor) || event.ownerId === actor.id;
+      if (canAssign) event.auctioneerId = (payload as any).auctioneerId || null;
+    }
     if (payload.antiSnipingEnabled !== undefined) event.antiSnipingEnabled = this.toBooleanValue(payload.antiSnipingEnabled);
     if (payload.maxExtensions !== undefined) event.maxExtensions = this.toNumber(payload.maxExtensions, 5);
     if (payload.extensionSeconds !== undefined) event.extensionSeconds = this.toNumber(payload.extensionSeconds, 60);

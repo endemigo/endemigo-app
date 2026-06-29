@@ -15,6 +15,11 @@ export class AuctionEvent extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   ownerId: string | null;
 
+  // Faz 6: Canlı yayını yürütecek kişi (kreatör/operatör). Sahip ≠ yayıncı olabilir.
+  // Seller-oluşturanlarda varsayılan = ownerId; endemigo-yönetilende admin atar.
+  @Column({ type: 'uuid', nullable: true })
+  auctioneerId: string | null;
+
   @Column({
     type: 'enum',
     enum: AuctionEventSystemType,
@@ -34,6 +39,12 @@ export class AuctionEvent extends BaseEntity {
 
   @Column({ type: 'int', default: 0 })
   maxProductsCount: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  dealerCommissionRate: number | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  endemigoCommissionRate: number | null;
 
   @Column()
   title: string;

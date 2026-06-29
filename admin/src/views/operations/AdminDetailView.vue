@@ -3071,6 +3071,26 @@ const sellerFields = (row: Record<string, unknown>): DrawerField[] => [
   { key: 'taxNumber', label: 'Vergi Numarası', value: getString(row, 'taxNumber') },
   { key: 'commissionRate', label: 'Komisyon Oranı', type: 'number', value: getString(row, 'commissionRate') },
   {
+    key: 'canCreateIndependent',
+    label: 'Bağımsız Müzayede Açabilir (40+ ürün)',
+    type: 'select',
+    value: String(row.canCreateIndependent) === 'true' ? 'true' : 'false',
+    options: [
+      { label: 'Hayır', value: 'false' },
+      { label: 'Evet', value: 'true' },
+    ],
+  },
+  {
+    key: 'canCreateJoint',
+    label: 'Ortak Müzayede Açabilir (Dealer/Kreatör)',
+    type: 'select',
+    value: String(row.canCreateJoint) === 'true' ? 'true' : 'false',
+    options: [
+      { label: 'Hayır', value: 'false' },
+      { label: 'Evet', value: 'true' },
+    ],
+  },
+  {
     key: 'status',
     label: 'Durum',
     type: 'select',

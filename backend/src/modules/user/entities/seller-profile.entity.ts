@@ -60,6 +60,14 @@ export class SellerProfile extends BaseEntity {
   @Column({ type: 'timestamp', nullable: true })
   jointPreContractAcceptedAt: Date | null;
 
+  // Faz 3: Müzayede açma kademesi (admin elle verir).
+  // canCreateIndependent: 40+ ürünlü bağımsız müzayede; canCreateJoint: ortak/dealer müzayede.
+  @Column({ default: false })
+  canCreateIndependent: boolean;
+
+  @Column({ default: false })
+  canCreateJoint: boolean;
+
   @Column()
   agreementAcceptedAt: Date;
 
