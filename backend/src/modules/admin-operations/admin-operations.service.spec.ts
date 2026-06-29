@@ -107,7 +107,7 @@ describe('AdminOperationsService', () => {
   it('lists admin resources with pagination metadata', async () => {
     repos[0].findAndCount.mockResolvedValueOnce([[{ id: 'user-1', createdAt: new Date() }], 1]);
 
-    const result = await service.list('users', { page: 1, limit: 10 });
+    const result: any = await service.list('users', { page: 1, limit: 10 } as any);
 
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.pagination.total).toBe(1);
@@ -125,7 +125,7 @@ describe('AdminOperationsService', () => {
       createdAt: new Date('2026-05-11T00:00:00.000Z'),
     });
 
-    const result = await service.detail('sellers', 'user-1');
+    const result: any = await service.detail('sellers', 'user-1');
 
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.resource).toBe('sellers');
@@ -161,11 +161,11 @@ describe('AdminOperationsService', () => {
 
   it('creates variant number record', async () => {
     const result = await service.createVariantNumber({
-      kind: 'NUMBER' as const,
+      kind: 'NUMBER' as any,
       nameTr: ' 42 ',
       nameEn: ' 42 ',
       sortOrder: 42,
-      status: 'ACTIVE' as const,
+      status: 'ACTIVE' as any,
     });
 
     expect(result.code).toBe(RC.ADMIN_VARIANT_NUMBER_CREATED);
@@ -277,7 +277,7 @@ describe('AdminOperationsService', () => {
       isActive: true,
     });
 
-    const result = await service.detail('users', 'user-1');
+    const result: any = await service.detail('users', 'user-1');
 
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.resource).toBe('users');
@@ -314,7 +314,7 @@ describe('AdminOperationsService', () => {
     repos[13].count.mockResolvedValue(0);
     repos[7].count.mockResolvedValue(0);
 
-    const result = await service.detail('products', 'product-1');
+    const result: any = await service.detail('products', 'product-1');
 
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.resource).toBe('products');
@@ -386,7 +386,7 @@ describe('AdminOperationsService', () => {
     repos[14].count.mockResolvedValueOnce(33);
     repos[15].count.mockResolvedValueOnce(47);
 
-    const result = await service.detail('users', 'user-2');
+    const result: any = await service.detail('users', 'user-2');
 
     expect(result.relatedRecords.pagination.orders.hasMore).toBe(true);
     expect(result.relatedRecords.pagination.sales.hasMore).toBe(true);

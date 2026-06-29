@@ -61,8 +61,8 @@ describe('AdminOperationsService — auction event guards', () => {
     const adminAuditService = {
       recordAction: jest.fn().mockResolvedValue({ id: 'audit-1' }),
     };
-    service = new AdminOperationsService(
-      ...(repos.map((r) => r as never) as never[]),
+    service = new (AdminOperationsService as any)(
+      ...repos,
       adminAuditService as unknown as AdminAuditService,
     );
   });
