@@ -866,3 +866,87 @@ describe('OrderService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 });
+
+describe('OrderService commission split (Faz 1)', () => {
+  const buildLedger = () => {
+    const calls: Array<{ lines: Array<Record<string, unknown>> }> = [];
+    const ledger = {
+      getOrCreateAccount: jest.fn(
+        (ownerId: string | null, type: LedgerAccountType) =>
+          Promise.resolve({ id: `${ownerId ?? 'platform'}:${type}` }),
+      ),
+      postEntry: jest.fn((input: { lines: Array<Record<string, unknown>> }) => {
+        calls.push(input);
+        return Promise.resolve({
+          code: RC.LEDGER_ENTRY_POSTED,
+          message: 'Ledger entry posted',
+        });
+      }),
+    } as unknown as LedgerService;
+    return { ledger, calls };
+  };
+
+  const sum = (lines: Array<Record<string, unknown>>, dir: string) =>
+    lines
+      .filter((l) => l.direction === dir)
+      .reduce((acc, l) => acc + Number(l.amount), 0);
+
+  it('splits escrow three ways when commission is present', async () => {
+    const orderRepository = createOrderRepository(new Map());
+    const { ledger, calls } = buildLedger();
+    const service = new OrderService(
+      orderRepository,
+      createAuditRepository(),
+      undefined,
+      undefined,
+      ledger,
+    );
+    const order = createOrder({
+      escrowStatus: EscrowStatus.HELD,
+      amount: 1200,
+      platformCommissionAmount: 240,
+      dealerCommissionAmount: 96,
+      dealerId: 'dealer-1',
+    });
+
+    await service.releaseEscrowToSeller(order);
+
+    expect(calls).toHaveLength(1);
+    const lines = calls[0].lines;
+    // Ledger dengeli: debit == credit == brüt.
+    expect(sum(lines, 'DEBIT')).toBe(1200);
+    expect(sum(lines, 'CREDIT')).toBe(1200);
+    // Satıcı net, platform ve dealer payları ayrı.
+    expect(
+      lines.find((l) => l.accountId === 'seller-1:SELLER_AVAILABLE')?.amount,
+    ).toBe(864);
+    expect(
+      lines.find((l) => l.accountId === 'platform:PLATFORM_FEE')?.amount,
+    ).toBe(240);
+    expect(
+      lines.find((l) => l.accountId === 'dealer-1:SELLER_AVAILABLE')?.amount,
+    ).toBe(96);
+    expect(order.escrowStatus).toBe(EscrowStatus.RELEASED);
+  });
+
+  it('credits full amount to seller when no commission (backward compatible)', async () => {
+    const orderRepository = createOrderRepository(new Map());
+    const { ledger, calls } = buildLedger();
+    const service = new OrderService(
+      orderRepository,
+      createAuditRepository(),
+      undefined,
+      undefined,
+      ledger,
+    );
+    const order = createOrder({ escrowStatus: EscrowStatus.HELD, amount: 1000 });
+
+    await service.releaseEscrowToSeller(order);
+
+    const lines = calls[0].lines;
+    expect(lines).toHaveLength(2);
+    expect(
+      lines.find((l) => l.accountId === 'seller-1:SELLER_AVAILABLE')?.amount,
+    ).toBe(1000);
+  });
+});
