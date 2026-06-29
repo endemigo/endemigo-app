@@ -530,7 +530,19 @@
     "selectedEventLabel": "Seçilen Müzayede Etkinliği",
     "standaloneAuctionLabel": "Bireysel Müzayede (Herhangi bir etkinliğe dahil değil)",
     "standaloneAuctionDesc": "Bu müzayede belirlediğiniz başlangıç ve bitiş saatlerinde yayına girecektir.",
-    "eventBadge": "ETKİNLİK"
+    "eventBadge": "ETKİNLİK",
+    "auctionProductCountTitle": "Kaç adet ürün listeleyeceksiniz?",
+    "auctionProductCountSubtitle": "Ürün adedinize uygun müzayede modelini seçin.",
+    "optionSingleTitle": "Tek Ürün (Bireysel)",
+    "optionSingleDesc": "Münferit tek bir müzayede başlatın.",
+    "optionJointTitle": "Ortak Müzayede (En az 20 Ürün)",
+    "optionJointDesc": "Diğer satıcılarla ortak bir müzayede salonuna katılın.",
+    "optionIndependentTitle": "Bağımsız Müzayede (En az 40 Ürün)",
+    "optionIndependentDesc": "Tamamen size ait bağımsız bir müzayede salonu açın.",
+    "independentInfoTitle": "Bağımsız Müzayede Koşulları",
+    "independentInfoBody": "Bağımsız müzayede açabilmek için:\n1. Profilinizden Bağımsız Müzayede Ön Sözleşmesi onaylanmalıdır.\n2. Müzayede odanız oluşturulduktan sonra, en az 40 ürünü 'Müzayede Etkinliği' seçeneğiyle bu odaya eklemeniz gerekir.\n\nMüzayede salonu oluşturmak için lütfen admin/destek ile iletişime geçin.",
+    "independentInfoConfirm": "Ürün Eklemeye Başla",
+    "backToEntryModes": "Geri"
   },
   "settings": {
     "title": "Ayarlar",

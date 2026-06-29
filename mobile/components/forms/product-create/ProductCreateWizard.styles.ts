@@ -1158,4 +1158,38 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.body,
     lineHeight: 20,
   },
+  independentInfoBox: {
+    backgroundColor: `${Colors.primary}08`,
+    borderColor: `${Colors.primary}1F`,
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
+    marginVertical: Spacing.base,
+    gap: Spacing.sm,
+  },
+  independentInfoTitle: {
+    color: Colors.primary,
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.body,
+    fontWeight: '700',
+  },
+  independentInfoBody: {
+    color: Colors.slate700,
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.caption + 1,
+    lineHeight: 20,
+  },
+  backButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  backButtonText: {
+    color: Colors.slate500,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.body,
+  },
 });

@@ -46,46 +46,56 @@ export default function TabLayout() {
   const isSellerMode = activeMode === 'seller';
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [isEntryModeModalVisible, setIsEntryModeModalVisible] = useState(false);
-  const [modalStep, setModalStep] = useState<'main' | 'auctionType'>('main');
+  const [modalStep, setModalStep] = useState<'main' | 'auctionType' | 'auctionProductCount' | 'independentInfo'>('main');
 
-  const panY = React.useRef(new RNAnimated.Value(0)).current;
+  const panY = React.useMemo(() => new RNAnimated.Value(0), []);
 
-  const resetPositionAnim = RNAnimated.timing(panY, {
-    toValue: 0,
-    duration: 250,
-    useNativeDriver: true,
-  });
+  const resetPositionAnim = React.useMemo(
+    () =>
+      RNAnimated.timing(panY, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    [panY]
+  );
 
-  const closeAnim = RNAnimated.timing(panY, {
-    toValue: 600,
-    duration: 200,
-    useNativeDriver: true,
-  });
+  const closeAnim = React.useMemo(
+    () =>
+      RNAnimated.timing(panY, {
+        toValue: 600,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    [panY]
+  );
 
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 10 && gestureState.dy > 0 && Math.abs(gestureState.dx) < 30;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          panY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 120 || gestureState.vy > 0.5) {
-          closeAnim.start(() => {
-            setIsEntryModeModalVisible(false);
-            setModalStep('main');
-            panY.setValue(0);
-          });
-        } else {
-          resetPositionAnim.start();
-        }
-      },
-    })
-  ).current;
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return Math.abs(gestureState.dy) > 10 && gestureState.dy > 0 && Math.abs(gestureState.dx) < 30;
+        },
+        onPanResponderMove: (_, gestureState) => {
+          if (gestureState.dy > 0) {
+            panY.setValue(gestureState.dy);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 120 || gestureState.vy > 0.5) {
+            closeAnim.start(() => {
+              setIsEntryModeModalVisible(false);
+              setModalStep('main');
+              panY.setValue(0);
+            });
+          } else {
+            resetPositionAnim.start();
+          }
+        },
+      }),
+    [panY, closeAnim, resetPositionAnim]
+  );
 
   const handleSelectEntryMode = (mode: 'MARKETPLACE' | 'AUCTION', auctionType?: 'REALTIME' | 'TIMED') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -367,16 +377,63 @@ export default function TabLayout() {
         <AnimatedSafeAreaView style={[entryModeStyles.entryModeModalContainer, { transform: [{ translateY: panY }] }]} edges={['bottom']} {...panResponder.panHandlers}>
           <View style={entryModeStyles.entryModeModalHandle} />
  
-          {modalStep === 'main' ? (
+          {modalStep === 'main' && (
             <View style={entryModeStyles.entryModeHeaderArea}>
               <Text style={entryModeStyles.entryModeTitle}>{t('listing.entryModeTitle')}</Text>
               <Text style={entryModeStyles.entryModeSubtitle}>{t('listing.entryModeSubtitle')}</Text>
             </View>
-          ) : (
+          )}
+
+          {modalStep === 'auctionProductCount' && (
             <View style={entryModeStyles.entryModeHeaderArea}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                 <TouchableOpacity
                   onPress={() => setModalStep('main')}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: Colors.slate100,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+              <Text style={entryModeStyles.entryModeTitle}>{t('listing.auctionProductCountTitle')}</Text>
+              <Text style={entryModeStyles.entryModeSubtitle}>{t('listing.auctionProductCountSubtitle')}</Text>
+            </View>
+          )}
+
+          {modalStep === 'independentInfo' && (
+            <View style={entryModeStyles.entryModeHeaderArea}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                <TouchableOpacity
+                  onPress={() => setModalStep('auctionProductCount')}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: Colors.slate100,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+              <Text style={entryModeStyles.entryModeTitle}>{t('listing.independentInfoTitle')}</Text>
+            </View>
+          )}
+
+          {modalStep === 'auctionType' && (
+            <View style={entryModeStyles.entryModeHeaderArea}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                <TouchableOpacity
+                  onPress={() => setModalStep('auctionProductCount')}
                   style={{
                     width: 32,
                     height: 32,
@@ -396,7 +453,7 @@ export default function TabLayout() {
           )}
  
           <View style={entryModeStyles.entryModeOptions}>
-            {modalStep === 'main' ? (
+            {modalStep === 'main' && (
               <>
                 <Animated.View entering={FadeInUp.delay(100).duration(600)}>
                   <TouchableOpacity
@@ -421,7 +478,7 @@ export default function TabLayout() {
                   <TouchableOpacity
                     style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
                     activeOpacity={0.7}
-                    onPress={() => setModalStep('auctionType')}
+                    onPress={() => setModalStep('auctionProductCount')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
                       <Ionicons name="hammer-outline" size={24} color={Colors.secondary} />
@@ -436,7 +493,80 @@ export default function TabLayout() {
                   </TouchableOpacity>
                 </Animated.View>
               </>
-            ) : (
+            )}
+
+            {modalStep === 'auctionProductCount' && (
+              <>
+                <Animated.View entering={FadeInUp.delay(100).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
+                    activeOpacity={0.7}
+                    onPress={() => setModalStep('auctionType')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
+                      <Ionicons name="cube-outline" size={24} color={Colors.secondary} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionSingleTitle')}</Text>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionSingleDesc')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+
+                <Animated.View entering={FadeInUp.delay(180).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
+                    activeOpacity={0.7}
+                    onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
+                      <Ionicons name="people-outline" size={24} color={Colors.secondary} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionJointTitle')}</Text>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionJointDesc')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+
+                <Animated.View entering={FadeInUp.delay(260).duration(600)}>
+                  <TouchableOpacity
+                    style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
+                    activeOpacity={0.7}
+                    onPress={() => setModalStep('independentInfo')}
+                  >
+                    <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
+                      <Ionicons name="business-outline" size={24} color={Colors.secondary} />
+                    </View>
+                    <View style={entryModeStyles.entryModeOptionTextWrap}>
+                      <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionIndependentTitle')}</Text>
+                      <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionIndependentDesc')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                  </TouchableOpacity>
+                </Animated.View>
+              </>
+            )}
+
+            {modalStep === 'independentInfo' && (
+              <>
+                <View style={entryModeStyles.independentInfoBox}>
+                  <Text style={entryModeStyles.independentInfoBody}>{t('listing.independentInfoBody')}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[entryModeStyles.primaryButton, entryModeStyles.primaryButtonAuction]}
+                  activeOpacity={0.85}
+                  onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
+                >
+                  <Text style={entryModeStyles.primaryButtonText}>{t('listing.independentInfoConfirm')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {modalStep === 'auctionType' && (
               <>
                 <Animated.View entering={FadeInUp.delay(100).duration(600)}>
                   <TouchableOpacity
@@ -479,9 +609,11 @@ export default function TabLayout() {
             )}
           </View>
  
-          <View style={entryModeStyles.entryModeFooter}>
-            <Text style={entryModeStyles.entryModeFooterText}>{t('listing.sellerAssurance')}</Text>
-          </View>
+          {modalStep === 'main' && (
+            <View style={entryModeStyles.entryModeFooter}>
+              <Text style={entryModeStyles.entryModeFooterText}>{t('listing.sellerAssurance')}</Text>
+            </View>
+          )}
         </AnimatedSafeAreaView>
       </View>
     </Modal>

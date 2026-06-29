@@ -530,7 +530,19 @@
     "selectedEventLabel": "Selected Auction Event",
     "standaloneAuctionLabel": "Standalone Auction (Not part of any event)",
     "standaloneAuctionDesc": "This auction will go live at your specified start and end times.",
-    "eventBadge": "EVENT"
+    "eventBadge": "EVENT",
+    "auctionProductCountTitle": "How many products will you list?",
+    "auctionProductCountSubtitle": "Choose the auction model that fits your product count.",
+    "optionSingleTitle": "Single Product (Standalone)",
+    "optionSingleDesc": "Start an individual, one-off auction.",
+    "optionJointTitle": "Joint Auction (Min 20 Products)",
+    "optionJointDesc": "Join a joint auction room with other sellers.",
+    "optionIndependentTitle": "Independent Auction (Min 40 Products)",
+    "optionIndependentDesc": "Open an independent, private auction room for your products.",
+    "independentInfoTitle": "Independent Auction Requirements",
+    "independentInfoBody": "To open an independent auction:\n1. You must accept the Independent Auction Pre-Contract from your profile.\n2. Once your auction room is created, you must add at least 40 products to this room using the 'Auction Event' option.\n\nPlease contact admin/support to create your auction room.",
+    "independentInfoConfirm": "Start Adding Products",
+    "backToEntryModes": "Back"
   },
   "settings": {
     "title": "Settings",
