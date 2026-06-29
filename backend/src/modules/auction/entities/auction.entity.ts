@@ -31,6 +31,9 @@ export class Auction extends BaseEntity {
   minIncrement: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  buyItNowPrice: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   reservePrice: number | null;
 
   @Column({ default: false })
