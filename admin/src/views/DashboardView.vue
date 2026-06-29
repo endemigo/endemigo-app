@@ -1,5 +1,5 @@
 <template>
-  <section class="field-grid">
+  <section v-if="!isSeller" class="field-grid">
     <header class="page-header">
       <div>
         <h1>Operations Console</h1>
@@ -160,11 +160,70 @@
 
     <p v-if="error" class="error-text">{{ error }}</p>
   </section>
+  <section v-else class="field-grid seller-dashboard">
+    <header class="page-header">
+      <div>
+        <h1>Satıcı Panosu</h1>
+        <p>Satış performansınızı ve aktif operasyonlarınızı buradan takip edebilirsiniz.</p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-header">
+        <strong>Özet Metrikler</strong>
+        <span class="muted">Bugün</span>
+      </div>
+      <div class="panel-body metric-grid">
+        <article class="metric-card">
+          <span class="muted">Bekleyen Siparişler</span>
+          <strong class="metric-value">0</strong>
+          <span class="trend-pill is-up">+0%</span>
+        </article>
+        <article class="metric-card">
+          <span class="muted">Aktif Müzayedeler</span>
+          <strong class="metric-value">0</strong>
+          <span class="trend-pill is-up">+0%</span>
+        </article>
+        <article class="metric-card">
+          <span class="muted">Yayındaki Ürünler</span>
+          <strong class="metric-value">0</strong>
+          <span class="trend-pill is-up">+0%</span>
+        </article>
+        <article class="metric-card">
+          <span class="muted">Bugünkü Ciro</span>
+          <strong class="metric-value">₺0</strong>
+          <span class="trend-pill is-up">+0%</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <strong>Hızlı İşlemler</strong>
+      </div>
+      <div class="panel-body" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <!-- <button class="button primary" @click="router.push('/products/import')">
+          <i class="pi pi-upload" aria-hidden="true" />
+          Ürün İçe Aktar
+        </button> -->
+
+        <button class="button" @click="router.push('/products')">
+          <i class="pi pi-box" aria-hidden="true" />
+          Katalog Yönetimi
+        </button>
+        <button class="button" @click="router.push('/auction-events')">
+          <i class="pi pi-gavel" aria-hidden="true" />
+          Müzayedeler
+        </button>
+      </div>
+    </section>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAdminAuthStore } from '../stores/adminAuth';
 import AdminDataTable, {
   type AdminColumn,
   type AdminFilter,
@@ -294,6 +353,9 @@ interface QueueRow {
 }
 
 const router = useRouter();
+const auth = useAdminAuthStore();
+const isSeller = computed(() => auth.admin?.roles?.includes('seller') || auth.admin?.roles?.includes('SELLER'));
+
 const emptyQueue: QueueBucket = { count: 0, latest: [] };
 const queues = ref<AdminQueuesResponse>({
   code: '',
@@ -600,6 +662,7 @@ function toEndIso(dateValue: string): string {
 }
 
 async function loadDashboard() {
+  if (isSeller.value) return;
   loading.value = true;
   error.value = null;
 

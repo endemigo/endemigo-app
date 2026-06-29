@@ -15,7 +15,7 @@
       </div>
 
       <nav class="admin-nav" aria-label="Yönetici gezintisi">
-        <section v-for="group in navGroups" :key="group.key" class="admin-nav-group">
+        <section v-for="group in filteredNavGroups" :key="group.key" class="admin-nav-group">
           <button
             v-if="group.collapsible"
             class="admin-nav-title admin-nav-title-button"
@@ -230,8 +230,47 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+const isAdmin = computed(() => auth.admin?.roles?.includes('ADMIN') || auth.admin?.roles?.includes('SUPER_ADMIN'));
+const isSeller = computed(() => auth.admin?.roles?.includes('SELLER') || auth.admin?.roles?.includes('seller'));
 
-const allNavItems = computed(() => navGroups.flatMap((group) => group.items));
+const filteredNavGroups = computed(() => {
+  if (isAdmin.value) return navGroups;
+  
+  if (isSeller.value) {
+    return [
+      {
+        key: 'dashboard',
+        title: 'Satıcı Panosu',
+        items: [
+          { label: 'Panel', to: '/', icon: 'pi pi-home' },
+        ],
+      },
+      {
+        key: 'catalog',
+        title: 'Katalog & Müzayede',
+        collapsible: true,
+        items: [
+          { label: 'Ürünlerim', to: '/products', icon: 'pi pi-box' },
+          // { label: 'Toplu Ürün Yükle', to: '/products/bulk-import', icon: 'pi pi-upload' },
+          { label: 'Müzayedelerim', to: '/auction-events', icon: 'pi pi-calendar' },
+
+        ],
+      },
+      {
+        key: 'finance',
+        title: 'Sipariş & Finans',
+        items: [
+          { label: 'Siparişlerim', to: '/orders', icon: 'pi pi-shopping-bag' },
+          { label: 'Ödeme Taleplerim', to: '/payouts', icon: 'pi pi-wallet' },
+        ],
+      }
+    ];
+  }
+  return [];
+});
+
+
+const allNavItems = computed(() => filteredNavGroups.value.flatMap((group) => group.items));
 const availableFeatureCount = computed(() => allNavItems.value.filter((item) => item.available !== false).length);
 const missingFeatureCount = computed(() => allNavItems.value.filter((item) => item.available === false).length);
 const totalFeatureCount = computed(() => allNavItems.value.length);

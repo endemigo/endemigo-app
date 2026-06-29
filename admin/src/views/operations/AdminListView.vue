@@ -182,6 +182,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAdminAuthStore } from '../../stores/adminAuth';
 import AdminDrawerForm, {
   type DrawerConfirmPayload,
   type DrawerField,
@@ -189,6 +190,12 @@ import AdminDrawerForm, {
 
 const showAuctionTypeSelectionModal = ref(false);
 
+const auth = useAdminAuthStore();
+const isSeller = computed(() => {
+  const roles = auth.admin?.roles || [];
+  const r = roles.map(r => r.toUpperCase());
+  return r.includes('SELLER') || r.includes('SUPPLIER');
+});
 function handleNewAuctionEventClick() {
   showAuctionTypeSelectionModal.value = true;
 }
@@ -574,6 +581,45 @@ const auctionEventFields = (row: Record<string, unknown> | null): DrawerField[] 
       value: getString(row, 'auctionType') || 'REALTIME',
       options: auctionTypeOptions,
     });
+  } else {
+    // Sadece yeni oluştururken göster
+    if (isSeller.value) {
+      fields.push(
+        {
+          key: 'systemType',
+          label: 'Müzayede Sistemi (Tedarikçi Modeli)',
+          type: 'select',
+          required: true,
+          value: 'INDEPENDENT',
+          options: [
+            { label: 'Bağımsız Müzayede (En az 40 ürün, Tüm yönetim size ait)', value: 'INDEPENDENT' },
+            { label: 'Ortak Müzayede (Kendi lotlarınızı eklersiniz)', value: 'JOINT' }
+          ]
+        },
+        {
+          key: 'guaranteeAccepted',
+          label: 'Müzayedeye eklenecek tüm ürünlerin MENŞEİ ve TEDARİK garantisini verdiğimi kabul, beyan ve taahhüt ederim.',
+          type: 'select',
+          required: true,
+          value: 'false',
+          options: [
+            { label: 'Kabul Ediyorum', value: 'true' },
+            { label: 'Kabul Etmiyorum', value: 'false' }
+          ]
+        },
+        {
+          key: 'preContractAccepted',
+          label: 'Tüm faturalandırma ve panel yönetim şartlarının şahsıma/firmama ait olduğunu ön sözleşme uyarınca kabul ederim.',
+          type: 'select',
+          required: true,
+          value: 'false',
+          options: [
+            { label: 'Kabul Ediyorum', value: 'true' },
+            { label: 'Kabul Etmiyorum', value: 'false' }
+          ]
+        }
+      );
+    }
   }
 
   fields.push(

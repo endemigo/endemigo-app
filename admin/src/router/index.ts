@@ -62,6 +62,11 @@ const operationRoutes: RouteRecordRaw[] = [
     props: (route) => ({ mode: 'edit', id: String(route.params.id) }),
   },
   {
+    path: 'products/bulk-import',
+    name: 'bulk-import',
+    component: () => import('../views/products/BulkImportView.vue'),
+  },
+  {
     path: 'products/:id',
     name: 'products-detail',
     component: AdminDetailView,
@@ -114,6 +119,7 @@ const operationRoutes: RouteRecordRaw[] = [
     component: () => import('../views/operations/AuctionEventsListView.vue'),
     props: { resource: 'auction-events', title: 'Müzayede Etkinlikleri' },
   },
+
   {
     path: 'auction-events/:id',
     name: 'auction-events-detail',
@@ -308,6 +314,25 @@ router.beforeEach((to) => {
 
   if (to.name === 'login' && auth.isAuthenticated) {
     return { name: 'dashboard' };
+  }
+
+  if (to.meta.requiresAuth && auth.isAuthenticated) {
+    const roles = (auth.admin?.roles ?? []).map((r) => r.toUpperCase());
+    const isSeller = roles.includes('SELLER') || roles.includes('SUPPLIER');
+    const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
+
+    // SellerGuard
+    if (isSeller && !isAdmin) {
+      const allowedSellerRoutes = [
+        'dashboard', 
+        'products', 'products-create', 'products-edit', 'products-detail', 'bulk-import',
+        'auction-events', 'create-auction-event', 'auction-events-detail',
+        'orders', 'orders-detail', 'payouts', 'payouts-detail'
+      ];
+      if (to.name && !allowedSellerRoutes.includes(String(to.name))) {
+        return { name: 'dashboard' };
+      }
+    }
   }
 
   return true;
