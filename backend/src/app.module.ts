@@ -64,7 +64,7 @@ import { RolesGuard } from './common/guards/roles.guard';
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 60000, limit: 60 },
+      { name: 'short', ttl: 60000, limit: 1000 },
       { name: 'auth', ttl: 60000, limit: 10 },
     ]),
     ServeStaticModule.forRoot({
