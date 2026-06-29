@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ForbiddenException,
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,6 +25,8 @@ import {
   parseUnknownMoney,
   NegotiationStatus,
   NegotiationMessageType,
+  AuctionEventSystemType,
+  JointManagementType,
   AuctionEventStatus,
   AuctionApprovalStatus,
   AuctionType,
@@ -617,15 +620,15 @@ export class AdminOperationsService {
     };
   }
 
-  async list(resource: AdminResource, query: AdminListQueryDto) {
+  async list(resource: AdminResource, query: AdminListQueryDto, adminUser?: { id: string; roles: string[] }) {
     if (resource === 'products') {
-      return this.listProducts(query);
+      return this.listProducts(query, adminUser);
     }
     if (resource === 'sellers') {
       return this.listSellers(query);
     }
     if (resource === 'orders') {
-      return this.listOrdersSafe(query);
+      return this.listOrdersSafe(query, adminUser);
     }
     if (resource === 'bids') {
       return this.listBidAuctions(query);
@@ -637,16 +640,28 @@ export class AdminOperationsService {
       return this.listNegotiations(query);
     }
     if (resource === 'auction-events') {
-      return this.listAuctionEvents(query);
+      return this.listAuctionEvents(query, adminUser);
     }
     const repo = this.getRepo(resource);
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
-    const options: FindManyOptions<CreatedEntity> = {
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
+    const options: FindManyOptions<any> = {
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
+      where: {},
     };
+
+    if (adminUser) {
+      const isSeller = adminUser.roles.includes('seller') || adminUser.roles.includes('SELLER');
+      const isAdmin = adminUser.roles.includes('ADMIN') || adminUser.roles.includes('SUPER_ADMIN');
+      if (isSeller && !isAdmin) {
+        if (resource === 'payout-requests') {
+          options.where = { sellerId: adminUser.id };
+        }
+      }
+    }
+
     const [items, total] = await repo.findAndCount(options);
 
     return {
@@ -662,7 +677,7 @@ export class AdminOperationsService {
     };
   }
 
-  async detail(resource: AdminResource, id: string) {
+  async detail(resource: AdminResource, id: string, adminUser?: { id: string; roles: string[] }) {
     if (resource === 'users') {
       return this.detailUser(id);
     }
@@ -672,27 +687,38 @@ export class AdminOperationsService {
     }
 
     if (resource === 'products') {
-      return this.detailProduct(id);
+      return this.detailProduct(id, adminUser);
     }
     if (resource === 'bids' || resource === 'auctions') {
       return this.detailBidAuction(id);
     }
     if (resource === 'orders') {
-      return this.detailOrderSafe(id);
+      return this.detailOrderSafe(id, adminUser);
     }
     if (resource === 'negotiations') {
       return this.detailNegotiation(id);
     }
     if (resource === 'auction-events') {
-      return this.detailAuctionEvent(id);
+      return this.detailAuctionEvent(id, adminUser);
     }
 
     const repo = this.getRepo(resource);
-    const item = await repo.findOne({ where: { id } });
+    const whereCondition: any = { id };
+    if (adminUser) {
+      const isSeller = adminUser.roles.includes('seller') || adminUser.roles.includes('SELLER');
+      const isAdmin = adminUser.roles.includes('ADMIN') || adminUser.roles.includes('SUPER_ADMIN');
+      if (isSeller && !isAdmin) {
+        if (resource === 'payout-requests') {
+          whereCondition.sellerId = adminUser.id;
+        }
+      }
+    }
+
+    const item = await repo.findOne({ where: whereCondition });
     if (!item) {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
-        message: 'Admin kaydı bulunamadı',
+        message: 'Admin kaydı bulunamadı veya yetkiniz yok',
       });
     }
 
@@ -734,9 +760,9 @@ export class AdminOperationsService {
     };
   }
 
-  private async listOrdersSafe(query: AdminListQueryDto) {
+  private async listOrdersSafe(query: AdminListQueryDto, adminUser?: { id: string; roles: string[] }) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const status = query.status?.trim().toUpperCase();
     const q = query.q?.trim().toLowerCase();
 
@@ -744,6 +770,14 @@ export class AdminOperationsService {
     // Order entity'nin tüm kolonlarını seçmek 500'e düşebilir. Bu yüzden
     // sadece garantili temel kolonları seçiyoruz.
     const countQb = this.orderRepo.createQueryBuilder('o');
+    if (adminUser) {
+      const isSeller = adminUser.roles.includes('seller') || adminUser.roles.includes('SELLER');
+      const isAdmin = adminUser.roles.includes('ADMIN') || adminUser.roles.includes('SUPER_ADMIN');
+      if (isSeller && !isAdmin) {
+        countQb.andWhere('o."sellerId" = :sellerId', { sellerId: adminUser.id });
+      }
+    }
+
     if (status) {
       countQb.andWhere('o.status = :status', { status });
     }
@@ -837,10 +871,20 @@ export class AdminOperationsService {
     };
   }
 
-  private async detailOrderSafe(id: string) {
-    const row = await this.orderRepo
+  private async detailOrderSafe(id: string, adminUser?: { id: string; roles: string[] }) {
+    const qb = this.orderRepo
       .createQueryBuilder('o')
-      .where('o.id = :id', { id })
+      .where('o.id = :id', { id });
+      
+    if (adminUser) {
+      const isSeller = adminUser.roles.includes('seller') || adminUser.roles.includes('SELLER');
+      const isAdmin = adminUser.roles.includes('ADMIN') || adminUser.roles.includes('SUPER_ADMIN');
+      if (isSeller && !isAdmin) {
+        qb.andWhere('o."sellerId" = :sellerId', { sellerId: adminUser.id });
+      }
+    }
+
+    const row = await qb
       .select([
         'o.id as id',
         'o."buyerId" as "buyerId"',
@@ -947,7 +991,7 @@ export class AdminOperationsService {
 
   private async listAuctions(query: AdminListQueryDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const status = query.status?.trim().toUpperCase();
     const q = query.q?.trim().toLowerCase();
 
@@ -1018,7 +1062,7 @@ export class AdminOperationsService {
 
   private async listNegotiations(query: AdminListQueryDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const status = query.status?.trim().toUpperCase();
     const q = query.q?.trim().toLowerCase();
 
@@ -1221,7 +1265,7 @@ export class AdminOperationsService {
 
   private async listBidAuctions(query: AdminListQueryDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const status = query.status?.trim().toUpperCase();
     const q = query.q?.trim().toLowerCase();
 
@@ -2518,7 +2562,7 @@ export class AdminOperationsService {
     };
   }
 
-  private async detailProduct(id: string) {
+  private async detailProduct(id: string, adminUser?: { id: string; roles: string[] }) {
     const product = await this.productRepo.findOne({
       where: { id },
       relations: { images: true, category: true },
@@ -2528,6 +2572,15 @@ export class AdminOperationsService {
         code: RC.NOT_FOUND,
         message: 'Admin kaydı bulunamadı',
       });
+    }
+
+    if (adminUser?.roles?.includes('seller' as AdminRole) && !adminUser.roles.some(r => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (product.sellerId !== adminUser.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu ürüne erişim yetkiniz yok',
+        });
+      }
     }
 
     const seller = await this.userRepo.findOne({
@@ -2737,7 +2790,7 @@ export class AdminOperationsService {
 
     const section = query.section;
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
 
     if (section === 'orders') {
       const [items, total] = await Promise.all([
@@ -3045,10 +3098,25 @@ export class AdminOperationsService {
     };
   }
 
-  private async listProducts(query: AdminListQueryDto) {
+  private async listProducts(query: AdminListQueryDto, adminUser?: { id: string; roles: string[] }) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
+    
+    const where: FindOptionsWhere<Product> = {};
+    if (adminUser) {
+      const isSeller = adminUser.roles.includes('seller') || adminUser.roles.includes('SELLER');
+      const isAdmin = adminUser.roles.includes('ADMIN') || adminUser.roles.includes('SUPER_ADMIN');
+      if (isSeller && !isAdmin) {
+        where.sellerId = adminUser.id;
+      } else if (isAdmin && query.sellerId) {
+        where.sellerId = query.sellerId;
+      }
+    } else if (query.sellerId) {
+      where.sellerId = query.sellerId;
+    }
+
     const [items, total] = await this.productRepo.findAndCount({
+      where,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -3086,7 +3154,7 @@ export class AdminOperationsService {
 
   private async listSellers(query: AdminListQueryDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const [items, total] = await this.sellerProfileRepo.findAndCount({
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
@@ -3253,6 +3321,16 @@ export class AdminOperationsService {
 
   async removeProduct(id: string, dto: AdminActionDto, actor: AdminActor) {
     const product = await this.findOneOrFail(this.productRepo, id);
+
+    if (actor?.roles?.includes('seller' as AdminRole) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (product.sellerId !== actor.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu ürünü kaldırma yetkiniz yok',
+        });
+      }
+    }
+
     const before = { status: product.status };
     product.status = ProductStatus.ARCHIVED;
     await this.productRepo.save(product);
@@ -3264,6 +3342,10 @@ export class AdminOperationsService {
 
   async createProduct(dto: AdminProductActionDto, actor: AdminActor) {
     const payload = this.actionPayload<AdminProductPayload>(dto);
+    if (actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      payload.sellerId = actor.id;
+    }
+    
     if (!payload.sellerId || !payload.title || payload.price === undefined) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -3275,6 +3357,7 @@ export class AdminOperationsService {
     const product = new Product();
     this.applyProductPayload(product, payload, false);
     product.sellerId = payload.sellerId;
+    if (product.categoryId === '') (product as any).categoryId = null;
     const saved = await this.productRepo.save(product);
 
     const imageUrls = this.parseMultiline(payload.productImageUrls);
@@ -3290,9 +3373,20 @@ export class AdminOperationsService {
   async updateProduct(id: string, dto: AdminProductActionDto, actor: AdminActor) {
     const payload = this.actionPayload<AdminProductPayload>(dto);
     const product = await this.findOneOrFail(this.productRepo, id);
+    
+    if (actor?.roles?.includes('seller' as AdminRole) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (product.sellerId !== actor.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu ürünü güncelleme yetkiniz yok',
+        });
+      }
+    }
+
     const before = { ...product };
 
     this.applyProductPayload(product, payload, true);
+    if (product.categoryId === '') (product as any).categoryId = null;
     const saved = await this.productRepo.save(product);
 
     if (payload.productImageUrls !== undefined) {
@@ -4497,7 +4591,7 @@ export class AdminOperationsService {
       );
     }
     if (!partial || payload.categoryId !== undefined) {
-      product.categoryId = this.toNullableString(payload.categoryId) ?? '';
+      (product as any).categoryId = this.toNullableString(payload.categoryId) || null;
     }
     if (!partial || payload.stockQuantity !== undefined) {
       product.stockQuantity = Math.max(0, Math.round(this.toNumber(payload.stockQuantity, product.stockQuantity ?? 0)));
@@ -4527,7 +4621,7 @@ export class AdminOperationsService {
       product.geoIndicationRegion = this.toNullableString(payload.geoIndicationRegion) ?? '';
     }
     if (!partial || payload.geoIndicationReceivedAt !== undefined) {
-      product.geoIndicationReceivedAt = this.toNullableString(payload.geoIndicationReceivedAt) ?? '';
+      (product as any).geoIndicationReceivedAt = this.toNullableString(payload.geoIndicationReceivedAt) || null;
     }
     if (!partial || payload.originCountry !== undefined) {
       product.originCountry = this.toCountryCode(payload.originCountry, product.originCountry || 'TR');
@@ -5089,8 +5183,126 @@ export class AdminOperationsService {
 
   // ─── Ortak Müzayede Etkinliği (Model 2) Servis Fonksiyonları ───
 
+  /** Sadece-satıcı mı (admin/operasyon rolü yok)? */
+  private isPureSeller(actor: AdminActor): boolean {
+    return (
+      !!actor?.roles?.includes('seller' as any) &&
+      !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))
+    );
+  }
+
+  /** Müzayede tarih tutarlılığı: bitiş > başlangıç, son ekleme < başlangıç. */
+  private validateEventDates(start: Date, end: Date, deadline: Date | null) {
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz tarih.' });
+    }
+    if (end <= start) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Bitiş tarihi başlangıç tarihinden sonra olmalıdır.' });
+    }
+    if (deadline && !isNaN(deadline.getTime()) && deadline > start) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Son ürün ekleme tarihi, başlangıç tarihinden önce olmalıdır.' });
+    }
+  }
+
+  /** Etkinlik lot eklemeye açık mı (status + son ekleme tarihi)? */
+  private assertEventOpenForLots(event: AuctionEvent) {
+    if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Bu müzayede ürün eklemeye kapalı (yalnızca taslak/başvuru aşamasında lot eklenebilir).',
+      });
+    }
+    if (event.submissionDeadline && new Date() > new Date(event.submissionDeadline)) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Son ürün ekleme tarihi geçmiştir.' });
+    }
+  }
+
+  /**
+   * Faz 0: Tek doğru kaynak — lot oluşturma + doğrulama.
+   * Hem createAuctionEvent (inline items) hem addLotsToEvent buradan geçer.
+   * Guard'lar: status/deadline, batch-içi + mevcut duplicate, fiyat (K1/K2/K3), ürün sahipliği.
+   */
+  private async buildEventLots(event: AuctionEvent, items: any[] | undefined, actor: AdminActor): Promise<Auction[]> {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Eklenecek ürün bulunamadı.' });
+    }
+
+    this.assertEventOpenForLots(event);
+
+    const isSeller = this.isPureSeller(actor);
+    const productIds = items.map((i) => i.productId);
+
+    // Batch içinde aynı ürün iki kez mi?
+    const dupInBatch = [...new Set(productIds.filter((id, i) => productIds.indexOf(id) !== i))];
+    if (dupInBatch.length > 0) {
+      throw new BadRequestException({
+        code: RC.DUPLICATE_LOT,
+        message: `Aynı ürün listede birden fazla kez var: ${dupInBatch.join(', ')}`,
+      });
+    }
+
+    // Bu etkinlikte zaten lot olarak ekli mi?
+    const existingLots = await this.auctionRepo.find({
+      where: { eventId: event.id, productId: In(productIds) },
+      select: ['id', 'productId'],
+    });
+    if (existingLots.length > 0) {
+      throw new BadRequestException({
+        code: RC.DUPLICATE_LOT,
+        message: `Şu ürünler zaten bu müzayedede lot olarak ekli: ${existingLots.map((l) => l.productId).join(', ')}`,
+      });
+    }
+
+    // Fiyat doğrulaması: K1 startPrice>0, K2 minIncrement>=1, K3 buyItNow>startPrice
+    for (const item of items) {
+      if (!item.startingPrice || item.startingPrice <= 0) {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Açılış fiyatı 0\'dan büyük olmalıdır.' });
+      }
+      if (item.minIncrement !== undefined && item.minIncrement !== null && item.minIncrement < 1) {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Minimum artış tutarı en az 1 olmalıdır.' });
+      }
+      if (item.buyItNowPrice !== undefined && item.buyItNowPrice !== null && item.buyItNowPrice <= item.startingPrice) {
+        throw new BadRequestException({
+          code: RC.BUY_IT_NOW_PRICE_INVALID,
+          message: 'Hemen Al fiyatı açılış fiyatından büyük olmalıdır.',
+        });
+      }
+    }
+
+    const products = await this.productRepo.find({ where: { id: In(productIds) }, select: ['id', 'sellerId'] });
+
+    return items.map((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) {
+        throw new BadRequestException({ code: RC.NOT_FOUND, message: 'Ürün bulunamadı: ' + item.productId });
+      }
+      if (isSeller && product.sellerId !== actor.id) {
+        throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Başkasına ait ürünü müzayedeye ekleyemezsiniz.' });
+      }
+
+      const auction = new Auction();
+      auction.eventId = event.id;
+      auction.productId = item.productId;
+      auction.sellerId = product.sellerId;
+      auction.sequenceNumber = item.lotOrder;
+      auction.startPrice = item.startingPrice;
+      auction.minIncrement = item.minIncrement ?? 1.0;
+      auction.buyItNowPrice = item.buyItNowPrice ?? null;
+      auction.status = AuctionStatus.DRAFT;
+      auction.approvalStatus = AuctionApprovalStatus.APPROVED;
+      auction.startTime = event.startTime;
+      auction.endTime = event.endTime;
+      auction.currentPrice = item.startingPrice;
+      auction.antiSnipingEnabled = event.antiSnipingEnabled;
+      auction.maxExtensions = event.maxExtensions;
+      auction.extensionSeconds = event.extensionSeconds;
+      auction.extensionDuration = event.extensionDuration;
+      return auction;
+    });
+  }
+
   async createAuctionEvent(dto: AdminActionDto, actor: AdminActor) {
-    const payload = this.actionPayload<Partial<AuctionEvent>>(dto);
+    const payload = this.actionPayload<Partial<AuctionEvent> & { systemType?: string; jointManagementType?: string; items?: any[] }>(dto);
     if (!payload.title || !payload.startTime || !payload.endTime) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -5098,43 +5310,163 @@ export class AdminOperationsService {
       });
     }
 
+    const isSeller = actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r));
+
+    if (isSeller) {
+      const p = payload as any;
+      if (p.guaranteeAccepted !== 'true') {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Menşei ve tedarik garantisini kabul etmeniz zorunludur.' });
+      }
+      if (p.preContractAccepted !== 'true') {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Ön sözleşme şartlarını (faturalandırma, panel yönetimi vb.) kabul etmeniz zorunludur.' });
+      }
+    }
+
+    // Faz 2: Yeni müzayede yalnızca Taslak veya Başvuru durumunda doğabilir.
+    // Aksi halde min-lot gate'i (updateAuctionEvent) baypas edilirdi.
+    const requestedStatus = payload.status || AuctionEventStatus.DRAFT;
+    if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(requestedStatus)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Yeni müzayede yalnızca Taslak veya Başvuru durumunda oluşturulabilir.',
+      });
+    }
+
     const event = new AuctionEvent();
     event.title = payload.title;
-    event.description = payload.description ?? null;
-    event.coverImageUrl = payload.coverImageUrl ?? null;
-    event.categoryId = payload.categoryId ?? null;
-    event.status = payload.status || AuctionEventStatus.DRAFT;
+    event.description = payload.description || null;
+    event.coverImageUrl = payload.coverImageUrl || null;
+    event.categoryId = payload.categoryId || null;
+    event.status = requestedStatus;
     event.auctionType = payload.auctionType || AuctionType.REALTIME;
+    event.eventType = (payload.systemType as any) || AuctionEventSystemType.ENDEMIGO_MANAGED;
+    event.jointManagementType = (payload.jointManagementType as any) || null;
     event.startTime = new Date(payload.startTime);
     event.endTime = new Date(payload.endTime);
     event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
+    this.validateEventDates(event.startTime, event.endTime, event.submissionDeadline);
     event.activeLotId = null;
+    event.ownerId = actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r)) ? actor.id : null;
     event.antiSnipingEnabled = payload.antiSnipingEnabled !== undefined ? this.toBooleanValue(payload.antiSnipingEnabled) : true;
     event.maxExtensions = payload.maxExtensions !== undefined ? this.toNumber(payload.maxExtensions, 5) : 5;
     event.extensionSeconds = payload.extensionSeconds !== undefined ? this.toNumber(payload.extensionSeconds, 60) : 60;
     event.extensionDuration = payload.extensionDuration !== undefined ? this.toNumber(payload.extensionDuration, 60) : 60;
     event.lotTransitionSeconds = payload.lotTransitionSeconds !== undefined ? this.toNumber(payload.lotTransitionSeconds, 30) : 30;
 
+    if (event.eventType === AuctionEventSystemType.JOINT) {
+      if (event.jointManagementType === JointManagementType.SELF_MANAGED) {
+        event.endemigoCommissionRate = 0.20;
+        event.dealerCommissionRate = 0.08;
+      } else if (event.jointManagementType === JointManagementType.ENDEMIGO_SUPPORTED) {
+        event.endemigoCommissionRate = 0.25;
+        event.dealerCommissionRate = 0.03;
+      }
+      event.minProductsCount = 60;
+    } else if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
+      event.minProductsCount = 40;
+    }
+
     const saved = await this.auctionEventRepo.save(event);
-    await this.record(actor, AdminAuditAction.AUCTION_EVENT_CREATED, 'AUCTION_EVENT', saved.id, dto, {}, this.toRecord(saved));
+
+    if (payload.items && Array.isArray(payload.items) && payload.items.length > 0) {
+      const auctions = await this.buildEventLots(saved, payload.items, actor);
+      await this.auctionRepo.save(auctions);
+    }
+
+    await this.record(actor, AdminAuditAction.AUCTION_EVENT_CREATED, 'AUCTION', saved.id, dto, {}, this.toRecord(saved));
     return { code: RC.SUCCESS, message: 'Müzayede etkinliği oluşturuldu', event: saved };
+  }
+
+  async addLotsToEvent(eventId: string, dto: AdminActionDto, actor: AdminActor) {
+    const payload = this.actionPayload<{ items: any[] }>(dto);
+    const event = await this.findOneOrFail(this.auctionEventRepo, eventId);
+
+    // Satıcı kendi oluşturmadığı etkinliğe lot ekleyemez
+    if (this.isPureSeller(actor) && event.ownerId !== actor.id) {
+      throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Bu etkinliğe ürün ekleme yetkiniz yok.' });
+    }
+
+    // Faz 0: ortak doğrulama + lot oluşturma (status/deadline/duplicate/fiyat/sahiplik)
+    const auctions = await this.buildEventLots(event, payload.items, actor);
+
+    await this.auctionRepo.save(auctions);
+
+    await this.record(actor, AdminAuditAction.AUCTION_EVENT_UPDATED, 'AUCTION', event.id, dto, { action: 'ADD_LOTS', addedLotCount: auctions.length }, this.toRecord(event));
+    return { code: RC.SUCCESS, message: `${auctions.length} adet ürün müzayedeye lot olarak eklendi.`, addedCount: auctions.length };
+  }
+
+  async removeLotFromEvent(eventId: string, lotId: string, dto: AdminActionDto, actor: AdminActor) {
+    const lot = await this.findOneOrFail(this.auctionRepo, lotId);
+
+    if (lot.eventId !== eventId) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Bu lot bu etkinliğe ait değil.' });
+    }
+    
+    // Satıcı ise kendi lotu olmalı
+    const isSeller = actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r));
+    if (isSeller && lot.sellerId !== actor.id) {
+      throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Kendi eklemediğiniz lotu kaldıramazsınız.' });
+    }
+
+    if (lot.status !== AuctionStatus.DRAFT && lot.status !== AuctionStatus.CANCELLED) {
+       throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Yalnızca taslak (başlamamış) veya iptal edilmiş lotlar silinebilir.' });
+    }
+
+    const before = this.toRecord(lot);
+    await this.auctionRepo.softDelete(lotId);
+    await this.record(actor, AdminAuditAction.AUCTION_CANCELLED, 'AUCTION', lotId, dto, before, { action: 'DELETED' });
+    
+    return { code: RC.SUCCESS, message: 'Lot müzayededen kaldırıldı.' };
   }
 
   async updateAuctionEvent(id: string, dto: AdminActionDto, actor: AdminActor) {
     const payload = this.actionPayload<Partial<AuctionEvent>>(dto);
     const event = await this.findOneOrFail(this.auctionEventRepo, id);
+    
+    if (actor?.roles?.includes('seller' as AdminRole) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (event.ownerId !== actor.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu etkinliği güncelleme yetkiniz yok',
+        });
+      }
+    }
+
     const before = { ...event };
 
     if (payload.title !== undefined) event.title = payload.title;
     if (payload.description !== undefined) event.description = payload.description;
     if (payload.coverImageUrl !== undefined) event.coverImageUrl = payload.coverImageUrl;
     if (payload.categoryId !== undefined) event.categoryId = payload.categoryId;
-    if (payload.status !== undefined) event.status = payload.status;
+    if (payload.status !== undefined) {
+      if (payload.status === AuctionEventStatus.APPLICATION && event.status !== AuctionEventStatus.APPLICATION) {
+        const lotsCount = await this.auctionRepo.count({ where: { eventId: id } });
+        if (event.eventType === AuctionEventSystemType.INDEPENDENT && lotsCount < 40) {
+          throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Bağımsız müzayede başlatabilmek için en az 40 ürününüz olmalıdır (Şu an: ${lotsCount}).` });
+        }
+        if (event.eventType === AuctionEventSystemType.JOINT) {
+          if (lotsCount < 60) {
+            throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Ortak müzayede başlatabilmek için en az 60 ürün toplanmalıdır (Şu an: ${lotsCount}).` });
+          }
+          if (event.ownerId) {
+            const ownerLotsCount = await this.auctionRepo.count({ where: { eventId: id, sellerId: event.ownerId } });
+            if (ownerLotsCount < 20) {
+              throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Ortak müzayede başlatabilmek için size ait en az 20 ürün bulunmalıdır (Şu an: ${ownerLotsCount}).` });
+            }
+          }
+        }
+      }
+      event.status = payload.status;
+    }
     if (payload.auctionType !== undefined) event.auctionType = payload.auctionType;
     if (payload.startTime !== undefined) event.startTime = new Date(payload.startTime);
     if (payload.endTime !== undefined) event.endTime = new Date(payload.endTime);
     if (payload.submissionDeadline !== undefined) {
       event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
+    }
+    // Faz 2: herhangi bir tarih değiştiyse tutarlılığı doğrula
+    if (payload.startTime !== undefined || payload.endTime !== undefined || payload.submissionDeadline !== undefined) {
+      this.validateEventDates(event.startTime, event.endTime, event.submissionDeadline);
     }
     if (payload.activeLotId !== undefined) event.activeLotId = payload.activeLotId;
     if (payload.antiSnipingEnabled !== undefined) event.antiSnipingEnabled = this.toBooleanValue(payload.antiSnipingEnabled);
@@ -5163,17 +5495,33 @@ export class AdminOperationsService {
       );
     }
 
-    await this.record(actor, AdminAuditAction.AUCTION_EVENT_UPDATED, 'AUCTION_EVENT', id, dto, before, this.toRecord(saved));
+    // Faz 2: Event tarihi değişince başlamamış (DRAFT) lotların tarihini senkronla.
+    // Başlamış/bitmiş lotlara dokunma.
+    if (payload.startTime !== undefined || payload.endTime !== undefined) {
+      await this.auctionRepo.update(
+        { eventId: id, status: AuctionStatus.DRAFT },
+        {
+          ...(payload.startTime !== undefined ? { startTime: event.startTime } : {}),
+          ...(payload.endTime !== undefined ? { endTime: event.endTime } : {}),
+        }
+      );
+    }
+
+    await this.record(actor, AdminAuditAction.AUCTION_EVENT_UPDATED, 'AUCTION', id, dto, before, this.toRecord(saved));
     return { code: RC.SUCCESS, message: 'Müzayede etkinliği güncellendi', event: saved };
   }
 
-  private async listAuctionEvents(query: AdminListQueryDto) {
+  private async listAuctionEvents(query: AdminListQueryDto, adminUser?: { id: string; roles: string[] }) {
     const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 1000);
     const status = query.status?.trim().toUpperCase();
     const q = query.q?.trim().toLowerCase();
 
     const qb = this.auctionEventRepo.createQueryBuilder('e');
+
+    if (adminUser?.roles?.includes('seller') && !adminUser.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      qb.andWhere('e.ownerId = :ownerId', { ownerId: adminUser.id });
+    }
 
     if (status) {
       qb.andWhere('e.status = :status', { status });
@@ -5228,7 +5576,7 @@ export class AdminOperationsService {
     };
   }
 
-  async detailAuctionEvent(id: string) {
+  async detailAuctionEvent(id: string, adminUser?: { id: string; roles: string[] }) {
     const event = await this.auctionEventRepo.findOne({
       where: { id },
       relations: ['category'],
@@ -5238,6 +5586,15 @@ export class AdminOperationsService {
         code: RC.NOT_FOUND,
         message: 'Kayıt bulunamadı',
       });
+    }
+
+    if (adminUser?.roles?.includes('seller' as AdminRole) && !adminUser.roles.some(r => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (event.ownerId !== adminUser.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu etkinliğe erişim yetkiniz yok',
+        });
+      }
     }
 
     // Etkinliğe kabul edilmiş ve sıralanmış Lot'lar
@@ -5260,12 +5617,20 @@ export class AdminOperationsService {
       .orderBy('a.createdAt', 'ASC')
       .getMany();
 
+    // Etkinlik Davetleri
+    const invitations = await this.auctionRepo.manager.find('AuctionEventInvitation', {
+      where: { eventId: id },
+      relations: ['invitee'],
+      order: { createdAt: 'DESC' } as any,
+    });
+
     return {
       code: RC.SUCCESS,
       message: 'Müzayede etkinliği detayları getirildi',
       overview: event,
       approvedLots,
       pendingSubmissions,
+      invitations,
       relatedRecords: {
         resource: 'auction-events',
         id,
@@ -5275,6 +5640,15 @@ export class AdminOperationsService {
 
   async reorderLots(eventId: string, sequenceMap: Record<string, number>, actor: AdminActor) {
     const event = await this.findOneOrFail(this.auctionEventRepo, eventId);
+
+    if (actor?.roles?.includes('seller' as AdminRole) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r))) {
+      if (event.ownerId !== actor.id) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Bu etkinliğin lotlarını sıralama yetkiniz yok',
+        });
+      }
+    }
 
     // sequenceMap format: { "auctionId_1": 1, "auctionId_2": 2, ... }
     const auctionIds = Object.keys(sequenceMap);
