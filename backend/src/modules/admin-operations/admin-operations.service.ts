@@ -51,6 +51,7 @@ import { FeatureBadge } from '../product/entities/feature-badge.entity';
 import { Auction } from '../auction/entities/auction.entity';
 import { Bid } from '../auction/entities/bid.entity';
 import { AuctionEvent } from '../auction/entities/auction-event.entity';
+import { AdminUser } from '../admin-auth/entities/admin-user.entity';
 import { Order } from '../order/entities/order.entity';
 import { Payment } from '../payment/entities/payment.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -5318,6 +5319,27 @@ export class AdminOperationsService {
       auction.extensionDuration = event.extensionDuration;
       return auction;
     });
+  }
+
+  /**
+   * Faz 6: Yayıncı (auctioneer) olarak atanabilecek endemigo operatörleri.
+   * Aktif SUPER_ADMIN / OPERATIONS admin kullanıcıları.
+   */
+  async listAssignableAuctioneers() {
+    const repo = this.userRepo.manager.getRepository(AdminUser);
+    const admins = await repo.find({
+      where: { isActive: true },
+      select: ['id', 'displayName', 'email', 'roles'],
+      order: { displayName: 'ASC' },
+    });
+    const items = admins
+      .filter((a) =>
+        (a.roles ?? []).some(
+          (r) => r === AdminRole.SUPER_ADMIN || r === AdminRole.OPERATIONS,
+        ),
+      )
+      .map((a) => ({ id: a.id, displayName: a.displayName, email: a.email, roles: a.roles }));
+    return { code: RC.SUCCESS, items };
   }
 
   async createAuctionEvent(dto: AdminActionDto, actor: AdminActor) {

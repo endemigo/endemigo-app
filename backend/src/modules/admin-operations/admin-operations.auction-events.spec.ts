@@ -211,4 +211,25 @@ describe('AdminOperationsService — auction event guards', () => {
       expect(repos[AUCTION].save).toHaveBeenCalled();
     });
   });
+
+  describe('listAssignableAuctioneers (Faz 6)', () => {
+    it('returns only active SUPER_ADMIN / OPERATIONS admins', async () => {
+      const adminRepo = {
+        find: jest.fn().mockResolvedValue([
+          { id: 'a1', displayName: 'Op One', email: 'op1@x.com', roles: [AdminRole.OPERATIONS] },
+          { id: 'a2', displayName: 'Support', email: 's@x.com', roles: [AdminRole.SUPPORT] },
+          { id: 'a3', displayName: 'Super', email: 'su@x.com', roles: [AdminRole.SUPER_ADMIN] },
+        ]),
+      };
+      // userRepo = repos[0]; metod userRepo.manager.getRepository(AdminUser) kullanır.
+      (repos[0] as unknown as { manager: unknown }).manager = {
+        getRepository: jest.fn(() => adminRepo),
+      };
+
+      const result = await service.listAssignableAuctioneers();
+
+      expect(result.code).toBe(RC.SUCCESS);
+      expect(result.items.map((i) => i.id)).toEqual(['a1', 'a3']);
+    });
+  });
 });
