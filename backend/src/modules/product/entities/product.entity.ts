@@ -39,7 +39,7 @@ export class Product extends BaseEntity {
 
   // ─── Category Relation ────────────────────────────────────
   @Column({ nullable: true })
-  categoryId: string;
+  categoryId: string | null;
 
   @ManyToOne(() => Category, { nullable: true })
   @JoinColumn({ name: 'categoryId' })
@@ -82,7 +82,7 @@ export class Product extends BaseEntity {
   geoIndicationRegion: string;
 
   @Column({ type: 'date', nullable: true })
-  geoIndicationReceivedAt: string;
+  geoIndicationReceivedAt: string | null;
 
   @Column({
     type: 'enum',

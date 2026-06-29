@@ -38,7 +38,7 @@
           </div>
 
           <div class="owner-grid">
-            <div class="field">
+            <div v-if="!isSellerOnly" class="field">
               <span>Satıcı *</span>
               <div 
                 class="brand-select-trigger" 
@@ -545,7 +545,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
+import { useAdminAuthStore } from '../../stores/adminAuth';
 import { adminApi, toApiMessage, type ApiEnvelope } from '../../services/api';
 import { normalizeMoneyScale, parseTrMoneyInput } from '../../../../shared-types/utils/money';
 import ulkelerMap from '../../constants/ulkeler.json';
@@ -743,7 +744,14 @@ const props = withDefaults(
   { id: '' },
 );
 
+const auth = useAdminAuthStore();
+const isSellerOnly = computed(() => {
+  const roles = auth.admin?.roles || [];
+  return roles.includes('seller') && !roles.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r));
+});
+
 const router = useRouter();
+const route = useRoute();
 const isEdit = computed(() => props.mode === 'edit');
 const saving = ref(false);
 const error = ref<string | null>(null);
@@ -1254,23 +1262,17 @@ function clearVariationSelections(): void {
 }
 
 async function loadSupplierOptions(): Promise<void> {
-  const pageSize = 100;
-  let page = 1;
-  let total = 0;
+  const pageSize = 1000;
   const collected: SellerOption[] = [];
 
-  do {
-    const response = await adminApi.get<SellerListResponse>('/admin/sellers', {
-      params: {
-        page,
-        limit: pageSize,
-      },
-    });
-    const mapped = (response.data.items ?? []).map((item) => mapSellerOption(item));
-    collected.push(...mapped);
-    total = Number(response.data.pagination?.total ?? collected.length);
-    page += 1;
-  } while (collected.length < total);
+  const response = await adminApi.get<SellerListResponse>('/admin/sellers', {
+    params: {
+      page: 1,
+      limit: pageSize,
+    },
+  });
+  const mapped = (response.data.items ?? []).map((item) => mapSellerOption(item));
+  collected.push(...mapped);
 
   const unique = new Map<string, SellerOption>();
   collected.forEach((item) => {
@@ -1604,24 +1606,18 @@ async function loadProduct(): Promise<void> {
 }
 
 async function loadCategoriesFromDb(): Promise<void> {
-  const limit = 100;
-  let page = 1;
-  let total = 0;
+  const limit = 1000;
   const allItems: CategoryFlatItem[] = [];
 
-  do {
-    const response = await adminApi.get<CategoryListResponse>('/admin/categories', {
-      params: { page, limit },
-    });
-    const items = (response.data.items ?? []).map((item) => ({
-      id: String(item.id ?? ''),
-      name: String(item.name ?? ''),
-      parentId: item.parentId ? String(item.parentId) : null,
-    }));
-    allItems.push(...items.filter((item) => item.id && item.name));
-    total = Number(response.data.pagination?.total ?? allItems.length);
-    page += 1;
-  } while (allItems.length < total);
+  const response = await adminApi.get<CategoryListResponse>('/admin/categories', {
+    params: { page: 1, limit },
+  });
+  const items = (response.data.items ?? []).map((item) => ({
+    id: String(item.id ?? ''),
+    name: String(item.name ?? ''),
+    parentId: item.parentId ? String(item.parentId) : null,
+  }));
+  allItems.push(...items.filter((item) => item.id && item.name));
 
   const nodeMap = new Map<string, CategoryNode>();
   allItems.forEach((item) => {
@@ -1696,30 +1692,24 @@ async function loadVariationsFromDb(): Promise<void> {
 
   const groups = await Promise.all(
     kinds.map(async (kindInfo) => {
-      const limit = 100;
-      let page = 1;
-      let total = 0;
+      const limit = 1000;
       const options: VariationGroup['options'] = [];
 
-      do {
-        const response = await adminApi.get<VariantListResponse>('/admin/variants/numbers', {
-          params: {
-            page,
-            limit,
-            kind: kindInfo.key,
-            status: 'ACTIVE',
-          },
+      const response = await adminApi.get<VariantListResponse>('/admin/variants/numbers', {
+        params: {
+          page: 1,
+          limit,
+          kind: kindInfo.key,
+          status: 'ACTIVE',
+        },
+      });
+      const items = response.data.items ?? [];
+      items.forEach((item) => {
+        options.push({
+          id: String(item.id),
+          label: String(item.nameTr || item.nameEn || item.id),
         });
-        const items = response.data.items ?? [];
-        items.forEach((item) => {
-          options.push({
-            id: String(item.id),
-            label: String(item.nameTr || item.nameEn || item.id),
-          });
-        });
-        total = Number(response.data.pagination?.total ?? options.length);
-        page += 1;
-      } while (options.length < total);
+      });
 
       return {
         key: kindInfo.key,
@@ -1794,7 +1784,7 @@ function buildAdminSnapshot(): Record<string, unknown> {
 }
 
 async function submit(): Promise<void> {
-  if (!form.sellerId.trim() || !form.title.trim() || !form.price.trim()) {
+  if ((!isSellerOnly.value && !form.sellerId.trim()) || !form.title.trim() || !form.price.trim()) {
     error.value = 'Satıcı ID, Ürün Adı ve Fiyat zorunludur.';
     return;
   }

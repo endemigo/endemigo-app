@@ -20,6 +20,7 @@ import { ListingTemplate as ListingTemplateEntity } from './entities/listing-tem
 import { GeoIndication } from './entities/geo-indication.entity';
 import { FeatureBadge } from './entities/feature-badge.entity';
 import { CreateProductDto, ProductVariantSkuInputDto } from './dto/create-product.dto';
+import { BulkImportDto } from './dto/bulk-import.dto';
 import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
@@ -1886,5 +1887,32 @@ export class ProductService {
         await this.productViewRepo.save(guestView);
       }
     }
+  }
+
+  async bulkImport(sellerId: string, dto: BulkImportDto) {
+    const user = await this.userService.findById(sellerId);
+    if (!user?.isSeller) {
+      throw new ForbiddenException({
+        code: RC.NOT_SELLER,
+        message: 'Sadece satıcılar ürün ekleyebilir',
+      });
+    }
+
+    let successCount = 0;
+    // Iterate over each product and create it
+    for (const productDto of dto.products) {
+      try {
+        await this.create(sellerId, productDto);
+        successCount++;
+      } catch (error) {
+        console.error(`Bulk import fail for ${productDto.title}: ${error.message}`);
+      }
+    }
+
+    return {
+      code: RC.SUCCESS,
+      message: `${successCount} ürün başarıyla eklendi.`,
+      importedCount: successCount,
+    };
   }
 }

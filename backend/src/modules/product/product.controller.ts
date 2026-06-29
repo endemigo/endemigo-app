@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { BulkImportDto } from './dto/bulk-import.dto';
 import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response.dto';
@@ -81,13 +82,22 @@ export class ProductController {
   @Post()
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Yeni ürün oluştur (sadece satıcılar)' })
-  @ApiResponse({ status: 201, type: ProductResponseDto })
-  async create(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CreateProductDto,
-  ) {
-    return this.productService.create(userId, dto);
+  @ApiOperation({ summary: 'Satıcı - Ürün oluştur (D-02)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Ürün DRAFT/PENDING olarak oluşturuldu',
+    type: ProductResponseDto,
+  })
+  async create(@CurrentUser() user: any, @Body() dto: CreateProductDto) {
+    return this.productService.create(user.id, dto);
+  }
+
+  @Post('bulk-import')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Satıcı - Toplu ürün yükleme (Frontend Excel parserından gelen array)' })
+  async bulkImport(@CurrentUser() user: any, @Body() dto: BulkImportDto) {
+    return this.productService.bulkImport(user.id, dto);
   }
 
   @Post('drafts')
@@ -395,7 +405,7 @@ export class CategoryController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Kategori listele (ağaç yapısında)' })
-  async findAll() {
+  async findAll(): Promise<any> {
     return this.productService.findCategories();
   }
 
@@ -404,7 +414,7 @@ export class CategoryController {
   // CR-01: Category seeding is an admin-only operation
   @Roles('admin')
   @ApiOperation({ summary: 'Kategori seed data oluştur (root + children) — sadece admin' })
-  async seed() {
+  async seed(): Promise<any> {
     return this.productService.seedCategories();
   }
 }
