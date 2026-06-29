@@ -5253,6 +5253,18 @@ export class AdminOperationsService {
       });
     }
 
+    // Faz 5: Maksimum lot sınırı (tanımlıysa) aşılamaz.
+    const maxAllowed = event.maxProductsCount ?? 0;
+    if (maxAllowed > 0) {
+      const currentCount = await this.auctionRepo.count({ where: { eventId: event.id } });
+      if (currentCount + items.length > maxAllowed) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: `Bu müzayede en fazla ${maxAllowed} lot alabilir (mevcut: ${currentCount}, eklenmek istenen: ${items.length}).`,
+        });
+      }
+    }
+
     // Fiyat doğrulaması: K1 startPrice>0, K2 minIncrement>=1, K3 buyItNow>startPrice
     for (const item of items) {
       if (!item.startingPrice || item.startingPrice <= 0) {
@@ -5441,18 +5453,16 @@ export class AdminOperationsService {
     if (payload.status !== undefined) {
       if (payload.status === AuctionEventStatus.APPLICATION && event.status !== AuctionEventStatus.APPLICATION) {
         const lotsCount = await this.auctionRepo.count({ where: { eventId: id } });
-        if (event.eventType === AuctionEventSystemType.INDEPENDENT && lotsCount < 40) {
-          throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Bağımsız müzayede başlatabilmek için en az 40 ürününüz olmalıdır (Şu an: ${lotsCount}).` });
+        // Faz 5: eşik entity'den okunur (create anında set edilir), hardcode değil.
+        const minRequired = event.minProductsCount ?? 0;
+        if (minRequired > 0 && lotsCount < minRequired) {
+          throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Müzayedeyi başlatabilmek için en az ${minRequired} ürün gerekir (Şu an: ${lotsCount}).` });
         }
-        if (event.eventType === AuctionEventSystemType.JOINT) {
-          if (lotsCount < 60) {
-            throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Ortak müzayede başlatabilmek için en az 60 ürün toplanmalıdır (Şu an: ${lotsCount}).` });
-          }
-          if (event.ownerId) {
-            const ownerLotsCount = await this.auctionRepo.count({ where: { eventId: id, sellerId: event.ownerId } });
-            if (ownerLotsCount < 20) {
-              throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Ortak müzayede başlatabilmek için size ait en az 20 ürün bulunmalıdır (Şu an: ${ownerLotsCount}).` });
-            }
+        // Ortak müzayedede düzenleyen bayinin kendi katkısı zorunlu (en az 20).
+        if (event.eventType === AuctionEventSystemType.JOINT && event.ownerId) {
+          const ownerLotsCount = await this.auctionRepo.count({ where: { eventId: id, sellerId: event.ownerId } });
+          if (ownerLotsCount < 20) {
+            throw new BadRequestException({ code: 'MIN_LOTS_ERROR', message: `Ortak müzayede başlatabilmek için size ait en az 20 ürün bulunmalıdır (Şu an: ${ownerLotsCount}).` });
           }
         }
       }
