@@ -1780,6 +1780,7 @@ export class AuctionService implements OnApplicationBootstrap {
           amount: Number(winningBid.amount),
           currency: 'TRY',
           paymentId: capturedHold.id ?? null,
+          eventId: auction.eventId ?? null,
         },
         queryRunner.manager,
       );

@@ -23,12 +23,13 @@ export class JournalLine extends BaseEntity {
   @JoinColumn({ name: 'accountId' })
   account: LedgerAccount;
 
-  @Column()
-  userId: string;
+  // Platform (sistem) komisyon satırlarında kullanıcı yoktur → nullable.
+  @Column({ type: 'uuid', nullable: true })
+  userId: string | null;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user: User | null;
 
   @Column({ type: 'enum', enum: LedgerDirection })
   direction: LedgerDirection;

@@ -31,6 +31,7 @@ import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { Payment } from './entities/payment.entity';
 import { SavedCard } from './entities/saved-card.entity';
 import { Order } from '../order/entities/order.entity';
+import { Auction } from '../auction/entities/auction.entity';
 import { IyzicoProvider } from './providers/iyzico.provider';
 import { CartService } from '../cart/cart.service';
 import { User } from '../user/entities/user.entity';
@@ -240,6 +241,8 @@ export class PaymentService {
           
           let orderRes;
           if (item.auctionId) {
+            // Komisyon split'i için müzayede etkinliğini taşı (Faz 1).
+            const auctionRow = await manager.findOne(Auction, { where: { id: item.auctionId } });
             orderRes = await this.orderService!.createFromAuction({
               auctionId: item.auctionId,
               buyerId: userId,
@@ -249,6 +252,7 @@ export class PaymentService {
               currency: 'TRY',
               paymentId: savedPayment.id,
               isPending: true,
+              eventId: auctionRow?.eventId ?? null,
             }, manager);
           } else {
             orderRes = await this.orderService!.createFromDirectSale(userId, {

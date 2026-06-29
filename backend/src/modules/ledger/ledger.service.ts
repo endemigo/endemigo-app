@@ -20,7 +20,7 @@ export interface LedgerLineInput {
   amount: number;
   currency: string;
   direction: LedgerDirection;
-  userId: string;
+  userId: string | null;
 }
 
 export interface PostLedgerEntryInput {

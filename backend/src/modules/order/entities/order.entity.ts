@@ -35,6 +35,30 @@ export class Order extends BaseEntity {
   @Column({ length: 3, default: 'TRY' })
   currency: string;
 
+  // Müzayede etkinliği bağlantısı (komisyon split için).
+  @Column({ type: 'uuid', nullable: true })
+  eventId: string | null;
+
+  // Ortak müzayedede bayi (event.ownerId) — dealer komisyon payını alır.
+  @Column({ type: 'uuid', nullable: true })
+  dealerId: string | null;
+
+  // Satıcıdan kesilen toplam komisyon oranı (endemigo + dealer).
+  @Column({ type: 'decimal', precision: 5, scale: 4, default: 0 })
+  commissionRate: number;
+
+  // Brüt tutardan kesilen toplam komisyon (platform + dealer).
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  commissionAmount: number;
+
+  // Endemigo (platform) payı.
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  platformCommissionAmount: number;
+
+  // Bayi (dealer) payı.
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  dealerCommissionAmount: number;
+
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.CREATED })
   status: OrderStatus;
 

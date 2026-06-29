@@ -44,6 +44,8 @@ import { OrderReview } from './entities/order-review.entity';
 import { Product } from '../product/entities/product.entity';
 import { User } from '../user/entities/user.entity';
 import { Auction } from '../auction/entities/auction.entity';
+import { AuctionEvent } from '../auction/entities/auction-event.entity';
+import { AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
 import { CampaignService } from '../campaign/campaign.service';
 import {
   DiscountEngineService,
@@ -123,6 +125,7 @@ interface AuctionOrderInput {
   currency?: string;
   paymentId?: string | null;
   isPending?: boolean;
+  eventId?: string | null;
 }
 
 interface AskPriceOrderInput {
@@ -271,6 +274,7 @@ export class OrderService {
         currency: input.currency ?? 'TRY',
         source: OrderSource.AUCTION,
         sourceReferenceId: input.auctionId,
+        eventId: input.eventId ?? null,
         initialStatus: isPending ? OrderStatus.PAYMENT_PENDING : OrderStatus.ESCROW_HELD,
         initialEscrowStatus: isPending ? EscrowStatus.NOT_FUNDED : EscrowStatus.HELD,
         paymentId: input.paymentId ?? null,
@@ -510,28 +514,68 @@ export class OrderService {
       order.currency,
     );
 
+    // Faz 1: Komisyon split'i. Komisyon yoksa (commissionAmount=0) tüm tutar satıcıya
+    // gider (mevcut davranış). Aksi halde endemigo (PLATFORM_FEE) ve bayi (dealer) payları
+    // ayrılır. Her durumda: seller + platform + dealer = order.amount (ledger dengede).
+    const gross = Number(order.amount);
+    const platformAmount = Number(order.platformCommissionAmount ?? 0);
+    const dealerAmount = Number(order.dealerCommissionAmount ?? 0);
+    const sellerAmount = Number((gross - platformAmount - dealerAmount).toFixed(2));
+
+    const lines: Parameters<typeof this.ledgerService.postEntry>[0]['lines'] = [
+      {
+        accountId: escrowAccount.id,
+        amount: gross,
+        currency: order.currency,
+        direction: LedgerDirection.DEBIT,
+        userId: order.buyerId,
+      },
+      {
+        accountId: sellerAccount.id,
+        amount: sellerAmount,
+        currency: order.currency,
+        direction: LedgerDirection.CREDIT,
+        userId: order.sellerId,
+      },
+    ];
+
+    if (platformAmount > 0) {
+      const platformAccount = await this.ledgerService.getOrCreateAccount(
+        null,
+        LedgerAccountType.PLATFORM_FEE,
+        order.currency,
+      );
+      lines.push({
+        accountId: platformAccount.id,
+        amount: platformAmount,
+        currency: order.currency,
+        direction: LedgerDirection.CREDIT,
+        userId: null,
+      });
+    }
+
+    if (dealerAmount > 0 && order.dealerId) {
+      const dealerAccount = await this.ledgerService.getOrCreateAccount(
+        order.dealerId,
+        LedgerAccountType.SELLER_AVAILABLE,
+        order.currency,
+      );
+      lines.push({
+        accountId: dealerAccount.id,
+        amount: dealerAmount,
+        currency: order.currency,
+        direction: LedgerDirection.CREDIT,
+        userId: order.dealerId,
+      });
+    }
+
     await this.ledgerService.postEntry({
       type: JournalEntryType.ORDER_ESCROW_RELEASE,
-      description: 'Release order escrow to seller available balance',
+      description: 'Release order escrow with commission split',
       referenceType: LedgerReferenceType.ORDER,
       referenceId: order.id,
       idempotencyKey: `order-escrow-release:${order.id}`,
-      lines: [
-        {
-          accountId: escrowAccount.id,
-          amount: Number(order.amount),
-          currency: order.currency,
-          direction: LedgerDirection.DEBIT,
-          userId: order.buyerId,
-        },
-        {
-          accountId: sellerAccount.id,
-          amount: Number(order.amount),
-          currency: order.currency,
-          direction: LedgerDirection.CREDIT,
-          userId: order.sellerId,
-        },
-      ],
+      lines,
     });
 
     order.escrowStatus = EscrowStatus.RELEASED;
@@ -1167,6 +1211,7 @@ export class OrderService {
       currency: string;
       source: OrderSource;
       sourceReferenceId: string;
+      eventId?: string | null;
       discountResult?: DiscountEvaluationResult;
       initialStatus?: OrderStatus;
       initialEscrowStatus?: EscrowStatus;
@@ -1225,6 +1270,14 @@ export class OrderService {
       };
     }
 
+    // Faz 1: Müzayede etkinliğine bağlı siparişlerde komisyonu çöz ve sakla.
+    const commission = await this.resolveEventCommission(
+      input.eventId ?? null,
+      input.sellerId,
+      input.amount,
+      manager,
+    );
+
     const orderPayload = {
       buyerId: input.buyerId,
       sellerId: input.sellerId,
@@ -1233,6 +1286,12 @@ export class OrderService {
       currency: input.currency,
       source: input.source,
       sourceReferenceId: input.sourceReferenceId,
+      eventId: input.eventId ?? null,
+      dealerId: commission.dealerId,
+      commissionRate: commission.rate,
+      commissionAmount: commission.commissionAmount,
+      platformCommissionAmount: commission.platformAmount,
+      dealerCommissionAmount: commission.dealerAmount,
       status: input.initialStatus ?? OrderStatus.PAYMENT_PENDING,
       escrowStatus: input.initialEscrowStatus ?? EscrowStatus.NOT_FUNDED,
       paymentId: input.paymentId ?? null,
@@ -1289,6 +1348,75 @@ export class OrderService {
     const benefits = await this.membershipService?.getSellerBenefits(sellerId);
     const commissionRate = Number(benefits?.commissionRate ?? 0.1);
     return Number.isFinite(commissionRate) ? commissionRate : 0.1;
+  }
+
+  // Endemigo'nun tamamen yönettiği müzayedelerde platform komisyonu.
+  private static readonly ENDEMIGO_MANAGED_COMMISSION_RATE = 0.28;
+
+  /**
+   * Faz 1: Müzayede etkinliğine göre komisyon split'i çözer.
+   * - ENDEMIGO_MANAGED: platform %28, dealer yok.
+   * - JOINT: event.endemigoCommissionRate + event.dealerCommissionRate, dealer = event.ownerId.
+   * - INDEPENDENT: oran henüz belirsiz (config INDEPENDENT_COMMISSION_RATE, yoksa 0 → kesinti yok).
+   * - eventId yok (normal satış / standalone): kesinti yok (mevcut davranış korunur).
+   * Tutarlar kuruş bazında yuvarlanır; toplam = platform + dealer (denge garanti).
+   */
+  private async resolveEventCommission(
+    eventId: string | null,
+    sellerId: string,
+    amount: number,
+    manager?: EntityManager,
+  ): Promise<{
+    rate: number;
+    commissionAmount: number;
+    platformAmount: number;
+    dealerAmount: number;
+    dealerId: string | null;
+  }> {
+    const empty = { rate: 0, commissionAmount: 0, platformAmount: 0, dealerAmount: 0, dealerId: null };
+    if (!eventId) return empty;
+
+    const repo = (manager ?? this.orderRepository?.manager)?.getRepository(AuctionEvent);
+    if (!repo) return empty;
+    const event = await repo.findOne({ where: { id: eventId } });
+    if (!event) return empty;
+
+    let endemigoRate = 0;
+    let dealerRate = 0;
+    let dealerId: string | null = null;
+
+    if (event.eventType === AuctionEventSystemType.JOINT) {
+      endemigoRate = Number(event.endemigoCommissionRate ?? 0);
+      dealerRate = Number(event.dealerCommissionRate ?? 0);
+      dealerId = event.ownerId ?? null;
+    } else if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
+      // Oran kararı bekliyor; tanımlı değilse kesinti yapma.
+      const configured = Number(this.configService?.get('INDEPENDENT_COMMISSION_RATE'));
+      endemigoRate = Number.isFinite(configured) ? configured : 0;
+    } else {
+      endemigoRate = OrderService.ENDEMIGO_MANAGED_COMMISSION_RATE;
+    }
+
+    let platformAmount = Number((amount * endemigoRate).toFixed(2));
+    let dealerAmount = Number((amount * dealerRate).toFixed(2));
+
+    // Bayi yoksa (ör. endemigo-yönetilen ortak müzayede) dealer payı platforma katlanır.
+    // Bu sayede ledger her zaman dengede: seller + platform + dealer = amount.
+    const effectiveDealerId = dealerAmount > 0 ? dealerId : null;
+    if (!effectiveDealerId) {
+      platformAmount = Number((platformAmount + dealerAmount).toFixed(2));
+      dealerAmount = 0;
+    }
+
+    const commissionAmount = Number((platformAmount + dealerAmount).toFixed(2));
+    // Dealer kendi ürünüyse pay yine kendi hesabına gider (ledger'da ayrı satır).
+    return {
+      rate: Number((endemigoRate + dealerRate).toFixed(4)),
+      commissionAmount,
+      platformAmount,
+      dealerAmount,
+      dealerId: effectiveDealerId,
+    };
   }
 
   private async evaluateDirectSaleDiscount(
