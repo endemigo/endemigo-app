@@ -30,10 +30,14 @@ type MockAuctionRepository = {
   find: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
+  count: jest.Mock;
   createQueryBuilder: jest.Mock;
   manager: {
     findOne: jest.Mock;
     query: jest.Mock;
+    count: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
   };
 };
 
@@ -55,6 +59,8 @@ type MockWalletService = {
 
 type MockUserService = {
   findById: jest.Mock;
+  getSellerProfile: jest.Mock;
+  acceptPreContract: jest.Mock;
 };
 
 type MockOrderService = {

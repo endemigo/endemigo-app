@@ -17,7 +17,7 @@ describe('ProductController', () => {
     } as unknown as ProductService;
 
     return {
-      controller: new ProductController(productService),
+      controller: new ProductController(productService, {} as any),
       productService,
     };
   };

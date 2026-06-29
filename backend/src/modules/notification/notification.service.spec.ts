@@ -91,7 +91,7 @@ describe('NotificationService', () => {
     expect(result.notification.deliveryStatus).toBe(
       NotificationDeliveryStatus.PENDING,
     );
-    const saveOrder = notificationRepository.save.mock.invocationCallOrder[0];
+    const saveOrder = notificationRepository.save!.mock.invocationCallOrder[0];
     const enqueueOrder = (queue.add as jest.Mock).mock.invocationCallOrder[0];
     expect(saveOrder).toBeLessThan(enqueueOrder);
     expect(queue.add).toHaveBeenCalledWith(
@@ -136,7 +136,7 @@ describe('NotificationService', () => {
       push: true,
     });
 
-    const updated = await service.updatePreferences('user-1', {
+    const updated: any = await service.updatePreferences('user-1', {
       channels: {
         [NotificationEventType.AUCTION_OUTBID]: {
           inApp: true,
