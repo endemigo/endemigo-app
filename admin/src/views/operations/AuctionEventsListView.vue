@@ -111,10 +111,10 @@
             class="cover-img" 
           />
           <div v-else class="cover-gradient-fallback">
-            <span>{{ event.title.substring(0, 2).toUpperCase() }}</span>
+            <span>{{ (event.title || 'ET').substring(0, 2).toUpperCase() }}</span>
           </div>
 
-          <div class="status-badge-overlay" :class="event.status.toLowerCase()">
+          <div class="status-badge-overlay" :class="(event.status || '').toLowerCase()">
             <span v-if="event.status === 'ACTIVE'" class="live-dot"></span>
             {{ getStatusText(event.status) }}
           </div>
@@ -214,7 +214,6 @@
             </header>
             <div class="modal-body">
               <p>Oluşturmak istediğiniz yeni müzayede etkinliğinin çalışma modelini belirleyin:</p>
-              
               <div class="type-options">
                 <div class="type-option-card realtime" @click="selectTypeAndCreate('REALTIME')">
                   <div class="option-icon">
@@ -245,6 +244,66 @@
       </Transition>
     </Teleport>
 
+    <!-- ─── SELLER CONTRACT MODAL ─── -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showContractModal" class="type-modal-backdrop" @click.self="showContractModal = false">
+          <div class="type-modal-card" style="max-width: 600px;">
+            <header class="modal-header">
+              <h3>Tedarikçi Müzayede Sözleşmesi</h3>
+              <button class="button icon-only ghost close-btn" @click="showContractModal = false">
+                <i class="pi pi-times" />
+              </button>
+            </header>
+            <div class="modal-body">
+              <p style="margin-bottom: 1.5rem; color: #475569;">Müzayede başlatabilmek için aşağıdaki şartları kabul etmeniz gerekmektedir.</p>
+              
+              <div class="form-group" style="margin-bottom: 1.2rem;">
+                <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Müzayede Modeli</label>
+                <select v-model="sellerContracts.systemType" class="input" style="width: 100%; max-width: 100%;">
+                  <option value="INDEPENDENT">Bağımsız Müzayede (En az 40 ürün, Tüm yönetim size ait)</option>
+                  <option value="JOINT">Ortak Müzayede (Kendi lotlarınızı eklersiniz)</option>
+                </select>
+              </div>
+
+              <div v-if="sellerContracts.systemType === 'JOINT'" class="form-group" style="margin-bottom: 1.2rem; padding: 1rem; background: #f1f5f9; border-radius: 6px; border-left: 4px solid var(--primary-color);">
+                <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Yönetim Şekli ve Komisyon Dağılımı</label>
+                <select v-model="sellerContracts.jointManagementType" class="input" style="width: 100%; max-width: 100%;">
+                  <option value="SELF_MANAGED">Tamamen Kendi Yöneteceğim (Endemigo %20, Siz %8 Komisyon)</option>
+                  <option value="ENDEMIGO_SUPPORTED">Endemigo'dan Destek İstiyorum (Endemigo %25, Siz %3 Komisyon)</option>
+                </select>
+                <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+                  Ortak müzayedede en az 20 ürününüz olmalı ve diğer tedarikçilerden ürün toplayarak en az 60 ürünle açılış yapabilirsiniz.
+                </p>
+              </div>
+
+              <div class="form-group checkbox-group" style="margin-bottom: 1rem;">
+                <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.guaranteeAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
+                  <input type="checkbox" v-model="sellerContracts.guaranteeAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
+                  <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
+                    Müzayedeye eklenecek tüm ürünlerin MENŞEİ ve TEDARİK garantisini verdiğimi kabul, beyan ve taahhüt ederim.
+                  </span>
+                </label>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.preContractAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
+                  <input type="checkbox" v-model="sellerContracts.preContractAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
+                  <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
+                    Tüm faturalandırma ve panel yönetim şartlarının şahsıma/firmama ait olduğunu ön sözleşme uyarınca kabul ederim.
+                  </span>
+                </label>
+              </div>
+            </div>
+            <footer class="modal-footer" style="justify-content: flex-end; gap: 1rem;">
+              <button class="button ghost" @click="showContractModal = false">Vazgeç</button>
+              <button class="button primary" :disabled="!sellerContracts.guaranteeAccepted || !sellerContracts.preContractAccepted" @click="acceptContractAndProceed">Kabul Ediyorum</button>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- ─── FORM DRAWER FOR CREATE/EDIT ─── -->
     <AdminDrawerForm
       :open="drawerOpen"
@@ -263,13 +322,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import { adminApi, toApiMessage } from '../../services/api';
 import AdminDrawerForm, {
   type DrawerConfirmPayload,
   type DrawerField,
 } from '../../components/AdminDrawerForm.vue';
+import { useAdminAuthStore } from '../../stores/adminAuth';
 
 const router = useRouter();
+const toast = useToast();
+const auth = useAdminAuthStore();
+const isSeller = computed(() => {
+  const roles = auth.admin?.roles || [];
+  const r = roles.map(r => r.toUpperCase());
+  return r.includes('SELLER') || r.includes('SUPPLIER');
+});
+
+const sellerContracts = reactive({
+  systemType: 'INDEPENDENT',
+  jointManagementType: 'SELF_MANAGED',
+  guaranteeAccepted: false,
+  preContractAccepted: false
+});
 
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -313,6 +388,7 @@ const drawerActionType = ref<'create' | 'edit'>('create');
 const tempSelectedType = ref<'REALTIME' | 'TIMED'>('REALTIME');
 
 const categories = ref<any[]>([]);
+const auctioneers = ref<any[]>([]);
 
 async function loadCategories() {
   try {
@@ -320,6 +396,16 @@ async function loadCategories() {
     categories.value = res.data.items || [];
   } catch (err) {
     console.error('Error loading categories:', err);
+  }
+}
+
+// Faz 6: Atanabilir yayıncılar (endemigo operatörleri). Sadece admin görür.
+async function loadAuctioneers() {
+  try {
+    const res = await adminApi.get('/admin/auction-events/assignable-auctioneers');
+    auctioneers.value = res.data.items || [];
+  } catch {
+    auctioneers.value = [];
   }
 }
 
@@ -467,6 +553,22 @@ function generateFormFields(row: any | null): DrawerField[] {
       value: row.auctionType || 'REALTIME',
       options: auctionTypeOptions,
     });
+    // Faz 6: Canlı yayını yürütecek kişi (operatör/kreatör). Boş bırakılırsa sahibe düşer.
+    const auctioneerOptions = [
+      { label: '— Sahip / Varsayılan —', value: '' },
+      ...auctioneers.value.map((a) => ({ label: `${a.displayName} (${a.email})`, value: a.id })),
+    ];
+    if (row.auctioneerId && !auctioneerOptions.some((o) => o.value === row.auctioneerId)) {
+      auctioneerOptions.push({ label: `Mevcut: ${row.auctioneerId}`, value: row.auctioneerId });
+    }
+    fields.push({
+      key: 'auctioneerId',
+      label: 'Yayıncı (Auctioneer)',
+      type: 'select',
+      value: row.auctioneerId || '',
+      options: auctioneerOptions,
+      fullWidth: true,
+    });
   }
 
   fields.push(
@@ -518,6 +620,7 @@ function generateFormFields(row: any | null): DrawerField[] {
 
 // Modal and create triggers
 const showTypeModal = ref(false);
+const showContractModal = ref(false);
 
 function handleNewEventClick() {
   showTypeModal.value = true;
@@ -526,6 +629,35 @@ function handleNewEventClick() {
 function selectTypeAndCreate(type: 'REALTIME' | 'TIMED') {
   showTypeModal.value = false;
   tempSelectedType.value = type;
+  
+  if (isSeller.value) {
+    sellerContracts.systemType = 'INDEPENDENT';
+    sellerContracts.jointManagementType = 'SELF_MANAGED';
+    sellerContracts.guaranteeAccepted = false;
+    sellerContracts.preContractAccepted = false;
+    showContractModal.value = true;
+  } else {
+    finishCreateFlow(type);
+  }
+}
+
+function acceptContractAndProceed() {
+  if (!sellerContracts.guaranteeAccepted || !sellerContracts.preContractAccepted) return;
+  showContractModal.value = false;
+  finishCreateFlow(tempSelectedType.value as 'REALTIME' | 'TIMED');
+}
+
+function finishCreateFlow(type: 'REALTIME' | 'TIMED') {
+  const payload: Record<string, unknown> = { auctionType: type };
+  if (isSeller.value) {
+    payload.systemType = sellerContracts.systemType;
+    if (sellerContracts.systemType === 'JOINT') {
+      payload.jointManagementType = sellerContracts.jointManagementType;
+    }
+    payload.guaranteeAccepted = sellerContracts.guaranteeAccepted ? 'true' : 'false';
+    payload.preContractAccepted = sellerContracts.preContractAccepted ? 'true' : 'false';
+  }
+  
   selectedEvent.value = null;
   drawerActionType.value = 'create';
   drawerTitle.value = `Yeni ${type === 'REALTIME' ? 'Canlı' : 'Süreli'} Müzayede Oluştur`;
@@ -563,20 +695,31 @@ async function handleConfirmForm(payload: DrawerConfirmPayload) {
     reason: payload.reason,
     metadata: {
       ...payload.values,
-      auctionType: selectedEvent.value?.auctionType || tempSelectedType.value
+      auctionType: selectedEvent.value?.auctionType || tempSelectedType.value,
+      ...(drawerActionType.value === 'create' && isSeller.value ? {
+        systemType: sellerContracts.systemType,
+        guaranteeAccepted: sellerContracts.guaranteeAccepted ? 'true' : 'false',
+        preContractAccepted: sellerContracts.preContractAccepted ? 'true' : 'false'
+      } : {})
     }
   };
 
   try {
     if (drawerActionType.value === 'create') {
       await adminApi.post('/admin/auction-events', body);
+      toast.add({ severity: 'success', summary: 'Başarılı', detail: 'Müzayede etkinliği başarıyla oluşturuldu.', life: 3000 });
     } else {
       await adminApi.patch(`/admin/auction-events/${selectedEvent.value.id}`, body);
+      toast.add({ severity: 'success', summary: 'Başarılı', detail: 'Müzayede etkinliği güncellendi.', life: 3000 });
     }
     closeDrawer();
     loadEvents();
-  } catch (err) {
-    error.value = toApiMessage(err);
+  } catch (err: any) {
+    if (err.response?.data?.code === 'MIN_LOTS_ERROR') {
+      toast.add({ severity: 'warn', summary: 'Kural İhlali', detail: err.response?.data?.message || 'Müzayede kuralları ihlal edildi.', life: 5000 });
+    } else {
+      toast.add({ severity: 'error', summary: 'Hata', detail: 'İşlem başarısız: ' + toApiMessage(err), life: 5000 });
+    }
   }
 }
 
@@ -600,6 +743,7 @@ const filteredEvents = computed(() => {
 onMounted(() => {
   loadEvents();
   loadCategories();
+  loadAuctioneers();
 });
 </script>
 

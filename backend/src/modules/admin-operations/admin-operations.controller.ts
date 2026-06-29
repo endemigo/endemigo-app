@@ -146,13 +146,21 @@ export class AdminOperationsController {
   }
 
   @Get('products')
-  async products(@Query() query: AdminListQueryDto) {
-    return this.adminOperationsService.list('products', query);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async products(
+    @Query() query: AdminListQueryDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.list('products', query, request.adminUser);
   }
 
   @Get('products/:id')
-  async product(@Param('id') id: string) {
-    return this.adminOperationsService.detail('products', id);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async product(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.detail('products', id, request.adminUser);
   }
 
   @Get('variants/numbers')
@@ -179,6 +187,7 @@ export class AdminOperationsController {
   }
 
   @Post('products')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
   async createProduct(
     @Body() dto: AdminProductActionDto,
     @Request() request: AdminOperationsRequest,
@@ -187,6 +196,7 @@ export class AdminOperationsController {
   }
 
   @Patch('products/:id')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
   async updateProduct(
     @Param('id') id: string,
     @Body() dto: AdminProductActionDto,
@@ -197,6 +207,7 @@ export class AdminOperationsController {
 
   @Post('uploads/images')
   @ApiOperation({ summary: 'Admin görsel yükleme (çoklu yükleme için tekil endpoint)' })
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, callback) => {
@@ -288,13 +299,21 @@ export class AdminOperationsController {
   }
 
   @Get('orders')
-  async orders(@Query() query: AdminListQueryDto) {
-    return this.adminOperationsService.list('orders', query);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  async orders(
+    @Query() query: AdminListQueryDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.list('orders', query, request.adminUser);
   }
 
   @Get('orders/:id')
-  async order(@Param('id') id: string) {
-    return this.adminOperationsService.detail('orders', id);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  async order(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.detail('orders', id, request.adminUser);
   }
 
   @Get('payments')
@@ -318,13 +337,21 @@ export class AdminOperationsController {
   }
 
   @Get('payout-requests')
-  async payoutRequests(@Query() query: AdminListQueryDto) {
-    return this.adminOperationsService.list('payout-requests', query);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  async payoutRequests(
+    @Query() query: AdminListQueryDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.list('payout-requests', query, request.adminUser);
   }
 
   @Get('payout-requests/:id')
-  async payoutRequest(@Param('id') id: string) {
-    return this.adminOperationsService.detail('payout-requests', id);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  async payoutRequest(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.detail('payout-requests', id, request.adminUser);
   }
 
   @Get('negotiations')
@@ -568,13 +595,28 @@ export class AdminOperationsController {
   // ─── Ortak Müzayede Etkinliği (Model 2) Endpoints ───
 
   @Get('auction-events')
-  async auctionEvents(@Query() query: AdminListQueryDto) {
-    return this.adminOperationsService.list('auction-events', query);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async auctionEvents(
+    @Query() query: AdminListQueryDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.list('auction-events', query, request.adminUser);
+  }
+
+  // Faz 6: Atanabilir yayıncılar (endemigo operatörleri). NOT: ':id' route'undan ÖNCE olmalı.
+  @Get('auction-events/assignable-auctioneers')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
+  async assignableAuctioneers() {
+    return this.adminOperationsService.listAssignableAuctioneers();
   }
 
   @Get('auction-events/:id')
-  async auctionEvent(@Param('id') id: string) {
-    const detail = await this.adminOperationsService.detail('auction-events', id);
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async auctionEvent(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    const detail = await this.adminOperationsService.detail('auction-events', id, request.adminUser);
     if (detail && detail.overview) {
       (detail.overview as any).autoProgress = this.auctionService.isAutoProgressEnabled(id);
     }
@@ -593,6 +635,7 @@ export class AdminOperationsController {
   }
 
   @Post('auction-events')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
   async createAuctionEvent(
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
@@ -600,7 +643,18 @@ export class AdminOperationsController {
     return this.adminOperationsService.createAuctionEvent(dto, request.adminUser);
   }
 
+  @Post('auction-events/:id/lots')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async addLotsToEvent(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.addLotsToEvent(id, dto, request.adminUser);
+  }
+
   @Patch('auction-events/:id')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
   async updateAuctionEvent(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,
@@ -609,7 +663,19 @@ export class AdminOperationsController {
     return this.adminOperationsService.updateAuctionEvent(id, dto, request.adminUser);
   }
 
+  @Delete('auction-events/:id/lots/:lotId')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  async removeLotFromEvent(
+    @Param('id') eventId: string,
+    @Param('lotId') lotId: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.removeLotFromEvent(eventId, lotId, dto, request.adminUser);
+  }
+
   @Patch('auction-events/:id/lots/sequence')
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
   async reorderLots(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,

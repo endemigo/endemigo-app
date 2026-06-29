@@ -52,7 +52,7 @@
               </div>
               <div class="active-lot-details">
                 <div class="lot-header">
-                  <span class="lot-number-pill">LOT #{{ activeLot.lotNumber }}</span>
+                  <span class="lot-number-pill">LOT #{{ activeLot.sequenceNumber != null ? activeLot.sequenceNumber : (approvedLots.findIndex(l => l.id === activeLot.id) + 1) }}</span>
                   <span class="lot-db-id font-mono">ID: {{ activeLot.id.substring(0, 8) }}</span>
                 </div>
                 <h2 class="lot-title">{{ activeLot.product?.title }}</h2>
@@ -182,9 +182,17 @@
             </div>
           </div>
 
-          <div v-else class="live-console-empty">
+          <div v-else-if="event?.status === 'ACTIVE'" class="live-console-empty">
             <i class="pi pi-clock" />
             <p>Müzayede Odasında Şu Anda Aktif İhale Edilen Bir Lot Bulunmamaktadır.</p>
+          </div>
+          <div v-else-if="event?.status === 'FINISHED'" class="live-console-empty">
+            <i class="pi pi-check-circle" />
+            <p>Bu müzayede tamamlanmıştır.</p>
+          </div>
+          <div v-else class="live-console-empty">
+            <i class="pi pi-calendar" />
+            <p>Müzayede henüz başlamamıştır.</p>
           </div>
         </section>
 
@@ -212,7 +220,7 @@
                   <h3 class="overview-title">{{ event?.title }}</h3>
                 </div>
                 <span class="status-badge" :class="event?.status?.toLowerCase()">
-                  {{ event?.status }}
+                  {{ getEventStatusLabel(event?.status) }}
                 </span>
               </header>
               <div class="event-meta-info">
@@ -249,17 +257,35 @@
                   <h3>Katalog ve Lot Sıralaması</h3>
                   <p>Müzayedeye kabul edilmiş ve sıraya dizilmiş onaylı ürünler</p>
                 </div>
-                <button 
-                  v-if="hasOrderChanges" 
-                  class="button primary" 
-                  type="button" 
-                  @click="saveNewSequence"
-                  :disabled="savingSequence"
-                >
-                  <i v-if="savingSequence" class="pi pi-spin pi-spinner" />
-                  <i v-else class="pi pi-save" />
-                  Sıralamayı Kaydet
-                </button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <button 
+                    class="button secondary" 
+                    type="button" 
+                    @click="openAddLotModal"
+                  >
+                    <i class="pi pi-bars" />
+                    Listeden Ekle
+                  </button>
+                  <button 
+                    class="button primary" 
+                    type="button" 
+                    @click="openQuickCreateModal"
+                  >
+                    <i class="pi pi-plus" />
+                    Yeni Ürün Ekle
+                  </button>
+                  <button 
+                    v-if="hasOrderChanges" 
+                    class="button primary" 
+                    type="button" 
+                    @click="saveNewSequence"
+                    :disabled="savingSequence"
+                  >
+                    <i v-if="savingSequence" class="pi pi-spin pi-spinner" />
+                    <i v-else class="pi pi-save" />
+                    Sıralamayı Kaydet
+                  </button>
+                </div>
               </header>
 
               <div v-if="approvedLots.length === 0" class="empty-state">
@@ -294,8 +320,8 @@
                   <div class="lot-product-details">
                     <h5>{{ lot.product?.title }}</h5>
                     <div class="lot-meta-badges">
-                      <span class="lot-badge">Satıcı: {{ lot.seller?.businessName || 'Bireysel Satıcı' }}</span>
-                      <span class="lot-badge font-mono">Lot No: {{ lot.lotNumber }}</span>
+                      <span class="lot-badge">Tedarikçi: {{ getSellerName(lot.seller) }}</span>
+
                       <span class="lot-badge highlight">Başlangıç: {{ formatMoney(lot.startPrice) }}</span>
                       <span class="lot-badge highlight active-price" v-if="lot.id === event?.activeLotId">Güncel Teklif: {{ formatMoney(lot.currentPrice) }}</span>
                       <span class="lot-badge highlight count-badge" v-if="lot.id === event?.activeLotId">{{ lot.bidCount || 0 }} Teklif</span>
@@ -329,6 +355,15 @@
                       title="Aşağı Taşı"
                     >
                       <i class="pi pi-angle-down" />
+                    </button>
+                    <button 
+                      class="button icon-only danger ghost" 
+                      type="button" 
+                      @click="removeLot(lot.id)"
+                      title="Müzayededen Kaldır"
+                      style="margin-left: 0.5rem;"
+                    >
+                      <i class="pi pi-trash" />
                     </button>
                   </div>
                 </div>
@@ -377,7 +412,7 @@
                           </div>
                         </div>
                       </td>
-                      <td>{{ sub.seller?.businessName || 'Bireysel Satıcı' }}</td>
+                      <td>{{ getSellerName(sub.seller) }}</td>
                       <td>{{ formatMoney(sub.startPrice) }}</td>
                       <td>{{ formatDate(sub.createdAt) }}</td>
                       <td>
@@ -397,6 +432,61 @@
                           >
                             <i class="pi pi-times" />
                             Reddet
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- ORTAK MÜZAYEDE DAVETLERİ (Sadece JOINT ise) -->
+            <section v-if="event?.eventType === 'JOINT'" class="record-block invitations-section" style="margin-top: 2rem;">
+              <header class="section-header">
+                <div>
+                  <h3>Katılımcılar & Davetler</h3>
+                  <p>Bu ortak müzayedeye ürün yüklemesi için davet edilen tedarikçiler</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <button class="button primary" type="button" @click="openInviteModal">
+                    <i class="pi pi-user-plus" />
+                    Tedarikçi Davet Et
+                  </button>
+                </div>
+              </header>
+
+              <div v-if="!invitations || invitations.length === 0" class="empty-state">
+                <i class="pi pi-users empty-icon" />
+                <p>Henüz kimseyi davet etmediniz.</p>
+              </div>
+
+              <div v-else class="table-wrap">
+                <table class="detail-table submission-table">
+                  <thead>
+                    <tr>
+                      <th>Tedarikçi Bilgisi</th>
+                      <th>Davet Tarihi</th>
+                      <th>Durum</th>
+                      <th class="text-right">İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="inv in invitations" :key="inv.id">
+                      <td>
+                        <strong>{{ getSellerName(inv.invitee) }}</strong>
+                        <small class="block text-muted">{{ inv.invitee?.email }}</small>
+                      </td>
+                      <td>{{ formatDate(inv.createdAt) }}</td>
+                      <td>
+                        <span class="status-badge" :class="inv.status?.toLowerCase()">
+                          {{ getInvitationStatusLabel(inv.status) }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="action-buttons-cell">
+                          <button v-if="inv.status === 'PENDING'" class="button ghost danger size-sm" @click="cancelInvitation(inv.id)" title="Daveti İptal Et">
+                            <i class="pi pi-times" />
                           </button>
                         </div>
                       </td>
@@ -482,14 +572,280 @@
         <img :src="activeZoomImage" alt="Büyük Görsel" class="zoomed-image" />
       </div>
     </div>
+
+    <!-- Yeni Ürün Ekle Modal -->
+    <div v-if="showAddLotModal" class="custom-modal-backdrop" @click="showAddLotModal = false">
+      <div class="custom-modal-card" style="max-width: 1000px; width: 95%;" @click.stop>
+        <header class="modal-header">
+          <h4>Müzayedeye Ürün Ekle</h4>
+          <button class="button icon-only ghost" type="button" @click="showAddLotModal = false">
+            <i class="pi pi-times" />
+          </button>
+        </header>
+        
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          <p class="modal-prompt mb-4">
+            Kataloğunuzdaki boş ürünleri buradan müzayedeye dâhil edebilirsiniz. Lütfen eklemek istediğiniz ürünleri seçip başlangıç değerlerini girin.
+          </p>
+          
+          <div v-if="loadingProducts" class="loading-state">
+            <i class="pi pi-spin pi-spinner" style="font-size: 2rem"></i>
+            <p>Ürünler yükleniyor...</p>
+          </div>
+          
+          <div v-else-if="availableProducts.length === 0" class="empty-state" style="margin: 3rem 0;">
+            <i class="pi pi-box empty-icon" />
+            <p>Eklenecek uygun ürün bulunamadı. Önce ürün kataloğunuza yeni ürün eklemelisiniz.</p>
+          </div>
+          
+          <div v-else class="table-wrap">
+            <table class="detail-table">
+              <thead>
+                <tr>
+                  <th style="width: 48px; text-align: center;">Seç</th>
+                  <th style="width: 80px;">Sıra</th>
+                  <th>Ürün Adı</th>
+                  <th>Açılış (₺)</th>
+                  <th>Artış (₺)</th>
+                  <th>Hemen Al (₺)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="product in availableProducts" :key="product.id" :class="{ 'row-selected': selectedProductIds.includes(product.id) }">
+                  <td style="text-align: center;">
+                    <input 
+                      type="checkbox" 
+                      v-model="selectedProductIds" 
+                      :value="product.id" 
+                      style="width: 18px; height: 18px; cursor: pointer;"
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      v-if="selectedProductIds.includes(product.id)" 
+                      type="number" 
+                      v-model="product.lotOrder" 
+                      class="form-control" 
+                      style="width: 70px; padding: 0.25rem 0.5rem;"
+                      min="1"
+                    />
+                    <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <strong>{{ product.title }}</strong>
+                    <small class="block font-mono text-muted">Stok: {{ product.stock || 0 }}</small>
+                  </td>
+                  <td>
+                    <input 
+                      v-if="selectedProductIds.includes(product.id)" 
+                      type="number" 
+                      v-model="product.startingPrice" 
+                      class="form-control font-mono" 
+                      style="width: 110px; padding: 0.25rem 0.5rem;"
+                      min="1"
+                      step="1"
+                    />
+                    <span v-else class="text-muted font-mono">{{ formatMoney(product.price) }}</span>
+                  </td>
+                  <td>
+                    <input 
+                      v-if="selectedProductIds.includes(product.id)" 
+                      type="number" 
+                      v-model="product.minIncrement" 
+                      class="form-control font-mono" 
+                      style="width: 110px; padding: 0.25rem 0.5rem;"
+                      min="1"
+                      step="1"
+                    />
+                    <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <input 
+                      v-if="selectedProductIds.includes(product.id)" 
+                      type="number" 
+                      v-model="product.buyItNowPrice" 
+                      class="form-control font-mono" 
+                      style="width: 110px; padding: 0.25rem 0.5rem;"
+                      placeholder="Opsiyonel"
+                      :min="(product.startingPrice || 1) + 1"
+                    />
+                    <span v-else class="text-muted">-</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div v-if="addLotValidationError && selectedProductIds.length > 0" class="error-banner" style="margin: 0 1.5rem; background: var(--danger-color-light, #ffebee); color: var(--danger-color, #c62828); padding: 0.75rem; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="pi pi-exclamation-triangle" />
+          <span>{{ addLotValidationError }}</span>
+        </div>
+
+        <footer class="modal-footer" style="justify-content: space-between;">
+          <div class="selected-count">
+            <span v-if="selectedProductIds.length > 0">
+              <strong>{{ selectedProductIds.length }}</strong> ürün seçildi
+            </span>
+          </div>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="button ghost" type="button" @click="showAddLotModal = false">İptal</button>
+            <button 
+              class="button primary" 
+              type="button"
+              :disabled="selectedProductIds.length === 0 || isAddingLots || addLotValidationError !== null"
+              @click="submitAddLots"
+            >
+              <i v-if="isAddingLots" class="pi pi-spin pi-spinner" />
+              <i v-else class="pi pi-plus" />
+              Müzayedeye Ekle
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Hızlı Ürün Oluştur Modal -->
+    <div v-if="showQuickCreateModal" class="custom-modal-backdrop" @click="showQuickCreateModal = false">
+      <div class="custom-modal-card" style="max-width: 600px; width: 95%;" @click.stop>
+        <header class="modal-header">
+          <h4>Yeni Ürün Ekle</h4>
+          <button class="button icon-only ghost" type="button" @click="showQuickCreateModal = false">
+            <i class="pi pi-times" />
+          </button>
+        </header>
+        
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+          <p class="modal-prompt mb-4">
+            Bu ekran sadece bu müzayede etkinliği için hızlı ürün oluşturmanızı sağlar.
+          </p>
+
+          <div v-if="quickCreateError" class="error-banner mb-4" style="background: var(--danger-color-light, #ffebee); color: var(--danger-color, #c62828); padding: 0.75rem; border-radius: 4px; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="pi pi-exclamation-triangle" />
+            <span>{{ quickCreateError }}</span>
+          </div>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>Ürün Adı *</span>
+              <input v-model="quickCreateForm.title" class="input" placeholder="Örn: 19.yy El İşlemesi Halı" />
+            </label>
+
+            <label class="field">
+              <span>Açıklama</span>
+              <textarea v-model="quickCreateForm.description" class="textarea" rows="3" placeholder="Ürün hakkında kısa bir açıklama..."></textarea>
+            </label>
+
+            <div class="owner-grid">
+              <label class="field">
+                <span>Açılış Fiyatı (₺) *</span>
+                <input v-model="quickCreateForm.startingPrice" class="input font-mono" type="number" min="0" />
+              </label>
+              <label class="field">
+                <span>Min. Artış (₺) *</span>
+                <input v-model="quickCreateForm.minIncrement" class="input font-mono" type="number" min="1" />
+              </label>
+              <label class="field">
+                <span>Hemen Al Fiyatı (₺)</span>
+                <input v-model="quickCreateForm.buyItNowPrice" class="input font-mono" type="number" min="0" placeholder="Opsiyonel" />
+              </label>
+            </div>
+
+            <div class="field">
+              <span>Ürün Görselleri</span>
+              <input
+                ref="quickCreateImageInput"
+                type="file"
+                class="hidden-file-input"
+                accept="image/*"
+                multiple
+                @change="onQuickCreateImageChange"
+              />
+              <button
+                class="upload-dropzone"
+                :class="{ dragging: quickCreateDragTarget }"
+                type="button"
+                @click="openQuickCreateImagePicker"
+                @dragover.prevent="quickCreateDragTarget = true"
+                @dragleave.prevent="quickCreateDragTarget = false"
+                @drop.prevent="onQuickCreateDropImages"
+                style="padding: 1.5rem; text-align: center; border: 1px dashed var(--border-strong); border-radius: 8px; background: var(--bg-soft); cursor: pointer; display: block; width: 100%; color: var(--text-body);"
+              >
+                <strong>{{ quickCreateUploading ? 'Yükleniyor...' : 'Resim yüklemek için tıkla veya sürükle-bırak' }}</strong>
+              </button>
+            </div>
+            
+            <div v-if="quickCreateImages.length > 0" class="upload-grid" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+              <article v-for="(imgUrl, idx) in quickCreateImages" :key="idx" style="position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-soft);">
+                <img :src="imgUrl" style="width: 100%; height: 100%; object-fit: cover;" />
+                <button type="button" @click="removeQuickCreateImage(idx)" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                  <i class="pi pi-times" style="font-size: 12px;" />
+                </button>
+              </article>
+            </div>
+          </div>
+        </div>
+        
+        <footer class="modal-footer" style="justify-content: flex-end;">
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="button ghost" type="button" @click="showQuickCreateModal = false">İptal</button>
+            <button 
+              class="button primary" 
+              type="button"
+              :disabled="!quickCreateForm.title || !quickCreateForm.startingPrice || quickCreateForm.startingPrice <= 0 || !quickCreateForm.minIncrement || quickCreateForm.minIncrement < 1 || (quickCreateForm.buyItNowPrice != null && quickCreateForm.buyItNowPrice > 0 && quickCreateForm.buyItNowPrice <= quickCreateForm.startingPrice) || isQuickCreating"
+              @click="submitQuickCreate"
+            >
+              <i v-if="isQuickCreating" class="pi pi-spin pi-spinner" />
+              <i v-else class="pi pi-check" />
+              Oluştur ve Ekle
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
   </section>
+  <!-- ONAY / RED GEREKÇE MODALI (Davet için) -->
+  <div class="custom-modal-backdrop" v-if="showInviteModal">
+    <div class="custom-modal-card">
+      <header class="modal-header">
+        <h3>Tedarikçi Davet Et</h3>
+        <button class="modal-close" @click="showInviteModal = false">
+          <i class="pi pi-times" />
+        </button>
+      </header>
+      <div class="modal-body">
+        <p style="margin-bottom: 1rem; color: #475569;">Ortak müzayedenize ürün eklemesi için sistemimizde kayıtlı bir tedarikçinin ID'sini girebilirsiniz.</p>
+        <div class="form-group">
+          <label class="label">Tedarikçi ID</label>
+          <input 
+            type="text" 
+            v-model="inviteUserId" 
+            class="input" 
+            placeholder="Kullanıcı ID (UUID)"
+          />
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="button ghost" @click="showInviteModal = false" :disabled="sendingInvite">Vazgeç</button>
+        <button class="button primary" @click="sendInvitation" :disabled="sendingInvite || !inviteUserId">
+          <i v-if="sendingInvite" class="pi pi-spin pi-spinner" />
+          <i v-else class="pi pi-send" />
+          Davet Gönder
+        </button>
+      </footer>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi, toApiMessage } from '../../services/api';
+import { useAdminAuthStore } from '../../stores/adminAuth';
 import { getAuctionSocket, disconnectAuctionSocket } from '../../services/socket';
+
+
+const auth = useAdminAuthStore();
 
 const props = defineProps<{
   id: string;
@@ -511,6 +867,53 @@ function openImageZoom(url: string | null | undefined) {
 const event = ref<any>(null);
 const approvedLots = ref<any[]>([]);
 const pendingSubmissions = ref<any[]>([]);
+const invitations = ref<any[]>([]);
+
+// Davet (Invitation) State
+const showInviteModal = ref(false);
+const inviteUserId = ref('');
+const sendingInvite = ref(false);
+
+function openInviteModal() {
+  inviteUserId.value = '';
+  showInviteModal.value = true;
+}
+
+async function sendInvitation() {
+  if (!inviteUserId.value) return;
+  sendingInvite.value = true;
+  try {
+    await adminApi.post(`/auctions/events/${props.id}/invitations`, {
+      inviteeId: inviteUserId.value
+    });
+    alert('Davet başarıyla gönderildi.');
+    showInviteModal.value = false;
+    await loadDetail(); // Yeniden yükle ki tablo güncellensin
+  } catch (err: any) {
+    alert('Davet gönderilemedi: ' + (err.response?.data?.message || err.message));
+  } finally {
+    sendingInvite.value = false;
+  }
+}
+
+async function cancelInvitation(invitationId: string) {
+  if (!confirm('Bu daveti iptal etmek istediğinize emin misiniz?')) return;
+  try {
+    await adminApi.post(`/auctions/invitations/${invitationId}/reject`);
+    await loadDetail();
+  } catch (err: any) {
+    alert('İptal işlemi başarısız: ' + (err.response?.data?.message || err.message));
+  }
+}
+
+function getInvitationStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    PENDING: 'Bekliyor',
+    ACCEPTED: 'Kabul Edildi',
+    REJECTED: 'Reddedildi'
+  };
+  return map[status] || status;
+}
 
 // Canlı Teklif Akışı
 const activeLotBids = ref<any[]>([]);
@@ -547,6 +950,22 @@ const hasOrderChanges = computed(() => {
   return approvedLots.value.some((lot, idx) => lot.id !== originalOrder.value[idx]);
 });
 const savingSequence = ref(false);
+
+function removeLot(lotId: string) {
+  triggerConfirm(
+    'Lotu Müzayededen Kaldır',
+    'Bu lotu müzayededen kaldırmak istediğinize emin misiniz? Bu işlem geri alınamaz.',
+    async () => {
+      try {
+        const res = await adminApi.delete(`/admin/auction-events/${props.id}/lots/${lotId}`, { data: { reason: 'Fazla ürün / Hatalı ekleme' } });
+        toast.add({ severity: 'success', summary: 'Başarılı', detail: res.data?.message || 'Lot kaldırıldı', life: 3000 });
+        await loadDetail();
+      } catch (error: any) {
+        toast.add({ severity: 'error', summary: 'Hata', detail: error.response?.data?.message || 'Lot kaldırılamadı', life: 3000 });
+      }
+    }
+  );
+}
 
 // Aktif Lot
 const activeLot = computed(() => {
@@ -688,6 +1107,7 @@ async function loadDetail() {
     event.value = res.data.overview;
     approvedLots.value = res.data.approvedLots || [];
     pendingSubmissions.value = res.data.pendingSubmissions || [];
+    invitations.value = res.data.invitations || [];
     autoProgress.value = res.data.overview?.autoProgress !== false;
     lotTransitionSeconds.value = res.data.overview?.lotTransitionSeconds ?? 30;
     
@@ -749,6 +1169,147 @@ async function saveNewSequence() {
     error.value = toApiMessage(err);
   } finally {
     savingSequence.value = false;
+  }
+}
+
+// --- Hızlı Ürün Oluştur State & Logic ---
+const showQuickCreateModal = ref(false);
+const isQuickCreating = ref(false);
+const quickCreateError = ref<string | null>(null);
+const quickCreateForm = ref({
+  title: '',
+  description: '',
+  startingPrice: null as number | null,
+  minIncrement: 1,
+  buyItNowPrice: null as number | null,
+});
+const quickCreateImages = ref<string[]>([]);
+const quickCreateImageInput = ref<HTMLInputElement | null>(null);
+const quickCreateDragTarget = ref(false);
+const quickCreateUploading = ref(false);
+
+function openQuickCreateModal() {
+  quickCreateError.value = null;
+  
+  // Admin kontrolü: Eğer müzayedenin sahibi yoksa ürün kime eklenecek belli değil.
+  const roles = auth.admin?.roles || [];
+  const isAdmin = roles.some((r: string) => ['SUPER_ADMIN', 'ADMIN'].includes(r));
+  if (isAdmin && !event.value?.ownerId) {
+    quickCreateError.value = "Uyarı: Bu müzayedenin bir sahibi (Satıcı) bulunmuyor. Sistem ürünü kime ekleyeceğini bilemez. Lütfen önce etkinliğe bir satıcı atayın.";
+  }
+
+  showQuickCreateModal.value = true;
+  quickCreateForm.value = {
+    title: '',
+    description: '',
+    startingPrice: null,
+    minIncrement: 1,
+    buyItNowPrice: null,
+  };
+  quickCreateImages.value = [];
+}
+
+function openQuickCreateImagePicker() {
+  quickCreateImageInput.value?.click();
+}
+
+function onQuickCreateImageChange(evt: Event) {
+  const input = evt.target as HTMLInputElement;
+  if (!input.files || input.files.length === 0) return;
+  uploadQuickCreateImages(Array.from(input.files));
+  input.value = '';
+}
+
+function onQuickCreateDropImages(evt: DragEvent) {
+  quickCreateDragTarget.value = false;
+  const files = Array.from(evt.dataTransfer?.files || []);
+  if (files.length > 0) uploadQuickCreateImages(files);
+}
+
+async function uploadQuickCreateImages(files: File[]) {
+  const validFiles = files.filter(f => f.type.startsWith('image/'));
+  if (validFiles.length === 0) return;
+  
+  quickCreateUploading.value = true;
+  try {
+    for (const file of validFiles) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await adminApi.post<{ url: string }>('/admin/uploads/images?kind=product', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data?.url) {
+        quickCreateImages.value.push(res.data.url);
+      }
+    }
+  } catch (err) {
+    console.error('Image upload error:', err);
+    quickCreateError.value = 'Görsel yüklenirken bir hata oluştu. Lütfen tekrar deneyin.';
+  } finally {
+    quickCreateUploading.value = false;
+  }
+}
+
+function removeQuickCreateImage(idx: number) {
+  quickCreateImages.value.splice(idx, 1);
+}
+
+async function submitQuickCreate() {
+  if (isQuickCreating.value) return; // M2: Çift tıklama koruması
+  if (!quickCreateForm.value.title || quickCreateForm.value.startingPrice == null || quickCreateForm.value.startingPrice <= 0) return;
+  if (!quickCreateForm.value.minIncrement || quickCreateForm.value.minIncrement < 1) return;
+  // K3: buyItNowPrice > startingPrice kontrolü
+  if (quickCreateForm.value.buyItNowPrice != null && quickCreateForm.value.buyItNowPrice > 0 && quickCreateForm.value.buyItNowPrice <= quickCreateForm.value.startingPrice) return;
+  
+  // Eğer hata varsa (örn. ownerId eksik) işleme izin verme
+  if (quickCreateError.value && quickCreateError.value.includes('Uyarı:')) return;
+
+  isQuickCreating.value = true;
+  quickCreateError.value = null;
+  try {
+    // 1. Create Product
+    const productPayload = {
+      reason: 'Hızlı müzayede ürünü eklendi',
+      metadata: {
+        title: quickCreateForm.value.title,
+        description: quickCreateForm.value.description,
+        price: quickCreateForm.value.startingPrice,
+        status: 'ACTIVE',
+        stockQuantity: 1,
+        productImageUrls: quickCreateImages.value.join('\n'),
+        sellerId: event.value?.ownerId || undefined,
+      }
+    };
+    
+    const productRes = await adminApi.post('/admin/products', productPayload);
+    const newProductId = productRes.data?.product?.id || productRes.data?.data?.id || productRes.data?.id;
+    
+    if (!newProductId) throw new Error('Ürün oluşturulamadı (ID dönmedi).');
+
+    // 2. Add to Auction Lots
+    const lotPayload = {
+      reason: 'Hızlı ürün lot olarak eklendi',
+      metadata: {
+        items: [
+          {
+            productId: newProductId,
+            lotOrder: approvedLots.value.length + 1,
+            startingPrice: quickCreateForm.value.startingPrice,
+            minIncrement: quickCreateForm.value.minIncrement || 1,
+            buyItNowPrice: quickCreateForm.value.buyItNowPrice || null,
+          }
+        ]
+      }
+    };
+    
+    await adminApi.post(`/admin/auction-events/${props.id}/lots`, lotPayload);
+    
+    showQuickCreateModal.value = false;
+    await loadDetail();
+  } catch (e: any) {
+    quickCreateError.value = e.response?.data?.message || e.message || 'Ürün oluşturulurken bir hata oluştu.';
+  } finally {
+    isQuickCreating.value = false;
   }
 }
 
@@ -888,6 +1449,90 @@ function handleImageError(event: Event): void {
 
 let socket: any = null;
 
+// --- Yeni Ürün Ekle Modal State & Logic ---
+const showAddLotModal = ref(false);
+const loadingProducts = ref(false);
+const isAddingLots = ref(false);
+const availableProducts = ref<any[]>([]);
+const selectedProductIds = ref<string[]>([]);
+
+async function openAddLotModal() {
+  showAddLotModal.value = true;
+  loadingProducts.value = true;
+  selectedProductIds.value = [];
+  try {
+    let url = '/admin/products?limit=100';
+    if (event.value?.ownerId) {
+      url += `&sellerId=${event.value.ownerId}`;
+    }
+    const res = await adminApi.get(url);
+    if (res.data?.items) {
+      // Sadece bu müzayedede halihazırda lot olarak eklenmemiş ürünleri göster
+      const existingProductIds = approvedLots.value.map((lot) => lot.productId);
+      const filteredProducts = res.data.items.filter((p: any) => !existingProductIds.includes(p.id));
+      
+      // K2: Her ürüne otomatik artan lotOrder ata
+      const baseOrder = approvedLots.value.length;
+      availableProducts.value = filteredProducts.map((p: any, idx: number) => ({
+        ...p,
+        lotOrder: baseOrder + idx + 1,
+        startingPrice: p.price || 1,
+        minIncrement: 1,
+        buyItNowPrice: null,
+      }));
+    }
+  } catch (e) {
+    error.value = toApiMessage(e);
+  } finally {
+    loadingProducts.value = false;
+  }
+}
+
+// K1/K3: Frontend validasyon — seçili ürünlerin fiyat/artış değerlerini kontrol et
+const addLotValidationError = computed(() => {
+  for (const id of selectedProductIds.value) {
+    const prod = availableProducts.value.find((p: any) => p.id === id);
+    if (!prod) continue;
+    if (!prod.startingPrice || prod.startingPrice <= 0) return 'Tüm seçili ürünlerin açılış fiyatı 0\'dan büyük olmalıdır.';
+    if (!prod.minIncrement || prod.minIncrement < 1) return 'Minimum artış tutarı en az 1 olmalıdır.';
+    if (prod.buyItNowPrice != null && prod.buyItNowPrice > 0 && prod.buyItNowPrice <= prod.startingPrice) {
+      return 'Hemen Al fiyatı açılış fiyatından büyük olmalıdır.';
+    }
+  }
+  return null;
+});
+
+async function submitAddLots() {
+  if (selectedProductIds.value.length === 0 || isAddingLots.value) return; // M2: Çift tıklama koruması
+  if (addLotValidationError.value) return;
+  isAddingLots.value = true;
+  try {
+    const items = selectedProductIds.value.map((id) => {
+      const prod = availableProducts.value.find((p: any) => p.id === id);
+      return {
+        productId: id,
+        lotOrder: prod?.lotOrder || 1,
+        startingPrice: prod?.startingPrice || 1,
+        minIncrement: prod?.minIncrement || 1.0,
+        buyItNowPrice: prod?.buyItNowPrice || null,
+      };
+    });
+
+    await adminApi.post(`/admin/auction-events/${props.id}/lots`, { 
+      reason: 'Kullanıcı paneli üzerinden yeni ürünler eklendi',
+      metadata: { items } 
+    });
+    
+    showAddLotModal.value = false;
+    await loadDetail();
+  } catch (e) {
+    error.value = toApiMessage(e);
+  } finally {
+    isAddingLots.value = false;
+  }
+}
+// ----------------------------------------
+
 onMounted(() => {
   loadDetail();
 
@@ -976,6 +1621,26 @@ onUnmounted(() => {
   }
   disconnectAuctionSocket();
 });
+
+function getEventStatusLabel(status: string | undefined) {
+  if (!status) return '';
+  const map: Record<string, string> = {
+    DRAFT: 'Taslak',
+    APPLICATION: 'Başvuru Alınıyor',
+    UPCOMING: 'Yakında',
+    ACTIVE: 'Canlı (Aktif)',
+    FINISHED: 'Bitti',
+    CANCELLED: 'İptal Edildi'
+  };
+  return map[status] || status;
+}
+
+function getSellerName(seller: any) {
+  if (!seller) return 'Bilinmiyor';
+  if (seller.businessName) return seller.businessName;
+  if (seller.firstName || seller.lastName) return `${seller.firstName || ''} ${seller.lastName || ''}`.trim();
+  return 'Bireysel Satıcı';
+}
 </script>
 
 <style scoped>

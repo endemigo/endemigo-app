@@ -24,4 +24,8 @@ export class AdminListQueryDto {
   @IsOptional()
   @IsString()
   to?: string;
+
+  @IsOptional()
+  @IsString()
+  sellerId?: string;
 }
