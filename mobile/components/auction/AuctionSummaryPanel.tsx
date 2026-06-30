@@ -35,6 +35,7 @@ type AuctionSummaryPanelProps = {
   }[];
   winnerName?: string | null;
   onViewResult?: () => void;
+  onTimeExpired?: () => void;
   t: TFunction;
 };
 
@@ -60,6 +61,7 @@ export function AuctionSummaryPanel({
   activityFeed = [],
   onViewResult,
   winnerName,
+  onTimeExpired,
   t,
 }: AuctionSummaryPanelProps) {
   const summaryTitle = isEnded ? t('auction.resultTitleEnded') : t('auction.overviewTitle');
@@ -103,6 +105,7 @@ export function AuctionSummaryPanel({
             <CountdownTimer
               endTime={timerTarget}
               serverTime={serverTime}
+              onExpired={onTimeExpired}
               label={isUpcomingAuction ? t('auction.startsInLabel') : undefined}
             />
           ) : (

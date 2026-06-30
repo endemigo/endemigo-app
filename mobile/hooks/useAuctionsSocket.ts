@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Socket } from 'socket.io-client';
 import { getAuctionSocket } from '../services/socket';
@@ -10,25 +10,35 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
   const socketRef = useRef<Socket | null>(null);
   const joinedRoomIdsRef = useRef<Set<string>>(new Set());
 
+  // Stable key of the rooms worth joining. DRAFT auctions never emit live
+  // events, so they are excluded. Depending on this key (instead of the
+  // `auctions` array reference) stops the effect from tearing down and
+  // re-subscribing on every refetch/pagination when the live set is unchanged.
+  const targetKey = useMemo(() => {
+    if (!auctions?.length) return '';
+    return auctions
+      .filter(
+        (a) =>
+          a.status === AuctionStatus.ACTIVE ||
+          a.status === AuctionStatus.PUBLISHED,
+      )
+      .map((a) => a.id)
+      .sort()
+      .join(',');
+  }, [auctions]);
+
   useEffect(() => {
-    if (ENV.USE_MOCK || !auctions?.length) return;
+    if (ENV.USE_MOCK || !targetKey) return;
 
     let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
     const connect = async () => {
       const socket = await getAuctionSocket();
       if (cancelled) return;
       socketRef.current = socket;
 
-      // Filter only active, published, or draft auctions to subscribe to
-      const targetAuctions = auctions.filter(
-        (a) =>
-          a.status === AuctionStatus.ACTIVE ||
-          a.status === AuctionStatus.PUBLISHED ||
-          a.status === AuctionStatus.DRAFT,
-      );
-
-      const targetIds = new Set(targetAuctions.map((a) => a.id));
+      const targetIds = new Set(targetKey.split(','));
 
       // Leave rooms that are no longer in the list
       joinedRoomIdsRef.current.forEach((id) => {
@@ -39,10 +49,10 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
       });
 
       // Join new rooms
-      targetAuctions.forEach((a) => {
-        if (!joinedRoomIdsRef.current.has(a.id)) {
-          socket.emit('auction:join', { auctionId: a.id });
-          joinedRoomIdsRef.current.add(a.id);
+      targetIds.forEach((id) => {
+        if (!joinedRoomIdsRef.current.has(id)) {
+          socket.emit('auction:join', { auctionId: id });
+          joinedRoomIdsRef.current.add(id);
         }
       });
 
@@ -51,89 +61,81 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
           if (!oldData) return oldData;
           return {
             ...oldData,
-            items: oldData.items.map((item: any) => {
-              if (item.id === auctionId) {
-                return { ...item, ...updates };
-              }
-              return item;
-            }),
+            items: oldData.items.map((item: any) =>
+              item.id === auctionId ? { ...item, ...updates } : item,
+            ),
           };
         });
       };
 
-      // Set up event listeners
-      socket.on(
-        'bid:new',
-        (data: {
-          auctionId: string;
-          currentPrice: number;
-          bidCount: number;
-          endTime: string;
-        }) => {
-          updateQueryCache(data.auctionId, {
-            currentPrice: data.currentPrice,
-            bidCount: data.bidCount,
-            endTime: data.endTime,
-          });
-        },
-      );
+      const onBidNew = (data: {
+        auctionId: string;
+        currentPrice: number;
+        bidCount: number;
+        endTime: string;
+      }) => {
+        updateQueryCache(data.auctionId, {
+          currentPrice: data.currentPrice,
+          bidCount: data.bidCount,
+          endTime: data.endTime,
+        });
+      };
 
-      socket.on(
-        'auction:started',
-        (data: { auctionId: string; startPrice: number }) => {
-          updateQueryCache(data.auctionId, {
-            status: AuctionStatus.ACTIVE,
-            currentPrice: data.startPrice,
-          });
-        },
-      );
+      const onAuctionStarted = (data: { auctionId: string; startPrice: number }) => {
+        updateQueryCache(data.auctionId, {
+          status: AuctionStatus.ACTIVE,
+          currentPrice: data.startPrice,
+        });
+      };
 
-      socket.on(
-        'auction:extended',
-        (data: { auctionId: string; newEndTime: string }) => {
-          updateQueryCache(data.auctionId, {
-            endTime: data.newEndTime,
-          });
-        },
-      );
+      const onAuctionExtended = (data: { auctionId: string; newEndTime: string }) => {
+        updateQueryCache(data.auctionId, {
+          endTime: data.newEndTime,
+        });
+      };
 
-      socket.on(
-        'auction:ended',
-        (data: { auctionId: string; finalPrice: number; bidCount?: number }) => {
-          updateQueryCache(data.auctionId, {
-            status: AuctionStatus.ENDED,
-            currentPrice: data.finalPrice,
-            bidCount: data.bidCount ?? undefined,
-          });
-        },
-      );
+      const onAuctionEnded = (data: { auctionId: string; finalPrice: number; bidCount?: number }) => {
+        updateQueryCache(data.auctionId, {
+          status: AuctionStatus.ENDED,
+          currentPrice: data.finalPrice,
+          bidCount: data.bidCount ?? undefined,
+        });
+      };
 
-      socket.on('auction:cancelled', (data: { auctionId: string }) => {
+      const onAuctionCancelled = (data: { auctionId: string }) => {
         updateQueryCache(data.auctionId, {
           status: AuctionStatus.CANCELLED,
         });
-      });
+      };
+
+      socket.on('bid:new', onBidNew);
+      socket.on('auction:started', onAuctionStarted);
+      socket.on('auction:extended', onAuctionExtended);
+      socket.on('auction:ended', onAuctionEnded);
+      socket.on('auction:cancelled', onAuctionCancelled);
+
+      // Detach only this hook's own handlers — the socket is shared across
+      // screens, so a bare socket.off(event) would also remove the detail /
+      // event screens' listeners for the same events.
+      cleanup = () => {
+        socket.off('bid:new', onBidNew);
+        socket.off('auction:started', onAuctionStarted);
+        socket.off('auction:extended', onAuctionExtended);
+        socket.off('auction:ended', onAuctionEnded);
+        socket.off('auction:cancelled', onAuctionCancelled);
+
+        joinedRoomIdsRef.current.forEach((id) => {
+          socket.emit('auction:leave', { auctionId: id });
+        });
+        joinedRoomIdsRef.current.clear();
+      };
     };
 
     connect();
 
     return () => {
       cancelled = true;
-      const socket = socketRef.current;
-      if (socket) {
-        // Clean up listeners
-        socket.off('bid:new');
-        socket.off('auction:started');
-        socket.off('auction:extended');
-        socket.off('auction:ended');
-        socket.off('auction:cancelled');
-
-        // Leave all rooms
-        joinedRoomIdsRef.current.forEach((id) => {
-          socket.emit('auction:leave', { auctionId: id });
-        });
-        joinedRoomIdsRef.current.clear();
-      }
+      cleanup?.();
     };
-  }, [auctions, queryClient]);
+  }, [targetKey, queryClient]);
 }

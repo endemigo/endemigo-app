@@ -3,12 +3,21 @@ import { storage } from '../lib/storage';
 import ENV from '../lib/config';
 
 let socket: Socket | null = null;
+let socketToken: string | null = null;
 
 export async function getAuctionSocket(): Promise<Socket> {
-  if (socket) return socket;
-
   const token = (await storage.getToken()) || '';
 
+  // Recreate the socket whenever the auth token changes (login / logout /
+  // user switch). The server targets per-user events (bid:outbid, bid:winner,
+  // bid:lost) by socket.data.userId, so a stale token would silently drop them.
+  if (socket && socketToken !== token) {
+    disconnectAuctionSocket();
+  }
+
+  if (socket) return socket;
+
+  socketToken = token;
   socket = io(`${ENV.API_URL}/auction`, {
     transports: ['polling', 'websocket'],
     auth: { token },
@@ -37,5 +46,6 @@ export function disconnectAuctionSocket() {
     socket.removeAllListeners();
     socket.disconnect();
     socket = null;
+    socketToken = null;
   }
 }

@@ -52,6 +52,7 @@ export function useAuctionSocket(auctionId: string) {
     if (ENV.USE_MOCK) return;
 
     let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
     const connect = async () => {
       const socket = await getAuctionSocket();
@@ -84,14 +85,7 @@ export function useAuctionSocket(auctionId: string) {
       const onDisconnect = () =>
         setState((s) => ({ ...s, isConnected: false }));
 
-      socket.on('connect', onConnect);
-      socket.on('disconnect', onDisconnect);
-
-      if (socket.connected) {
-        onConnect();
-      }
-
-      socket.on('auction:joined', (data: { auctionId: string; viewerCount: number; serverTime?: string }) => {
+      const onAuctionJoined = (data: { auctionId: string; viewerCount: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -99,9 +93,9 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('bid:new', (data: { auctionId: string; currentPrice: number; bidCount: number; endTime: string; serverTime: string; amount: number; bidderName: string }) => {
+      const onBidNew = (data: { auctionId: string; currentPrice: number; bidCount: number; endTime: string; serverTime: string; amount: number; bidderName: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -120,9 +114,9 @@ export function useAuctionSocket(auctionId: string) {
             'accent',
           );
         }
-      });
+      };
 
-      socket.on('bid:outbid', (data: { auctionId: string; newAmount: number; serverTime?: string }) => {
+      const onBidOutbid = (data: { auctionId: string; newAmount: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(200);
           setState((s) => ({
@@ -145,9 +139,9 @@ export function useAuctionSocket(auctionId: string) {
             'error',
           );
         }
-      });
+      };
 
-      socket.on('bid:winner', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
+      const onBidWinner = (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate([0, 200, 100, 200]);
           setState((s) => ({
@@ -158,9 +152,9 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('bid:lost', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
+      const onBidLost = (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -170,9 +164,9 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('auction:extended', (data: { auctionId: string; newEndTime: string; extensionNumber: number; serverTime?: string }) => {
+      const onAuctionExtended = (data: { auctionId: string; newEndTime: string; extensionNumber: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -194,9 +188,9 @@ export function useAuctionSocket(auctionId: string) {
             'primary',
           );
         }
-      });
+      };
 
-      socket.on('auction:ended', (data: { auctionId: string; finalPrice: number; bidCount?: number; serverTime?: string }) => {
+      const onAuctionEnded = (data: { auctionId: string; finalPrice: number; bidCount?: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -206,9 +200,9 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('auction:viewer_count', (data: { auctionId: string; count: number; serverTime?: string }) => {
+      const onViewerCount = (data: { auctionId: string; count: number; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -216,9 +210,9 @@ export function useAuctionSocket(auctionId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('auction:warning', (data: { auctionId: string; serverTime?: string }) => {
+      const onAuctionWarning = (data: { auctionId: string; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           Vibration.vibrate(100);
           setState((s) => ({
@@ -231,9 +225,9 @@ export function useAuctionSocket(auctionId: string) {
             'primary',
           );
         }
-      });
+      };
 
-      socket.on('auction:cancelled', (data: { auctionId: string; reason: string; serverTime?: string }) => {
+      const onAuctionCancelled = (data: { auctionId: string; reason: string; serverTime?: string }) => {
         if (data.auctionId === auctionId) {
           setState((s) => ({
             ...s,
@@ -246,29 +240,50 @@ export function useAuctionSocket(auctionId: string) {
             type: 'error',
           });
         }
-      });
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('disconnect', onDisconnect);
+      socket.on('auction:joined', onAuctionJoined);
+      socket.on('bid:new', onBidNew);
+      socket.on('bid:outbid', onBidOutbid);
+      socket.on('bid:winner', onBidWinner);
+      socket.on('bid:lost', onBidLost);
+      socket.on('auction:extended', onAuctionExtended);
+      socket.on('auction:ended', onAuctionEnded);
+      socket.on('auction:viewer_count', onViewerCount);
+      socket.on('auction:warning', onAuctionWarning);
+      socket.on('auction:cancelled', onAuctionCancelled);
+
+      if (socket.connected) {
+        onConnect();
+      }
+
+      // Remove only this hook's own handlers — the socket is shared across
+      // screens, so a bare socket.off(event) would also kill the listeners
+      // other mounted screens registered for the same event.
+      cleanup = () => {
+        socket.emit('auction:leave', { auctionId });
+        socket.off('connect', onConnect);
+        socket.off('disconnect', onDisconnect);
+        socket.off('auction:joined', onAuctionJoined);
+        socket.off('bid:new', onBidNew);
+        socket.off('bid:outbid', onBidOutbid);
+        socket.off('bid:winner', onBidWinner);
+        socket.off('bid:lost', onBidLost);
+        socket.off('auction:extended', onAuctionExtended);
+        socket.off('auction:ended', onAuctionEnded);
+        socket.off('auction:viewer_count', onViewerCount);
+        socket.off('auction:warning', onAuctionWarning);
+        socket.off('auction:cancelled', onAuctionCancelled);
+      };
     };
 
     connect();
 
     return () => {
       cancelled = true;
-      const socket = socketRef.current;
-      if (socket) {
-        socket.emit('auction:leave', { auctionId });
-        socket.off('connect');
-        socket.off('disconnect');
-        socket.off('auction:joined');
-        socket.off('bid:new');
-        socket.off('bid:outbid');
-        socket.off('bid:winner');
-        socket.off('bid:lost');
-        socket.off('auction:extended');
-        socket.off('auction:ended');
-        socket.off('auction:viewer_count');
-        socket.off('auction:warning');
-        socket.off('auction:cancelled');
-      }
+      cleanup?.();
     };
   }, [auctionId, showModal, t]);
 

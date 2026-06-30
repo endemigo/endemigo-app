@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Text,
@@ -111,6 +111,21 @@ export default function AuctionDetailScreen() {
 
   const completeAuctionPayment = useCompleteAuctionPayment();
   const { data: result } = useAuctionResult(isEnded ? id : '');
+
+  // Resync REST state after a socket (re)connect: events missed while the
+  // socket was down are not replayed, so price/bids could otherwise stay stale.
+  const wasConnectedRef = useRef(false);
+  useEffect(() => {
+    if (socket.isConnected) {
+      if (!wasConnectedRef.current) {
+        refetch();
+        refetchBids();
+      }
+      wasConnectedRef.current = true;
+    } else {
+      wasConnectedRef.current = false;
+    }
+  }, [socket.isConnected, refetch, refetchBids]);
 
   useEffect(() => {
     if (socket.lastBid) {
@@ -653,6 +668,7 @@ export default function AuctionDetailScreen() {
             lastBid={socket.lastBid}
             activityFeed={socket.activityFeed}
             winnerName={winnerName}
+            onTimeExpired={refetch}
             t={t}
           />
 

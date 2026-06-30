@@ -4,6 +4,7 @@ import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
 import { useRoleModeStore } from './roleModeStore';
+import { disconnectAuctionSocket } from '../services/socket';
 
 export interface User {
   id: string;
@@ -47,6 +48,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await storage.setToken(data.accessToken);
     if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
     await storage.setUser(data.user);
+    // Drop any anonymous/previous socket so it reconnects with the new token.
+    disconnectAuctionSocket();
     useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
@@ -58,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await storage.setToken(data.accessToken);
     if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
     await storage.setUser(data.user);
+    disconnectAuctionSocket();
     useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
@@ -74,6 +78,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {} // eslint-disable-line no-empty
     await storage.clear();
+    // Tear down the authenticated socket so it cannot keep delivering
+    // personalized events to a logged-out session.
+    disconnectAuctionSocket();
     useRoleModeStore.getState().resetRoleMode();
     set({ user: null, isLoggedIn: false });
   },

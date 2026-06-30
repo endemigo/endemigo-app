@@ -62,11 +62,18 @@ export function useAuctionEventSocket(eventId: string) {
   });
 
   const socketRef = useRef<Socket | null>(null);
+  // Mirror of state.activeLotId so socket handlers can gate side effects
+  // (modal/vibration) WITHOUT running them inside a setState updater.
+  const activeLotIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeLotIdRef.current = state.activeLotId;
+  }, [state.activeLotId]);
 
   useEffect(() => {
     if (ENV.USE_MOCK) return;
 
     let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
     const connect = async () => {
       const socket = await getAuctionSocket();
@@ -98,14 +105,7 @@ export function useAuctionEventSocket(eventId: string) {
       };
       const onDisconnect = () => setState((s) => ({ ...s, isConnected: false }));
 
-      socket.on('connect', onConnect);
-      socket.on('disconnect', onDisconnect);
-
-      if (socket.connected) {
-        onConnect();
-      }
-
-      socket.on('event:joined', (data: { eventId: string; viewerCount: number; serverTime?: string }) => {
+      const onEventJoined = (data: { eventId: string; viewerCount: number; serverTime?: string }) => {
         if (data.eventId === eventId) {
           setState((s) => ({
             ...s,
@@ -118,9 +118,9 @@ export function useAuctionEventSocket(eventId: string) {
             'primary',
           );
         }
-      });
+      };
 
-      socket.on('event:viewer_count', (data: { eventId: string; count: number; serverTime?: string }) => {
+      const onEventViewerCount = (data: { eventId: string; count: number; serverTime?: string }) => {
         if (data.eventId === eventId) {
           setState((s) => ({
             ...s,
@@ -128,17 +128,17 @@ export function useAuctionEventSocket(eventId: string) {
             serverTime: data.serverTime ?? s.serverTime,
           }));
         }
-      });
+      };
 
-      socket.on('event:status_changed', (data: { eventId: string; status: string; serverTime?: string }) => {
+      const onEventStatusChanged = (data: { eventId: string; status: string; serverTime?: string }) => {
         if (data.eventId === eventId) {
           setState((s) => ({
             ...s,
             eventStatus: data.status,
             serverTime: data.serverTime ?? s.serverTime,
           }));
-          const label = data.status === 'PAUSED' 
-            ? t('auction.eventPausedLabel', { defaultValue: 'DURAKLATILDI' }) 
+          const label = data.status === 'PAUSED'
+            ? t('auction.eventPausedLabel', { defaultValue: 'DURAKLATILDI' })
             : t('auction.eventActiveLabel', { defaultValue: 'CANLI' });
           appendActivity(
             t('auction.eventStatusChangedTitle', { defaultValue: 'Müzayede Durumu' }),
@@ -146,9 +146,9 @@ export function useAuctionEventSocket(eventId: string) {
             data.status === 'PAUSED' ? 'error' : 'accent',
           );
         }
-      });
+      };
 
-      socket.on('event:active_lot_changed', (data: {
+      const onActiveLotChanged = (data: {
         eventId: string;
         activeLotId: string | null;
         lotNumber: string | null;
@@ -157,39 +157,41 @@ export function useAuctionEventSocket(eventId: string) {
         endTime: string;
         serverTime?: string;
       }) => {
-        if (data.eventId === eventId) {
-          setState((s) => ({
-            ...s,
-            activeLotId: data.activeLotId,
-            lotNumber: data.lotNumber,
-            productTitle: data.productTitle,
-            currentPrice: data.currentPrice,
-            endTime: data.endTime,
-            serverTime: data.serverTime ?? s.serverTime,
-            bidCount: 0,
-            lastBid: null,
-            lotEnded: false,
-            isWinner: false,
-            finalPrice: null,
-            isTransitioning: false,
-            nextLotId: null,
-          }));
-          if (data.activeLotId) {
-            Vibration.vibrate(150);
-            appendActivity(
-              t('auction.newLotActiveTitle', { defaultValue: 'Yeni Lot İhalede!' }),
-              t('auction.newLotActiveBody', { 
-                defaultValue: 'Lot #{{num}}: {{title}} başladı.', 
-                num: data.lotNumber, 
-                title: data.productTitle 
-              }),
-              'accent',
-            );
-          }
+        if (data.eventId !== eventId) return;
+        // Keep the ref immediately current so bid events for the new lot that
+        // arrive before the next render are gated correctly.
+        activeLotIdRef.current = data.activeLotId;
+        if (data.activeLotId) {
+          Vibration.vibrate(150);
+          appendActivity(
+            t('auction.newLotActiveTitle', { defaultValue: 'Yeni Lot İhalede!' }),
+            t('auction.newLotActiveBody', {
+              defaultValue: 'Lot #{{num}}: {{title}} başladı.',
+              num: data.lotNumber,
+              title: data.productTitle,
+            }),
+            'accent',
+          );
         }
-      });
+        setState((s) => ({
+          ...s,
+          activeLotId: data.activeLotId,
+          lotNumber: data.lotNumber,
+          productTitle: data.productTitle,
+          currentPrice: data.currentPrice,
+          endTime: data.endTime,
+          serverTime: data.serverTime ?? s.serverTime,
+          bidCount: 0,
+          lastBid: null,
+          lotEnded: false,
+          isWinner: false,
+          finalPrice: null,
+          isTransitioning: false,
+          nextLotId: null,
+        }));
+      };
 
-      socket.on('event:lot_transition', (data: {
+      const onLotTransition = (data: {
         eventId: string;
         nextLotId: string | null;
         lotNumber: string | null;
@@ -214,14 +216,14 @@ export function useAuctionEventSocket(eventId: string) {
             t('auction.transitionStartedBody', {
               defaultValue: 'Lot #{{num}}: {{title}} için bekleme süresi başladı.',
               num: data.lotNumber,
-              title: data.productTitle
+              title: data.productTitle,
             }),
-            'primary'
+            'primary',
           );
         }
-      });
+      };
 
-      socket.on('bid:new', (data: {
+      const onBidNew = (data: {
         auctionId: string;
         currentPrice: number;
         bidCount: number;
@@ -230,20 +232,16 @@ export function useAuctionEventSocket(eventId: string) {
         amount: number;
         bidderName: string;
       }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            return {
-              ...s,
-              currentPrice: data.currentPrice,
-              bidCount: data.bidCount,
-              endTime: data.endTime,
-              serverTime: data.serverTime,
-              lastBid: { amount: data.amount, bidderName: data.bidderName },
-            };
-          }
-          return s;
-        });
-
+        if (activeLotIdRef.current === data.auctionId) {
+          setState((s) => ({
+            ...s,
+            currentPrice: data.currentPrice,
+            bidCount: data.bidCount,
+            endTime: data.endTime,
+            serverTime: data.serverTime,
+            lastBid: { amount: data.amount, bidderName: data.bidderName },
+          }));
+        }
         appendActivity(
           t('auction.activityBidTitle'),
           t('auction.latestBidMessage', {
@@ -252,71 +250,56 @@ export function useAuctionEventSocket(eventId: string) {
           }),
           'accent',
         );
-      });
+      };
 
-      socket.on('bid:outbid', (data: { auctionId: string; newAmount: number; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            Vibration.vibrate(200);
-            showModal({
-              title: t('auction.outbidTitle'),
-              message: t('auction.outbidMessage', {
-                amount: formatAmount(data.newAmount),
-              }),
-              type: 'info',
-            });
-            return {
-              ...s,
-              wasOutbid: true,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
+      const onBidOutbid = (data: { auctionId: string; newAmount: number; serverTime?: string }) => {
+        if (activeLotIdRef.current !== data.auctionId) return;
+        Vibration.vibrate(200);
+        showModal({
+          title: t('auction.outbidTitle'),
+          message: t('auction.outbidMessage', {
+            amount: formatAmount(data.newAmount),
+          }),
+          type: 'info',
         });
-      });
+        setState((s) => ({
+          ...s,
+          wasOutbid: true,
+          serverTime: data.serverTime ?? s.serverTime,
+        }));
+      };
 
-      socket.on('bid:winner', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            Vibration.vibrate([0, 200, 100, 200]);
-            return {
-              ...s,
-              isWinner: true,
-              lotEnded: true,
-              finalPrice: data.finalPrice,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
-        });
-      });
+      const onBidWinner = (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
+        if (activeLotIdRef.current !== data.auctionId) return;
+        Vibration.vibrate([0, 200, 100, 200]);
+        setState((s) => ({
+          ...s,
+          isWinner: true,
+          lotEnded: true,
+          finalPrice: data.finalPrice,
+          serverTime: data.serverTime ?? s.serverTime,
+        }));
+      };
 
-      socket.on('bid:lost', (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            return {
-              ...s,
-              isWinner: false,
-              lotEnded: true,
-              finalPrice: data.finalPrice,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
-        });
-      });
+      const onBidLost = (data: { auctionId: string; finalPrice: number; serverTime?: string }) => {
+        if (activeLotIdRef.current !== data.auctionId) return;
+        setState((s) => ({
+          ...s,
+          isWinner: false,
+          lotEnded: true,
+          finalPrice: data.finalPrice,
+          serverTime: data.serverTime ?? s.serverTime,
+        }));
+      };
 
-      socket.on('auction:extended', (data: { auctionId: string; newEndTime: string; extensionNumber: number; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            return {
-              ...s,
-              endTime: data.newEndTime,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
-        });
+      const onAuctionExtended = (data: { auctionId: string; newEndTime: string; extensionNumber: number; serverTime?: string }) => {
+        if (activeLotIdRef.current === data.auctionId) {
+          setState((s) => ({
+            ...s,
+            endTime: data.newEndTime,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
+        }
         appendActivity(
           t('auction.extendedTitle'),
           t('auction.extendedMessage', {
@@ -324,83 +307,95 @@ export function useAuctionEventSocket(eventId: string) {
           }),
           'primary',
         );
-      });
+      };
 
-      socket.on('auction:ended', (data: { auctionId: string; finalPrice: number; bidCount?: number; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            return {
-              ...s,
-              lotEnded: true,
-              finalPrice: data.finalPrice,
-              bidCount: data.bidCount ?? s.bidCount,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
-        });
-      });
+      const onAuctionEnded = (data: { auctionId: string; finalPrice: number; bidCount?: number; serverTime?: string }) => {
+        if (activeLotIdRef.current !== data.auctionId) return;
+        setState((s) => ({
+          ...s,
+          lotEnded: true,
+          finalPrice: data.finalPrice,
+          bidCount: data.bidCount ?? s.bidCount,
+          serverTime: data.serverTime ?? s.serverTime,
+        }));
+      };
 
-      socket.on('auction:warning', (data: { auctionId: string; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            Vibration.vibrate(100);
-            return {
-              ...s,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
-        });
+      const onAuctionWarning = (data: { auctionId: string; serverTime?: string }) => {
+        if (activeLotIdRef.current === data.auctionId) {
+          Vibration.vibrate(100);
+          setState((s) => ({
+            ...s,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
+        }
         appendActivity(
           t('auction.activityWarningTitle'),
           t('auction.activityWarningBody'),
           'primary',
         );
-      });
+      };
 
-      socket.on('auction:cancelled', (data: { auctionId: string; reason: string; serverTime?: string }) => {
-        setState((s) => {
-          if (s.activeLotId === data.auctionId) {
-            showModal({
-              title: t('auction.cancelledTitle'),
-              message: data.reason || t('auction.cancelledMessage'),
-              type: 'error',
-            });
-            return {
-              ...s,
-              lotEnded: true,
-              serverTime: data.serverTime ?? s.serverTime,
-            };
-          }
-          return s;
+      const onAuctionCancelled = (data: { auctionId: string; reason: string; serverTime?: string }) => {
+        if (activeLotIdRef.current !== data.auctionId) return;
+        showModal({
+          title: t('auction.cancelledTitle'),
+          message: data.reason || t('auction.cancelledMessage'),
+          type: 'error',
         });
-      });
+        setState((s) => ({
+          ...s,
+          lotEnded: true,
+          serverTime: data.serverTime ?? s.serverTime,
+        }));
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('disconnect', onDisconnect);
+      socket.on('event:joined', onEventJoined);
+      socket.on('event:viewer_count', onEventViewerCount);
+      socket.on('event:status_changed', onEventStatusChanged);
+      socket.on('event:active_lot_changed', onActiveLotChanged);
+      socket.on('event:lot_transition', onLotTransition);
+      socket.on('bid:new', onBidNew);
+      socket.on('bid:outbid', onBidOutbid);
+      socket.on('bid:winner', onBidWinner);
+      socket.on('bid:lost', onBidLost);
+      socket.on('auction:extended', onAuctionExtended);
+      socket.on('auction:ended', onAuctionEnded);
+      socket.on('auction:warning', onAuctionWarning);
+      socket.on('auction:cancelled', onAuctionCancelled);
+
+      if (socket.connected) {
+        onConnect();
+      }
+
+      // Detach only this hook's handlers — the socket is shared, so a bare
+      // socket.off(event) would also remove other screens' listeners.
+      cleanup = () => {
+        socket.emit('event:leave', { eventId });
+        socket.off('connect', onConnect);
+        socket.off('disconnect', onDisconnect);
+        socket.off('event:joined', onEventJoined);
+        socket.off('event:viewer_count', onEventViewerCount);
+        socket.off('event:status_changed', onEventStatusChanged);
+        socket.off('event:active_lot_changed', onActiveLotChanged);
+        socket.off('event:lot_transition', onLotTransition);
+        socket.off('bid:new', onBidNew);
+        socket.off('bid:outbid', onBidOutbid);
+        socket.off('bid:winner', onBidWinner);
+        socket.off('bid:lost', onBidLost);
+        socket.off('auction:extended', onAuctionExtended);
+        socket.off('auction:ended', onAuctionEnded);
+        socket.off('auction:warning', onAuctionWarning);
+        socket.off('auction:cancelled', onAuctionCancelled);
+      };
     };
 
     connect();
 
     return () => {
       cancelled = true;
-      const socket = socketRef.current;
-      if (socket) {
-        socket.emit('event:leave', { eventId });
-        socket.off('connect');
-        socket.off('disconnect');
-        socket.off('event:joined');
-        socket.off('event:viewer_count');
-        socket.off('event:status_changed');
-        socket.off('event:active_lot_changed');
-        socket.off('event:lot_transition');
-        socket.off('bid:new');
-        socket.off('bid:outbid');
-        socket.off('bid:winner');
-        socket.off('bid:lost');
-        socket.off('auction:extended');
-        socket.off('auction:ended');
-        socket.off('auction:warning');
-        socket.off('auction:cancelled');
-      }
+      cleanup?.();
     };
   }, [eventId, showModal, t]);
 
