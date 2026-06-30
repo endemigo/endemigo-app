@@ -10,7 +10,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
@@ -798,15 +798,32 @@ export class AuctionService implements OnApplicationBootstrap {
       });
       const wonUnpaidTotal = wonUnpaidAuctions.reduce((sum, a) => sum + Number(a.currentPrice), 0);
 
-      const activeLeadingAuctions = await queryRunner.manager.find(Auction, {
-        where: [
-          { status: AuctionStatus.ACTIVE, winnerId: bidderId },
-          { status: AuctionStatus.PUBLISHED, winnerId: bidderId },
-        ]
+      // Active exposure = auctions where this bidder currently holds the live
+      // leading bid. auction.winnerId is only persisted at finalization, so it
+      // is null during live bidding and cannot be used here; derive the set
+      // from the bidder's active winning bids instead.
+      const activeLeadingBids = await queryRunner.manager.find(Bid, {
+        where: {
+          bidderId,
+          isWinningBid: true,
+          status: BidStatus.ACTIVE,
+        },
       });
-      const activeLeadingTotal = activeLeadingAuctions
-        .filter(a => a.id !== auctionId)
-        .reduce((sum, a) => sum + Number(a.currentPrice), 0);
+      const leadingAuctionIds = activeLeadingBids
+        .map((b) => b.auctionId)
+        .filter((id) => id !== auctionId);
+      const activeLeadingAuctions = leadingAuctionIds.length
+        ? await queryRunner.manager.find(Auction, {
+            where: {
+              id: In(leadingAuctionIds),
+              status: In([AuctionStatus.ACTIVE, AuctionStatus.PUBLISHED]),
+            },
+          })
+        : [];
+      const activeLeadingTotal = activeLeadingAuctions.reduce(
+        (sum, a) => sum + Number(a.currentPrice),
+        0,
+      );
 
       const newBidAmount = dto.maxAmount !== undefined && dto.maxAmount !== null 
         ? Number(dto.maxAmount) 
@@ -1690,6 +1707,16 @@ export class AuctionService implements OnApplicationBootstrap {
       finalPrice: Number(winningBid.amount),
       premiumAmount,
     });
+    // Notify the losing bidders — their holds were released above.
+    this.auctionGateway.emitBidLost(
+      auctionId,
+      winningBid.bidderId,
+      {
+        finalPrice: Number(winningBid.amount),
+        holdReleased: true,
+      },
+      auction.eventId,
+    );
     await this.notificationService?.createFromEvent({
       eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
       userId: winningBid.bidderId,

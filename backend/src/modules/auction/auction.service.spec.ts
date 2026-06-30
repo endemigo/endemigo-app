@@ -1299,7 +1299,13 @@ describe('AuctionService', () => {
         'buyer-1',
         expect.objectContaining({ finalPrice: 1200 }),
       );
-      expect(auctionGateway.emitBidLost).not.toHaveBeenCalled();
+      // Losers are notified with the winner id so the gateway can target them.
+      expect(auctionGateway.emitBidLost).toHaveBeenCalledWith(
+        'auction-1',
+        'buyer-1',
+        expect.objectContaining({ finalPrice: 1200, holdReleased: true }),
+        undefined,
+      );
       expect(auctionGateway.clearViewerCount).toHaveBeenCalledWith('auction-1');
     });
 
