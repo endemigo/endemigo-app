@@ -26,7 +26,7 @@ import { BidStatus } from '../../shared/types/bid-status.enum';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
-import { CreateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
+import { CreateAuctionDto, UpdateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
 import { OrderService } from '../order/order.service';
 import {
   AuctionPaymentStatus,
@@ -498,6 +498,31 @@ export class AuctionService implements OnApplicationBootstrap {
       );
     }
 
+    if (new Date(auction.endTime) <= new Date(auction.startTime)) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Bitiş zamanı başlangıçtan sonra olmalı',
+      );
+    }
+
+    // BIZ-07 kontrolü create anında yapılır ama aynı ürüne birden çok DRAFT
+    // açılabilir; publish anında tekrar doğrulanmazsa ürün iki canlı
+    // müzayedeye girer.
+    const conflictingAuction = await this.auctionRepo
+      .createQueryBuilder('a')
+      .where('a.productId = :productId', { productId: auction.productId })
+      .andWhere('a.id != :id', { id: auction.id })
+      .andWhere('a.status IN (:...statuses)', {
+        statuses: [AuctionStatus.ACTIVE, AuctionStatus.PUBLISHED],
+      })
+      .getOne();
+    if (conflictingAuction) {
+      throw this.badRequest(
+        RC.ACTIVE_AUCTION_EXISTS,
+        'Bu ürün zaten aktif veya yayında bir müzayedede',
+      );
+    }
+
     auction.status = AuctionStatus.PUBLISHED;
     await this.auctionRepo.save(auction);
 
@@ -532,7 +557,7 @@ export class AuctionService implements OnApplicationBootstrap {
   async updateDraft(
     auctionId: string,
     sellerId: string,
-    dto: Partial<CreateAuctionDto>,
+    dto: UpdateAuctionDto,
   ) {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
@@ -557,19 +582,43 @@ export class AuctionService implements OnApplicationBootstrap {
       );
     }
 
-    if (dto.startTime) auction.startTime = new Date(dto.startTime);
-    if (dto.endTime) auction.endTime = new Date(dto.endTime);
+    // Zaman ve fiyat alanları tek tek güncellenebildiğinden çapraz kurallar
+    // güncel + mevcut değerlerin birleşimi üzerinden doğrulanmalı.
+    const newStartTime = dto.startTime
+      ? new Date(dto.startTime)
+      : new Date(auction.startTime);
+    const newEndTime = dto.endTime
+      ? new Date(dto.endTime)
+      : new Date(auction.endTime);
+    if (newEndTime <= newStartTime) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Bitiş zamanı başlangıçtan sonra olmalı',
+      );
+    }
+
+    const newStartPrice =
+      dto.startPrice !== undefined ? dto.startPrice : Number(auction.startPrice);
+    const newReservePrice =
+      dto.reservePrice !== undefined
+        ? dto.reservePrice
+        : auction.reservePrice !== null && auction.reservePrice !== undefined
+          ? Number(auction.reservePrice)
+          : null;
+    if (newReservePrice !== null && newReservePrice < newStartPrice) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Reserve price başlangıç fiyatından düşük olamaz',
+      );
+    }
+
+    if (dto.startTime) auction.startTime = newStartTime;
+    if (dto.endTime) auction.endTime = newEndTime;
     if (dto.startPrice !== undefined) {
       auction.startPrice = dto.startPrice;
       auction.currentPrice = dto.startPrice;
     }
     if (dto.reservePrice !== undefined) {
-      if (dto.reservePrice < auction.startPrice) {
-        throw this.badRequest(
-          RC.VALIDATION_ERROR,
-          'Reserve price başlangıç fiyatından düşük olamaz',
-        );
-      }
       auction.reservePrice = dto.reservePrice;
       auction.reserveMet = false;
     }
@@ -872,6 +921,19 @@ export class AuctionService implements OnApplicationBootstrap {
       const now = new Date();
       if (now > auction.endTime) {
         throw this.badRequest(RC.AUCTION_ENDED, 'Müzayede sona erdi');
+      }
+
+      // PUBLISHED durumunda startTime öncesi teklif kabul edilmez;
+      // finalizeAuction sadece ACTIVE işlediğinden erken teklifler askıda
+      // hold bırakır.
+      if (
+        auction.status === AuctionStatus.PUBLISHED &&
+        now < new Date(auction.startTime)
+      ) {
+        throw this.badRequest(
+          RC.AUCTION_NOT_ACTIVE,
+          'Müzayede henüz başlamadı',
+        );
       }
 
       // AUCT-18: Kültür varlığı kısıtlı müzayede — T.C. vatandaşı kontrolü
@@ -1314,9 +1376,21 @@ export class AuctionService implements OnApplicationBootstrap {
 
       auction.currentPrice = Number(auction.startPrice);
       auction.bidCount = Math.max(0, (auction.bidCount || 0) - 1);
+      auction.reserveMet = false;
       await queryRunner.manager.save(auction);
 
       await queryRunner.commitTransaction();
+
+      this.auctionGateway.emitBidWithdrawn(
+        auctionId,
+        {
+          currentPrice: Number(auction.currentPrice),
+          bidCount: auction.bidCount,
+          reserveMet: auction.reserveMet,
+          endTime: auction.endTime.toISOString(),
+        },
+        auction.eventId,
+      );
 
       return {
         code: RC.BID_WITHDRAWN,

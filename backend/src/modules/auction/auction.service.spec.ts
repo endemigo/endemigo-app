@@ -74,6 +74,7 @@ type MockAuctionQueue = {
 
 type MockAuctionGateway = {
   emitBidNew: jest.Mock;
+  emitBidWithdrawn: jest.Mock;
   emitBidOutbid: jest.Mock;
   emitAuctionStarted: jest.Mock;
   emitAuctionExtended: jest.Mock;
@@ -278,6 +279,7 @@ describe('AuctionService', () => {
 
     auctionGateway = {
       emitBidNew: jest.fn(),
+      emitBidWithdrawn: jest.fn(),
       emitBidOutbid: jest.fn(),
       emitAuctionStarted: jest.fn(),
       emitAuctionExtended: jest.fn(),

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsUUID,
   IsNumber,
@@ -100,6 +100,11 @@ export class CreateAuctionDto {
   guaranteeAccepted?: boolean;
 }
 
+
+// updateDraft body'si: Partial<CreateAuctionDto> tip olarak class-validator
+// metadata'sını taşımaz ve ValidationPipe'ı devre dışı bırakır; PartialType
+// alanları opsiyonel yaparken doğrulamayı korur.
+export class UpdateAuctionDto extends PartialType(CreateAuctionDto) {}
 
 export class PlaceBidDto {
   @ApiProperty({ example: 1100, minimum: 0.01 })

@@ -21,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
-import { CreateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
+import { CreateAuctionDto, UpdateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -102,7 +102,7 @@ export class AuctionController {
   async updateDraft(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
-    @Body() dto: Partial<CreateAuctionDto>,
+    @Body() dto: UpdateAuctionDto,
   ) {
     return this.auctionService.updateDraft(id, userId, dto);
   }
@@ -171,6 +171,16 @@ export class AuctionController {
     }
     const validType = auctionType as AuctionType | undefined;
     return this.auctionService.findAll(safePage, safeLimit, validType, productId);
+  }
+
+  // Statik path'ler ':id'den ÖNCE tanımlanmalı; aksi halde ParseUUIDPipe
+  // '/auctions/invitations' isteğini 400 ile keser.
+  @Get('invitations')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Gelen ortak müzayede davetlerini listele' })
+  async getInvitations(@CurrentUser('id') userId: string) {
+    return this.auctionService.getInvitations(userId);
   }
 
   @Public()
@@ -328,14 +338,6 @@ export class AuctionController {
     @Body('inviteeId', ParseUUIDPipe) inviteeId: string,
   ) {
     return this.auctionService.sendInvitation(eventId, userId, inviteeId);
-  }
-
-  @Get('invitations')
-  @ApiBearerAuth()
-  @Roles('seller')
-  @ApiOperation({ summary: 'Gelen ortak müzayede davetlerini listele' })
-  async getInvitations(@CurrentUser('id') userId: string) {
-    return this.auctionService.getInvitations(userId);
   }
 
   @Post('invitations/:invitationId/accept')

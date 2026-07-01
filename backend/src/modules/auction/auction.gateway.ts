@@ -244,6 +244,27 @@ export class AuctionGateway
     }
   }
 
+  emitBidWithdrawn(
+    auctionId: string,
+    payload: {
+      currentPrice: number;
+      bidCount: number;
+      reserveMet: boolean;
+      endTime: string;
+    },
+    eventId?: string | null,
+  ) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`auction:${auctionId}`)
+      .emit('bid:withdrawn', { auctionId, ...payload, serverTime });
+    if (eventId) {
+      this.server
+        .to(`event:${eventId}`)
+        .emit('bid:withdrawn', { auctionId, ...payload, serverTime });
+    }
+  }
+
   emitBidOutbid(
     auctionId: string,
     previousBidderId: string,
