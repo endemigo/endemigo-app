@@ -202,109 +202,221 @@
     </div>
 
     <!-- ─── AUCTION TYPE SELECTION MODAL ─── -->
+    <!-- ─── EVENT CREATE WIZARD (adım adım) ─── -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="showTypeModal" class="type-modal-backdrop" @click.self="showTypeModal = false">
-          <div class="type-modal-card">
+        <div v-if="showWizard" class="type-modal-backdrop" @click.self="showWizard = false">
+          <div class="type-modal-card" style="max-width: 660px;">
             <header class="modal-header">
-              <h3>Müzayede Tipi Seçimi</h3>
-              <button class="button icon-only ghost close-btn" @click="showTypeModal = false">
+              <h3>Yeni Müzayede Oluştur</h3>
+              <button class="button icon-only ghost close-btn" @click="showWizard = false">
                 <i class="pi pi-times" />
               </button>
             </header>
-            <div class="modal-body">
-              <p>Oluşturmak istediğiniz yeni müzayede etkinliğinin çalışma modelini belirleyin:</p>
-              <div class="type-options">
-                <div class="type-option-card realtime" @click="selectTypeAndCreate('REALTIME')">
-                  <div class="option-icon">
-                    <i class="pi pi-bolt" />
-                  </div>
-                  <div class="option-content">
-                    <h4>Canlı Müzayede</h4>
-                    <p>Sırayla ihaleye çıkan ürünler, anlık teklifler, anti-sniping dinamik süre uzatma ve canlı yönetici kumanda ekranı.</p>
-                  </div>
-                </div>
 
-                <div class="type-option-card timed" @click="selectTypeAndCreate('TIMED')">
-                  <div class="option-icon">
-                    <i class="pi pi-clock" />
-                  </div>
-                  <div class="option-content">
-                    <h4>Süreli Müzayede</h4>
-                    <p>Belirli tarihler arasında açık kalan, ürünlerin aynı anda teklif toplayabildiği, otomatik kapanan müzayede modeli.</p>
-                  </div>
+            <!-- Adım göstergesi -->
+            <div class="wizard-steps">
+              <template v-for="(step, idx) in wizardSteps" :key="step.id">
+                <div class="wizard-step" :class="{ active: wizardStep === idx + 1, done: wizardStep > idx + 1 }">
+                  <span class="wizard-step-dot">
+                    <i v-if="wizardStep > idx + 1" class="pi pi-check" />
+                    <template v-else>{{ idx + 1 }}</template>
+                  </span>
+                  <span class="wizard-step-label">{{ step.title }}</span>
                 </div>
-              </div>
+                <span v-if="idx < wizardSteps.length - 1" class="wizard-step-line" :class="{ done: wizardStep > idx + 1 }" />
+              </template>
             </div>
-            <footer class="modal-footer">
-              <button class="button ghost" @click="showTypeModal = false">Vazgeç</button>
-            </footer>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
-    <!-- ─── SELLER CONTRACT MODAL ─── -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showContractModal" class="type-modal-backdrop" @click.self="showContractModal = false">
-          <div class="type-modal-card" style="max-width: 600px;">
-            <header class="modal-header">
-              <h3>Tedarikçi Müzayede Sözleşmesi</h3>
-              <button class="button icon-only ghost close-btn" @click="showContractModal = false">
-                <i class="pi pi-times" />
-              </button>
-            </header>
             <div class="modal-body">
-              <p style="margin-bottom: 1.5rem; color: #475569;">Müzayede başlatabilmek için aşağıdaki şartları kabul etmeniz gerekmektedir.</p>
-              
-              <div class="form-group" style="margin-bottom: 1.2rem;">
-                <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Müzayede Modeli</label>
-                <select v-model="sellerContracts.systemType" class="input" style="width: 100%; max-width: 100%;">
-                  <option value="INDEPENDENT">Bağımsız Müzayede (En az 40 ürün, Tüm yönetim size ait)</option>
-                  <option value="JOINT">Ortak Müzayede (Kendi lotlarınızı eklersiniz)</option>
-                </select>
+              <!-- ADIM: Model & Şartlar (tedarikçi) -->
+              <div v-if="currentStepId === 'model'">
+                <div class="form-group" style="margin-bottom: 1.2rem;">
+                  <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Müzayede Modeli</label>
+                  <div class="model-toggle-group">
+                    <button type="button" class="model-toggle-btn" :class="{ active: sellerContracts.systemType === 'INDEPENDENT' }" @click="toggleSystemType('INDEPENDENT')">
+                      <i class="pi pi-user model-toggle-icon" />
+                      <span>Bağımsız Müzayede</span>
+                    </button>
+                    <button type="button" class="model-toggle-btn" :class="{ active: sellerContracts.systemType === 'JOINT' }" @click="toggleSystemType('JOINT')">
+                      <i class="pi pi-users model-toggle-icon" />
+                      <span>Ortak Müzayede</span>
+                    </button>
+                  </div>
+                  <ul v-if="sellerContracts.systemType === 'INDEPENDENT'" class="model-info-list">
+                    <li>Müzayedenin tüm yönetimi (tarih, kreatör, lotlar, şartlar) size aittir.</li>
+                    <li>En az <strong>40</strong> aktif ürününüz olmalı.</li>
+                    <li>Tüm faturalandırma ve panel yönetimi sizin sorumluluğunuzdadır.</li>
+                  </ul>
+                </div>
+
+                <div v-if="sellerContracts.systemType === 'JOINT'" class="form-group" style="margin-bottom: 1.2rem; padding: 1rem; background: #f1f5f9; border-radius: 6px; border-left: 4px solid var(--primary-color);">
+                  <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Yönetim Şekli ve Komisyon Dağılımı</label>
+                  <div class="model-toggle-group">
+                    <button type="button" class="model-toggle-btn" :class="{ active: sellerContracts.jointManagementType === 'SELF_MANAGED' }" @click="toggleManagementType('SELF_MANAGED')">
+                      <i class="pi pi-user-edit model-toggle-icon" />
+                      <span>Kendim Yöneteceğim</span>
+                    </button>
+                    <button type="button" class="model-toggle-btn" :class="{ active: sellerContracts.jointManagementType === 'ENDEMIGO_SUPPORTED' }" @click="toggleManagementType('ENDEMIGO_SUPPORTED')">
+                      <img :src="endemigoIcon" alt="Endemigo" class="model-toggle-logo" />
+                      <span>Endemigo Yönetsin</span>
+                    </button>
+                  </div>
+                  <ul v-if="sellerContracts.jointManagementType" class="model-info-list">
+                    <template v-if="sellerContracts.jointManagementType === 'SELF_MANAGED'">
+                      <li>Müzayedenin tüm organizasyonu (davetler, lotlar, şartlar, sunum) size aittir.</li>
+                      <li>Endemigo komisyonu: <strong>%20</strong></li>
+                      <li>Sizin kazancınız: <strong>%8</strong></li>
+                    </template>
+                    <template v-else>
+                      <li>Organizasyonda Endemigo operasyonel destek verir.</li>
+                      <li>Endemigo komisyonu: <strong>%25</strong></li>
+                      <li>Sizin kazancınız: <strong>%3</strong></li>
+                    </template>
+                    <li>En az <strong>20</strong> ürününüz olmalı.</li>
+                    <li>Diğer tedarikçilerden ürün toplayarak en az <strong>60</strong> ürünle açılış yapabilirsiniz.</li>
+                  </ul>
+                </div>
+
+                <div class="form-group checkbox-group" style="margin-bottom: 1rem;">
+                  <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.guaranteeAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
+                    <input type="checkbox" v-model="sellerContracts.guaranteeAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
+                    <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
+                      Müzayedeye eklenecek tüm ürünlerin MENŞEİ ve TEDARİK garantisini verdiğimi kabul, beyan ve taahhüt ederim.
+                    </span>
+                  </label>
+                </div>
+                <div class="form-group checkbox-group">
+                  <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.preContractAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
+                    <input type="checkbox" v-model="sellerContracts.preContractAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
+                    <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
+                      Tüm faturalandırma ve panel yönetim şartlarının şahsıma/firmama ait olduğunu ön sözleşme uyarınca kabul ederim.
+                    </span>
+                  </label>
+                </div>
               </div>
 
-              <div v-if="sellerContracts.systemType === 'JOINT'" class="form-group" style="margin-bottom: 1.2rem; padding: 1rem; background: #f1f5f9; border-radius: 6px; border-left: 4px solid var(--primary-color);">
-                <label style="font-weight: 600; display:block; margin-bottom: 0.5rem; color: #334155;">Yönetim Şekli ve Komisyon Dağılımı</label>
-                <select v-model="sellerContracts.jointManagementType" class="input" style="width: 100%; max-width: 100%;">
-                  <option value="SELF_MANAGED">Tamamen Kendi Yöneteceğim (Endemigo %20, Siz %8 Komisyon)</option>
-                  <option value="ENDEMIGO_SUPPORTED">Endemigo'dan Destek İstiyorum (Endemigo %25, Siz %3 Komisyon)</option>
-                </select>
-                <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
-                  Ortak müzayedede en az 20 ürününüz olmalı ve diğer tedarikçilerden ürün toplayarak en az 60 ürünle açılış yapabilirsiniz.
+              <!-- ADIM: Temel Bilgiler -->
+              <div v-else-if="currentStepId === 'basics'">
+                <div class="wizard-field">
+                  <label>Müzayede Başlığı *</label>
+                  <input class="input" v-model="wizardForm.title" placeholder="Örn. Antika Halı Müzayedesi" />
+                </div>
+                <div class="wizard-field">
+                  <label>Açıklama / Detaylar</label>
+                  <textarea class="input" rows="4" v-model="wizardForm.description" placeholder="Müzayede hakkında kısa açıklama"></textarea>
+                </div>
+                <div class="wizard-field">
+                  <label>Kapak Görseli</label>
+                  <div v-if="wizardForm.coverImageUrl" class="cover-preview">
+                    <img :src="wizardForm.coverImageUrl" alt="Kapak görseli" />
+                    <div class="cover-preview-actions">
+                      <button type="button" class="button ghost" @click="coverInput?.click()">
+                        <i class="pi pi-refresh" /> Değiştir
+                      </button>
+                      <button type="button" class="button ghost cover-remove" @click="wizardForm.coverImageUrl = ''">
+                        <i class="pi pi-trash" /> Kaldır
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="cover-dropzone" @click="coverInput?.click()">
+                    <i class="pi pi-cloud-upload cover-dropzone-icon" />
+                    <span>{{ coverUploading ? 'Yükleniyor...' : 'Kapak görseli seçmek için tıklayın' }}</span>
+                    <small class="cover-hint">JPEG, PNG, WebP veya GIF · max 5MB</small>
+                  </div>
+                  <small v-if="coverUploadError" class="wizard-error">{{ coverUploadError }}</small>
+                  <input
+                    ref="coverInput"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    class="hidden-file-input"
+                    @change="handleCoverUpload"
+                  />
+                </div>
+              </div>
+
+              <!-- ADIM: Takvim -->
+              <div v-else-if="currentStepId === 'schedule'">
+                <div class="wizard-field">
+                  <label>Başlangıç Tarihi *</label>
+                  <input class="input" type="datetime-local" v-model="wizardForm.startTime" />
+                </div>
+                <div class="wizard-field">
+                  <label>Bitiş Tarihi *</label>
+                  <input class="input" type="datetime-local" v-model="wizardForm.endTime" />
+                </div>
+                <div class="wizard-field">
+                  <label>Son Ürün Ekleme Tarihi (Opsiyonel)</label>
+                  <input class="input" type="datetime-local" v-model="wizardForm.submissionDeadline" />
+                </div>
+                <p v-if="wizardForm.startTime && wizardForm.endTime && !scheduleValid" class="wizard-error">
+                  Bitiş tarihi başlangıçtan sonra olmalıdır.
                 </p>
               </div>
 
-              <div class="form-group checkbox-group" style="margin-bottom: 1rem;">
-                <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.guaranteeAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
-                  <input type="checkbox" v-model="sellerContracts.guaranteeAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
-                  <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
-                    Müzayedeye eklenecek tüm ürünlerin MENŞEİ ve TEDARİK garantisini verdiğimi kabul, beyan ve taahhüt ederim.
-                  </span>
-                </label>
-              </div>
-
-              <div class="form-group checkbox-group">
-                <label style="display: flex; gap: 0.75rem; align-items: flex-start; cursor: pointer; padding: 0.75rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" :style="sellerContracts.preContractAccepted ? 'border-color: var(--primary-color); background: #f0f9ff;' : ''">
-                  <input type="checkbox" v-model="sellerContracts.preContractAccepted" style="margin-top: 0.2rem; width: 1.2rem; height: 1.2rem;" />
-                  <span style="font-size: 0.95rem; color: #334155; line-height: 1.4;">
-                    Tüm faturalandırma ve panel yönetim şartlarının şahsıma/firmama ait olduğunu ön sözleşme uyarınca kabul ederim.
-                  </span>
-                </label>
+              <!-- ADIM: Canlı Ayarlar -->
+              <div v-else-if="currentStepId === 'live'">
+                <div class="wizard-field">
+                  <label>Müzayede Tipi</label>
+                  <div class="model-toggle-group">
+                    <button type="button" class="model-toggle-btn" :class="{ active: wizardForm.auctionType === 'REALTIME' }" @click="wizardForm.auctionType = 'REALTIME'">
+                      <i class="pi pi-bolt model-toggle-icon" />
+                      <span>Canlı</span>
+                    </button>
+                    <button type="button" class="model-toggle-btn" :class="{ active: wizardForm.auctionType === 'TIMED' }" @click="wizardForm.auctionType = 'TIMED'">
+                      <i class="pi pi-clock model-toggle-icon" />
+                      <span>Süreli</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="wizard-field">
+                  <label>Otomatik Süre Uzatma (Anti-Sniping)</label>
+                  <select class="input" v-model="wizardForm.antiSnipingEnabled">
+                    <option value="true">Evet (Aktif)</option>
+                    <option value="false">Hayır (Pasif)</option>
+                  </select>
+                </div>
+                <div class="wizard-grid">
+                  <div class="wizard-field">
+                    <label>Maksimum Uzatma Sayısı</label>
+                    <input class="input" type="number" min="0" v-model="wizardForm.maxExtensions" />
+                  </div>
+                  <div class="wizard-field">
+                    <label>Tetikleme Süresi (sn)</label>
+                    <input class="input" type="number" min="1" v-model="wizardForm.extensionSeconds" />
+                  </div>
+                  <div class="wizard-field">
+                    <label>Uzatma Süresi (sn)</label>
+                    <input class="input" type="number" min="1" v-model="wizardForm.extensionDuration" />
+                  </div>
+                  <div class="wizard-field">
+                    <label>Lot Geçiş Süresi (sn)</label>
+                    <input class="input" type="number" min="0" v-model="wizardForm.lotTransitionSeconds" />
+                  </div>
+                </div>
+                <p class="wizard-hint">Oluşturduktan sonra lotları etkinlik detay ekranından (tekil / Excel toplu / davet) ekleyebilirsiniz.</p>
               </div>
             </div>
-            <footer class="modal-footer" style="justify-content: flex-end; gap: 1rem;">
-              <button class="button ghost" @click="showContractModal = false">Vazgeç</button>
-              <button class="button primary" :disabled="!sellerContracts.guaranteeAccepted || !sellerContracts.preContractAccepted" @click="acceptContractAndProceed">Kabul Ediyorum</button>
+
+            <footer class="modal-footer" style="justify-content: space-between; gap: 1rem;">
+              <button class="button ghost" :disabled="wizardStep === 1" @click="wizardBack">
+                <i class="pi pi-arrow-left" /> Geri
+              </button>
+              <button class="button primary" :disabled="!canProceedWizard || wizardSubmitting" @click="wizardNext">
+                <template v-if="isLastStep">
+                  <i class="pi pi-check" /> Oluştur
+                </template>
+                <template v-else>
+                  İleri <i class="pi pi-arrow-right" />
+                </template>
+              </button>
             </footer>
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ─── FORM DRAWER FOR CREATE/EDIT ─── -->
+    <!-- ─── FORM DRAWER FOR EDIT ─── -->
     <AdminDrawerForm
       :open="drawerOpen"
       :title="drawerTitle"
@@ -322,6 +434,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import endemigoIcon from '../../assets/endemigo-icon.png';
 import { useToast } from 'primevue/usetoast';
 import { adminApi, toApiMessage } from '../../services/api';
 import AdminDrawerForm, {
@@ -340,10 +453,35 @@ const isSeller = computed(() => {
 });
 
 const sellerContracts = reactive({
-  systemType: 'INDEPENDENT',
-  jointManagementType: 'SELF_MANAGED',
+  // Boş = henüz seçilmedi; kullanıcı ikon butonla bilinçli seçer.
+  systemType: '',
+  jointManagementType: '',
   guaranteeAccepted: false,
   preContractAccepted: false
+});
+
+// İkon toggle: aktif seçeneğe tekrar tıklanırsa seçim kalkar (deactive).
+function toggleSystemType(value: 'INDEPENDENT' | 'JOINT') {
+  if (sellerContracts.systemType === value) {
+    sellerContracts.systemType = '';
+    sellerContracts.jointManagementType = '';
+  } else {
+    sellerContracts.systemType = value;
+    // Model değişince yönetim şekli seçimini sıfırla.
+    sellerContracts.jointManagementType = '';
+  }
+}
+
+function toggleManagementType(value: 'SELF_MANAGED' | 'ENDEMIGO_SUPPORTED') {
+  sellerContracts.jointManagementType =
+    sellerContracts.jointManagementType === value ? '' : value;
+}
+
+// Kabul için: model seçili + (JOINT ise yönetim şekli seçili) + iki taahhüt.
+const isContractFormValid = computed(() => {
+  if (!sellerContracts.systemType) return false;
+  if (sellerContracts.systemType === 'JOINT' && !sellerContracts.jointManagementType) return false;
+  return sellerContracts.guaranteeAccepted && sellerContracts.preContractAccepted;
 });
 
 const loading = ref(true);
@@ -387,17 +525,7 @@ const selectedEvent = ref<any | null>(null);
 const drawerActionType = ref<'create' | 'edit'>('create');
 const tempSelectedType = ref<'REALTIME' | 'TIMED'>('REALTIME');
 
-const categories = ref<any[]>([]);
 const auctioneers = ref<any[]>([]);
-
-async function loadCategories() {
-  try {
-    const res = await adminApi.get('/admin/categories');
-    categories.value = res.data.items || [];
-  } catch (err) {
-    console.error('Error loading categories:', err);
-  }
-}
 
 // Faz 6: Atanabilir yayıncılar (endemigo operatörleri). Sadece admin görür.
 async function loadAuctioneers() {
@@ -533,16 +661,6 @@ function generateFormFields(row: any | null): DrawerField[] {
       value: row?.status || 'DRAFT',
       options: auctionEventStatusOptions,
     },
-    {
-      key: 'categoryId',
-      label: 'Kategori (Filtreleme)',
-      type: 'select',
-      value: row?.categoryId || '',
-      options: categories.value.map((cat) => ({
-        label: cat.name,
-        value: cat.id,
-      })),
-    },
   ];
 
   if (row && row.id) {
@@ -618,62 +736,169 @@ function generateFormFields(row: any | null): DrawerField[] {
   return fields;
 }
 
-// Modal and create triggers
-const showTypeModal = ref(false);
-const showContractModal = ref(false);
+// ─── Adım adım oluşturma sihirbazı ───────────────────────
+const showWizard = ref(false);
+const wizardStep = ref(1);
+const wizardSubmitting = ref(false);
+const wizardForm = reactive({
+  title: '',
+  description: '',
+  coverImageUrl: '',
+  startTime: '',
+  endTime: '',
+  submissionDeadline: '',
+  auctionType: 'REALTIME',
+  antiSnipingEnabled: 'true',
+  maxExtensions: '5',
+  extensionSeconds: '60',
+  extensionDuration: '60',
+  lotTransitionSeconds: '30',
+});
+
+// Tedarikçi model+şart adımı yalnızca satıcılarda; Endemigo admini için atlanır.
+const wizardSteps = computed(() => {
+  const base = [
+    { id: 'basics', title: 'Temel Bilgiler' },
+    { id: 'schedule', title: 'Takvim' },
+    { id: 'live', title: 'Canlı Ayarlar' },
+  ];
+  return isSeller.value ? [{ id: 'model', title: 'Model & Şartlar' }, ...base] : base;
+});
+const currentStepId = computed(() => wizardSteps.value[wizardStep.value - 1]?.id);
+const isLastStep = computed(() => wizardStep.value === wizardSteps.value.length);
+
+// Kapak görseli upload — storage servisine (R2/local) gider, url döner.
+const coverInput = ref<HTMLInputElement | null>(null);
+const coverUploading = ref(false);
+const coverUploadError = ref<string | null>(null);
+
+async function handleCoverUpload(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  coverUploading.value = true;
+  coverUploadError.value = null;
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await adminApi.post('/admin/uploads/images?kind=auction', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    wizardForm.coverImageUrl = res.data.url;
+  } catch {
+    coverUploadError.value = 'Görsel yüklenemedi. Lütfen tekrar deneyin.';
+  } finally {
+    coverUploading.value = false;
+    if (target) target.value = '';
+  }
+}
+const scheduleValid = computed(() => {
+  if (!wizardForm.startTime || !wizardForm.endTime) return false;
+  return new Date(wizardForm.endTime).getTime() > new Date(wizardForm.startTime).getTime();
+});
+const canProceedWizard = computed(() => {
+  switch (currentStepId.value) {
+    case 'model':
+      return isContractFormValid.value;
+    case 'basics':
+      return wizardForm.title.trim().length >= 3;
+    case 'schedule':
+      return scheduleValid.value;
+    case 'live':
+      return Number(wizardForm.maxExtensions) >= 0 &&
+        Number(wizardForm.extensionSeconds) > 0 &&
+        Number(wizardForm.extensionDuration) > 0 &&
+        Number(wizardForm.lotTransitionSeconds) >= 0;
+    default:
+      return true;
+  }
+});
 
 function handleNewEventClick() {
-  showTypeModal.value = true;
-}
-
-function selectTypeAndCreate(type: 'REALTIME' | 'TIMED') {
-  showTypeModal.value = false;
-  tempSelectedType.value = type;
-  
-  if (isSeller.value) {
-    sellerContracts.systemType = 'INDEPENDENT';
-    sellerContracts.jointManagementType = 'SELF_MANAGED';
-    sellerContracts.guaranteeAccepted = false;
-    sellerContracts.preContractAccepted = false;
-    showContractModal.value = true;
-  } else {
-    finishCreateFlow(type);
-  }
-}
-
-function acceptContractAndProceed() {
-  if (!sellerContracts.guaranteeAccepted || !sellerContracts.preContractAccepted) return;
-  showContractModal.value = false;
-  finishCreateFlow(tempSelectedType.value as 'REALTIME' | 'TIMED');
-}
-
-function finishCreateFlow(type: 'REALTIME' | 'TIMED') {
-  const payload: Record<string, unknown> = { auctionType: type };
-  if (isSeller.value) {
-    payload.systemType = sellerContracts.systemType;
-    if (sellerContracts.systemType === 'JOINT') {
-      payload.jointManagementType = sellerContracts.jointManagementType;
-    }
-    payload.guaranteeAccepted = sellerContracts.guaranteeAccepted ? 'true' : 'false';
-    payload.preContractAccepted = sellerContracts.preContractAccepted ? 'true' : 'false';
-  }
-  
-  selectedEvent.value = null;
-  drawerActionType.value = 'create';
-  drawerTitle.value = `Yeni ${type === 'REALTIME' ? 'Canlı' : 'Süreli'} Müzayede Oluştur`;
-  drawerConfirmLabel.value = 'Müzayede Etkinliği Oluştur';
-  
-  // Set default form field presets
-  drawerFields.value = generateFormFields({
-    auctionType: type,
-    status: 'DRAFT',
-    antiSnipingEnabled: true,
-    maxExtensions: 5,
-    extensionSeconds: 60,
-    extensionDuration: 60,
-    lotTransitionSeconds: 30
+  wizardStep.value = 1;
+  Object.assign(wizardForm, {
+    title: '',
+    description: '',
+    coverImageUrl: '',
+    startTime: '',
+    endTime: '',
+    submissionDeadline: '',
+    auctionType: 'REALTIME',
+    antiSnipingEnabled: 'true',
+    maxExtensions: '5',
+    extensionSeconds: '60',
+    extensionDuration: '60',
+    lotTransitionSeconds: '30',
   });
-  drawerOpen.value = true;
+  sellerContracts.systemType = '';
+  sellerContracts.jointManagementType = '';
+  sellerContracts.guaranteeAccepted = false;
+  sellerContracts.preContractAccepted = false;
+  coverUploading.value = false;
+  coverUploadError.value = null;
+  showWizard.value = true;
+}
+
+function wizardBack() {
+  if (wizardStep.value > 1) wizardStep.value--;
+}
+
+function wizardNext() {
+  if (!canProceedWizard.value) return;
+  if (isLastStep.value) submitWizard();
+  else wizardStep.value++;
+}
+
+async function submitWizard() {
+  if (wizardSubmitting.value || !canProceedWizard.value) return;
+  wizardSubmitting.value = true;
+  const metadata: Record<string, any> = {
+    title: wizardForm.title,
+    description: wizardForm.description,
+    coverImageUrl: wizardForm.coverImageUrl,
+    status: 'DRAFT',
+    startTime: wizardForm.startTime,
+    endTime: wizardForm.endTime,
+    submissionDeadline: wizardForm.submissionDeadline || '',
+    auctionType: wizardForm.auctionType,
+    antiSnipingEnabled: wizardForm.antiSnipingEnabled,
+    maxExtensions: wizardForm.maxExtensions,
+    extensionSeconds: wizardForm.extensionSeconds,
+    extensionDuration: wizardForm.extensionDuration,
+    lotTransitionSeconds: wizardForm.lotTransitionSeconds,
+  };
+  if (isSeller.value) {
+    metadata.systemType = sellerContracts.systemType;
+    if (sellerContracts.systemType === 'JOINT') {
+      metadata.jointManagementType = sellerContracts.jointManagementType;
+    }
+    metadata.guaranteeAccepted = sellerContracts.guaranteeAccepted ? 'true' : 'false';
+    metadata.preContractAccepted = sellerContracts.preContractAccepted ? 'true' : 'false';
+  }
+
+  try {
+    await adminApi.post('/admin/auction-events', {
+      reason: 'Yeni müzayede etkinliği',
+      metadata,
+    });
+    toast.add({
+      severity: 'success',
+      summary: 'Başarılı',
+      detail: 'Müzayede etkinliği oluşturuldu. Lotları etkinlik detayından ekleyebilirsiniz.',
+      life: 4000,
+    });
+    showWizard.value = false;
+    loadEvents();
+  } catch (err: any) {
+    toast.add({
+      severity: 'error',
+      summary: 'Hata',
+      detail: 'İşlem başarısız: ' + toApiMessage(err),
+      life: 5000,
+    });
+  } finally {
+    wizardSubmitting.value = false;
+  }
 }
 
 function handleEditClick(eventItem: any) {
@@ -742,7 +967,6 @@ const filteredEvents = computed(() => {
 
 onMounted(() => {
   loadEvents();
-  loadCategories();
   loadAuctioneers();
 });
 </script>
@@ -753,6 +977,177 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+/* Müzayede modeli / yönetim şekli — ikon toggle butonları */
+.model-toggle-group {
+  display: flex;
+  gap: 0.75rem;
+}
+.model-toggle-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.9rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.model-toggle-btn:hover {
+  border-color: var(--primary-color);
+  background: #f8fafc;
+}
+.model-toggle-btn.active {
+  border-color: var(--primary-color);
+  background: #f0f9ff;
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color) inset;
+}
+.model-toggle-icon {
+  font-size: 1.5rem;
+}
+.model-toggle-logo {
+  height: 1.6rem;
+  width: auto;
+  object-fit: contain;
+}
+.model-info-list {
+  font-size: 0.85rem;
+  color: #475569;
+  margin-top: 0.75rem;
+  padding-left: 1.1rem;
+  line-height: 1.6;
+}
+
+/* Sihirbaz adım göstergesi + form alanları */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem 1.5rem 0.25rem;
+}
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wizard-step.active { color: var(--primary-color); }
+.wizard-step.done { color: #16a34a; }
+.wizard-step-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  background: #e2e8f0;
+  color: #64748b;
+}
+.wizard-step.active .wizard-step-dot {
+  background: var(--primary-color);
+  color: #ffffff;
+}
+.wizard-step.done .wizard-step-dot {
+  background: #16a34a;
+  color: #ffffff;
+}
+.wizard-step-line {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  min-width: 12px;
+}
+.wizard-step-line.done { background: #16a34a; }
+.wizard-field {
+  margin-bottom: 1rem;
+}
+.wizard-field label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.9rem;
+}
+.wizard-field .input {
+  width: 100%;
+  max-width: 100%;
+}
+.wizard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+}
+.wizard-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+.wizard-hint {
+  color: #64748b;
+  font-size: 0.82rem;
+  margin-top: 1rem;
+  padding: 0.6rem 0.8rem;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+/* Kapak görseli upload */
+.hidden-file-input { display: none; }
+.cover-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1.75rem 1rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cover-dropzone:hover {
+  border-color: var(--primary-color);
+  background: #f0f9ff;
+  color: var(--primary-color);
+}
+.cover-dropzone-icon { font-size: 1.6rem; }
+.cover-hint { color: #94a3b8; font-size: 0.75rem; }
+.cover-preview {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.cover-preview img {
+  width: 140px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.cover-preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cover-remove { color: #dc2626; }
+@media (max-width: 520px) {
+  .wizard-step-label { display: none; }
+  .wizard-grid { grid-template-columns: 1fr; }
 }
 
 .action-btn-new {

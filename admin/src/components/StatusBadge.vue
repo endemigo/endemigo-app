@@ -54,6 +54,9 @@ const STATUS_LABELS: Record<string, string> = {
   SHIPPED: 'Kargoda',
   DELIVERED: 'Teslim Edildi',
   PROCESSING: 'Hazırlanıyor',
+  AUCTION: 'Müzayede',
+  DIRECT_SALE: 'Normal Satış',
+  ASK_PRICE: 'Fiyat Teklifi',
 };
 
 const rawLabel = computed(() => String(props.value ?? '-'));

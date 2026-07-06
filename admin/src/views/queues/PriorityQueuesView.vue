@@ -25,8 +25,41 @@
         <div class="panel-body">
           <ul class="timeline">
             <li v-for="item in queue.latest" :key="recordKey(item)" class="timeline-item">
-              <strong>{{ recordLabel(queue.key, item) }}</strong>
-              <p class="muted">{{ formatDate(item.createdAt) }}</p>
+              <!-- Ürün onay kuyruğu: kayıt ürün detayına gider ve hızlı onay/red aksiyonları sunar -->
+              <template v-if="queue.key === 'productReviews'">
+                <a
+                  class="queue-item-link"
+                  role="link"
+                  tabindex="0"
+                  @click="openProductDetail(item)"
+                  @keyup.enter="openProductDetail(item)"
+                >
+                  <strong>{{ recordLabel(queue.key, item) }}</strong>
+                </a>
+                <p class="muted">{{ formatDate(item.createdAt) }}</p>
+                <div class="review-actions">
+                  <button
+                    class="button primary"
+                    type="button"
+                    :disabled="isReviewing(item)"
+                    @click="reviewProduct(item, true)"
+                  >
+                    Onayla
+                  </button>
+                  <button
+                    class="button ghost"
+                    type="button"
+                    :disabled="isReviewing(item)"
+                    @click="reviewProduct(item, false)"
+                  >
+                    Reddet
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <strong>{{ recordLabel(queue.key, item) }}</strong>
+                <p class="muted">{{ formatDate(item.createdAt) }}</p>
+              </template>
             </li>
           </ul>
         </div>
@@ -63,6 +96,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { adminApi, toApiMessage, type ApiEnvelope } from '../../services/api';
 
 interface QueueBucket {
@@ -78,6 +112,7 @@ interface QueuesResponse extends ApiEnvelope {
   orderReviews: QueueBucket;
   paymentReviews: QueueBucket;
   membershipGrace: QueueBucket;
+  productReviews: QueueBucket;
 }
 
 const emptyQueue: QueueBucket = { count: 0, latest: [] };
@@ -91,13 +126,18 @@ const queues = ref<QueuesResponse>({
   orderReviews: emptyQueue,
   paymentReviews: emptyQueue,
   membershipGrace: emptyQueue,
+  productReviews: emptyQueue,
 });
 const loading = ref(false);
 const error = ref<string | null>(null);
 const showEmptyQueues = ref(false);
+const router = useRouter();
+// Onay/Red isteği devam eden ürün id'leri; çift tıklamayı engellemek için tutulur.
+const reviewingProductIds = ref<Set<string>>(new Set());
 
 const queueItems = computed(() => [
   { key: 'sellerApprovals', label: 'Satıcı onayları', ...queues.value.sellerApprovals },
+  { key: 'productReviews', label: 'Ürün onayları', ...(queues.value.productReviews ?? emptyQueue) },
   { key: 'adApprovals', label: 'Reklam onayları', ...queues.value.adApprovals },
   { key: 'payoutReviews', label: 'Ödeme talepleri', ...queues.value.payoutReviews },
   { key: 'trustFlags', label: 'Güven işaretleri', ...queues.value.trustFlags },
@@ -122,6 +162,15 @@ function formatUuid(val: string): string {
 }
 
 function recordLabel(queueKey: string, record: Record<string, unknown>): string {
+  if (queueKey === 'productReviews') {
+    const title = typeof record.title === 'string' && record.title.trim().length > 0
+      ? record.title.trim()
+      : formatUuid(String(record.id ?? ''));
+    const sellerName = typeof record.sellerName === 'string' && record.sellerName.trim().length > 0
+      ? record.sellerName.trim()
+      : null;
+    return sellerName ? `${title} — ${sellerName}` : title;
+  }
   if (queueKey === 'sellerApprovals') {
     const businessName = record.businessName;
     if (typeof businessName === 'string' && businessName.trim().length > 0) {
@@ -181,5 +230,52 @@ async function loadQueues() {
   }
 }
 
+function openProductDetail(record: Record<string, unknown>): void {
+  const id = record.id;
+  if (typeof id !== 'string' || id.length === 0) return;
+  void router.push(`/products/${id}`);
+}
+
+function isReviewing(record: Record<string, unknown>): boolean {
+  return reviewingProductIds.value.has(String(record.id ?? ''));
+}
+
+// Ürün onay kuyruğu aksiyonu: approve=true → ACTIVE, approve=false → DRAFT.
+// İşlem sonrası kuyruklar yeniden yüklenir; kayıt kuyruğu terk eder.
+async function reviewProduct(record: Record<string, unknown>, approve: boolean): Promise<void> {
+  const id = record.id;
+  if (typeof id !== 'string' || id.length === 0) return;
+
+  reviewingProductIds.value = new Set([...reviewingProductIds.value, id]);
+  error.value = null;
+
+  try {
+    await adminApi.patch(`/admin/products/${id}/review`, { approve });
+    await loadQueues();
+  } catch (reviewError) {
+    error.value = toApiMessage(reviewError);
+  } finally {
+    const next = new Set(reviewingProductIds.value);
+    next.delete(id);
+    reviewingProductIds.value = next;
+  }
+}
+
 onMounted(loadQueues);
 </script>
+
+<style scoped>
+.queue-item-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+.queue-item-link:hover strong,
+.queue-item-link:focus-visible strong {
+  text-decoration: underline;
+}
+.review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+</style>

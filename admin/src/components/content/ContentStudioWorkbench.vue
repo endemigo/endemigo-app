@@ -252,7 +252,7 @@
             v-model.trim="reason"
             type="text"
             class="reason-input"
-            placeholder="Değişiklik Gerekçesi Girin (Min. 3 karakter) *"
+            placeholder="Not ekle (opsiyonel)"
           />
         </div>
         <div class="save-actions">
@@ -336,11 +336,6 @@ const collectionDefinitions: CollectionDefinition[] = [
   { key: 'news', label: 'Haberler / Duyuru', icon: 'pi pi-bell' },
   { key: 'blogs', label: 'Bloglar', icon: 'pi pi-book' },
   { key: 'faq', label: 'SSS', icon: 'pi pi-question-circle' },
-  { key: 'discover', label: 'Keşif', icon: 'pi pi-compass' },
-  { key: 'menuManagement', label: 'Menü Yönetimi', icon: 'pi pi-bars' },
-  { key: 'banners', label: 'Bannerlar', icon: 'pi pi-images' },
-  { key: 'popups', label: 'Popuplar', icon: 'pi pi-clone' },
-  { key: 'polls', label: 'Anketler', icon: 'pi pi-chart-bar' },
   { key: 'newsletters', label: 'Bültenler', icon: 'pi pi-envelope' },
 ];
 
@@ -442,9 +437,7 @@ const selectedItem = computed(() =>
   selectedItems.value.find((item) => item.id === selectedItemId.value) ?? null,
 );
 
-const canSave = computed(
-  () => reason.value.trim().length > 2 && Boolean(documentRef.value),
-);
+const canSave = computed(() => Boolean(documentRef.value));
 
 // Reset search query when collection changes
 watch(selectedCollection, () => {

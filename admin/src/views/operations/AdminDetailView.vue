@@ -3134,6 +3134,7 @@ const productFields = (row: Record<string, unknown>): DrawerField[] => {
     { key: 'retailPrice', label: 'Perakende Fiyat', type: 'number', value: getString(row, 'retailPrice') },
     { key: 'askPriceMinAmount', label: 'Pazarlık Min Tutar', type: 'number', value: getString(row, 'askPriceMinAmount') },
     { key: 'askPriceEnabled', label: 'Pazarlık aktif mi?', type: 'select', value: toBooleanString(row?.askPriceEnabled), options: yesNoOptions },
+    { key: 'askQuestionEnabled', label: 'Soru sor aktif mi?', type: 'select', value: toBooleanString(row?.askQuestionEnabled), options: yesNoOptions },
     { key: 'shippingProvince', label: 'Teslimat İl', value: getString(row, 'shippingProvince') },
     { key: 'shippingDistrict', label: 'Teslimat İlçe', value: getString(row, 'shippingDistrict') },
     { key: 'shippingAddress', label: 'Teslimat Adresi', type: 'textarea', value: getString(row, 'shippingAddress') },
@@ -4219,6 +4220,7 @@ watch(
 );
 
 let activeSocket: any = null;
+let onSocketConnect: (() => void) | null = null;
 
 function setupSocketConnection() {
   cleanupSocketConnection();
@@ -4226,10 +4228,26 @@ function setupSocketConnection() {
   if (props.resource !== 'auctions' || !props.id) return;
 
   activeSocket = getAuctionSocket();
-  activeSocket.emit('auction:join', { auctionId: props.id });
+
+  // (Re-)join on every 'connect': server-side room membership is lost across
+  // reconnects, so a one-off join would leave the view frozen after a drop.
+  onSocketConnect = () => {
+    activeSocket?.emit('auction:join', { auctionId: props.id });
+  };
+  activeSocket.on('connect', onSocketConnect);
+  if (activeSocket.connected) {
+    onSocketConnect();
+  }
 
   activeSocket.on('bid:new', (data: any) => {
     console.log('[Admin Socket] bid:new received for auction', data);
+    if (data.auctionId === props.id) {
+      loadDetail();
+    }
+  });
+
+  activeSocket.on('bid:withdrawn', (data: any) => {
+    console.log('[Admin Socket] bid:withdrawn received for auction', data);
     if (data.auctionId === props.id) {
       loadDetail();
     }
@@ -4253,7 +4271,12 @@ function setupSocketConnection() {
 function cleanupSocketConnection() {
   if (activeSocket) {
     activeSocket.emit('auction:leave', { auctionId: props.id });
+    if (onSocketConnect) {
+      activeSocket.off('connect', onSocketConnect);
+      onSocketConnect = null;
+    }
     activeSocket.off('bid:new');
+    activeSocket.off('bid:withdrawn');
     activeSocket.off('auction:extended');
     activeSocket.off('auction:ended');
     activeSocket = null;

@@ -135,6 +135,40 @@
                     Sıradaki Lot
                   </button>
                 </div>
+
+                <!-- Sunucu Anonsları: yakılıyor / son çağrı / sattım -->
+                <div
+                  v-if="activeLot && activeLot.status === 'ACTIVE'"
+                  class="console-action-buttons"
+                >
+                  <button
+                    class="button warning control-btn"
+                    type="button"
+                    :disabled="announcing"
+                    @click="handleAnnounce('BURNING')"
+                  >
+                    <i class="pi pi-fire" />
+                    Ürün Yakılıyor
+                  </button>
+                  <button
+                    class="button warning control-btn"
+                    type="button"
+                    :disabled="announcing"
+                    @click="handleAnnounce('LAST_CALL')"
+                  >
+                    <i class="pi pi-megaphone" />
+                    Son ve Adil Çağrı
+                  </button>
+                  <button
+                    class="button success control-btn"
+                    type="button"
+                    :disabled="announcing"
+                    @click="handleAnnounce('SOLD')"
+                  >
+                    <i class="pi pi-check" />
+                    Satıyorum... Sattım
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -449,6 +483,14 @@
                   <p>Bu ortak müzayedeye ürün yüklemesi için davet edilen tedarikçiler</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <button
+                    class="button ghost"
+                    type="button"
+                    @click="router.push(`/products/bulk-import?eventId=${props.id}`)"
+                  >
+                    <i class="pi pi-file-excel" />
+                    Excel'den Lot Yükle
+                  </button>
                   <button class="button primary" type="button" @click="openInviteModal">
                     <i class="pi pi-user-plus" />
                     Tedarikçi Davet Et
@@ -814,14 +856,14 @@
         </button>
       </header>
       <div class="modal-body">
-        <p style="margin-bottom: 1rem; color: #475569;">Ortak müzayedenize ürün eklemesi için sistemimizde kayıtlı bir tedarikçinin ID'sini girebilirsiniz.</p>
+        <p style="margin-bottom: 1rem; color: #475569;">Ortak müzayedenize ürün eklemesi için tedarikçinin e-posta adresini girin. Davet edilen tedarikçinin en az 20 aktif ürünü olmalıdır.</p>
         <div class="form-group">
-          <label class="label">Tedarikçi ID</label>
-          <input 
-            type="text" 
-            v-model="inviteUserId" 
-            class="input" 
-            placeholder="Kullanıcı ID (UUID)"
+          <label class="label">Tedarikçi E-postası</label>
+          <input
+            type="email"
+            v-model="inviteUserId"
+            class="input"
+            placeholder="tedarikci@ornek.com"
           />
         </div>
       </div>
@@ -883,10 +925,13 @@ async function sendInvitation() {
   if (!inviteUserId.value) return;
   sendingInvite.value = true;
   try {
-    await adminApi.post(`/auctions/events/${props.id}/invitations`, {
-      inviteeId: inviteUserId.value
-    });
-    alert('Davet başarıyla gönderildi.');
+    // E-posta ya da UUID kabul edilir; backend e-postayı kullanıcıya çözer.
+    const input = inviteUserId.value.trim();
+    const isEmail = input.includes('@');
+    await adminApi.post(`/auctions/events/${props.id}/invite`, isEmail
+      ? { email: input }
+      : { inviteeId: input });
+    alert('Davet gönderildi. Tedarikçiye bildirim iletildi.');
     showInviteModal.value = false;
     await loadDetail(); // Yeniden yükle ki tablo güncellensin
   } catch (err: any) {
@@ -897,9 +942,10 @@ async function sendInvitation() {
 }
 
 async function cancelInvitation(invitationId: string) {
-  if (!confirm('Bu daveti iptal etmek istediğinize emin misiniz?')) return;
+  if (!confirm('Bu daveti geri çekmek istediğinize emin misiniz?')) return;
   try {
-    await adminApi.post(`/auctions/invitations/${invitationId}/reject`);
+    // Organizatör iptali — reject davetlinin işlemidir, cancel sahibinki.
+    await adminApi.post(`/auctions/invitations/${invitationId}/cancel`);
     await loadDetail();
   } catch (err: any) {
     alert('İptal işlemi başarısız: ' + (err.response?.data?.message || err.message));
@@ -910,7 +956,8 @@ function getInvitationStatusLabel(status: string) {
   const map: Record<string, string> = {
     PENDING: 'Bekliyor',
     ACCEPTED: 'Kabul Edildi',
-    REJECTED: 'Reddedildi'
+    REJECTED: 'Reddedildi',
+    EXPIRED: 'Geri Çekildi'
   };
   return map[status] || status;
 }
@@ -1390,6 +1437,20 @@ async function handleSkip() {
   );
 }
 
+// Sunucu anonsu — canlı feed'e düşer, satışı kapatmaz (onu Sıradaki Lot yapar).
+const announcing = ref(false);
+
+async function handleAnnounce(type: 'BURNING' | 'LAST_CALL' | 'SOLD') {
+  announcing.value = true;
+  try {
+    await adminApi.patch(`/admin/auction-events/${props.id}/announce`, { type });
+  } catch (err) {
+    error.value = toApiMessage(err);
+  } finally {
+    announcing.value = false;
+  }
+}
+
 async function handleAutoProgressToggle() {
   try {
     await adminApi.patch(`/admin/auction-events/${props.id}/auto-progress`, {
@@ -1448,6 +1509,7 @@ function handleImageError(event: Event): void {
 }
 
 let socket: any = null;
+let onSocketConnect: (() => void) | null = null;
 
 // --- Yeni Ürün Ekle Modal State & Logic ---
 const showAddLotModal = ref(false);
@@ -1536,9 +1598,17 @@ async function submitAddLots() {
 onMounted(() => {
   loadDetail();
 
-  // Connect to live WebSocket room
+  // Connect to live WebSocket room.
+  // (Re-)join on every 'connect': server-side room membership is lost across
+  // reconnects, so a one-off join would leave the view frozen after a drop.
   socket = getAuctionSocket();
-  socket.emit('event:join', { eventId: props.id });
+  onSocketConnect = () => {
+    socket?.emit('event:join', { eventId: props.id });
+  };
+  socket.on('connect', onSocketConnect);
+  if (socket.connected) {
+    onSocketConnect();
+  }
 
   socket.on('event:active_lot_changed', (data: any) => {
     console.log('[Admin Socket] event:active_lot_changed received', data);
@@ -1568,6 +1638,30 @@ onMounted(() => {
         amount: data.amount,
         createdAt: data.serverTime || new Date().toISOString(),
       });
+    }
+
+    // Background refresh to update list
+    adminApi.get(`/admin/auction-events/${props.id}`).then((res) => {
+      event.value = res.data.overview;
+      approvedLots.value = res.data.approvedLots || [];
+      pendingSubmissions.value = res.data.pendingSubmissions || [];
+    }).catch(() => {});
+  });
+
+  socket.on('bid:withdrawn', (data: any) => {
+    console.log('[Admin Socket] bid:withdrawn received', data);
+    const lot = approvedLots.value.find((l) => l.id === data.auctionId);
+    if (lot) {
+      lot.currentPrice = data.currentPrice;
+      lot.bidCount = data.bidCount;
+      if (data.endTime) {
+        lot.endTime = data.endTime;
+      }
+    }
+
+    // Aktif lot ise teklif listesini yeniden çek (geri çekilen teklif düşer)
+    if (activeLot.value && data.auctionId === activeLot.value.id) {
+      fetchActiveLotBids();
     }
 
     // Background refresh to update list
@@ -1612,8 +1706,13 @@ onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   if (socket) {
     socket.emit('event:leave', { eventId: props.id });
+    if (onSocketConnect) {
+      socket.off('connect', onSocketConnect);
+      onSocketConnect = null;
+    }
     socket.off('event:active_lot_changed');
     socket.off('bid:new');
+    socket.off('bid:withdrawn');
     socket.off('event:status_changed');
     socket.off('auction:extended');
     socket.off('auction:ended');

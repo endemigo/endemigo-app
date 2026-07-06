@@ -16,10 +16,38 @@
           <i :class="['pi', loading ? 'pi-spin pi-spinner' : 'pi-refresh']" />
           Yenile
         </button>
-        <button 
+        <button
+          v-if="auction && (auction.status === 'DRAFT' || auction.status === 'PUBLISHED')"
+          class="button ghost"
+          type="button"
+          @click="openPreviewModal"
+        >
+          <i class="pi pi-eye" />
+          Önizleme
+        </button>
+        <button
+          v-if="auction?.status === 'ACTIVE'"
+          class="button primary"
+          type="button"
+          @click="openFinalizeModal"
+        >
+          <i class="pi pi-flag-fill" />
+          Müzayedeyi Sonlandır
+        </button>
+        <button
+          v-if="auction?.status === 'ENDED' && auction?.winnerId && !auction?.saleApprovedAt"
+          class="button primary"
+          type="button"
+          @click="submitApproveSale"
+          :disabled="submittingSaleApproval"
+        >
+          <i :class="['pi', submittingSaleApproval ? 'pi-spin pi-spinner' : 'pi-check-circle']" />
+          Satışı Onayla
+        </button>
+        <button
           v-if="auction?.status !== 'CANCELLED' && auction?.status !== 'ENDED' && auction?.status !== 'COMPLETED'"
-          class="button danger" 
-          type="button" 
+          class="button danger"
+          type="button"
           @click="openCancelModal"
         >
           <i class="pi pi-ban" />
@@ -61,7 +89,30 @@
               </span>
             </div>
           </div>
-          
+
+          <!-- Yaşam Döngüsü Açıklayıcı Banner: publish sonrası otomatik başlangıç/bitiş
+               zamanlanmış arka plan job'ları ile yapıldığından kullanıcıya görünmez;
+               bu banner her durumda sürecin neresinde olunduğunu açıkça anlatır. -->
+          <div v-if="lifecycleBanner" :class="['lifecycle-banner', lifecycleBanner.tone]">
+            <i :class="['pi', lifecycleBanner.icon, 'lifecycle-banner-icon']" />
+            <p class="lifecycle-banner-text">{{ lifecycleBanner.text }}</p>
+            <button
+              v-if="auction.status === 'DRAFT'"
+              class="button primary lifecycle-publish-button"
+              type="button"
+              :disabled="submittingPublish"
+              @click="openPublishModal"
+            >
+              <i :class="['pi', submittingPublish ? 'pi-spin pi-spinner' : 'pi-megaphone']" />
+              Yayınla
+            </button>
+          </div>
+          <!-- Yayınlama hataları (ör. geçmiş startTime doğrulaması) banner alanında gösterilir -->
+          <div v-if="publishError" class="lifecycle-banner danger">
+            <i class="pi pi-exclamation-circle lifecycle-banner-icon" />
+            <p class="lifecycle-banner-text">{{ publishError }}</p>
+          </div>
+
           <div class="hero-main-row">
             <div class="product-title-area">
               <span class="eyebrow">İhaledeki Ürün</span>
@@ -439,6 +490,160 @@
         </footer>
       </div>
     </div>
+
+    <!-- Müzayede Sonlandırma Modalı -->
+    <div class="custom-modal-backdrop" v-if="showFinalizeModal">
+      <div class="custom-modal-card">
+        <header class="modal-header">
+          <h4>Müzayedeyi Sonlandır</h4>
+          <button class="button icon-only ghost" type="button" @click="closeFinalizeModal">
+            <i class="pi pi-times" />
+          </button>
+        </header>
+        <div class="modal-body">
+          <p class="modal-prompt warning-message">
+            <i class="pi pi-exclamation-circle" />
+            Müzayede şimdi sonlandırılacak: geçerli en yüksek teklif kazanır, teklif yoksa müzayede başarısız sayılır. Bu işlem geri alınamaz.
+          </p>
+          <div class="form-group">
+            <label for="finalize-reason-input">Sonlandırma Gerekçesi (Zorunlu)</label>
+            <textarea
+              id="finalize-reason-input"
+              v-model="finalizeReason"
+              placeholder="Müzayedenin elle sonlandırılma gerekçesini giriniz..."
+              rows="4"
+              class="form-control"
+            />
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button class="button ghost" type="button" @click="closeFinalizeModal">Vazgeç</button>
+          <button
+            class="button primary"
+            type="button"
+            @click="submitFinalize"
+            :disabled="!finalizeReason.trim() || submittingFinalize"
+          >
+            <i v-if="submittingFinalize" class="pi pi-spin pi-spinner" />
+            Müzayedeyi Sonlandır
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Müzayede Yayınlama Onay Modalı -->
+    <div class="custom-modal-backdrop" v-if="showPublishModal">
+      <div class="custom-modal-card">
+        <header class="modal-header">
+          <h4>Müzayedeyi Yayınla</h4>
+          <button class="button icon-only ghost" type="button" @click="closePublishModal">
+            <i class="pi pi-times" />
+          </button>
+        </header>
+        <div class="modal-body">
+          <p class="modal-prompt">
+            Yayınlandığında müzayede aşağıdaki plana göre <strong>otomatik olarak</strong> başlatılıp
+            sonlandırılacaktır. Onaylıyor musunuz?
+          </p>
+          <div class="publish-summary">
+            <div class="publish-summary-row">
+              <span class="publish-summary-label"><i class="pi pi-play-circle" /> Otomatik Başlangıç</span>
+              <strong class="publish-summary-value font-mono">{{ formatDate(auction?.startTime) }}</strong>
+            </div>
+            <div class="publish-summary-row">
+              <span class="publish-summary-label"><i class="pi pi-stop-circle" /> Otomatik Bitiş</span>
+              <strong class="publish-summary-value font-mono">{{ formatDate(auction?.endTime) }}</strong>
+            </div>
+            <div class="publish-summary-row">
+              <span class="publish-summary-label"><i class="pi pi-tag" /> Başlangıç Fiyatı</span>
+              <strong class="publish-summary-value font-mono">{{ formatMoney(auction?.startPrice) }}</strong>
+            </div>
+          </div>
+          <p v-if="publishStartTimeInPast" class="modal-prompt warning-message">
+            <i class="pi pi-exclamation-circle" />
+            Başlangıç zamanı geçmişte görünüyor; yayınlama isteği backend doğrulaması tarafından
+            reddedilebilir.
+          </p>
+        </div>
+        <footer class="modal-footer">
+          <button class="button ghost" type="button" @click="closePublishModal">Vazgeç</button>
+          <button
+            class="button primary"
+            type="button"
+            @click="submitPublish"
+            :disabled="submittingPublish"
+          >
+            <i v-if="submittingPublish" class="pi pi-spin pi-spinner" />
+            Yayınla
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Alıcı Önizleme Modalı: mobil alıcının göreceği lot kartının yaklaşık temsili.
+         Tamamen frontend'dir; bu ekranda zaten yüklü olan verilerle çizilir. -->
+    <div class="custom-modal-backdrop" v-if="showPreviewModal">
+      <div class="custom-modal-card preview-modal-card">
+        <header class="modal-header">
+          <h4><i class="pi pi-eye" /> Alıcı Önizlemesi</h4>
+          <button class="button icon-only ghost" type="button" @click="closePreviewModal">
+            <i class="pi pi-times" />
+          </button>
+        </header>
+        <div class="modal-body preview-modal-body">
+          <div class="buyer-preview-card">
+            <div class="preview-media">
+              <img
+                v-if="previewImageUrl"
+                :src="previewImageUrl"
+                :alt="product?.title || 'Ürün görseli'"
+                class="preview-image"
+              />
+              <div v-else class="preview-image-placeholder">
+                <i class="pi pi-image" />
+                <span>Görsel bulunmuyor</span>
+              </div>
+              <span class="preview-lot-chip font-mono">LOT #{{ auction?.lotNumber ?? '-' }}</span>
+              <span class="preview-type-chip">{{ formatAuctionType(auction?.auctionType) }}</span>
+            </div>
+            <div class="preview-content">
+              <h5 class="preview-title">{{ product?.title || auction?.productTitle || 'Bilinmeyen Ürün' }}</h5>
+              <div class="preview-price-row">
+                <div class="preview-price-block">
+                  <span class="preview-label">Açılış Fiyatı</span>
+                  <strong class="preview-price font-mono">{{ formatMoney(auction?.startPrice) }}</strong>
+                </div>
+                <div class="preview-price-block">
+                  <span class="preview-label">Min. Artış</span>
+                  <strong class="preview-increment font-mono">+{{ formatMoney(auction?.minIncrement) }}</strong>
+                </div>
+              </div>
+              <div class="preview-meta-list">
+                <div class="preview-meta-row">
+                  <span class="preview-label"><i class="pi pi-shield" /> Rezerv</span>
+                  <!-- Alıcı tarafında rezerv tutarı asla gösterilmez; yalnızca var/yok bilgisi -->
+                  <span :class="['preview-reserve-chip', auction?.reservePrice != null ? 'has-reserve' : 'no-reserve']">
+                    {{ auction?.reservePrice != null ? 'Rezerv var' : 'Rezerv yok' }}
+                  </span>
+                </div>
+                <div class="preview-meta-row">
+                  <span class="preview-label"><i class="pi pi-play-circle" /> Başlangıç</span>
+                  <span class="preview-meta-value font-mono">{{ formatDate(auction?.startTime) }}</span>
+                </div>
+                <div class="preview-meta-row">
+                  <span class="preview-label"><i class="pi pi-stop-circle" /> Bitiş</span>
+                  <span class="preview-meta-value font-mono">{{ formatDate(auction?.endTime) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="preview-note">
+            <i class="pi pi-info-circle" />
+            Bu önizleme, alıcının mobil uygulamada göreceği lot kartının yaklaşık bir temsilidir.
+          </p>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -473,6 +678,20 @@ const showCancelModal = ref(false);
 const cancelReason = ref('');
 const submittingCancel = ref(false);
 
+// Sonlandırma Modalı Kontrolleri (takılı/aktif lot için elle finalize)
+const showFinalizeModal = ref(false);
+const finalizeReason = ref('');
+const submittingFinalize = ref(false);
+
+// Yayınlama Modalı Kontrolleri
+const showPublishModal = ref(false);
+const submittingPublish = ref(false);
+// Yayınlama hataları (ör. geçmiş startTime) hero'daki banner alanında gösterilir
+const publishError = ref<string | null>(null);
+
+// Alıcı Önizleme Modalı Kontrolü
+const showPreviewModal = ref(false);
+
 // Geri Sayım Sayacı
 const timeLeftSeconds = ref(0);
 let timerInterval: any = null;
@@ -480,24 +699,38 @@ let timerInterval: any = null;
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
 
-  if (auction.value?.status !== 'ACTIVE') {
+  // PUBLISHED durumunda otomatik başlangıca (startTime), ACTIVE durumunda bitişe
+  // (endTime) geri sayılır; böylece zamanlanmış arka plan job'larının ne zaman
+  // tetikleneceği kullanıcıya görünür olur.
+  const status = auction.value?.status;
+  const targetTimeStr =
+    status === 'PUBLISHED'
+      ? auction.value?.startTime
+      : status === 'ACTIVE'
+        ? auction.value?.endTime
+        : null;
+
+  if (!targetTimeStr) {
     timeLeftSeconds.value = 0;
     return;
   }
 
-  const endTimeStr = auction.value?.endTime;
-  if (!endTimeStr) {
-    timeLeftSeconds.value = 0;
-    return;
-  }
-
-  const endMs = new Date(endTimeStr).getTime();
+  const targetMs = new Date(targetTimeStr).getTime();
+  // Sayfa açıldığında hedef zaman zaten geçmişse otomatik yenileme yapılmaz;
+  // aksi halde loadDetail -> startTimer -> loadDetail sonsuz döngüsü oluşurdu.
+  const startedWithTimeLeft = targetMs > Date.now();
   const update = () => {
     const now = Date.now();
-    const diff = Math.max(0, Math.ceil((endMs - now) / 1000));
+    const diff = Math.max(0, Math.ceil((targetMs - now) / 1000));
     timeLeftSeconds.value = diff;
     if (diff <= 0) {
       clearInterval(timerInterval);
+      // PUBLISHED geri sayımı ekran açıkken sıfırlandıysa durum tazelenir:
+      // zamanlanmış başlangıç job'ı çalıştıysa ACTIVE görünür, çalışmadıysa
+      // "başlangıç zamanı geçti" uyarısı devreye girer.
+      if (status === 'PUBLISHED' && startedWithTimeLeft) {
+        setTimeout(() => loadDetail(), 1500);
+      }
     }
   };
 
@@ -505,16 +738,99 @@ function startTimer() {
   timerInterval = setInterval(update, 1000);
 }
 
-const formattedTimeLeft = computed(() => {
-  const secs = timeLeftSeconds.value;
-  if (secs <= 0) return 'Bitti';
-  const hours = Math.floor(secs / 3600);
-  const minutes = Math.floor((secs % 3600) / 60);
-  const seconds = secs % 60;
+// Saniyeyi okunur geri sayım metnine çevirir; 24 saatten uzun sürelerde
+// (yayında bekleyen lotlarda startTime günler sonrası olabilir) gün de gösterilir.
+function formatDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return 'Bitti';
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
+  if (days > 0) return `${days} gün ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   return hours > 0
     ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
     : `${pad(minutes)}:${pad(seconds)}`;
+}
+
+const formattedTimeLeft = computed(() => formatDuration(timeLeftSeconds.value));
+
+// Start job'ı kaçtı mı? PUBLISHED olduğu halde startTime geçtiyse zamanlanmış
+// başlangıç job'ı büyük olasılıkla çalışmamış demektir (yalnızca frontend uyarısı).
+const startOverdue = computed(
+  () =>
+    auction.value?.status === 'PUBLISHED' &&
+    Boolean(auction.value?.startTime) &&
+    timeLeftSeconds.value <= 0,
+);
+
+type LifecycleBannerTone = 'info' | 'success' | 'warning' | 'live' | 'neutral' | 'danger';
+
+interface LifecycleBanner {
+  tone: LifecycleBannerTone;
+  icon: string;
+  text: string;
+}
+
+// Durum rozetinin altındaki açıklayıcı banner: her durumda kullanıcıya yaşam
+// döngüsünün neresinde olunduğunu ve otomatik geçişleri (start/end job) anlatır.
+const lifecycleBanner = computed<LifecycleBanner | null>(() => {
+  const current = auction.value;
+  if (!current?.status) return null;
+
+  switch (current.status) {
+    case 'DRAFT':
+      return {
+        tone: 'info',
+        icon: 'pi-info-circle',
+        text: `Taslak — müzayede henüz yayınlanmadı. Yayınlandığında ${formatDate(current.startTime)} tarihinde otomatik başlayacak.`,
+      };
+    case 'PUBLISHED':
+      if (startOverdue.value) {
+        return {
+          tone: 'warning',
+          icon: 'pi-exclamation-triangle',
+          text: 'Başlangıç zamanı geçti ama müzayede hâlâ başlamadı — sistem yöneticisine bildirin.',
+        };
+      }
+      return {
+        tone: 'success',
+        icon: 'pi-clock',
+        text: `Yayında — ${formatDate(current.startTime)} tarihinde OTOMATİK başlayacak (kalan: ${formattedTimeLeft.value}). Bitiş: ${formatDate(current.endTime)}.`,
+      };
+    case 'ACTIVE':
+      return {
+        tone: 'live',
+        icon: 'pi-bolt',
+        text: `Canlı — müzayede şu an aktif, bitişe kalan: ${formattedTimeLeft.value}. ${formatDate(current.endTime)} tarihinde otomatik sonlanacak.`,
+      };
+    case 'ENDED':
+      return {
+        tone: 'neutral',
+        icon: 'pi-flag',
+        text: `Müzayede ${formatDate(current.endTime)} itibarıyla sona erdi.`,
+      };
+    case 'COMPLETED':
+      return {
+        tone: 'neutral',
+        icon: 'pi-check-circle',
+        text: 'Müzayede tamamlandı — satış ve ödeme süreci sonuçlandı.',
+      };
+    case 'CANCELLED':
+      return {
+        tone: 'danger',
+        icon: 'pi-ban',
+        text: 'Müzayede iptal edildi.',
+      };
+    case 'FAILED':
+      return {
+        tone: 'neutral',
+        icon: 'pi-times-circle',
+        text: 'Müzayede satış gerçekleşmeden sonuçlandı.',
+      };
+    default:
+      return null;
+  }
 });
 
 const heroStatusClass = computed(() => {
@@ -528,16 +844,33 @@ const heroStatusClass = computed(() => {
 
 // Soket Entegrasyonu
 let activeSocket: any = null;
+let onSocketConnect: (() => void) | null = null;
 
 function setupSocketConnection() {
   cleanupSocketConnection();
   if (!props.id) return;
 
   activeSocket = getAuctionSocket();
-  activeSocket.emit('auction:join', { auctionId: props.id });
+
+  // (Re-)join on every 'connect': server-side room membership is lost across
+  // reconnects, so a one-off join would leave the view frozen after a drop.
+  onSocketConnect = () => {
+    activeSocket?.emit('auction:join', { auctionId: props.id });
+  };
+  activeSocket.on('connect', onSocketConnect);
+  if (activeSocket.connected) {
+    onSocketConnect();
+  }
 
   activeSocket.on('bid:new', (data: any) => {
     console.log('[Admin Socket] bid:new received for auction', data);
+    if (data.auctionId === props.id) {
+      loadDetail();
+    }
+  });
+
+  activeSocket.on('bid:withdrawn', (data: any) => {
+    console.log('[Admin Socket] bid:withdrawn received for auction', data);
     if (data.auctionId === props.id) {
       loadDetail();
     }
@@ -561,7 +894,12 @@ function setupSocketConnection() {
 function cleanupSocketConnection() {
   if (activeSocket) {
     activeSocket.emit('auction:leave', { auctionId: props.id });
+    if (onSocketConnect) {
+      activeSocket.off('connect', onSocketConnect);
+      onSocketConnect = null;
+    }
     activeSocket.off('bid:new');
+    activeSocket.off('bid:withdrawn');
     activeSocket.off('auction:extended');
     activeSocket.off('auction:ended');
     activeSocket = null;
@@ -625,6 +963,116 @@ async function submitCancel() {
   } finally {
     submittingCancel.value = false;
   }
+}
+
+// Satış Onayı: onay verilmeden kazanana ödeme penceresi açılmaz
+const submittingSaleApproval = ref(false);
+
+async function submitApproveSale() {
+  if (!props.id) return;
+  if (!window.confirm('Satış onaylansın mı? Kazanana ödeme penceresi (24 saat) açılacak ve ürün sepetine düşecek.')) {
+    return;
+  }
+  submittingSaleApproval.value = true;
+  try {
+    await adminApi.patch(`/admin/auctions/${props.id}/approve-sale`);
+    await loadDetail();
+  } catch (err) {
+    error.value = toApiMessage(err);
+  } finally {
+    submittingSaleApproval.value = false;
+  }
+}
+
+// Sonlandırma Modalı Fonksiyonları
+function openFinalizeModal() {
+  finalizeReason.value = '';
+  showFinalizeModal.value = true;
+}
+
+function closeFinalizeModal() {
+  showFinalizeModal.value = false;
+  finalizeReason.value = '';
+}
+
+async function submitFinalize() {
+  if (!props.id) return;
+  submittingFinalize.value = true;
+  try {
+    await adminApi.patch(`/admin/auctions/${props.id}/finalize`, {
+      reason: finalizeReason.value,
+    });
+    closeFinalizeModal();
+    await loadDetail();
+  } catch (err) {
+    error.value = toApiMessage(err);
+  } finally {
+    submittingFinalize.value = false;
+  }
+}
+
+// Yayınlama Modalı Fonksiyonları
+// Onay modalında ön-uyarı: geçmiş startTime backend doğrulamasınca reddedilebilir
+const publishStartTimeInPast = computed(() => {
+  const startTimeStr = auction.value?.startTime;
+  if (!startTimeStr) return false;
+  return new Date(startTimeStr).getTime() <= Date.now();
+});
+
+function openPublishModal() {
+  publishError.value = null;
+  showPublishModal.value = true;
+}
+
+function closePublishModal() {
+  showPublishModal.value = false;
+}
+
+async function submitPublish() {
+  if (!props.id) return;
+  submittingPublish.value = true;
+  try {
+    // Yayınlama auction modülündedir (@Controller('auctions')) — /admin prefix'i yok.
+    // Satıcı sahipliği gerektirir; admin hesabında backend hatası banner'da gösterilir.
+    await adminApi.patch(`/auctions/${props.id}/publish`);
+    publishError.value = null;
+    showPublishModal.value = false;
+    await loadDetail();
+  } catch (err) {
+    // Backend doğrulama hataları (ör. geçmiş startTime) banner alanında gösterilir
+    publishError.value = toApiMessage(err);
+    showPublishModal.value = false;
+  } finally {
+    submittingPublish.value = false;
+  }
+}
+
+// Alıcı Önizleme Modalı Fonksiyonları
+function openPreviewModal() {
+  showPreviewModal.value = true;
+}
+
+function closePreviewModal() {
+  showPreviewModal.value = false;
+}
+
+// Ürün görseli: admin detail payload'ında görsel alanı garanti değildir;
+// olası alan adları sırayla denenir, hiçbiri yoksa placeholder gösterilir.
+const previewImageUrl = computed<string | null>(() => {
+  const currentProduct = product.value;
+  if (!currentProduct) return null;
+  const firstImage = Array.isArray(currentProduct.images) ? currentProduct.images[0] : null;
+  const firstImageUrl = typeof firstImage === 'string' ? firstImage : firstImage?.url;
+  return firstImageUrl || currentProduct.imageUrl || currentProduct.coverImageUrl || null;
+});
+
+function formatAuctionType(auctionType: string | null | undefined): string {
+  const mapping: Record<string, string> = {
+    REALTIME: 'Canlı Müzayede',
+    TIMED: 'Süreli Müzayede',
+  };
+  // Admin detail payload'ında auctionType bulunmayabilir; jenerik etikete düşülür
+  return (auctionType && mapping[auctionType.toUpperCase()]) || 'Müzayede';
 }
 
 // Format Yardımcıları
@@ -1347,6 +1795,397 @@ onUnmounted(() => {
 
 .font-gold {
   color: #f59e0b;
+}
+
+/* Yaşam Döngüsü Açıklayıcı Banner (hero kartı içinde, durum rozetinin altında) */
+.lifecycle-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left-width: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.lifecycle-banner-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.lifecycle-banner-text {
+  margin: 0;
+  flex: 1;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.lifecycle-banner.info {
+  border-left-color: #60a5fa;
+}
+.lifecycle-banner.info .lifecycle-banner-icon {
+  color: #60a5fa;
+}
+
+.lifecycle-banner.success {
+  border-left-color: #34d399;
+}
+.lifecycle-banner.success .lifecycle-banner-icon {
+  color: #34d399;
+}
+
+.lifecycle-banner.warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.45);
+  border-left-color: #f59e0b;
+}
+.lifecycle-banner.warning .lifecycle-banner-icon {
+  color: #fbbf24;
+}
+
+.lifecycle-banner.live {
+  border-left-color: #3b82f6;
+}
+.lifecycle-banner.live .lifecycle-banner-icon {
+  color: #3b82f6;
+}
+
+.lifecycle-banner.neutral {
+  border-left-color: rgba(255, 255, 255, 0.35);
+}
+.lifecycle-banner.neutral .lifecycle-banner-icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lifecycle-banner.danger {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.45);
+  border-left-color: #ef4444;
+}
+.lifecycle-banner.danger .lifecycle-banner-icon {
+  color: #f87171;
+}
+
+.lifecycle-publish-button {
+  flex-shrink: 0;
+}
+
+/* Yayınlama Onay Modalı Özeti */
+.publish-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  margin-bottom: 1.5rem;
+}
+
+.publish-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.publish-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.publish-summary-value {
+  font-size: 0.9rem;
+  color: var(--text-strong);
+}
+
+/* Alıcı Önizleme Kartı: mobil alıcı görünümünün koyu kart temsili */
+.preview-modal-card {
+  width: 430px;
+}
+
+.preview-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.buyer-preview-card {
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.preview-media {
+  position: relative;
+  height: 190px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.preview-image-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+}
+
+.preview-image-placeholder i {
+  font-size: 2.25rem;
+}
+
+.preview-lot-chip {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  padding: 0.3rem 0.7rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.preview-type-chip {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(37, 99, 235, 0.85);
+  padding: 0.3rem 0.7rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.preview-content {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.preview-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.preview-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-price-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.preview-price-block:last-child {
+  text-align: right;
+}
+
+.preview-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+}
+
+.preview-price {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #3b82f6;
+}
+
+.preview-increment {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.preview-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.preview-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.preview-meta-value {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.preview-reserve-chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.preview-reserve-chip.has-reserve {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.preview-reserve-chip.no-reserve {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.preview-note {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Modal iskeleti: AuctionEventDetailView ile aynı görünüm. Scoped stiller
+   dosyalar arasında sızmadığı için burada da tanımlanması gerekir (bu tanımlar
+   olmadan mevcut iptal modalı da stilsiz kalıyordu). */
+.custom-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.custom-modal-card {
+  width: 500px;
+  max-width: 92%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15);
+  border: 1px solid var(--border-soft);
+}
+
+.modal-header {
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-strong);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-header .button.icon-only {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.modal-header .button.icon-only:hover {
+  color: var(--text-strong);
+}
+
+.modal-body {
+  padding: 1.75rem;
+}
+
+.modal-prompt {
+  font-size: 0.95rem;
+  color: var(--text-body);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.form-control {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text-strong);
+  padding: 0.85rem;
+  width: 100%;
+  font-size: 0.95rem;
+  resize: vertical;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.form-control:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 10px rgba(54, 95, 168, 0.15);
+}
+
+.modal-footer {
+  padding: 1.25rem 1.75rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--border-soft);
 }
 
 /* Modal Styling */

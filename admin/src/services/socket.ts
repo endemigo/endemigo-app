@@ -4,7 +4,16 @@ import { API_URL, getStoredAdminToken } from './api';
 let socket: Socket | null = null;
 
 export function getAuctionSocket(): Socket {
-  if (socket?.connected) return socket;
+  // Reuse the existing socket even while it is disconnected/mid-reconnect —
+  // minting a new one here would orphan the old manager (duplicate
+  // connections and duplicate listeners). If the manager has given up
+  // (not active) and we are not connected, kick it back to life.
+  if (socket) {
+    if (!socket.active && !socket.connected) {
+      socket.connect();
+    }
+    return socket;
+  }
 
   const token = getStoredAdminToken() || '';
 
@@ -12,7 +21,7 @@ export function getAuctionSocket(): Socket {
     transports: ['polling', 'websocket'],
     auth: { token },
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
   });
 

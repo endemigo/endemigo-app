@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="toolbar mobile-toolbar">
-        <button class="button" type="button" @click="loadDraft">
+        <button class="button" type="button" @click="confirmReload">
           <i class="pi pi-refresh" aria-hidden="true" />
           Yenile
         </button>
@@ -20,7 +20,7 @@
           <i class="pi pi-th-large" aria-hidden="true" />
           Alan Seç
         </button>
-        <button class="button primary" type="button" :disabled="loading || !draft" @click="openReason('save')">
+        <button class="button primary" type="button" :disabled="loading || !draft" @click="saveDraft()">
           <i class="pi pi-save" aria-hidden="true" />
           Taslağı Kaydet
         </button>
@@ -1029,7 +1029,7 @@
               </template>
               <label class="field">
                 <span>CTA Rota (Route)</span>
-                <input v-model.trim="selectedHeroBanner.cta.route" class="input" type="text" />
+                <input v-model.trim="selectedHeroBanner.cta.route" class="input" type="text" list="mobile-route-options" />
               </label>
               <label class="field">
                 <span>Görsel URL</span>
@@ -1050,7 +1050,7 @@
               </template>
               <label class="field">
                 <span>CTA Rota (Route)</span>
-                <input v-model.trim="selectedEntryTile.cta.route" class="input" type="text" />
+                <input v-model.trim="selectedEntryTile.cta.route" class="input" type="text" list="mobile-route-options" />
               </label>
             </template>
 
@@ -1065,7 +1065,7 @@
               </template>
               <label class="field">
                 <span>Tümünü Gör Rota (Route)</span>
-                <input v-model.trim="selectedHomeSection.route" class="input" type="text" />
+                <input v-model.trim="selectedHomeSection.route" class="input" type="text" list="mobile-route-options" />
               </label>
             </template>
 
@@ -1084,7 +1084,7 @@
               </template>
               <label class="field">
                 <span>CTA Rota (Route)</span>
-                <input v-model.trim="selectedPromoBanner.cta.route" class="input" type="text" />
+                <input v-model.trim="selectedPromoBanner.cta.route" class="input" type="text" list="mobile-route-options" />
               </label>
               <label class="field">
                 <span>Görsel URL</span>
@@ -1105,7 +1105,7 @@
               </template>
               <label class="field">
                 <span>CTA Rota (Route)</span>
-                <input v-model.trim="selectedTrustBlock.cta.route" class="input" type="text" />
+                <input v-model.trim="selectedTrustBlock.cta.route" class="input" type="text" list="mobile-route-options" />
               </label>
             </template>
 
@@ -1257,7 +1257,7 @@
                 </template>
                 <label class="field">
                   <span>CTA Rota (Route)</span>
-                  <input v-model.trim="selectedSurfaceSlot.cta.route" class="input" type="text" />
+                  <input v-model.trim="selectedSurfaceSlot.cta.route" class="input" type="text" list="mobile-route-options" />
                 </label>
                 <label class="field">
                   <span>Surface Anahtarı (Key)</span>
@@ -1372,7 +1372,7 @@
     <div v-if="showPublishWizard" class="modal-overlay" @click.self="showPublishWizard = false">
       <div class="modal-card">
         <header class="modal-header">
-          <h2>Yayınlama Sihirbazı (v{{ documentVersion }})</h2>
+          <h2>Yayınla (v{{ documentVersion }})</h2>
           <button class="button icon-only" type="button" @click="showPublishWizard = false">
             <i class="pi pi-times" aria-hidden="true" />
           </button>
@@ -1413,14 +1413,13 @@
           </section>
 
           <section class="publish-wizard-section">
-            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 8px;">Yayınlama Gerekçesi</h3>
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 8px;">Not (opsiyonel)</h3>
             <label class="field">
-              <textarea 
-                v-model="publishReason" 
-                class="textarea" 
-                placeholder="Bu yayının gerekçesini yazın (Örn: Haftasonu kampanyası manşeti güncellendi)" 
-                rows="3" 
-                required 
+              <textarea
+                v-model="publishReason"
+                class="textarea"
+                placeholder="İstersen kısa bir not bırak (Örn: Haftasonu kampanyası manşeti güncellendi)"
+                rows="2"
                 style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font-family: inherit; resize: vertical;"
               />
             </label>
@@ -1429,14 +1428,14 @@
 
         <footer class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
           <button class="button" type="button" @click="showPublishWizard = false">Vazgeç</button>
-          <button 
-            class="button primary" 
-            type="button" 
-            :disabled="loading || !publishReason.trim() || !canPublish" 
+          <button
+            class="button primary"
+            type="button"
+            :disabled="loading || !canPublish"
             @click="confirmPublishWizard"
           >
             <i class="pi pi-send" aria-hidden="true" />
-            Yayına Al
+            {{ hasUnsavedChanges ? 'Kaydet ve Yayına Al' : 'Yayına Al' }}
           </button>
         </footer>
       </div>
@@ -1463,7 +1462,7 @@
               </div>
               <div class="timeline-content">
                 <strong style="font-size: 0.95rem; color: #1e293b;">{{ item.reason || 'Gerekçe girilmedi' }}</strong>
-                <p class="actor" style="font-size: 0.85rem; color: #64748b; margin: 4px 0 2px;">Yönetici: {{ item.actorAdminId }} | Sürüm: v{{ item.metadata?.version ?? '?' }}</p>
+                <p class="actor" style="font-size: 0.85rem; color: #64748b; margin: 4px 0 2px;">Yönetici: {{ item.actorDisplayName || item.actorAdminId }} | Sürüm: v{{ item.metadata?.version ?? '?' }}</p>
                 <p class="target" style="font-size: 0.8rem; color: #94a3b8; margin: 0;">Hedef: {{ item.targetId }}</p>
               </div>
             </div>
@@ -1485,14 +1484,11 @@
       </button>
     </div>
 
-    <AdminActionDrawer
-      :open="reasonDrawerOpen"
-      :title="pendingAction === 'publish' ? 'Yayinla' : 'Taslagi Kaydet'"
-      :fields="[]"
-      :confirm-label="pendingAction === 'publish' ? 'Yayinla' : 'Kaydet'"
-      @close="closeReasonDrawer"
-      @confirm="submitReasonedAction"
-    />
+    <datalist id="mobile-route-options">
+      <option v-for="option in MOBILE_ROUTE_OPTIONS" :key="option.value" :value="option.value">
+        {{ option.label }}
+      </option>
+    </datalist>
   </section>
 </template>
 
@@ -1500,9 +1496,8 @@
 import axios from 'axios';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
-import AdminActionDrawer, { type DrawerConfirmPayload } from '../../components/AdminActionDrawer.vue';
 import LocalizedField from '../../components/LocalizedField.vue';
-import { adminApi, toApiMessage } from '../../services/api';
+import { adminApi, API_URL, toApiMessage } from '../../services/api';
 
 interface LocalizedText {
   tr: string;
@@ -1726,6 +1721,7 @@ interface AuditLogItem {
   targetId: string;
   reason: string | null;
   actorAdminId: string;
+  actorDisplayName?: string | null;
   createdAt: string;
   metadata?: {
     version?: number;
@@ -1747,7 +1743,6 @@ interface NavigatorGroup {
   items: NavigatorItem[];
 }
 
-type PendingAction = 'save' | 'publish' | null;
 type PreviewLocale = 'tr' | 'en';
 type DevicePreset = 'iphone' | 'android';
 type DrawerTab = 'content' | 'visibility' | 'order';
@@ -1794,8 +1789,6 @@ const showWorkspaceLauncher = ref(true);
 const showAddMenu = ref(false);
 const hoverAddMenuOrder = ref<number | null>(null);
 const currentWorkspaceArea = ref<WorkspaceArea | null>(null);
-const reasonDrawerOpen = ref(false);
-const pendingAction = ref<PendingAction>(null);
 const route = useRoute();
 const documentVersion = ref(1);
 const baselineSnapshot = ref('');
@@ -2030,6 +2023,22 @@ const PREVIEW_SECTION_SLOTS: Record<string, string[]> = {
   'trust-hub': ['Onay', 'Orijin', 'Guven'],
 };
 
+// Mobil uygulamadaki gerçek ekran rotaları — route alanlarında öneri olarak sunulur.
+const MOBILE_ROUTE_OPTIONS = [
+  { value: '/home', label: 'Ana Sayfa' },
+  { value: '/buy-now', label: 'Hemen Al' },
+  { value: '/(tabs)/categories', label: 'Kategoriler' },
+  { value: '/(tabs)/auctions', label: 'Müzayedeler' },
+  { value: '/(tabs)/explore', label: 'Keşfet' },
+  { value: '/(tabs)/membership', label: 'Üyelik / Abonelik' },
+  { value: '/(tabs)/become-seller', label: 'Satıcı Ol' },
+  { value: '/(tabs)/profile', label: 'Profil' },
+  { value: '/(tabs)/notifications', label: 'Bildirimler' },
+  { value: '/(tabs)/orders', label: 'Siparişler' },
+  { value: '/(tabs)/favoriler', label: 'Favoriler' },
+  { value: '/(tabs)/settings', label: 'Ayarlar' },
+];
+
 const SURFACE_OPTIONS = [
   'HOME',
   'LISTING_CREATE',
@@ -2064,17 +2073,18 @@ const DEFAULT_HOME_SURFACE_SLOTS = [
   { id: 'home-search-bar', order: 1, title: 'Arama Barı' },
   { id: 'home-hero-banners', order: 2, title: 'Hero Banner' },
   { id: 'home-entry-tiles', order: 3, title: 'Giriş Kartları' },
-  { id: 'home-listings', order: 4, title: 'İlanlar Alanı' },
-  { id: 'home-recently-viewed', order: 5, title: 'Son Gezdiklerim' },
-  { id: 'home-categories', order: 6, title: 'Kategoriler' },
-  { id: 'home-category-products', order: 7, title: 'Kategori Ürünleri' },
-  { id: 'home-discounted-products', order: 8, title: 'İndirimli Ürünler' },
-  { id: 'home-most-liked-products', order: 9, title: 'En Çok Beğenilenler' },
-  { id: 'home-trust-bar', order: 10, title: 'Güven Barı' },
-  { id: 'home-campaigns', order: 11, title: 'Kampanyalar' },
-  { id: 'home-blog', order: 12, title: 'Blog' },
-  { id: 'home-trust-hub', order: 13, title: 'Güven Merkezi' },
-  { id: 'home-quick-tab-bar', order: 14, title: 'Hızlı Sekme Çubuğu' },
+  { id: 'home-live-auctions', order: 4, title: 'Canlı Müzayedeler' },
+  { id: 'home-listings', order: 5, title: 'İlanlar Alanı' },
+  { id: 'home-recently-viewed', order: 6, title: 'Son Gezdiklerim' },
+  { id: 'home-categories', order: 7, title: 'Kategoriler' },
+  { id: 'home-category-products', order: 8, title: 'Kategori Ürünleri' },
+  { id: 'home-discounted-products', order: 9, title: 'İndirimli Ürünler' },
+  { id: 'home-most-liked-products', order: 10, title: 'En Çok Beğenilenler' },
+  { id: 'home-trust-bar', order: 11, title: 'Güven Barı' },
+  { id: 'home-campaigns', order: 12, title: 'Kampanyalar' },
+  { id: 'home-blog', order: 13, title: 'Blog' },
+  { id: 'home-trust-hub', order: 14, title: 'Güven Merkezi' },
+  { id: 'home-quick-tab-bar', order: 15, title: 'Hızlı Sekme Çubuğu' },
 ] as const;
 
 const LISTING_CREATE_FIELD_KEY_SET = new Set<string>(
@@ -3262,7 +3272,7 @@ onBeforeUnmount(() => {
 function getFullUrl(url: string): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `http://localhost:3030${url}`;
+  return `${API_URL.replace(/\/$/, '')}${url}`;
 }
 
 function getBannerActiveImage(bannerId: string): string {
@@ -3364,6 +3374,18 @@ watch(showWorkspaceLauncher, (isOpen) => {
 });
 
 watch(
+  () => route.query.area,
+  (area) => {
+    if (!draft.value) return;
+    if (typeof area === 'string' && ['home', 'listing', 'membership', 'become-seller'].includes(area)) {
+      if (currentWorkspaceArea.value !== area) {
+        openWorkspaceArea(area as WorkspaceArea);
+      }
+    }
+  },
+);
+
+watch(
   () => selectedSurfaceSlot.value?.bannerId,
   () => {
     if (draft.value) {
@@ -3371,20 +3393,6 @@ watch(
     }
   }
 );
-
-function openReason(action: Exclude<PendingAction, null>) {
-  if (action === 'publish' && !canPublish.value) {
-    error.value = 'Pre-publish checklist tamamlanmadan yayinlama yapilamaz.';
-    return;
-  }
-  pendingAction.value = action;
-  reasonDrawerOpen.value = true;
-}
-
-function closeReasonDrawer() {
-  reasonDrawerOpen.value = false;
-  pendingAction.value = null;
-}
 
 async function loadAuditSummary() {
   try {
@@ -3440,28 +3448,28 @@ async function loadDraft() {
   }
 }
 
-async function submitReasonedAction(payload: DrawerConfirmPayload) {
-  if (!draft.value || !pendingAction.value) {
-    return;
+async function saveDraft(options: { reload?: boolean } = {}): Promise<boolean> {
+  if (!draft.value) {
+    return false;
   }
 
+  loading.value = true;
+  error.value = null;
+
   try {
-    if (pendingAction.value === 'save') {
-      await adminApi.patch('/admin/mobile-config/draft', {
-        version: documentVersion.value,
-        draft: draft.value,
-        reason: payload.reason,
-      });
-    } else {
-      await adminApi.post('/admin/mobile-config/publish', {
-        version: documentVersion.value,
-        reason: payload.reason,
-      });
-    }
+    await adminApi.patch('/admin/mobile-config/draft', {
+      version: documentVersion.value,
+      draft: draft.value,
+    });
 
     validationIssues.value = [];
-    closeReasonDrawer();
-    await loadDraft();
+    if (options.reload === false) {
+      documentVersion.value += 1;
+      baselineSnapshot.value = JSON.stringify(draft.value);
+    } else {
+      await loadDraft();
+    }
+    return true;
   } catch (actionError) {
     if (axios.isAxiosError<any>(actionError)) {
       const data = actionError.response?.data;
@@ -3477,7 +3485,7 @@ async function submitReasonedAction(payload: DrawerConfirmPayload) {
         const serverVersion = Number(currentVersion ?? documentVersion.value);
         documentVersion.value = Number.isFinite(serverVersion) ? serverVersion : documentVersion.value;
         error.value = 'Bu taslak baska bir yonetici tarafindan guncellenmis. Lutfen Yenile ile son surumu al.';
-        return;
+        return false;
       }
       if (code === 'VALIDATION_ERROR') {
         const issues = parseValidationIssues(errors);
@@ -3485,21 +3493,31 @@ async function submitReasonedAction(payload: DrawerConfirmPayload) {
         error.value = issues.length
           ? `Doğrulama hatası: ${issues[0].message}`
           : (errObj.message || toApiMessage(actionError));
-        return;
+        return false;
       }
     }
     error.value = toApiMessage(actionError);
+    return false;
+  } finally {
+    loading.value = false;
   }
 }
 
 async function confirmPublishWizard() {
-  if (!publishReason.value.trim()) return;
   loading.value = true;
   error.value = null;
   try {
+    if (hasUnsavedChanges.value) {
+      const saved = await saveDraft({ reload: false });
+      if (!saved) {
+        return;
+      }
+      loading.value = true;
+    }
+
     await adminApi.post('/admin/mobile-config/publish', {
       version: documentVersion.value,
-      reason: publishReason.value.trim(),
+      reason: publishReason.value.trim() || undefined,
     });
     validationIssues.value = [];
     showPublishWizard.value = false;
@@ -3534,6 +3552,16 @@ async function confirmPublishWizard() {
   }
 }
 
+function confirmReload() {
+  if (hasUnsavedChanges.value) {
+    const shouldReload = window.confirm(
+      'Kaydedilmemiş değişiklikler var. Yenilersen bu değişiklikler kaybolur. Devam edilsin mi?',
+    );
+    if (!shouldReload) return;
+  }
+  void loadDraft();
+}
+
 function handleBeforeUnload(event: BeforeUnloadEvent) {
   if (!hasUnsavedChanges.value) return;
   event.preventDefault();
@@ -3562,7 +3590,12 @@ async function loadBannersList() {
 
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload);
-  void loadDraft();
+  void loadDraft().then(() => {
+    const area = typeof route.query.area === 'string' ? route.query.area : null;
+    if (area && ['home', 'listing', 'membership', 'become-seller'].includes(area)) {
+      openWorkspaceArea(area as WorkspaceArea);
+    }
+  });
   void loadCategories();
   void loadBannersList();
 });

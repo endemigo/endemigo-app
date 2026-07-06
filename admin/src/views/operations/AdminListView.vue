@@ -487,6 +487,13 @@ const productFields = (row: Record<string, unknown> | null): DrawerField[] => {
       value: toBooleanString(row?.askPriceEnabled),
       options: yesNoOptions,
     },
+    {
+      key: 'askQuestionEnabled',
+      label: 'Soru sor aktif mi?',
+      type: 'select',
+      value: toBooleanString(row?.askQuestionEnabled),
+      options: yesNoOptions,
+    },
     { key: 'shippingProvince', label: 'Teslimat İl', value: getString(row, 'shippingProvince') },
     { key: 'shippingDistrict', label: 'Teslimat İlçe', value: getString(row, 'shippingDistrict') },
     { key: 'shippingAddress', label: 'Teslimat Adresi', type: 'textarea', value: getString(row, 'shippingAddress') },
@@ -845,6 +852,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
     columns: [
       { key: 'buyerId', label: 'Alıcı', format: 'id' },
       { key: 'sellerId', label: 'Satıcı', format: 'id' },
+      { key: 'source', label: 'Kaynak', format: 'status' },
       { key: 'status', label: 'Durum', format: 'status' },
       { key: 'amount', label: 'Tutar', format: 'money' },
     ],

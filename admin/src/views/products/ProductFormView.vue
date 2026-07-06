@@ -38,19 +38,43 @@
           </div>
 
           <div class="owner-grid">
-            <div v-if="!isSellerOnly" class="field">
-              <span>Satıcı *</span>
-              <div 
-                class="brand-select-trigger" 
-                :class="{ empty: !selectedSellerLabel }"
+            <div v-if="!isSellerOnly" ref="sellerFieldRef" class="field">
+              <span>Satıcı <b class="required-mark">*</b></span>
+              <div
+                class="brand-select-trigger"
+                :class="{ empty: !selectedSellerLabel, 'has-error': Boolean(fieldErrors.sellerId) }"
                 @click="openSellerModal"
               >
                 <span>{{ selectedSellerLabel || 'Satıcı Seç' }}</span>
                 <i v-if="selectedSellerLabel" class="pi pi-pencil edit-icon" />
               </div>
+              <small v-if="fieldErrors.sellerId" class="field-error">{{ fieldErrors.sellerId }}</small>
             </div>
-            <label class="field"><span>Ürün Adı *</span><input v-model="form.title" class="input" /></label>
-            <label class="field"><span>Satış Fiyatı (₺) *</span><input v-model="form.price" class="input" type="number" min="0" step="0.01" /></label>
+            <label class="field">
+              <span>Ürün Adı <b class="required-mark">*</b></span>
+              <input
+                ref="titleInputRef"
+                v-model="form.title"
+                class="input"
+                :class="{ 'has-error': Boolean(fieldErrors.title) }"
+                @blur="validateField('title')"
+              />
+              <small v-if="fieldErrors.title" class="field-error">{{ fieldErrors.title }}</small>
+            </label>
+            <label class="field">
+              <span>Satış Fiyatı (₺) <b class="required-mark">*</b></span>
+              <input
+                ref="priceInputRef"
+                v-model="form.price"
+                class="input"
+                :class="{ 'has-error': Boolean(fieldErrors.price) }"
+                type="number"
+                min="0"
+                step="0.01"
+                @blur="validateField('price')"
+              />
+              <small v-if="fieldErrors.price" class="field-error">{{ fieldErrors.price }}</small>
+            </label>
             <label class="field"><span>Endemigo Stok</span><input v-model="form.stockQuantity" class="input" type="number" min="0" /></label>
             <label class="field">
               <span>Ürün Durumu</span>
@@ -102,6 +126,15 @@
               <label class="field">
                 <span>Kargo Bedava mı?</span>
                 <select v-model="form.freeShipping" class="select"><option value="false">Hayır</option><option value="true">Evet</option></select>
+              </label>
+              <label class="field">
+                <span>Fiyat Sor Aktif mi?</span>
+                <select v-model="form.askPriceEnabled" class="select"><option value="false">Hayır</option><option value="true">Evet</option></select>
+              </label>
+              <label class="field"><span>Fiyat Sor Min Tutar (₺)</span><input v-model="form.askPriceMinAmount" class="input" type="number" min="0" step="0.01" /></label>
+              <label class="field">
+                <span>Soru Sor Aktif mi?</span>
+                <select v-model="form.askQuestionEnabled" class="select"><option value="false">Hayır</option><option value="true">Evet</option></select>
               </label>
             </div>
 
@@ -322,6 +355,39 @@
         </template>
 
         <template v-else-if="activeTab === 'category'">
+          <!-- Hızlı kategori ekleme: global taksonomi olduğu için yalnızca admin rollerine
+               açık (backend POST /admin/categories da satıcı rolünü kabul etmez). -->
+          <div v-if="!isSellerOnly" class="field">
+            <span>Hızlı Kategori Ekle</span>
+            <div class="brand-quick-create">
+              <input
+                v-model.trim="newCategoryName"
+                class="input"
+                placeholder="Yeni kategori adı..."
+                @keyup.enter="createCategoryInline"
+              />
+              <select v-model="newCategoryParentId" class="input">
+                <option value="">Üst kategori yok (kök)</option>
+                <option
+                  v-for="option in categoryParentOptions"
+                  :key="option.id"
+                  :value="option.id"
+                >
+                  {{ (option.depth > 0 ? '— '.repeat(option.depth) : '') + option.label }}
+                </option>
+              </select>
+              <button
+                class="button primary tiny"
+                type="button"
+                :disabled="creatingCategory || newCategoryName.length === 0"
+                @click="createCategoryInline"
+              >
+                {{ creatingCategory ? 'Ekleniyor...' : 'Ekle' }}
+              </button>
+            </div>
+            <small v-if="categoryCreateError" class="field-error">{{ categoryCreateError }}</small>
+          </div>
+
           <div class="field">
             <span>Kategoriler (çoklu seçim)</span>
             <div class="category-grid">
@@ -526,6 +592,27 @@
               />
             </label>
 
+            <div class="field">
+              <span>Hızlı Marka Ekle</span>
+              <div class="brand-quick-create">
+                <input
+                  v-model.trim="newBrandName"
+                  class="input"
+                  placeholder="Yeni marka adı..."
+                  @keyup.enter="createBrandInline"
+                />
+                <button
+                  class="button primary tiny"
+                  type="button"
+                  :disabled="creatingBrand || newBrandName.length === 0"
+                  @click="createBrandInline"
+                >
+                  {{ creatingBrand ? 'Ekleniyor...' : 'Ekle' }}
+                </button>
+              </div>
+              <small v-if="brandCreateError" class="field-error">{{ brandCreateError }}</small>
+            </div>
+
             <div class="seller-list">
               <article v-for="brand in filteredBrands" :key="brand.id" class="seller-item">
                 <div class="seller-meta">
@@ -539,13 +626,30 @@
           </div>
         </section>
       </div>
+
+      <div v-if="successState" class="seller-modal-backdrop" role="presentation">
+        <section class="seller-modal success-modal" role="dialog" aria-modal="true" aria-label="Ürün kaydedildi">
+          <header class="seller-modal-header">
+            <strong>Ürün kaydedildi</strong>
+          </header>
+          <div class="seller-modal-body">
+            <p class="success-product-title">{{ successState.title }}</p>
+            <p class="muted">Şimdi ne yapmak istersiniz?</p>
+            <div class="success-actions">
+              <button class="button ghost" type="button" @click="goToProductList">Listeye Dön</button>
+              <button class="button ghost" type="button" @click="startNewProduct">Yeni Ürün Ekle</button>
+              <button v-if="!isEdit" class="button primary" type="button" @click="goToAuctionCreate">Müzayedeye Ekle</button>
+            </div>
+          </div>
+        </section>
+      </div>
     </Teleport>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { onBeforeRouteLeave, useRouter, useRoute } from 'vue-router';
 import { useAdminAuthStore } from '../../stores/adminAuth';
 import { adminApi, toApiMessage, type ApiEnvelope } from '../../services/api';
 import { normalizeMoneyScale, parseTrMoneyInput } from '../../../../shared-types/utils/money';
@@ -568,6 +672,19 @@ interface ProductDetailResponse extends ApiEnvelope {
 
 interface UploadImageResponse extends ApiEnvelope {
   url: string;
+}
+
+interface AdminProductSaveResponse extends ApiEnvelope {
+  product?: {
+    id?: string;
+  };
+}
+
+interface AdminBrandCreateResponse extends ApiEnvelope {
+  brand?: {
+    id?: string;
+    name?: string;
+  };
 }
 
 interface SellerListResponse extends ApiEnvelope {
@@ -617,6 +734,7 @@ interface VariantListResponse {
     id: string;
     kind: 'COLOR' | 'SIZE' | 'NUMBER' | 'OPTION' | 'VARIATION';
     nameTr: string;
+    nameEn?: string | null;
     status: 'ACTIVE' | 'PASSIVE';
     swatchHex: string | null;
   }>;
@@ -678,6 +796,7 @@ interface ProductAdminForm {
   wholesalePrice: string;
   askPriceMinAmount: string;
   askPriceEnabled: string;
+  askQuestionEnabled: string;
   titleEn: string;
   descriptionEn: string;
   storyEn: string;
@@ -767,6 +886,28 @@ const certificateImageList = ref<string[]>([]);
 const brandModalOpen = ref(false);
 const brandSearch = ref('');
 const brandRows = ref<Array<{ id: string; name: string }>>([]);
+const newBrandName = ref('');
+const creatingBrand = ref(false);
+const brandCreateError = ref<string | null>(null);
+
+// Zorunlu alanlar için inline validasyon durumu (blur + submit anında dolar).
+type RequiredField = 'sellerId' | 'title' | 'price';
+const fieldErrors = reactive<Record<RequiredField, string>>({
+  sellerId: '',
+  title: '',
+  price: '',
+});
+const sellerFieldRef = ref<HTMLElement | null>(null);
+const titleInputRef = ref<HTMLInputElement | null>(null);
+const priceInputRef = ref<HTMLInputElement | null>(null);
+
+// Kayıt sonrası başarı modalı; null iken modal kapalıdır.
+const successState = ref<{ productId: string; title: string } | null>(null);
+
+// Kirli form takibi: baseline, yükleme bittikten sonra alınan JSON anlık görüntüsüdür.
+const baselineSnapshot = ref('');
+// Başarılı kayıt/istekli çıkışlarda route-leave onayını atlamak için.
+const skipLeaveGuard = ref(false);
 
 const filteredBrands = computed(() => {
   const q = brandSearch.value.trim().toLowerCase();
@@ -807,6 +948,33 @@ function closeBrandModal(): void {
 function selectBrand(brand: { id: string; name: string }): void {
   form.brand = brand.name;
   closeBrandModal();
+}
+
+// Hızlı marka oluşturma: mevcut POST /admin/brands endpoint'i
+// { reason, metadata: { name } } gövdesini bekler ve { brand } döner.
+async function createBrandInline(): Promise<void> {
+  const name = newBrandName.value.trim();
+  if (!name || creatingBrand.value) return;
+
+  creatingBrand.value = true;
+  brandCreateError.value = null;
+  try {
+    const response = await adminApi.post<AdminBrandCreateResponse>('/admin/brands', {
+      reason: 'Ürün formundan hızlı marka oluşturma',
+      metadata: { name },
+    });
+    const created = {
+      id: String(response.data.brand?.id ?? ''),
+      name: String(response.data.brand?.name ?? name),
+    };
+    brandRows.value = [created, ...brandRows.value];
+    newBrandName.value = '';
+    selectBrand(created);
+  } catch (createError) {
+    brandCreateError.value = toApiMessage(createError);
+  } finally {
+    creatingBrand.value = false;
+  }
 }
 
 const sellerModalOpen = ref(false);
@@ -894,7 +1062,7 @@ const shippingDistrictOptions = computed(() => {
     .map((item) => item.name);
 });
 
-const statusOptions = [
+const FULL_STATUS_OPTIONS = [
   { label: 'Taslak', value: 'DRAFT' },
   { label: 'İnceleme', value: 'PENDING_REVIEW' },
   { label: 'Aktif', value: 'ACTIVE' },
@@ -904,6 +1072,24 @@ const statusOptions = [
   { label: 'Arşiv', value: 'ARCHIVED' },
   { label: 'Askıda', value: 'SUSPENDED' },
 ];
+// Sadece satıcı rolü olan kullanıcı ürünü doğrudan ACTIVE vb. yapamaz;
+// yalnızca taslak veya incelemeye gönderme seçebilir (backend de ayrıca doğrular).
+const SELLER_ALLOWED_STATUS_VALUES = ['DRAFT', 'PENDING_REVIEW'];
+const statusOptions = computed(() => {
+  if (!isSellerOnly.value) return FULL_STATUS_OPTIONS;
+
+  const allowed = FULL_STATUS_OPTIONS.filter((option) =>
+    SELLER_ALLOWED_STATUS_VALUES.includes(option.value),
+  );
+  // Düzenleme modunda ürün zaten kısıtlı liste dışında bir durumdaysa (örn. ACTIVE),
+  // mevcut değeri listede tutarak select'in boş görünmesini ve sessiz durum
+  // değişikliğini engelliyoruz.
+  if (form.status && !allowed.some((option) => option.value === form.status)) {
+    const current = FULL_STATUS_OPTIONS.find((option) => option.value === form.status);
+    if (current) allowed.push(current);
+  }
+  return allowed;
+});
 const deliveryTemplateOptions = [
   'Seçiniz',
   'Yurtiçi Kargo 1-3 gün',
@@ -940,7 +1126,10 @@ const variationGroups = ref<VariationGroup[]>([
   { key: 'VARIATION', label: 'Varyasyon', options: [] },
 ]);
 
-const form = reactive<ProductAdminForm>({
+// Varsayılan form değerleri fabrikası: hem ilk kurulum hem de "Yeni Ürün Ekle"
+// sonrası sıfırlama aynı kaynaktan beslenir.
+function createDefaultForm(): ProductAdminForm {
+  return {
   sellerId: '',
   title: '',
   description: '',
@@ -974,6 +1163,7 @@ const form = reactive<ProductAdminForm>({
   wholesalePrice: '',
   askPriceMinAmount: '',
   askPriceEnabled: 'false',
+  askQuestionEnabled: 'false',
   titleEn: '',
   descriptionEn: '',
   storyEn: '',
@@ -1012,7 +1202,10 @@ const form = reactive<ProductAdminForm>({
   seoKeywords: '',
   productLinkEn: '',
   cargoNote: '',
-});
+  };
+}
+
+const form = reactive<ProductAdminForm>(createDefaultForm());
 
 const selectedCategoryIds = ref<string[]>([]);
 const selectedSalesMonths = ref<number[]>([]);
@@ -1058,6 +1251,43 @@ function flattenCategoryRows(nodes: CategoryNode[], depth: number): Array<{ id: 
     { id: node.id, label: node.label, depth },
     ...flattenCategoryRows(node.children, depth + 1),
   ]);
+}
+
+const newCategoryName = ref('');
+const newCategoryParentId = ref('');
+const creatingCategory = ref(false);
+const categoryCreateError = ref<string | null>(null);
+
+const categoryParentOptions = computed(() => flattenCategoryRows(categoryTree.value, 0));
+
+// Hızlı kategori oluşturma: mevcut POST /admin/categories endpoint'i
+// { reason, metadata: { name, parentId? } } gövdesini bekler ve { category } döner.
+async function createCategoryInline(): Promise<void> {
+  const name = newCategoryName.value.trim();
+  if (!name || creatingCategory.value) return;
+
+  creatingCategory.value = true;
+  categoryCreateError.value = null;
+  try {
+    const response = await adminApi.post<{ category?: { id?: unknown } }>('/admin/categories', {
+      reason: 'Ürün formundan hızlı kategori oluşturma',
+      metadata: {
+        name,
+        ...(newCategoryParentId.value ? { parentId: newCategoryParentId.value } : {}),
+      },
+    });
+    const createdId = String(response.data.category?.id ?? '');
+    await loadCategoriesFromDb();
+    if (createdId && !selectedCategoryIds.value.includes(createdId)) {
+      selectedCategoryIds.value = [...selectedCategoryIds.value, createdId];
+    }
+    newCategoryName.value = '';
+    newCategoryParentId.value = '';
+  } catch (createError) {
+    categoryCreateError.value = toApiMessage(createError);
+  } finally {
+    creatingCategory.value = false;
+  }
 }
 
 function resetVariationStateWithGroups(): void {
@@ -1202,6 +1432,8 @@ async function openSellerModal(): Promise<void> {
 
 function closeSellerModal(): void {
   sellerModalOpen.value = false;
+  // Modal kapanışı bu alanın "blur" anıdır; seçim yapılmadıysa hata görünür.
+  validateField('sellerId');
 }
 
 function mapSellerOption(raw: Record<string, unknown>): SellerOption {
@@ -1558,6 +1790,7 @@ async function loadProduct(): Promise<void> {
     form.retailPrice = toString(overview.retailPrice);
     form.askPriceMinAmount = toString(overview.askPriceMinAmount);
     form.askPriceEnabled = toString(overview.askPriceEnabled, 'false');
+    form.askQuestionEnabled = toString(overview.askQuestionEnabled, 'false');
     form.weight = toString(overview.weight);
     form.desiDomestic = toString(overview.desiDomestic, form.desiDomestic);
     form.desiInternational = toString(overview.desiInternational, form.desiInternational);
@@ -1783,9 +2016,245 @@ function buildAdminSnapshot(): Record<string, unknown> {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Inline validasyon (zorunlu alanlar: satıcı, ürün adı, satış fiyatı)
+// ---------------------------------------------------------------------------
+
+function validateField(field: RequiredField): boolean {
+  let message = '';
+  if (field === 'sellerId') {
+    // Satıcı rolündeki kullanıcı için sellerId'yi backend kendisi atar; alan gizlidir.
+    if (!isSellerOnly.value && !form.sellerId.trim()) {
+      message = 'Satıcı seçimi zorunludur.';
+    }
+  } else if (field === 'title') {
+    if (!form.title.trim()) {
+      message = 'Ürün adı zorunludur.';
+    }
+  } else if (field === 'price') {
+    if (!form.price.trim()) {
+      message = 'Satış fiyatı zorunludur.';
+    } else if (parseTrMoneyInput(form.price) === undefined) {
+      message = 'Geçerli bir fiyat giriniz.';
+    }
+  }
+  fieldErrors[field] = message;
+  return message.length === 0;
+}
+
+function validateRequiredFields(): boolean {
+  // Hepsini sırayla çalıştır ki tüm hatalar aynı anda görünsün (short-circuit yok).
+  const results = [validateField('sellerId'), validateField('title'), validateField('price')];
+  return results.every(Boolean);
+}
+
+// Başarısız submit'te ilk hatalı alanın bulunduğu sekmeye geç ve alana odaklan.
+// Zorunlu alanların tamamı 'general' sekmesindedir (hızlı modda da görünür).
+async function focusFirstInvalidField(): Promise<void> {
+  const fieldOrder: Array<{ field: RequiredField; element: () => HTMLElement | null }> = [
+    { field: 'sellerId', element: () => sellerFieldRef.value },
+    { field: 'title', element: () => titleInputRef.value },
+    { field: 'price', element: () => priceInputRef.value },
+  ];
+  const firstInvalid = fieldOrder.find((entry) => fieldErrors[entry.field]);
+  if (!firstInvalid) return;
+
+  activeTab.value = 'general';
+  await nextTick();
+  const element = firstInvalid.element();
+  element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (element instanceof HTMLInputElement) {
+    element.focus({ preventScroll: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kirli form takibi + localStorage taslak (sadece yeni ürün modu)
+// ---------------------------------------------------------------------------
+
+const DRAFT_STORAGE_KEY = 'product-form-draft-new';
+const DRAFT_SAVE_DEBOUNCE_MS = 800;
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+interface ProductFormDraft {
+  savedAt: string;
+  form: Partial<ProductAdminForm>;
+  selectedCategoryIds: string[];
+  selectedSalesMonths: number[];
+  selectedFeatures: string[];
+  selectedGeoTypes: string[];
+  selectedDeliveryCountries: string[];
+  variationState: Record<string, VariationValue>;
+  productImageList: string[];
+  certificateImageList: string[];
+  selectedSellerLabel: string;
+}
+
+// Formun serileştirilebilir tüm durumu; yüklenen görsellerin yalnızca URL'leri
+// tutulur, binary içerik hiçbir zaman bu anlık görüntüye girmez.
+function buildFormStateSnapshot(): Omit<ProductFormDraft, 'savedAt'> {
+  return {
+    form: { ...form },
+    selectedCategoryIds: [...selectedCategoryIds.value],
+    selectedSalesMonths: [...selectedSalesMonths.value],
+    selectedFeatures: [...selectedFeatures.value],
+    selectedGeoTypes: [...selectedGeoTypes.value],
+    selectedDeliveryCountries: [...selectedDeliveryCountries.value],
+    variationState: { ...variationState },
+    productImageList: [...productImageList.value],
+    certificateImageList: [...certificateImageList.value],
+    selectedSellerLabel: selectedSellerLabel.value,
+  };
+}
+
+const currentSnapshotJson = computed(() => JSON.stringify(buildFormStateSnapshot()));
+const isDirty = computed(
+  () => baselineSnapshot.value !== '' && currentSnapshotJson.value !== baselineSnapshot.value,
+);
+
+// Mevcut durumu "temiz" kabul et: kayıt sonrası ve ilk yükleme sonrası çağrılır.
+function markFormClean(): void {
+  baselineSnapshot.value = currentSnapshotJson.value;
+}
+
+function clearStoredDraft(): void {
+  window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+}
+
+function scheduleDraftSave(): void {
+  if (isEdit.value) return;
+  if (draftSaveTimer !== null) clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => {
+    draftSaveTimer = null;
+    // Kayıt tamamlandıysa veya form temizse taslak biriktirme.
+    if (successState.value || !isDirty.value) return;
+    const draft: ProductFormDraft = {
+      savedAt: new Date().toISOString(),
+      ...buildFormStateSnapshot(),
+    };
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // localStorage dolu/kapalı ise taslak kaydını sessizce atla.
+    }
+  }, DRAFT_SAVE_DEBOUNCE_MS);
+}
+
+function applyDraft(draft: ProductFormDraft): void {
+  if (draft.form && typeof draft.form === 'object') {
+    Object.assign(form, draft.form);
+  }
+  selectedCategoryIds.value = toStringArray(draft.selectedCategoryIds);
+  selectedSalesMonths.value = toNumberArray(draft.selectedSalesMonths);
+  selectedFeatures.value = toStringArray(draft.selectedFeatures);
+  selectedGeoTypes.value = toStringArray(draft.selectedGeoTypes);
+  selectedDeliveryCountries.value = toStringArray(draft.selectedDeliveryCountries);
+  selectedSellerLabel.value = toString(draft.selectedSellerLabel);
+  if (draft.variationState && typeof draft.variationState === 'object') {
+    Object.entries(draft.variationState).forEach(([key, value]) => {
+      if (value && typeof value === 'object' && key in variationState) {
+        variationState[key] = {
+          selected: Boolean(value.selected),
+          extraPrice: toString(value.extraPrice),
+          stock: toString(value.stock),
+        };
+      }
+    });
+  }
+  productImageList.value = toStringArray(draft.productImageList);
+  certificateImageList.value = toStringArray(draft.certificateImageList);
+  syncProductImageFields();
+  syncCertificateImageField();
+  syncDeliveryLocationsFromSelectedCountries();
+}
+
+// Yeni ürün modunda mount sırasında kayıtlı taslak varsa geri yükleme öner.
+function restoreDraftIfAvailable(): void {
+  if (isEdit.value) return;
+  const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+  if (!raw) return;
+
+  try {
+    const draft = JSON.parse(raw) as ProductFormDraft;
+    const shouldRestore = window.confirm('Kaydedilmemiş taslak bulundu — geri yüklensin mi?');
+    if (!shouldRestore) {
+      clearStoredDraft();
+      return;
+    }
+    applyDraft(draft);
+  } catch {
+    clearStoredDraft();
+  }
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent): void {
+  if (!isDirty.value || successState.value) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (skipLeaveGuard.value || successState.value || !isDirty.value) {
+    next();
+    return;
+  }
+  const shouldLeave = window.confirm(
+    'Kaydedilmemiş değişiklikler var. Sayfadan ayrılmak istediğinize emin misiniz?',
+  );
+  next(shouldLeave);
+});
+
+// ---------------------------------------------------------------------------
+// Kayıt sonrası başarı akışı
+// ---------------------------------------------------------------------------
+
+function goToProductList(): void {
+  skipLeaveGuard.value = true;
+  void router.push('/products');
+}
+
+function goToAuctionCreate(): void {
+  if (!successState.value?.productId) return;
+  skipLeaveGuard.value = true;
+  void router.push({ path: '/auctions/new', query: { productId: successState.value.productId } });
+}
+
+function startNewProduct(): void {
+  successState.value = null;
+  if (isEdit.value) {
+    // Düzenleme rotasındayız; temiz create formu için ilgili rotaya geç.
+    skipLeaveGuard.value = true;
+    void router.push('/products/new');
+    return;
+  }
+  resetFormForNewProduct();
+}
+
+function resetFormForNewProduct(): void {
+  Object.assign(form, createDefaultForm());
+  selectedCategoryIds.value = [];
+  selectedSalesMonths.value = [];
+  selectedFeatures.value = [];
+  selectedGeoTypes.value = [];
+  selectedDeliveryCountries.value = [];
+  selectedSellerLabel.value = '';
+  productImageList.value = [];
+  certificateImageList.value = [];
+  clearVariationSelections();
+  syncProductImageFields();
+  syncCertificateImageField();
+  fieldErrors.sellerId = '';
+  fieldErrors.title = '';
+  fieldErrors.price = '';
+  error.value = null;
+  activeTab.value = 'general';
+  markFormClean();
+}
+
 async function submit(): Promise<void> {
-  if ((!isSellerOnly.value && !form.sellerId.trim()) || !form.title.trim() || !form.price.trim()) {
-    error.value = 'Satıcı ID, Ürün Adı ve Fiyat zorunludur.';
+  error.value = null;
+  if (!validateRequiredFields()) {
+    await focusFirstInvalidField();
     return;
   }
 
@@ -1829,6 +2298,7 @@ async function submit(): Promise<void> {
       retailPrice: parseOptionalMoney(form.retailPrice),
       askPriceMinAmount: parseOptionalMoney(form.askPriceMinAmount),
       askPriceEnabled: form.askPriceEnabled === 'true',
+      askQuestionEnabled: form.askQuestionEnabled === 'true',
       weight: parseOptionalMoney(form.weight),
       deliveryTemplateDomestic: form.deliveryTemplateDomestic,
       deliveryTemplateInternational: form.deliveryTemplateInternational,
@@ -1850,12 +2320,26 @@ async function submit(): Promise<void> {
     : 'Admin ürün formu oluşturma';
 
   try {
+    let productId = '';
     if (isEdit.value && props.id) {
-      await adminApi.patch(`/admin/products/${props.id}`, { reason, metadata });
+      await adminApi.patch<AdminProductSaveResponse>(`/admin/products/${props.id}`, {
+        reason,
+        metadata,
+      });
+      productId = props.id;
     } else {
-      await adminApi.post('/admin/products', { reason, metadata });
+      // POST /admin/products yanıtı { code, message, product } döner; oluşturulan
+      // ürün id'si müzayede akışına aktarılmak üzere buradan okunur.
+      const response = await adminApi.post<AdminProductSaveResponse>('/admin/products', {
+        reason,
+        metadata,
+      });
+      productId = toString(response.data.product?.id);
     }
-    await router.push('/products');
+
+    clearStoredDraft();
+    markFormClean();
+    successState.value = { productId, title: form.title.trim() };
   } catch (saveError) {
     error.value = toApiMessage(saveError);
   } finally {
@@ -1864,6 +2348,7 @@ async function submit(): Promise<void> {
 }
 
 onMounted(async () => {
+  window.addEventListener('beforeunload', handleBeforeUnload);
   try {
     await Promise.all([
       loadCategoriesFromDb(),
@@ -1881,6 +2366,25 @@ onMounted(async () => {
     await loadProduct();
   } catch (loadError) {
     error.value = toApiMessage(loadError);
+  } finally {
+    // Temiz referans yükleme bittikten sonraki durumdur. Taslak geri yükleme
+    // baseline alındıktan SONRA çalışır; böylece taslaktan gelen içerik
+    // "kaydedilmemiş değişiklik" sayılır ve çıkış korumaları taslağı da kapsar.
+    markFormClean();
+    restoreDraftIfAvailable();
+  }
+});
+
+// Taslak otomatik kaydı: form durumu her değiştiğinde debounce ile yazılır.
+watch(currentSnapshotJson, () => {
+  scheduleDraftSave();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  if (draftSaveTimer !== null) {
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
   }
 });
 </script>
@@ -2343,6 +2847,49 @@ onMounted(async () => {
 
 .editor-like {
   min-height: 190px;
+}
+
+.required-mark {
+  color: var(--danger-500);
+}
+
+.field-error {
+  color: var(--danger-500);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.input.has-error,
+.brand-select-trigger.has-error {
+  border-color: var(--danger-500);
+}
+
+.brand-quick-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-quick-create .input {
+  flex: 1;
+}
+
+.success-modal {
+  width: min(480px, 100%);
+}
+
+.success-product-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #203a68;
+}
+
+.success-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 960px) {

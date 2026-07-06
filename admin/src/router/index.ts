@@ -127,10 +127,22 @@ const operationRoutes: RouteRecordRaw[] = [
     props: (route) => ({ id: String(route.params.id) }),
   },
   {
+    path: 'auction-registrations',
+    name: 'auction-registrations',
+    component: () => import('../views/operations/AuctionRegistrationsView.vue'),
+  },
+  {
     path: 'auctions',
     name: 'auctions',
     component: AdminListView,
     props: { resource: 'auctions', title: 'Müzayedeler' },
+  },
+  // 'auctions/new' rotası 'auctions/:id'den ÖNCE tanımlanmalı; aksi halde
+  // 'new' segmenti :id parametresi olarak yakalanır (bkz. products/new sıralaması).
+  {
+    path: 'auctions/new',
+    name: 'auctions-create',
+    component: () => import('../views/operations/AuctionFormView.vue'),
   },
   {
     path: 'auctions/:id',
@@ -327,6 +339,7 @@ router.beforeEach((to) => {
         'dashboard', 
         'products', 'products-create', 'products-edit', 'products-detail', 'bulk-import',
         'auction-events', 'create-auction-event', 'auction-events-detail',
+        'auctions-create',
         'orders', 'orders-detail', 'payouts', 'payouts-detail'
       ];
       if (to.name && !allowedSellerRoutes.includes(String(to.name))) {

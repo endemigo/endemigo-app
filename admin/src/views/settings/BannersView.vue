@@ -499,7 +499,7 @@ import AdminDataTable, {
   type AdminPagination,
   type AdminTableAction,
 } from '../../components/AdminDataTable.vue';
-import { adminApi, toApiMessage, type ApiListResponse } from '../../services/api';
+import { adminApi, API_URL, toApiMessage, type ApiListResponse } from '../../services/api';
 
 // Banners State
 const rows = ref<Record<string, unknown>[]>([]);
@@ -893,7 +893,7 @@ function getActionPlaceholder(type: string): string {
 
 function getFullUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `http://localhost:3030${url}`;
+  return `${API_URL.replace(/\/$/, '')}${url}`;
 }
 
 // Pure Vue lightweight Canvas-based Image Cropper logic
