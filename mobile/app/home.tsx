@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMobileConfig } from '../hooks/useMobileConfig';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../hooks/useProducts';
 import { Colors, Spacing } from '../constants/theme';
-import { SectionHeader, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, DynamicBannerWidget } from '../components/ui';
+import { SectionHeader, SectionErrorCard, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, DynamicBannerWidget } from '../components/ui';
 import { storage } from '../lib/storage';
 import { useAuthStore } from '../store/authStore';
 import { useRoleModeStore } from '../store/roleModeStore';
@@ -25,12 +25,16 @@ import { styles } from '../styles/tabs/index.styles';
 import {
   isAudienceVisible,
   resolveLocalizedText,
+  resolveMediaUrl,
   resolveMobileAudience,
   sortBlocksByOrder,
 } from '../utils/mobileConfig';
 import { getProductImageUri } from '../utils/productImages';
 import { formatCurrency } from '../utils/transactionFormatters';
 import { formatProductPrice } from '../utils/productPriceFormatter';
+import { useHomeAuctionEvents } from '../hooks/useAuctions';
+import type { AuctionEvent } from '../hooks/useAuctions';
+import { getEventLifeStatus, formatStartsIn } from '../utils/auctionEventStatus';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -56,6 +60,162 @@ const CATEGORY_ICONS: Record<string, { icon: string; color: string }> = {
 function getCategoryIcon(slug: string) {
   const k = slug?.toLowerCase().replace(/[- ]/g, '_');
   return CATEGORY_ICONS[k] || CATEGORY_ICONS.default;
+}
+
+// ─── Ana sayfa müzayede modülü ─────────────────────────────────
+// Canlı salon tam genişlik kartla öne çıkar; yaklaşanlar yatay şeritte.
+// Etkinlik yoksa modül kendini gizler (boş bölüm bırakmaz).
+function HomeLiveAuctionsSection({
+  t,
+  locale,
+  onSeeAll,
+  onOpenEvent,
+}: {
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  locale: string;
+  onSeeAll: () => void;
+  onOpenEvent: (id: string) => void;
+}) {
+  const { data: events } = useHomeAuctionEvents();
+  const now = Date.now();
+
+  const live = React.useMemo(
+    () => (events ?? []).filter((e) => getEventLifeStatus(e, now) === 'live'),
+    [events, now],
+  );
+  const upcoming = React.useMemo(
+    () =>
+      (events ?? [])
+        .filter((e) => getEventLifeStatus(e, now) === 'upcoming')
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .slice(0, 5),
+    [events, now],
+  );
+
+  if (live.length === 0 && upcoming.length === 0) return null;
+
+  const heroEvent: AuctionEvent | undefined = live[0];
+
+  return (
+    <View style={{ marginBottom: Spacing.lg }}>
+      <SectionHeader
+        title={t('home.liveAuctions', { defaultValue: 'Müzayedeler' })}
+        seeAllLabel={t('home.seeAll', { defaultValue: 'Tümünü Gör' })}
+        onSeeAll={onSeeAll}
+      />
+
+      {heroEvent ? (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => onOpenEvent(heroEvent.id)}
+          style={{
+            marginHorizontal: Spacing.base,
+            marginBottom: upcoming.length > 0 ? Spacing.sm : 0,
+            borderRadius: 16,
+            overflow: 'hidden',
+            backgroundColor: Colors.white,
+            borderWidth: 1,
+            borderColor: Colors.slate100,
+          }}
+        >
+          <View style={{ height: 120, backgroundColor: Colors.slate100 }}>
+            <Image
+              source={{ uri: heroEvent.coverImageUrl || `https://placehold.co/600x240/F8F9FA/0097D8?text=${encodeURIComponent(heroEvent.title)}` }}
+              style={{ width: '100%', height: '100%' }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                top: 10,
+                left: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                backgroundColor: Colors.error,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 999,
+              }}
+            >
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.white }} />
+              <Text style={{ color: Colors.white, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>
+                {t('auctions.live').toLocaleUpperCase('tr-TR')}
+              </Text>
+            </View>
+          </View>
+          <View style={{ padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.onSurface }} numberOfLines={1}>
+                {heroEvent.title}
+              </Text>
+              {heroEvent.lotCount !== undefined && (
+                <Text style={{ fontSize: 12, color: Colors.slate500, marginTop: 2 }}>
+                  {t('auctions.eventCount', { count: heroEvent.lotCount, defaultValue: `${heroEvent.lotCount} Lot` })}
+                  {' · '}
+                  {t('auctions.liveNow', { defaultValue: 'Şu an yayında' })}
+                </Text>
+              )}
+            </View>
+            <View
+              style={{
+                backgroundColor: Colors.primary,
+                borderRadius: 10,
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.sm,
+              }}
+            >
+              <Text style={{ color: Colors.white, fontSize: 13, fontWeight: '600' }}>
+                {t('auctions.enterRoom', { defaultValue: 'Salona Gir' })}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      ) : null}
+
+      {upcoming.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: Spacing.base, gap: Spacing.sm }}
+        >
+          {upcoming.map((event) => (
+            <TouchableOpacity
+              key={event.id}
+              activeOpacity={0.8}
+              onPress={() => onOpenEvent(event.id)}
+              style={{
+                width: 200,
+                borderRadius: 14,
+                overflow: 'hidden',
+                backgroundColor: Colors.white,
+                borderWidth: 1,
+                borderColor: Colors.slate100,
+              }}
+            >
+              <Image
+                source={{ uri: event.coverImageUrl || `https://placehold.co/400x160/F8F9FA/0097D8?text=%20` }}
+                style={{ width: '100%', height: 76, backgroundColor: Colors.slate100 }}
+              />
+              <View style={{ padding: Spacing.sm, gap: 2 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.onSurface }} numberOfLines={1}>
+                  {event.title}
+                </Text>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>
+                  <Ionicons name="time-outline" size={11} color={Colors.primary} />
+                  {' '}{formatStartsIn(new Date(event.startTime).getTime(), now, locale, t)}
+                </Text>
+                {event.lotCount !== undefined && (
+                  <Text style={{ fontSize: 11, color: Colors.slate500 }}>
+                    {t('auctions.lotCountShort', { defaultValue: `${event.lotCount} lot`, count: event.lotCount })}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
 }
 const SQUARE_CARD = 148;
 const RECENT_MOCK_IMAGES = [
@@ -140,51 +300,6 @@ const TILE_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: s
   'home-tile-buy-now': { icon: 'bag-handle', color: Colors.primary, route: '/buy-now' },
   'home-tile-auction': { icon: 'hammer', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
 };
-// Banner slides — sourced from mock service contract (campaigns endpoint).
-// When backend is ready, replace with useCampaigns() hook.
-const createFallbackHeroBanners = (t: (key: string) => string) => [
-  {
-    id: 'b1',
-    badge: t('home.fallbackBanner1Badge'),
-    title: t('home.fallbackBanner1Title'),
-    subtitle: t('home.fallbackBanner1Subtitle'),
-    bg: Colors.primary,
-    image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
-  },
-  {
-    id: 'b3',
-    badge: t('home.fallbackBanner3Badge'),
-    title: t('home.fallbackBanner3Title'),
-    subtitle: t('home.fallbackBanner3Subtitle'),
-    bg: Colors.accent,
-    image: 'https://images.unsplash.com/photo-1452195100486-9cc805987862?w=800&q=80',
-  },
-];
-
-// Row 2 — Kampanyalar (backend: campaigns?type=promo)
-const createFallbackPromoBanners = (t: (key: string) => string) => [
-  {
-    id: 'ed-3',
-    label: t('home.fallbackPromoLabel'),
-    title: t('home.fallbackPromo1Title'),
-    subtitle: t('home.fallbackPromo1Subtitle'),
-    cta: t('home.buyNow'),
-    bg: Colors.tertiaryContainer,
-    accent: Colors.auctionGreen,
-    image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=800&q=80',
-  },
-  {
-    id: 'ed-4',
-    label: t('home.fallbackPromoLabel'),
-    title: t('home.fallbackPromo2Title'),
-    subtitle: t('home.fallbackPromo2Subtitle'),
-    cta: t('home.buyNow'),
-    bg: Colors.secondaryContainer,
-    accent: Colors.accent,
-    image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=800&q=80',
-  },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
@@ -199,24 +314,19 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    try {
-      await Promise.all([
-        queryClient.invalidateQueries(),
-        fetchRecentlyViewed(1, 3),
-      ]);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRefreshing(false);
-    }
+    await Promise.allSettled([
+      queryClient.invalidateQueries(),
+      fetchRecentlyViewed(1, 3),
+    ]);
+    setRefreshing(false);
   };
 
   const { data: mobileConfigData } = useMobileConfig();
-  const { data, isLoading, isRefetching } = useProducts(1);
-  const { data: categories } = useCategories();
-  const { data: discountedProducts } = useDiscountedProducts();
-  const { data: mostLikedProducts } = useMostLikedProducts();
-  const { data: blogs } = useBlogs();
+  const { data, isLoading, isRefetching, isError: productsError, refetch: refetchProducts } = useProducts(1);
+  const { data: categories, isError: categoriesError, refetch: refetchCategories } = useCategories();
+  const { data: discountedProducts, isError: discountedError, refetch: refetchDiscounted } = useDiscountedProducts();
+  const { data: mostLikedProducts, isError: mostLikedError, refetch: refetchMostLiked } = useMostLikedProducts();
+  const { data: blogs, isError: blogsError, refetch: refetchBlogs } = useBlogs();
   const user = useAuthStore((state) => state.user);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const activeMode = useRoleModeStore((state) => state.activeMode);
@@ -240,22 +350,24 @@ export default function HomeScreen() {
   }, [recentlyViewedItems, allProducts]);
   const listingProducts = allProducts.length > 3 ? allProducts.slice(3, 7) : allProducts.slice(0, 4);
   const listingSlots = Array.from({ length: 4 }, (_, index) => listingProducts[index] || null);
-  const discountedSlots = Array.from({ length: 6 }, (_, index) => {
-    const existing = discountedProducts?.[index];
-    if (existing) return existing;
-    const mockImage = DISCOUNT_MOCK_IMAGES[index % DISCOUNT_MOCK_IMAGES.length];
-    return {
-      id: `mock-discount-${index}`,
-      categoryId: 'discount',
-      categoryName: t('home.discountedProducts'),
-      title: t('home.mockListingTitle'),
-      sellerName: t('home.brandName'),
-      price: 0,
-      imageUrl: mockImage,
-      thumbnail: mockImage,
-      images: [{ id: `mock-discount-${index}-image`, url: mockImage, sortOrder: 0, isPrimary: true }],
-    } as Product;
-  });
+  const discountedSlots = discountedProducts
+    ? Array.from({ length: 6 }, (_, index) => {
+        const existing = discountedProducts[index];
+        if (existing) return existing;
+        const mockImage = DISCOUNT_MOCK_IMAGES[index % DISCOUNT_MOCK_IMAGES.length];
+        return {
+          id: `mock-discount-${index}`,
+          categoryId: 'discount',
+          categoryName: t('home.discountedProducts'),
+          title: t('home.mockListingTitle'),
+          sellerName: t('home.brandName'),
+          price: 0,
+          imageUrl: mockImage,
+          thumbnail: mockImage,
+          images: [{ id: `mock-discount-${index}-image`, url: mockImage, sortOrder: 0, isPrimary: true }],
+        } as Product;
+      })
+    : [];
 
   React.useEffect(() => {
     const launchImages = [
@@ -278,17 +390,13 @@ export default function HomeScreen() {
       ),
     );
 
-    if (!visible.length) {
-      return createFallbackHeroBanners(t);
-    }
-
     return visible.map((banner, index) => ({
       id: banner.id,
       badge: resolveLocalizedText(banner.badge, mobileLocale, ''),
       title: resolveLocalizedText(banner.title, mobileLocale, ''),
       subtitle: resolveLocalizedText(banner.subtitle, mobileLocale, ''),
       bg: HERO_BACKGROUNDS[index % HERO_BACKGROUNDS.length],
-      image: banner.imageUrl,
+      image: resolveMediaUrl(banner.imageUrl),
     }));
   }, [audience, mobileConfig, mobileLocale, t]);
 
@@ -307,7 +415,7 @@ export default function HomeScreen() {
       ),
     );
 
-    return visible.length ? visible : mobileConfig.home.entryTiles;
+    return visible;
   }, [audience, mobileConfig.home.entryTiles]);
 
   const homeSectionMap = React.useMemo(
@@ -322,10 +430,6 @@ export default function HomeScreen() {
       ),
     );
 
-    if (!visible.length) {
-      return createFallbackPromoBanners(t);
-    }
-
     return visible.map((banner, index) => ({
       id: banner.id,
       label: resolveLocalizedText(banner.label, mobileLocale, t('home.buyNow')),
@@ -334,7 +438,7 @@ export default function HomeScreen() {
       cta: resolveLocalizedText(banner.cta?.label, mobileLocale, t('home.explore')),
       bg: index % 2 === 0 ? Colors.tertiaryContainer : Colors.secondaryContainer,
       accent: index % 2 === 0 ? Colors.auctionGreen : Colors.accent,
-      image: banner.imageUrl,
+      image: resolveMediaUrl(banner.imageUrl),
     }));
   }, [audience, mobileConfig.home.promoBanners, mobileLocale, t]);
 
@@ -464,15 +568,15 @@ export default function HomeScreen() {
           </View>
         );
       case 'home-hero-banners':
-        return (
+        return heroBanners.length ? (
           <BannerCarousel
             key={moduleId}
             slides={heroBanners}
             onSlidePress={(slide) => router.push((heroBannerRoutes[slide.id] ?? '/(tabs)/categories') as never)}
           />
-        );
+        ) : null;
       case 'home-entry-tiles':
-        return (
+        return entryTiles.length ? (
           <View key={moduleId} style={styles.tilesSection}>
             {entryTiles.map((tile) => {
               const meta = TILE_META[tile.id] ?? {
@@ -511,9 +615,28 @@ export default function HomeScreen() {
               );
             })}
           </View>
+        ) : null;
+      case 'home-live-auctions':
+        return (
+          <HomeLiveAuctionsSection
+            key={moduleId}
+            t={t}
+            locale={mobileLocale}
+            onSeeAll={() => router.push('/(tabs)/auctions' as never)}
+            onOpenEvent={(id) => router.push(`/auction/event/${id}` as never)}
+          />
         );
       case 'home-listings':
-        return listingsSection?.enabled ? (
+        if (!listingsSection?.enabled) return null;
+        if (productsError) {
+          return (
+            <React.Fragment key={moduleId}>
+              <SectionHeader title={resolveLocalizedText(listingsSection.title, mobileLocale, t('home.listings'))} />
+              <SectionErrorCard onRetry={refetchProducts} />
+            </React.Fragment>
+          );
+        }
+        return (
           <React.Fragment key={moduleId}>
             <SectionHeader title={resolveLocalizedText(listingsSection.title, mobileLocale, t('home.listings'))} />
             <View style={styles.listingGrid}>
@@ -588,9 +711,18 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
           </React.Fragment>
-        ) : null;
+        );
       case 'home-categories':
-        return categoriesSection?.enabled ? (
+        if (!categoriesSection?.enabled) return null;
+        if (categoriesError) {
+          return (
+            <React.Fragment key={moduleId}>
+              <SectionHeader title={resolveLocalizedText(categoriesSection.title, mobileLocale, t('tabs.categories'))} />
+              <SectionErrorCard onRetry={refetchCategories} />
+            </React.Fragment>
+          );
+        }
+        return (
           <React.Fragment key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(categoriesSection.title, mobileLocale, t('tabs.categories'))}
@@ -635,7 +767,7 @@ export default function HomeScreen() {
               })}
             </ScrollView>
           </React.Fragment>
-        ) : null;
+        );
       case 'home-category-products':
         return categoryProductsSection?.enabled ? (
           <React.Fragment key={moduleId}>
@@ -754,7 +886,20 @@ export default function HomeScreen() {
           </React.Fragment>
         ) : null;
       case 'home-discounted-products':
-        return discountedSection?.enabled && discountedSlots.length > 0 ? (
+        if (!discountedSection?.enabled) return null;
+        if (discountedError) {
+          return (
+            <View key={moduleId}>
+              <SectionHeader
+                title={resolveLocalizedText(discountedSection.title, mobileLocale, t('home.discountedProducts'))}
+                accentColor={Colors.error}
+                style={styles.sectionMargin}
+              />
+              <SectionErrorCard onRetry={refetchDiscounted} />
+            </View>
+          );
+        }
+        return discountedSlots.length > 0 ? (
           <View key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(discountedSection.title, mobileLocale, t('home.discountedProducts'))}
@@ -781,7 +926,20 @@ export default function HomeScreen() {
           </View>
         ) : null;
       case 'home-most-liked-products':
-        return mostLikedSection?.enabled && mostLikedProducts && mostLikedProducts.length > 0 ? (
+        if (!mostLikedSection?.enabled) return null;
+        if (mostLikedError) {
+          return (
+            <View key={moduleId}>
+              <SectionHeader
+                title={resolveLocalizedText(mostLikedSection.title, mobileLocale, t('home.mostLikedProducts'))}
+                accentColor={Colors.secondary}
+                style={styles.sectionMargin}
+              />
+              <SectionErrorCard onRetry={refetchMostLiked} />
+            </View>
+          );
+        }
+        return mostLikedProducts && mostLikedProducts.length > 0 ? (
           <View key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(mostLikedSection.title, mobileLocale, t('home.mostLikedProducts'))}
@@ -840,7 +998,7 @@ export default function HomeScreen() {
           </View>
         );
       case 'home-campaigns':
-        return campaignsSection?.enabled ? (
+        return campaignsSection?.enabled && promoBanners.length ? (
           <React.Fragment key={moduleId}>
             <SectionHeader
               title={resolveLocalizedText(campaignsSection.title, mobileLocale, t('home.currentCampaigns'))}
@@ -855,7 +1013,19 @@ export default function HomeScreen() {
           </React.Fragment>
         ) : null;
       case 'home-blog':
-        return blogSection?.enabled && blogs && blogs.length > 0 ? (
+        if (!blogSection?.enabled) return null;
+        if (blogsError) {
+          return (
+            <View key={moduleId} style={styles.sectionMargin}>
+              <SectionHeader
+                title={resolveLocalizedText(blogSection.title, mobileLocale, t('home.blog'))}
+                accentColor={Colors.primary}
+              />
+              <SectionErrorCard onRetry={refetchBlogs} />
+            </View>
+          );
+        }
+        return blogs && blogs.length > 0 ? (
           <View key={moduleId} style={styles.sectionMargin}>
             <SectionHeader
               title={resolveLocalizedText(blogSection.title, mobileLocale, t('home.blog'))}

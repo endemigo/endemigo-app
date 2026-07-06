@@ -15,6 +15,7 @@ import {
   useSellerReturnReview,
   useSellerOrderTransition,
   useInitiateOrderPayment,
+  useCancelOrder,
 } from '../../../hooks/useOrders';
 import { CargoSummaryCard } from '../../../components/ui/orders/CargoSummaryCard';
 import { DeliveryConfirmActions } from '../../../components/ui/orders/DeliveryConfirmActions';
@@ -57,6 +58,37 @@ export default function OrderDetailScreen() {
   const submitReview = useOrderSubmitReview(orderId);
   const uploadReturnImage = useUploadReturnImage(orderId);
   const payOrder = useInitiateOrderPayment(orderId);
+  const cancelOrder = useCancelOrder(orderId);
+
+  const handleCancelOrder = () => {
+    showModal({
+      title: t('orders.cancelConfirmTitle', { defaultValue: 'Siparişi İptal Et' }),
+      message: t('orders.cancelConfirmMessage', {
+        defaultValue: 'Bu siparişi iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+      }),
+      type: 'info',
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onConfirm: async () => {
+        try {
+          await cancelOrder.mutateAsync();
+          showModal({
+            title: t('orders.cancelSuccessTitle', { defaultValue: 'Sipariş İptal Edildi' }),
+            message: t('orders.cancelSuccessMessage', {
+              defaultValue: 'Siparişiniz iptal edildi.',
+            }),
+            type: 'success',
+          });
+        } catch (error: unknown) {
+          showModal({
+            title: t('common.error'),
+            message: resolveApiErrorMessage(error, t, 'common.genericError'),
+            type: 'error',
+          });
+        }
+      },
+    });
+  };
 
   const handlePayOrder = () => {
     if (!order.data) return;
@@ -355,6 +387,23 @@ export default function OrderDetailScreen() {
             )}
           </TouchableOpacity>
         </View>
+      )}
+
+      {activeMode === 'buyer' && order.data.reviewEligibility.canCancel && (
+        <TouchableOpacity
+          style={[styles.payButton, { backgroundColor: Colors.error }]}
+          onPress={handleCancelOrder}
+          activeOpacity={0.8}
+          disabled={cancelOrder.isPending}
+        >
+          {cancelOrder.isPending ? (
+            <ActivityIndicator color={Colors.white} size="small" />
+          ) : (
+            <Text style={styles.payButtonText}>
+              {t('orders.cancelOrder', { defaultValue: 'Siparişi İptal Et' })}
+            </Text>
+          )}
+        </TouchableOpacity>
       )}
 
       <OrderStatusTimeline

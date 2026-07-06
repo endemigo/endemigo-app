@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
@@ -78,6 +78,50 @@ export function useProducts(page = 1) {
       if (ENV.USE_MOCK) return mockService.getProducts(page);
       const { data } = await api.get<ProductListResponse>(`/products?page=${page}&limit=20`);
       return unwrapProductList(data);
+    },
+  });
+}
+
+interface ProductListFilters {
+  categoryId?: string;
+}
+
+interface InfiniteProductsPage {
+  items: Product[];
+  page: number;
+  hasNextPage: boolean;
+}
+
+export function useInfiniteProducts(filters?: ProductListFilters) {
+  const categoryId = filters?.categoryId;
+  return useInfiniteQuery({
+    queryKey: ['products', 'infinite', categoryId ?? 'all'],
+    queryFn: async ({ pageParam = 1 }): Promise<InfiniteProductsPage> => {
+      if (ENV.USE_MOCK) {
+        const mockData = await mockService.getProducts(pageParam);
+        return {
+          items: categoryId
+            ? mockData.items.filter((item) => item.categoryId === categoryId)
+            : mockData.items,
+          page: pageParam,
+          hasNextPage: pageParam < mockData.totalPages,
+        };
+      }
+      const params = new URLSearchParams({
+        page: String(pageParam),
+        limit: '20',
+      });
+      if (categoryId) params.set('categoryId', categoryId);
+      const { data } = await api.get<ProductListResponse>(`/products?${params.toString()}`);
+      return {
+        items: data.items,
+        page: pageParam,
+        hasNextPage: pageParam < data.totalPages,
+      };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
     },
   });
 }

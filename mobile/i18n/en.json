@@ -15,7 +15,8 @@
     "cancel": "Cancel",
     "ok": "OK",
     "authRequiredTitle": "Sign In Required",
-    "authRequiredMessage": "Please sign in first to create a listing."
+    "authRequiredMessage": "Please sign in first to create a listing.",
+    "sectionLoadError": "Couldn't load this section"
   },
   "launchSplash": {
     "tagline": "Rare finds. Live bids."
@@ -211,14 +212,38 @@
     "logo": {
       "defaultTitle": "Badge",
       "defaultDescription": "This badge indicates product trust and quality information.",
-      "pdo": { "title": "PDO", "description": "Protected Designation of Origin: production, processing, and preparation happen in the same region." },
-      "pgi": { "title": "PGI", "description": "Protected Geographical Indication: at least one stage is linked to the specified region." },
-      "tsg": { "title": "TSG", "description": "Traditional Speciality Guaranteed: protects traditional composition or production method." },
-      "geo_indication": { "title": "Geographical Indication", "description": "Shows that the product has a verified geographical origin and traditional quality link." },
-      "verified": { "title": "Verified", "description": "Indicates the product or seller has passed platform verification checks." },
-      "fast_shipping": { "title": "Fast Shipping", "description": "Indicates the order is expected to be shipped quickly." },
-      "cold_delivery": { "title": "Cold Delivery", "description": "Indicates the product is transported under cold-chain conditions." },
-      "original": { "title": "Original Product", "description": "Indicates the item carries original/authentic characteristics." }
+      "pdo": {
+        "title": "PDO",
+        "description": "Protected Designation of Origin: production, processing, and preparation happen in the same region."
+      },
+      "pgi": {
+        "title": "PGI",
+        "description": "Protected Geographical Indication: at least one stage is linked to the specified region."
+      },
+      "tsg": {
+        "title": "TSG",
+        "description": "Traditional Speciality Guaranteed: protects traditional composition or production method."
+      },
+      "geo_indication": {
+        "title": "Geographical Indication",
+        "description": "Shows that the product has a verified geographical origin and traditional quality link."
+      },
+      "verified": {
+        "title": "Verified",
+        "description": "Indicates the product or seller has passed platform verification checks."
+      },
+      "fast_shipping": {
+        "title": "Fast Shipping",
+        "description": "Indicates the order is expected to be shipped quickly."
+      },
+      "cold_delivery": {
+        "title": "Cold Delivery",
+        "description": "Indicates the product is transported under cold-chain conditions."
+      },
+      "original": {
+        "title": "Original Product",
+        "description": "Indicates the item carries original/authentic characteristics."
+      }
     },
     "inCart": "In Cart ({{count}})"
   },
@@ -297,20 +322,24 @@
     "sellerSectionSubtitle": "Operations, storefront, and revenue tools live here."
   },
   "seller": {
-    "becomeSellerTitle": "Open Seller Account",
-    "infoText": "Open a seller account to list your products and start auctions.",
-    "businessName": "Business Name",
-    "businessNamePlaceholder": "Enter your business name",
-    "taxOffice": "Tax Office",
-    "taxOfficePlaceholder": "Enter your tax office",
-    "taxNumber": "Tax Number",
-    "taxNumberPlaceholder": "Enter your tax number",
-    "iban": "IBAN",
-    "ibanPlaceholder": "TR33 0006 1005 1978 6457 8413 26",
-    "agreementText": "I have read and accept the supplier agreement (v1.0.0)",
-    "registerButton": "Create Seller Account",
-    "registrationSuccess": "Your seller account has been activated!",
-    "alreadySeller": "Your seller account is already active"
+    "title": "Seller Profile",
+    "products": "Products",
+    "productsCount": "{{count}} products",
+    "reviews": "Reviews",
+    "reviewsCount": "{{count}} reviews",
+    "sales": "Sales",
+    "salesCount": "{{count}} sales",
+    "rating": "Rating",
+    "location": "Location",
+    "memberSince": "Member since",
+    "verified": "Verified Seller",
+    "fastShipping": "Fast Shipping",
+    "original": "Original Product",
+    "viewProduct": "View Product",
+    "noRatingAndReviews": "No ratings or reviews yet",
+    "noProducts": "No products yet",
+    "noProductsSub": "This seller has no listed products.",
+    "notFound": "Seller not found"
   },
   "listing": {
     "pageTitle": "Create Listing",
@@ -677,6 +706,7 @@
     "empty": "Your cart is empty",
     "emptySub": "Start shopping to add items",
     "auctionWonLabel": "Auction Won Lot",
+    "negotiatedLabel": "Offer Price",
     "startShopping": "Start Shopping",
     "addedToCart": "Added to cart",
     "premiumLabel": "Premium",
@@ -725,7 +755,43 @@
     "loginError": "Invalid email or password",
     "registerError": "Registration failed",
     "registerButton": "Sign Up",
-    "alreadyHaveAccount": "Already have an account?"
+    "alreadyHaveAccount": "Already have an account?",
+    "forgotPasswordTitle": "Forgot Password",
+    "forgotPasswordSub": "Enter your email address and we'll send you a password reset link.",
+    "forgotPasswordButton": "Send Reset Link",
+    "forgotPasswordSuccess": "If this email address is registered, a password reset link has been sent. Please check your inbox.",
+    "forgotPasswordError": "The request could not be sent. Please try again.",
+    "emailRequired": "Please enter your email address",
+    "rememberedPassword": "Remembered your password?",
+    "resetPasswordTitle": "Reset Password",
+    "resetPasswordSub": "Set a new password for your account.",
+    "newPassword": "New Password",
+    "passwordRequired": "Please fill in the password fields",
+    "passwordMismatch": "Passwords do not match",
+    "passwordPolicy": "Password must be at least 8 characters and include at least 1 uppercase letter, 1 lowercase letter, 1 digit and 1 special character.",
+    "resetPasswordButton": "Reset Password",
+    "resetPasswordSuccess": "Your password has been reset successfully. You can sign in with your new password.",
+    "resetPasswordError": "The password could not be reset. Please try again.",
+    "resetPasswordInvalidLink": "The reset link is invalid. Please use the link from your email.",
+    "verifyEmailTitle": "Email Verification",
+    "verifyEmailVerifying": "Verifying Your Email",
+    "verifyEmailVerifyingSub": "Please wait...",
+    "verifyEmailSuccessTitle": "Email Verified",
+    "verifyEmailSuccessMessage": "Your email address has been verified successfully. You can now sign in.",
+    "verifyEmailErrorTitle": "Verification Failed",
+    "verifyEmailError": "The email could not be verified. Please try again.",
+    "verifyEmailInvalidLink": "The verification link is invalid. Please use the link from your email.",
+    "goToLogin": "Go to Login",
+    "kvkkConsentPrefix": "I have read and accept the ",
+    "kvkkConsentLink": "KVKK Privacy Notice",
+    "kvkkConsentSuffix": ".",
+    "kvkkRequired": "You must accept the KVKK privacy notice to register",
+    "passwordRulesError": "Your password must meet all the requirements",
+    "passwordRuleMinLength": "At least 8 characters",
+    "passwordRuleLowercase": "At least 1 lowercase letter",
+    "passwordRuleUppercase": "At least 1 uppercase letter",
+    "passwordRuleDigit": "At least 1 number",
+    "passwordRuleSpecial": "At least 1 special character (@$!%*?&_.#-)"
   },
   "modal": {
     "title": "This is a modal screen",
@@ -816,7 +882,7 @@
       }
     },
     "actions": {
-      "accept": "Buy with this Price",
+      "accept": "Add to Cart at this Price",
       "reject": "Reject",
       "close": "Close"
     },
@@ -903,6 +969,8 @@
     "bidAcceptedMessage": "Your ₺{{amount}} bid was accepted.",
     "proxyOutbidTitle": "Proxy bid engaged",
     "proxyOutbidMessage": "A higher maximum bid outpaced you immediately. Current price: ₺{{amount}}",
+    "absenteeAcceptedTitle": "Absentee bid received",
+    "absenteeAcceptedMessage": "Your absentee bid up to ₺{{amount}} was recorded. It will compete automatically when the auction starts.",
     "bidErrorFallback": "Could not place bid",
     "auctionEnded": "Auction Ended",
     "bidCountLabel": "{{count}} bids",
@@ -1528,26 +1596,6 @@
       "createCampaign": "Create campaign",
       "createCoupon": "Create coupon"
     }
-  },
-  "seller": {
-    "title": "Seller Profile",
-    "products": "Products",
-    "productsCount": "{{count}} products",
-    "reviews": "Reviews",
-    "reviewsCount": "{{count}} reviews",
-    "sales": "Sales",
-    "salesCount": "{{count}} sales",
-    "rating": "Rating",
-    "location": "Location",
-    "memberSince": "Member since",
-    "verified": "Verified Seller",
-    "fastShipping": "Fast Shipping",
-    "original": "Original Product",
-    "viewProduct": "View Product",
-    "noRatingAndReviews": "No ratings or reviews yet",
-    "noProducts": "No products yet",
-    "noProductsSub": "This seller has no listed products.",
-    "notFound": "Seller not found"
   },
   "orderStatuses": {
     "CREATED": "Created",

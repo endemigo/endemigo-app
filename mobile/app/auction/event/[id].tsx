@@ -9,6 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +28,8 @@ import {
   useRegisterToAuction,
   useSavedCards,
   usePayDeposit,
+  useMyInvitations,
+  useRespondInvitation,
 } from '../../../hooks/useAuctions';
 import { useAuctionEventSocket } from '../../../hooks/useAuctionEventSocket';
 import { useWalletBalance, useWalletHolds } from '../../../hooks/useWallet';
@@ -40,6 +43,7 @@ import { styles } from './event.styles';
 import { useProduct } from '../../../hooks/useProducts';
 import { getProductImageUri } from '../../../utils/productImages';
 import { getAuctionConditionLabel } from '../../../utils/auctionPresentation';
+import { SUPPORT_PHONE_URL } from '../../../constants/support';
 import { AuctionBidComposer } from '../../../components/auction/AuctionBidComposer';
 import { CardVerificationModal } from '../../../components/auction/CardVerificationModal';
 import { AuthRegisterWizardModal } from '../../../components/auth/AuthRegisterWizardModal';
@@ -89,6 +93,7 @@ export default function LiveEventRoomScreen() {
   // Selected upcoming lot to view in preview modal
   const [selectedLotForPreview, setSelectedLotForPreview] = useState<string | null>(null);
   const [biddingLotId, setBiddingLotId] = useState<string | null>(null);
+  const [catalogSort, setCatalogSort] = useState<'lot' | 'priceAsc' | 'priceDesc'>('lot');
 
   // Local state for ticking countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(0);
@@ -101,6 +106,41 @@ export default function LiveEventRoomScreen() {
 
   // Fetch bids for the active lot to synchronize initial bidder state on load
   const { data: activeLotBids, refetch: refetchBids } = useAuctionBids(activeLotId ?? '');
+
+  // Ortak müzayede daveti (davetli tarafı): bu event için bekleyen davet.
+  const { data: myInvitations } = useMyInvitations(Boolean(user?.isSeller));
+  const respondInvitation = useRespondInvitation();
+  const pendingInvitation = myInvitations?.find(
+    (inv) => inv.eventId === id && inv.status === 'PENDING',
+  );
+
+  const handleInvitationResponse = async (action: 'accept' | 'reject') => {
+    if (!pendingInvitation) return;
+    try {
+      await respondInvitation.mutateAsync({ invitationId: pendingInvitation.id, action });
+      showModal({
+        title:
+          action === 'accept'
+            ? t('auction.invitationAcceptedTitle', { defaultValue: 'Davet Kabul Edildi' })
+            : t('auction.invitationRejectedTitle', { defaultValue: 'Davet Reddedildi' }),
+        message:
+          action === 'accept'
+            ? t('auction.invitationAcceptedMessage', {
+                defaultValue: 'Artık bu müzayedeye lot ekleyebilirsiniz.',
+              })
+            : t('auction.invitationRejectedMessage', {
+                defaultValue: 'Davet reddedildi.',
+              }),
+        type: action === 'accept' ? 'success' : 'info',
+      });
+    } catch (err) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(err, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
 
   const registrationLotId = activeLotId || eventDetails?.lots[0]?.id || '';
   const { data: registrationData, refetch: refetchRegistrationStatus } = useAuctionRegistrationStatus(registrationLotId, !!user);
@@ -435,7 +475,9 @@ export default function LiveEventRoomScreen() {
     buyerPremiumRate: 0,
     walletAvailable: walletAvailableForBid,
   });
-  const isWalletGateClosed = !bidEstimate.isWalletSufficient;
+  // Pey için cüzdan bakiyesi/bloke gerekmez — risk, backend'deki
+  // müzayede limiti (depozit) kontrolüyle yönetilir.
+  const isWalletGateClosed = false;
 
   const feeEstimateRows = [
     {
@@ -558,19 +600,6 @@ export default function LiveEventRoomScreen() {
       return;
     }
 
-    if (isWalletGateClosed) {
-      setShowComposer(false);
-      showModal({
-        title: t('auction.walletGateTitle'),
-        message: t('auction.walletGateModalMessage', {
-          total: formatAmount(bidEstimate.estimatedTotal),
-          shortfall: formatAmount(bidEstimate.walletShortfall),
-        }),
-        type: 'error',
-      });
-      return;
-    }
-
     try {
       const result = await placeBid.mutateAsync({
         auctionId: targetLotId,
@@ -679,11 +708,25 @@ export default function LiveEventRoomScreen() {
           message: t('auction.registeringWithSavedCard', { defaultValue: 'Kayıtlı kartınızla müzayede kaydı oluşturuluyor...' }),
           type: 'info',
         });
-        await registerMutation.mutateAsync({ auctionId: targetLotId });
+        const regRes = await registerMutation.mutateAsync({ auctionId: targetLotId });
         await refetchRegistrationStatus();
         hideModal();
-        setBiddingLotId(targetLotId);
-        setShowComposer(true);
+        // Kayıt PENDING açılır; onay admin/sistemden düşer.
+        if (regRes?.registration?.status === 'APPROVED') {
+          setBiddingLotId(targetLotId);
+          setShowComposer(true);
+        } else {
+          showModal({
+            title: t('auction.registrationPending', { defaultValue: 'Katılım Onayı Bekleniyor' }),
+            message: t('auction.registrationSubmittedMessage', {
+              defaultValue:
+                'Katılım talebiniz alındı. Onaylandığında bildirim alacaksınız ve pey verebileceksiniz.',
+            }),
+            type: 'info',
+            confirmText: t('common.ok'),
+            onConfirm: () => hideModal(),
+          });
+        }
       } catch (err) {
         showModal({
           title: t('common.error'),
@@ -706,18 +749,34 @@ export default function LiveEventRoomScreen() {
     }
 
     if (registration.status === 'REJECTED') {
-      showModal({
-        title: t('common.error'),
-        message: t('auction.registrationRejectedMessage'),
-        type: 'error',
-        confirmText: t('common.ok'),
-        onConfirm: () => hideModal(),
-      });
+      showRejectedContactModal();
       return;
     }
 
     setBiddingLotId(targetLotId);
     setShowComposer(true);
+  };
+
+  // Onaylanmayan kullanıcıya müşteri ilişkileri yönergesi (mesaj / ara).
+  const showRejectedContactModal = () => {
+    showModal({
+      title: t('auction.registrationRejectedTitle', { defaultValue: 'Onaylanmadın' }),
+      message: t('auction.registrationRejectedContactMessage', {
+        defaultValue:
+          'Müzayede katılımınız onaylanmadı. Onaylanmak için müşteri ilişkilerine mesaj yazabilir veya arayabilirsiniz.',
+      }),
+      type: 'error',
+      confirmText: t('auction.contactSupportMessage', { defaultValue: 'Mesaj Yaz' }),
+      cancelText: t('auction.contactSupportCall', { defaultValue: 'Ara' }),
+      onConfirm: () => {
+        hideModal();
+        router.push('/(tabs)/messages');
+      },
+      onCancel: () => {
+        hideModal();
+        Linking.openURL(SUPPORT_PHONE_URL).catch(() => {});
+      },
+    });
   };
 
   const handleWithdrawBid = () => {
@@ -962,6 +1021,72 @@ export default function LiveEventRoomScreen() {
           </View>
         )}
 
+        {/* Ortak müzayede daveti: davetli kabul/red kararını burada verir */}
+        {pendingInvitation ? (
+          <View
+            style={{
+              margin: Spacing.base,
+              marginBottom: 0,
+              padding: Spacing.base,
+              backgroundColor: `${Colors.accent}14`,
+              borderRadius: BorderRadius.md,
+              borderWidth: 1,
+              borderColor: `${Colors.accent}55`,
+              gap: Spacing.sm,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="mail-unread" size={18} color={Colors.accent} />
+              <Text style={{ fontWeight: '700', color: Colors.onSurface, flex: 1 }}>
+                {t('auction.invitationBannerTitle', {
+                  defaultValue: 'Bu ortak müzayedeye davetlisiniz',
+                })}
+              </Text>
+            </View>
+            <Text style={{ color: Colors.slate500, fontSize: 13 }}>
+              {t('auction.invitationBannerBody', {
+                defaultValue: 'Kabul ederseniz en az 20 ürünle bu müzayedeye lot ekleyebilirsiniz.',
+              })}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.primary,
+                  borderRadius: BorderRadius.md,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                }}
+                disabled={respondInvitation.isPending}
+                onPress={() => handleInvitationResponse('accept')}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: Colors.white, fontWeight: '700' }}>
+                  {t('auction.invitationAccept', { defaultValue: 'Kabul Et' })}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.white,
+                  borderRadius: BorderRadius.md,
+                  borderWidth: 1,
+                  borderColor: Colors.error,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                }}
+                disabled={respondInvitation.isPending}
+                onPress={() => handleInvitationResponse('reject')}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: Colors.error, fontWeight: '700' }}>
+                  {t('auction.invitationReject', { defaultValue: 'Reddet' })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {/* Sub Navigation Segmented Tabs */}
         <View style={styles.subTabContainer}>
           <TouchableOpacity
@@ -993,7 +1118,120 @@ export default function LiveEventRoomScreen() {
         {/* Tab Contents */}
         {activeSubTab === 'catalog' && (
           <View>
-            {sortedLots.map((lot, index) => {
+            {user && registrationData?.registration ? (
+              registrationData.registration.status === 'APPROVED' ? (
+                <View
+                  style={{
+                    backgroundColor: `${Colors.auctionGreen}1A`,
+                    borderRadius: BorderRadius.md,
+                    paddingVertical: Spacing.sm,
+                    paddingHorizontal: Spacing.base,
+                    marginBottom: Spacing.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color={Colors.auctionGreen} />
+                  <Text style={{ color: Colors.auctionGreen, fontWeight: '700' }}>
+                    {t('auction.registrationApprovedBanner', { defaultValue: 'Onaylandın — pey verebilirsin' })}
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={
+                    registrationData.registration.status === 'REJECTED'
+                      ? showRejectedContactModal
+                      : undefined
+                  }
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor:
+                      registrationData.registration.status === 'REJECTED'
+                        ? `${Colors.error}1A`
+                        : `${Colors.accent}1A`,
+                    borderRadius: BorderRadius.md,
+                    paddingVertical: Spacing.sm,
+                    paddingHorizontal: Spacing.base,
+                    marginBottom: Spacing.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      registrationData.registration.status === 'REJECTED'
+                        ? 'close-circle'
+                        : 'time'
+                    }
+                    size={18}
+                    color={
+                      registrationData.registration.status === 'REJECTED'
+                        ? Colors.error
+                        : Colors.accent
+                    }
+                  />
+                  <Text
+                    style={{
+                      color:
+                        registrationData.registration.status === 'REJECTED'
+                          ? Colors.error
+                          : Colors.accent,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {registrationData.registration.status === 'REJECTED'
+                      ? t('auction.registrationRejectedBanner', {
+                          defaultValue: 'Onaylanmadın — müşteri ilişkileriyle iletişime geç',
+                        })
+                      : t('auction.registrationPendingBanner', {
+                          defaultValue: 'Onay bekleniyor',
+                        })}
+                  </Text>
+                </TouchableOpacity>
+              )
+            ) : null}
+
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.sm }}>
+              {([
+                { key: 'lot', label: t('auction.sortByLot', { defaultValue: 'Lot Sırası' }) },
+                { key: 'priceAsc', label: t('auction.sortByPriceAsc', { defaultValue: 'Fiyat Artan' }) },
+                { key: 'priceDesc', label: t('auction.sortByPriceDesc', { defaultValue: 'Fiyat Azalan' }) },
+              ] as const).map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => setCatalogSort(option.key)}
+                  activeOpacity={0.8}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    backgroundColor:
+                      catalogSort === option.key ? Colors.primary : Colors.slate100,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: catalogSort === option.key ? Colors.white : Colors.slate500,
+                      fontWeight: '600',
+                      fontSize: 12,
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {(catalogSort === 'lot'
+              ? sortedLots
+              : [...(lots || [])].sort((a, b) =>
+                  catalogSort === 'priceAsc'
+                    ? Number(a.currentPrice) - Number(b.currentPrice)
+                    : Number(b.currentPrice) - Number(a.currentPrice),
+                )
+            ).map((lot, index) => {
               const isTimeEnded = lot.endTime ? new Date(lot.endTime).getTime() <= getSynchronizedTime() : false;
               const isLotEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED || isTimeEnded;
               const isLotActive = lot.id === activeLotId && !isLotEnded;

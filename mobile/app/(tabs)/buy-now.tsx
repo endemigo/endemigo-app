@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useProducts, useCategories, Product, Category } from '../../hooks/useProducts';
+import { useInfiniteProducts, useCategories, Product, Category } from '../../hooks/useProducts';
 import { ProductCard } from '../../components/ui';
 import { Colors, Spacing } from '../../constants/theme';
 import { styles } from '../../styles/buy-now.styles';
@@ -44,27 +44,24 @@ export default function BuyNowScreen() {
     setSelectedSubcategoryId(null);
   };
 
-  const { data: productsData, isLoading: isProductsLoading, isError: isProductsError, refetch: refetchProducts } = useProducts(1);
+  const {
+    data: productsData,
+    isLoading: isProductsLoading,
+    isError: isProductsError,
+    refetch: refetchProducts,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteProducts({ categoryId: selectedSubcategoryId ?? selectedCategoryId ?? undefined });
   const { data: categoriesData } = useCategories();
 
   const filteredProducts = React.useMemo(() => {
-    const items = productsData?.items ?? [];
+    const items = productsData?.pages.flatMap((page) => page.items) ?? [];
     return items.filter((item) => {
       // 1. Filter out auctions (Hemen Al screen only shows direct sale products)
       if (item.listingType === 'AUCTION') return false;
 
-      // 2. Filter by category
-      if (selectedSubcategoryId) {
-        if (item.categoryId !== selectedSubcategoryId) return false;
-      } else if (selectedCategoryId) {
-        const parentCat = categoriesData?.find(c => c.id === selectedCategoryId);
-        const childIds = parentCat?.children?.map(c => c.id) || [];
-        if (item.categoryId !== selectedCategoryId && !childIds.includes(item.categoryId)) {
-          return false;
-        }
-      }
-
-      // 3. Filter by search query
+      // 2. Filter by search query
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLocaleLowerCase('tr-TR');
         const titleMatches = item.title.toLocaleLowerCase('tr-TR').includes(query);
@@ -74,7 +71,16 @@ export default function BuyNowScreen() {
 
       return true;
     });
-  }, [productsData?.items, selectedCategoryId, searchQuery]);
+  }, [productsData, searchQuery]);
+
+  const renderProduct = React.useCallback(({ item }: { item: Product }) => (
+    <View style={styles.productCardWrap}>
+      <ProductCard
+        item={item}
+        onPress={() => router.push(`/product/${item.id}`)}
+      />
+    </View>
+  ), [router]);
 
   return (
     <View style={styles.container}>
@@ -256,45 +262,50 @@ export default function BuyNowScreen() {
         );
       })()}
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Products Section */}
-        <View style={styles.section}>
-          
-          {isProductsLoading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-          ) : isProductsError ? (
-            <View style={styles.center}>
-              <Ionicons name="alert-circle-outline" size={46} color={Colors.error} />
-              <Text style={styles.emptyText}>{t('common.error')}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={() => refetchProducts()} activeOpacity={0.8}>
-                <Text style={styles.retryText}>{t('common.retry')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : filteredProducts.length === 0 ? (
+      {isProductsLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : isProductsError ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={46} color={Colors.error} />
+          <Text style={styles.emptyText}>{t('common.error')}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => refetchProducts()} activeOpacity={0.8}>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.productRow}
+          contentContainerStyle={[styles.section, styles.scrollContent]}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) {
+              fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: Spacing.md }} />
+            ) : null
+          }
+          ListEmptyComponent={
             <View style={styles.center}>
               <Ionicons name="cube-outline" size={42} color={Colors.slate300} />
               <Text style={styles.emptyText}>{t('categories.emptyCategory')}</Text>
             </View>
-          ) : (
-            <View style={styles.productGrid}>
-              {filteredProducts.map((item: Product) => (
-                <View key={item.id} style={styles.productCardWrap}>
-                  <ProductCard
-                    item={item}
-                    onPress={() => router.push(`/product/${item.id}`)}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
+          }
+          renderItem={renderProduct}
+        />
+      )}
     </View>
   );
 }

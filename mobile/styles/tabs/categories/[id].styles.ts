@@ -49,6 +49,10 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.base,
   },
+  gridRow: {
+    gap: Spacing.base,
+    marginBottom: Spacing.base,
+  },
   cardWrap: {
     width: '47.8%',
   },

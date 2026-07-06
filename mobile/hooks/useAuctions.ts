@@ -10,6 +10,8 @@ interface Auction {
   productId: string;
   productTitle: string | null;
   productImage: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
   sellerId: string;
   sellerName: string | null;
   startPrice: number;
@@ -281,6 +283,52 @@ export function useInfiniteAuctionEvents() {
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
+    },
+  });
+}
+
+// Ana sayfa müzayede modülü: ilk sayfa etkinlikler, hafif ve önbellekli.
+export function useHomeAuctionEvents() {
+  return useQuery<AuctionEvent[]>({
+    queryKey: ['auction-events', 'home'],
+    queryFn: async () => {
+      const { data } = await api.get('/auctions/events?page=1&limit=10');
+      return (data.items ?? []).filter(
+        (item: AuctionEvent) => item.status !== 'APPLICATION',
+      );
+    },
+    staleTime: 30_000,
+  });
+}
+
+// ─── Ortak müzayede davetleri (davetli tarafı) ───────────────
+export interface AuctionInvitation {
+  id: string;
+  eventId: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  event?: { id: string; title: string } | null;
+}
+
+export function useMyInvitations(enabled = true) {
+  return useQuery<AuctionInvitation[]>({
+    queryKey: ['auction-invitations'],
+    queryFn: async () => {
+      const { data } = await api.get('/auctions/invitations');
+      return data.invitations ?? [];
+    },
+    enabled,
+  });
+}
+
+export function useRespondInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ invitationId, action }: { invitationId: string; action: 'accept' | 'reject' }) => {
+      const { data } = await api.post(`/auctions/invitations/${invitationId}/${action}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auction-invitations'] });
     },
   });
 }

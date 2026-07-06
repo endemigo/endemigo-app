@@ -15,14 +15,21 @@ export async function getAuctionSocket(): Promise<Socket> {
     disconnectAuctionSocket();
   }
 
-  if (socket) return socket;
+  if (socket) {
+    // If the manager gave up (all reconnection attempts exhausted) the socket
+    // is neither connected nor trying to reconnect — kick it back to life.
+    if (!socket.active && !socket.connected) {
+      socket.connect();
+    }
+    return socket;
+  }
 
   socketToken = token;
   socket = io(`${ENV.API_URL}/auction`, {
     transports: ['polling', 'websocket'],
     auth: { token },
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
   });
 

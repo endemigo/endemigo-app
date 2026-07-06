@@ -223,6 +223,24 @@ export function useAuctionEventSocket(eventId: string) {
         }
       };
 
+      // Sunucu anonsu: "ürün yakılıyor / son ve adil çağrı / satıyorum sattım".
+      const onAnnouncement = (data: {
+        eventId: string;
+        type: string;
+        message: string;
+        serverTime?: string;
+      }) => {
+        if (data.eventId !== eventId) return;
+        if (data.type === 'LAST_CALL' || data.type === 'SOLD') {
+          Vibration.vibrate(150);
+        }
+        appendActivity(
+          t('auction.auctioneerAnnouncementTitle', { defaultValue: 'Sunucu' }),
+          data.message,
+          data.type === 'LAST_CALL' || data.type === 'BURNING' ? 'error' : 'accent',
+        );
+      };
+
       const onBidNew = (data: {
         auctionId: string;
         currentPrice: number;
@@ -356,6 +374,7 @@ export function useAuctionEventSocket(eventId: string) {
       socket.on('event:status_changed', onEventStatusChanged);
       socket.on('event:active_lot_changed', onActiveLotChanged);
       socket.on('event:lot_transition', onLotTransition);
+      socket.on('event:announcement', onAnnouncement);
       socket.on('bid:new', onBidNew);
       socket.on('bid:outbid', onBidOutbid);
       socket.on('bid:winner', onBidWinner);
@@ -380,6 +399,7 @@ export function useAuctionEventSocket(eventId: string) {
         socket.off('event:status_changed', onEventStatusChanged);
         socket.off('event:active_lot_changed', onActiveLotChanged);
         socket.off('event:lot_transition', onLotTransition);
+        socket.off('event:announcement', onAnnouncement);
         socket.off('bid:new', onBidNew);
         socket.off('bid:outbid', onBidOutbid);
         socket.off('bid:winner', onBidWinner);

@@ -15,7 +15,8 @@
     "cancel": "İptal",
     "ok": "Tamam",
     "authRequiredTitle": "Giriş Gerekli",
-    "authRequiredMessage": "İlan verebilmek için lütfen önce giriş yapın."
+    "authRequiredMessage": "İlan verebilmek için lütfen önce giriş yapın.",
+    "sectionLoadError": "Bu bölüm yüklenemedi"
   },
   "launchSplash": {
     "tagline": "Nadir parçalar. Canlı teklifler."
@@ -211,14 +212,38 @@
     "logo": {
       "defaultTitle": "Rozet",
       "defaultDescription": "Bu rozet ürünün güven ve kalite bilgisini gösterir.",
-      "pdo": { "title": "PDO", "description": "Menşe adı korumalıdır; üretim, işleme ve hazırlama aynı coğrafi bölgede yapılır." },
-      "pgi": { "title": "PGI", "description": "Mahreç işaretidir; ürün özelliklerinin en az bir aşaması belirtilen coğrafi bölgeye bağlıdır." },
-      "tsg": { "title": "TSG", "description": "Geleneksel ürün garantisidir; ürünün geleneksel bileşimi veya üretim yöntemi korunur." },
-      "geo_indication": { "title": "Coğrafi İşaret", "description": "Ürünün belirli bir coğrafi köken ve geleneksel kalite bağına sahip olduğunu belirtir." },
-      "verified": { "title": "Doğrulanmış", "description": "Ürün veya satıcı bilgilerinin sistem kontrollerinden geçtiğini gösterir." },
-      "fast_shipping": { "title": "Hızlı Kargo", "description": "Siparişin kısa sürede kargoya verileceğini gösterir." },
-      "cold_delivery": { "title": "Soğuk Teslimat", "description": "Ürünün soğuk zincir koşullarında taşındığını belirtir." },
-      "original": { "title": "Orijinal Ürün", "description": "Ürünün özgün ve orijinal nitelik taşıdığını ifade eder." }
+      "pdo": {
+        "title": "PDO",
+        "description": "Menşe adı korumalıdır; üretim, işleme ve hazırlama aynı coğrafi bölgede yapılır."
+      },
+      "pgi": {
+        "title": "PGI",
+        "description": "Mahreç işaretidir; ürün özelliklerinin en az bir aşaması belirtilen coğrafi bölgeye bağlıdır."
+      },
+      "tsg": {
+        "title": "TSG",
+        "description": "Geleneksel ürün garantisidir; ürünün geleneksel bileşimi veya üretim yöntemi korunur."
+      },
+      "geo_indication": {
+        "title": "Coğrafi İşaret",
+        "description": "Ürünün belirli bir coğrafi köken ve geleneksel kalite bağına sahip olduğunu belirtir."
+      },
+      "verified": {
+        "title": "Doğrulanmış",
+        "description": "Ürün veya satıcı bilgilerinin sistem kontrollerinden geçtiğini gösterir."
+      },
+      "fast_shipping": {
+        "title": "Hızlı Kargo",
+        "description": "Siparişin kısa sürede kargoya verileceğini gösterir."
+      },
+      "cold_delivery": {
+        "title": "Soğuk Teslimat",
+        "description": "Ürünün soğuk zincir koşullarında taşındığını belirtir."
+      },
+      "original": {
+        "title": "Orijinal Ürün",
+        "description": "Ürünün özgün ve orijinal nitelik taşıdığını ifade eder."
+      }
     },
     "inCart": "Sepette ({{count}})"
   },
@@ -297,20 +322,24 @@
     "sellerSectionSubtitle": "Operasyon, vitrin ve gelir yönetimi burada."
   },
   "seller": {
-    "becomeSellerTitle": "Satıcı Hesabı Aç",
-    "infoText": "Satıcı hesabı açarak ürünlerinizi listeleyebilir ve müzayedeye çıkarabilirsiniz.",
-    "businessName": "İşletme Adı",
-    "businessNamePlaceholder": "İşletme adınızı girin",
-    "taxOffice": "Vergi Dairesi",
-    "taxOfficePlaceholder": "Vergi dairenizi girin",
-    "taxNumber": "Vergi Numarası",
-    "taxNumberPlaceholder": "Vergi numaranızı girin",
-    "iban": "IBAN",
-    "ibanPlaceholder": "TR33 0006 1005 1978 6457 8413 26",
-    "agreementText": "Tedarikçi sözleşmesini okudum ve kabul ediyorum (v1.0.0)",
-    "registerButton": "Satıcı Hesabı Oluştur",
-    "registrationSuccess": "Satıcı hesabınız aktifleştirildi!",
-    "alreadySeller": "Zaten satıcı hesabınız aktif"
+    "title": "Satıcı Profili",
+    "products": "Ürünler",
+    "productsCount": "{{count}} ürün",
+    "reviews": "Değerlendirme",
+    "reviewsCount": "{{count}} değerlendirme",
+    "sales": "Satış",
+    "salesCount": "{{count}} satış",
+    "rating": "Puan",
+    "location": "Konum",
+    "memberSince": "Üyelik",
+    "verified": "Onaylı Satıcı",
+    "fastShipping": "Hızlı Kargo",
+    "original": "Orijinal Ürün",
+    "viewProduct": "Ürünü Gör",
+    "noRatingAndReviews": "Henüz puan ve yorum yok",
+    "noProducts": "Henüz ürün yok",
+    "noProductsSub": "Bu satıcının listelenmiş ürünü bulunmuyor.",
+    "notFound": "Satıcı bulunamadı"
   },
   "listing": {
     "pageTitle": "İlan Ver",
@@ -677,6 +706,7 @@
     "empty": "Sepetiniz boş",
     "emptySub": "Ürün eklemek için alışverişe başlayın",
     "auctionWonLabel": "Müzayede Kazanımı",
+    "negotiatedLabel": "Teklif Fiyatı",
     "startShopping": "Alışverişe Başla",
     "addedToCart": "Ürün sepete eklendi",
     "premiumLabel": "Premium",
@@ -725,7 +755,43 @@
     "loginError": "E-posta veya şifre hatalı",
     "registerError": "Kayıt işlemi başarısız",
     "registerButton": "Kayıt Ol",
-    "alreadyHaveAccount": "Zaten hesabın var mı?"
+    "alreadyHaveAccount": "Zaten hesabın var mı?",
+    "forgotPasswordTitle": "Şifremi Unuttum",
+    "forgotPasswordSub": "E-posta adresinizi girin, size şifre sıfırlama bağlantısı gönderelim.",
+    "forgotPasswordButton": "Sıfırlama Bağlantısı Gönder",
+    "forgotPasswordSuccess": "Bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi. Lütfen gelen kutunuzu kontrol edin.",
+    "forgotPasswordError": "İstek gönderilemedi. Lütfen tekrar deneyin.",
+    "emailRequired": "Lütfen e-posta adresinizi girin",
+    "rememberedPassword": "Şifrenizi hatırladınız mı?",
+    "resetPasswordTitle": "Şifreyi Sıfırla",
+    "resetPasswordSub": "Hesabınız için yeni bir şifre belirleyin.",
+    "newPassword": "Yeni Şifre",
+    "passwordRequired": "Lütfen şifre alanlarını doldurun",
+    "passwordMismatch": "Şifreler eşleşmiyor",
+    "passwordPolicy": "Şifre en az 8 karakter olmalı; en az 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter içermelidir.",
+    "resetPasswordButton": "Şifreyi Sıfırla",
+    "resetPasswordSuccess": "Şifreniz başarıyla sıfırlandı. Yeni şifrenizle giriş yapabilirsiniz.",
+    "resetPasswordError": "Şifre sıfırlanamadı. Lütfen tekrar deneyin.",
+    "resetPasswordInvalidLink": "Sıfırlama bağlantısı geçersiz. Lütfen e-postanızdaki bağlantıyı kullanın.",
+    "verifyEmailTitle": "E-posta Doğrulama",
+    "verifyEmailVerifying": "E-postanız Doğrulanıyor",
+    "verifyEmailVerifyingSub": "Lütfen bekleyin...",
+    "verifyEmailSuccessTitle": "E-posta Doğrulandı",
+    "verifyEmailSuccessMessage": "E-posta adresiniz başarıyla doğrulandı. Artık giriş yapabilirsiniz.",
+    "verifyEmailErrorTitle": "Doğrulama Başarısız",
+    "verifyEmailError": "E-posta doğrulanamadı. Lütfen tekrar deneyin.",
+    "verifyEmailInvalidLink": "Doğrulama bağlantısı geçersiz. Lütfen e-postanızdaki bağlantıyı kullanın.",
+    "goToLogin": "Girişe Dön",
+    "kvkkConsentPrefix": "",
+    "kvkkConsentLink": "KVKK Aydınlatma Metni",
+    "kvkkConsentSuffix": "'ni okudum ve kabul ediyorum.",
+    "kvkkRequired": "Kayıt olmak için KVKK aydınlatma metnini kabul etmelisiniz",
+    "passwordRulesError": "Şifreniz tüm gereksinimleri karşılamalıdır",
+    "passwordRuleMinLength": "En az 8 karakter",
+    "passwordRuleLowercase": "En az 1 küçük harf",
+    "passwordRuleUppercase": "En az 1 büyük harf",
+    "passwordRuleDigit": "En az 1 rakam",
+    "passwordRuleSpecial": "En az 1 özel karakter (@$!%*?&_.#-)"
   },
   "modal": {
     "title": "Bu bir modal ekranı",
@@ -816,7 +882,7 @@
       }
     },
     "actions": {
-      "accept": "Bu Fiyatla Satın Al",
+      "accept": "Bu Fiyatla Sepete Ekle",
       "reject": "Reddet",
       "close": "Kapat"
     },
@@ -903,6 +969,8 @@
     "bidAcceptedMessage": "{{amount}}₺ teklifiniz kabul edildi.",
     "proxyOutbidTitle": "Proxy teklif devrede",
     "proxyOutbidMessage": "Daha yüksek bir maksimum teklif sizi anında geçti. Güncel fiyat: ₺{{amount}}",
+    "absenteeAcceptedTitle": "Ön teklifiniz alındı",
+    "absenteeAcceptedMessage": "₺{{amount}} tutarına kadar ön teklifiniz kaydedildi. Müzayede başladığında otomatik olarak yarışacak.",
     "bidErrorFallback": "Teklif verilemedi",
     "auctionEnded": "Müzayede Bitti",
     "bidCountLabel": "{{count}} teklif",
@@ -1528,26 +1596,6 @@
       "createCampaign": "Kampanya oluştur",
       "createCoupon": "Kupon oluştur"
     }
-  },
-  "seller": {
-    "title": "Satıcı Profili",
-    "products": "Ürünler",
-    "productsCount": "{{count}} ürün",
-    "reviews": "Değerlendirme",
-    "reviewsCount": "{{count}} değerlendirme",
-    "sales": "Satış",
-    "salesCount": "{{count}} satış",
-    "rating": "Puan",
-    "location": "Konum",
-    "memberSince": "Üyelik",
-    "verified": "Onaylı Satıcı",
-    "fastShipping": "Hızlı Kargo",
-    "original": "Orijinal Ürün",
-    "viewProduct": "Ürünü Gör",
-    "noRatingAndReviews": "Henüz puan ve yorum yok",
-    "noProducts": "Henüz ürün yok",
-    "noProductsSub": "Bu satıcının listelenmiş ürünü bulunmuyor.",
-    "notFound": "Satıcı bulunamadı"
   },
   "orderStatuses": {
     "CREATED": "Oluşturuldu",

@@ -6,6 +6,7 @@
  */
 
 export { SectionHeader } from './SectionHeader';
+export { SectionErrorCard } from './SectionErrorCard';
 export { BannerCarousel } from './BannerCarousel';
 export type { BannerSlide } from './BannerCarousel';
 export { EditorialBannerRow } from './EditorialBannerRow';

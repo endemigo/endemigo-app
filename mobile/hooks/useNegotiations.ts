@@ -392,13 +392,20 @@ export function useNegotiationRealtime(negotiationId?: string) {
     if (!negotiationId || ENV.USE_MOCK) return;
 
     let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
     const connect = async () => {
       const socket = await getNegotiationSocket();
       if (cancelled) return;
 
       socketRef.current = socket;
-      socket.emit('negotiation:join', { negotiationId });
+
+      // (Re-)join on every 'connect': server-side room membership is lost
+      // across reconnects, so a one-off join would leave the hook deaf
+      // after the first drop.
+      const onConnect = () => {
+        socket.emit('negotiation:join', { negotiationId });
+      };
 
       const handleMessage = (message: NegotiationMessage) => {
         if (message.negotiationId !== negotiationId) return;
@@ -418,22 +425,34 @@ export function useNegotiationRealtime(negotiationId?: string) {
         queryClient.setQueryData(NEGOTIATION_QUERY_KEYS.detail(negotiationId), negotiation);
       };
 
+      socket.on('connect', onConnect);
       socket.on('message:new', handleMessage);
       socket.on('offer:updated', handleOffer);
       socket.on('negotiation:updated', handleNegotiation);
+
+      // The socket may already be connected (shared singleton) — in that
+      // case 'connect' will not fire again, so join immediately.
+      if (socket.connected) {
+        onConnect();
+      }
+
+      // Remove only this hook's own handlers — the socket is shared across
+      // screens, so a bare socket.off(event) would also kill the listeners
+      // other mounted instances registered for the same event.
+      cleanup = () => {
+        socket.emit('negotiation:leave', { negotiationId });
+        socket.off('connect', onConnect);
+        socket.off('message:new', handleMessage);
+        socket.off('offer:updated', handleOffer);
+        socket.off('negotiation:updated', handleNegotiation);
+      };
     };
 
     connect();
 
     return () => {
       cancelled = true;
-      const socket = socketRef.current;
-      if (!socket) return;
-
-      socket.emit('negotiation:leave', { negotiationId });
-      socket.off('message:new');
-      socket.off('offer:updated');
-      socket.off('negotiation:updated');
+      cleanup?.();
     };
   }, [addMessage, negotiationId, queryClient, upsertConversation, upsertOffer]);
 }

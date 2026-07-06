@@ -128,4 +128,109 @@ export const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+
+  // ─── Ürün bağlam kartı ─────────────────────────────────────
+  productCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+  },
+  productCardImage: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.slate100,
+  },
+  productCardBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  productCardTitle: {
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
+  productCardSubtitle: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate500,
+    marginTop: 1,
+  },
+  productCardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  productCardLinkText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.primary,
+  },
+
+  // ─── Sabit teklif bandı ────────────────────────────────────
+  offerBand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: `${Colors.primary}0D`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}33`,
+  },
+  offerBandInfo: {
+    flex: 1,
+  },
+  offerBandLabel: {
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate500,
+  },
+  offerBandAmount: {
+    fontSize: FontSize.subheading,
+    fontFamily: FontFamily.bodyBold,
+    color: Colors.onSurface,
+  },
+  offerBandActions: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  offerBandAccept: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  offerBandAcceptText: {
+    color: Colors.white,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+  offerBandReject: {
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  offerBandRejectText: {
+    color: Colors.error,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+  offerBandWaiting: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate400,
+  },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -9,8 +9,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { useCartStore } from '../store/cartStore';
 import { useToastStore } from '../store/toastStore';
-import { useModalStore } from '../store/modalStore';
-import { useCheckoutCart } from '../hooks/useOrders';
 import { formatCurrency } from '../utils/transactionFormatters';
 import { styles } from '../styles/tabs/cart.styles';
 
@@ -22,9 +20,6 @@ export default function CartScreen() {
   const clearCart = useCartStore((state) => state.clearCart);
   const updateItemQuantity = useCartStore((state) => state.updateItemQuantity);
   const showToast = useToastStore((state) => state.showToast);
-
-  const checkoutCart = useCheckoutCart();
-  const showModal = useModalStore((state) => state.showModal);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 1500 ? 0 : 89;
@@ -49,39 +44,9 @@ export default function CartScreen() {
   };
 
   const handleCheckout = () => {
-    if (checkoutCart.isPending) return;
+    // Adres, kupon ve özet adımı checkout ekranında toplanır.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-
-    showModal({
-      title: t('cart.checkoutConfirmTitle'),
-      message: t('cart.checkoutConfirmMessage', { count: totalQuantity }),
-      type: 'info',
-      confirmText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      onConfirm: () => {
-        checkoutCart.mutate(undefined, {
-          onSuccess: () => {
-            showModal({
-              title: t('cart.checkoutSuccessTitle'),
-              message: t('cart.checkoutSuccessMessage'),
-              type: 'success',
-              confirmText: t('common.ok'),
-              onConfirm: () => {
-                router.replace('/(tabs)/orders');
-              },
-            });
-          },
-          onError: (error) => {
-            showModal({
-              title: t('common.error'),
-              message: error.message || t('common.genericError'),
-              type: 'error',
-            });
-          },
-        });
-      },
-      onCancel: () => undefined,
-    });
+    router.push('/checkout' as never);
   };
 
   if (!items.length) {
@@ -129,9 +94,9 @@ export default function CartScreen() {
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <Swipeable
-            enabled={!item.auctionId}
+            enabled={!item.auctionId && !item.offerId}
             overshootRight={false}
-            renderRightActions={() => item.auctionId ? null : (
+            renderRightActions={() => (item.auctionId || item.offerId) ? null : (
               <TouchableOpacity
                 style={styles.swipeDeleteAction}
                 onPress={() => handleRemoveItem(item.id)}
@@ -155,6 +120,11 @@ export default function CartScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.secondaryContainer, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
                       <Ionicons name="hammer-outline" size={12} color={Colors.onSecondaryContainer} style={{ marginRight: 4 }} />
                       <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.onSecondaryContainer }}>{t('cart.auctionWonLabel')}</Text>
+                    </View>
+                  ) : item.offerId ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.secondaryContainer, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                      <Ionicons name="pricetag-outline" size={12} color={Colors.onSecondaryContainer} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.onSecondaryContainer }}>{t('cart.negotiatedLabel', { defaultValue: 'Teklif fiyatı' })}</Text>
                     </View>
                   ) : (
                     <View style={styles.stepper}>
@@ -215,16 +185,9 @@ export default function CartScreen() {
             style={styles.checkoutButton}
             activeOpacity={0.8}
             onPress={handleCheckout}
-            disabled={checkoutCart.isPending}
           >
-            {checkoutCart.isPending ? (
-              <ActivityIndicator color={Colors.white} size="small" />
-            ) : (
-              <>
-                <Ionicons name="shield-checkmark" size={16} color={Colors.white} />
-                <Text style={styles.checkoutButtonText}>{t('cart.checkout')}</Text>
-              </>
-            )}
+            <Ionicons name="shield-checkmark" size={16} color={Colors.white} />
+            <Text style={styles.checkoutButtonText}>{t('cart.checkout')}</Text>
           </TouchableOpacity>
         </View>
         <Text style={styles.secureHint}>{t('cart.secureCheckout')}</Text>

@@ -208,7 +208,9 @@ export interface OrderDetail {
   reviewEligibility: {
     canRequestReturn: boolean;
     canReview: boolean;
+    canCancel?: boolean;
   };
+  returnWindowEndsAt?: string | null;
   submittedReview: SubmittedOrderReview | null;
   returnReasonCode?: string | null;
   returnReasonNote?: string | null;

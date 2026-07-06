@@ -82,6 +82,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     paddingBottom: 132,
   },
+  // Etkinlik satırları kendi yatay marjlarını yönetir (bölüm başlıkları dahil).
+  eventListContent: {
+    paddingBottom: 132,
+    paddingTop: Spacing.xs,
+  },
 
   // Card
   card: {
@@ -505,5 +510,170 @@ export const styles = StyleSheet.create({
   modalItemTextActive: {
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.primary,
+  },
+
+  // ─── Yeniden tasarım: chip filtre satırı ───────────────────
+  chipRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.sm,
+  },
+  headerSearchButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ─── Canlı salon hero kartı ────────────────────────────────
+  heroCard: {
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.base,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    overflow: 'hidden',
+  },
+  heroCover: {
+    height: 130,
+    backgroundColor: Colors.slate100,
+  },
+  heroLiveBadge: {
+    position: 'absolute',
+    top: Spacing.sm,
+    left: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.error,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.lg,
+  },
+  heroLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.white,
+  },
+  heroLiveText: {
+    color: Colors.white,
+    fontSize: FontSize.xs,
+    fontFamily: FontFamily.bodySemiBold,
+    letterSpacing: 0.5,
+  },
+  heroInfo: {
+    padding: Spacing.md,
+    gap: Spacing.xs,
+  },
+  heroTitle: {
+    fontSize: FontSize.bodyLg,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  heroMetaText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate500,
+  },
+  heroCta: {
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  heroCtaText: {
+    color: Colors.white,
+    fontSize: FontSize.body,
+    fontFamily: FontFamily.bodySemiBold,
+  },
+
+  // ─── Bölüm başlığı + kompakt yaklaşan kartı ───────────────
+  sectionLabel: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.slate400,
+    letterSpacing: 0.6,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  compactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+  },
+  compactThumb: {
+    width: 72,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.slate100,
+  },
+  compactBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  compactTitle: {
+    fontSize: FontSize.meta,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.onSurface,
+  },
+  compactMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  compactMetaText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate500,
+  },
+  compactCountdown: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.primary,
+  },
+
+  // ─── Geçmiş müzayede satırı ────────────────────────────────
+  pastRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.slate50,
+  },
+  pastTitle: {
+    flex: 1,
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodyMedium,
+    color: Colors.slate500,
+  },
+  pastMeta: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.body,
+    color: Colors.slate400,
   },
 });

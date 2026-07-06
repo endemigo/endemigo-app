@@ -1,7 +1,27 @@
 import { useEffect } from 'react';
 import { LogLevel, OneSignal } from 'react-native-onesignal';
+import { router } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import ENV from '../lib/config';
+
+// Push tıklaması → ilgili ekran. Backend, bildirime relatedEntityType/Id koyar.
+function resolveNotificationRoute(data: Record<string, unknown> | undefined): string | null {
+  const type = typeof data?.relatedEntityType === 'string' ? data.relatedEntityType : null;
+  const id = typeof data?.relatedEntityId === 'string' ? data.relatedEntityId : null;
+  if (!type || !id) return null;
+  switch (type) {
+    case 'auction':
+      return `/auction/${id}`;
+    case 'auction_event':
+      return `/auction/event/${id}`;
+    case 'order':
+      return `/(tabs)/orders/${id}`;
+    case 'payment':
+      return '/cart';
+    default:
+      return null;
+  }
+}
 
 export const useOneSignal = () => {
   const { user, isLoggedIn } = useAuthStore();
@@ -22,9 +42,12 @@ export const useOneSignal = () => {
       console.log('Push notifications permission granted:', granted);
     });
 
-    // 3. Bildirim tıklama olaylarını dinle (opsiyonel)
+    // 3. Bildirim tıklaması → ilgili müzayede/sipariş ekranına yönlendir
     const handleNotificationClick = (event: any) => {
-      console.log('Notification clicked:', event);
+      const route = resolveNotificationRoute(event?.notification?.additionalData);
+      if (route) {
+        router.push(route as never);
+      }
     };
 
     OneSignal.Notifications.addEventListener('click', handleNotificationClick);

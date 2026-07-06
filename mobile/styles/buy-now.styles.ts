@@ -189,6 +189,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: Spacing.xs,
   },
+  productRow: {
+    justifyContent: 'space-between',
+  },
   productCardWrap: {
     width: '48.5%',
     marginBottom: Spacing.base,

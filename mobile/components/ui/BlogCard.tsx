@@ -6,6 +6,7 @@ import { Colors } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { styles } from './BlogCard.styles';
+import { resolveMediaUrl } from '../../utils/mobileConfig';
 
 interface Props {
   item: Blog;
@@ -22,7 +23,7 @@ export function BlogCard({ item, onPress }: Props) {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <Image source={{ uri: item.image }} style={styles.image} contentFit="cover" />
+      <Image source={{ uri: resolveMediaUrl(item.image) }} style={styles.image} contentFit="cover" />
       <View style={styles.content}>
         <View style={styles.metaRow}>
           <Text style={styles.category}>{t('blogDetail.categoryFallback')}</Text>

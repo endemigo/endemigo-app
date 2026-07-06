@@ -31,7 +31,7 @@ import { formatCurrency } from '../../utils/transactionFormatters';
 import { formatProductPrice } from '../../utils/productPriceFormatter';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import type { Product, StartNegotiationInput } from '../../types';
-import { ListingType } from '@endemigo/shared';
+import { ListingType, AuctionStatus } from '@endemigo/shared';
 import { useAuctionByProduct, useAuctionEventDetails } from '../../hooks/useAuctions';
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/400x300/F8F9FA/0097D8?text=Endemigo';
@@ -725,20 +725,45 @@ export default function ProductDetailScreen() {
         isFavoriteActive={favoriteActive}
       />
       {product.listingType === ListingType.AUCTION && auction && (
-        <View style={styles.auctionHeaderBanner}>
-          <Ionicons name="time-outline" size={16} color={Colors.white} style={{ marginRight: 6 }} />
+        <TouchableOpacity
+          style={[
+            styles.auctionHeaderBanner,
+            auction.status === AuctionStatus.ACTIVE && { backgroundColor: Colors.error },
+          ]}
+          activeOpacity={0.85}
+          onPress={() => {
+            // Canlıysa salona, değilse lot ilanına götür — köprü tek dokunuş.
+            if (auction.eventId) {
+              router.push(`/auction/event/${auction.eventId}` as never);
+            } else {
+              router.push(`/auction/${auction.id}` as never);
+            }
+          }}
+        >
+          <Ionicons
+            name={auction.status === AuctionStatus.ACTIVE ? 'radio-outline' : 'time-outline'}
+            size={16}
+            color={Colors.white}
+            style={{ marginRight: 6 }}
+          />
           <Text style={styles.auctionHeaderBannerText} numberOfLines={1}>
+            {auction.status === AuctionStatus.ACTIVE
+              ? `${t('auctions.live').toLocaleUpperCase('tr-TR')} · `
+              : ''}
             {eventDetails?.event?.title ? `${eventDetails.event.title} | ` : ''}
             {t('auction.lotNumber', { defaultValue: 'Lot Kodu' })}: {auction.lotNumber}
           </Text>
-        </View>
+          <Ionicons name="chevron-forward" size={14} color={Colors.white} />
+        </TouchableOpacity>
       )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollView}
         scrollEventThrottle={16}
         onScroll={({ nativeEvent }) => {
-          if (purchasePanelBottomY === null || isAskPrice) {
+          // Ask-price ürünlerde de sticky CTA gösterilir ("Fiyat Sor" varyantı) —
+          // uzun sayfada aşağıdayken ana aksiyon kaybolmamalı.
+          if (purchasePanelBottomY === null) {
             if (showStickyAddToCart) setShowStickyAddToCart(false);
             return;
           }
@@ -1274,7 +1299,12 @@ export default function ProductDetailScreen() {
                 color={favoriteActive ? Colors.accent : Colors.onSurfaceVariant}
               />
             </TouchableOpacity>
-            {cartQuantity > 0 ? (
+            {isAskPrice ? (
+              <TouchableOpacity style={styles.stickyCartCtaButton} activeOpacity={0.85} onPress={handleAskPrice}>
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.white} />
+                <Text style={styles.stickyCartCtaText}>{t('product.askPrice')}</Text>
+              </TouchableOpacity>
+            ) : cartQuantity > 0 ? (
               <View style={styles.stickyQuantityStepper}>
                 <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleDecreaseQuantity}>
                   <Ionicons name="remove" size={16} color={Colors.white} />

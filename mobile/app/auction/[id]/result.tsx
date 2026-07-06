@@ -62,9 +62,16 @@ export default function AuctionResultScreen() {
       : hasWinner
         ? t('auction.resultEndedMessage')
         : t('auction.resultNoBidMessage');
+  // Satış onayı (admin/organizatör) verilmeden ödeme açılmaz.
+  const isSaleApproved = Boolean((result as { saleApprovedAt?: string | null }).saleApprovedAt);
   const paymentSummary = isPaymentPending
     ? isWinner
-      ? t('auction.paymentPendingWinnerMessage')
+      ? isSaleApproved
+        ? t('auction.paymentPendingWinnerMessage')
+        : t('auction.saleApprovalPendingMessage', {
+            defaultValue:
+              'Müzayede kontrolleri sürüyor. Satış onaylandığında ödeme sepetinize açılacak ve bildirim alacaksınız.',
+          })
       : t('auction.paymentPendingObserverMessage')
     : isPaymentPaid
       ? t('auction.paymentPaidMessage')
@@ -82,18 +89,18 @@ export default function AuctionResultScreen() {
 
   const handleCompletePayment = async () => {
     try {
-      const response = await completeAuctionPayment.mutateAsync({ auctionId: id });
+      // Ödeme sepet üzerinden kredi kartıyla yapılır; backend ürünün
+      // sepette olduğunu garanti eder.
+      await completeAuctionPayment.mutateAsync({ auctionId: id });
       showModal({
-        title: t('auction.paymentSuccessTitle'),
-        message: t('auction.paymentSuccessMessage'),
+        title: t('auction.paymentViaCartTitle', { defaultValue: 'Ürün Sepetinizde' }),
+        message: t('auction.paymentViaCartMessage', {
+          defaultValue: 'Kazandığınız ürün sepetinize eklendi. Ödemeyi sepetten kredi kartınızla tamamlayabilirsiniz.',
+        }),
         type: 'success',
-        confirmText: t('common.ok'),
+        confirmText: t('auction.goToCart', { defaultValue: 'Sepete Git' }),
         onConfirm: () => {
-          if (response.orderId) {
-            router.replace('/(tabs)/orders');
-            return;
-          }
-          router.replace('/(tabs)/orders');
+          router.replace('/cart');
         },
       });
     } catch (error: unknown) {
@@ -208,7 +215,7 @@ export default function AuctionResultScreen() {
               <Text style={styles.value}>{paymentDeadlineLabel}</Text>
             </View>
           ) : null}
-          {isPaymentPending && isWinner ? (
+          {isPaymentPending && isWinner && isSaleApproved ? (
             <TouchableOpacity
               style={styles.primaryAction}
               onPress={handleCompletePayment}

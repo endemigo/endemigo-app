@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useBanner } from '../../hooks/useBanners';
 import { useModalStore } from '../../store/modalStore';
 import { styles, CARD_WIDTH } from './DynamicBannerWidget.styles';
-import { resolveLocalizedText } from '../../utils/mobileConfig';
+import { resolveLocalizedText, resolveMediaUrl } from '../../utils/mobileConfig';
 import type { BannerItem } from '@endemigo/shared';
 
 interface Props {
@@ -163,7 +163,7 @@ export function DynamicBannerWidget({ bannerId, title }: Props) {
                 onPress={() => handleItemPress(item)}
               >
                 <Image
-                  source={{ uri: item.imageUrl }}
+                  source={{ uri: resolveMediaUrl(item.imageUrl) }}
                   style={styles.bannerImage}
                   resizeMode="cover"
                 />

@@ -9,8 +9,24 @@ import {
   type MobileProductCardAudienceOverride,
   type MobileProductCardConfig,
 } from '@endemigo/shared';
+import ENV from '../lib/config';
 import type { User } from '../store/authStore';
 import type { RoleMode } from '../types/transactionFlows';
+
+// Local storage sürücüsü görselleri `/uploads/...` şeklinde relative döndürür;
+// cihaz relative URL açamayacağı için API origin'ine çevrilir.
+export function resolveMediaUrl(url: string | null | undefined): string {
+  if (!url) {
+    return '';
+  }
+  if (/^(https?:|data:|file:)/.test(url)) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return `${ENV.API_URL.replace(/\/$/, '')}${url}`;
+  }
+  return url;
+}
 
 export function resolveMobileAudience(
   user: Pick<User, 'isSeller'> | null | undefined,

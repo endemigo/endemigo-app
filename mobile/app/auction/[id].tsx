@@ -28,7 +28,9 @@ import {
   useRegisterToAuction,
   useSavedCards,
   usePayDeposit,
+  useAuctionEventDetails,
 } from '../../hooks/useAuctions';
+import { useToggleFavorite } from '../../hooks/useSearch';
 import { CardVerificationModal } from '../../components/auction/CardVerificationModal';
 import { AuthRegisterWizardModal } from '../../components/auth/AuthRegisterWizardModal';
 import { BiddingLimitModal } from '../../components/auction/BiddingLimitModal';
@@ -49,6 +51,7 @@ import {
   getAuctionStatusLabel,
   getAuctionTypeLabel,
 } from '../../utils/auctionPresentation';
+import { SUPPORT_PHONE_URL } from '../../constants/support';
 import { AuctionHero } from '../../components/auction/AuctionHero';
 import { AuctionSummaryPanel } from '../../components/auction/AuctionSummaryPanel';
 import { AuctionRulesPanel } from '../../components/auction/AuctionRulesPanel';
@@ -81,6 +84,9 @@ export default function AuctionDetailScreen() {
   } | null>(null);
   const socket = useAuctionSocket(id);
   const { data: product } = useProduct(auction?.productId ?? '');
+  const { data: eventDetails } = useAuctionEventDetails(auction?.eventId ?? '');
+  const toggleFavorite = useToggleFavorite();
+  const [favoriteActive, setFavoriteActive] = useState<boolean | null>(null);
   const insets = useSafeAreaInsets();
   const [bidAmount, setBidAmount] = useState('');
   const [maxBidAmount, setMaxBidAmount] = useState('');
@@ -139,6 +145,14 @@ export default function AuctionDetailScreen() {
       refetchBids();
     }
   }, [refetch, refetchBids, socket.auctionEnded]);
+
+  // Auction went live while the user was parked on the detail screen:
+  // refetch so auction.status flips from PUBLISHED to ACTIVE.
+  useEffect(() => {
+    if (socket.auctionStarted) {
+      refetch();
+    }
+  }, [refetch, socket.auctionStarted]);
 
   useEffect(() => {
     if (socket.wasOutbid) {
@@ -270,7 +284,12 @@ export default function AuctionDetailScreen() {
       ? undefined
       : null;
 
-  const showPaymentButton = isEnded && resolvedIsWinner && result?.paymentStatus === 'PENDING';
+  // Satış onayı (admin/organizatör) düşmeden ödeme butonu gösterilmez.
+  const showPaymentButton =
+    isEnded &&
+    resolvedIsWinner &&
+    result?.paymentStatus === 'PENDING' &&
+    Boolean((result as { saleApprovedAt?: string | null } | undefined)?.saleApprovedAt);
   const showOrderButton = isEnded && resolvedIsWinner && result?.paymentStatus === 'PAID' && !!result.orderId;
   const showCalendarButton = isUpcoming;
 
@@ -305,15 +324,20 @@ export default function AuctionDetailScreen() {
 
   const handleCompletePayment = async () => {
     try {
+      // Ödeme sepet üzerinden kredi kartıyla yapılır; backend ürünün
+      // sepette olduğunu garanti eder.
       await completeAuctionPayment.mutateAsync({ auctionId: id });
       showModal({
-        title: t('auction.paymentSuccessTitle', { defaultValue: 'Ödeme Başarılı!' }),
-        message: t('auction.paymentSuccessMessage', { defaultValue: 'Ödemeniz başarıyla alındı.' }),
+        title: t('auction.paymentViaCartTitle', { defaultValue: 'Ürün Sepetinizde' }),
+        message: t('auction.paymentViaCartMessage', {
+          defaultValue: 'Kazandığınız ürün sepetinize eklendi. Ödemeyi sepetten kredi kartınızla tamamlayabilirsiniz.',
+        }),
         type: 'success',
-        confirmText: t('common.ok'),
+        confirmText: t('auction.goToCart', { defaultValue: 'Sepete Git' }),
+        cancelText: t('common.cancel'),
         onConfirm: () => {
           hideModal();
-          refetch();
+          router.push('/cart');
         },
       });
     } catch (error: unknown) {
@@ -337,7 +361,9 @@ export default function AuctionDetailScreen() {
     buyerPremiumRate: 0,
     walletAvailable: walletAvailableForBid,
   });
-  const isWalletGateClosed = !bidEstimate.isWalletSufficient;
+  // Pey için cüzdan bakiyesi/bloke gerekmez — risk, backend'deki
+  // müzayede limiti (depozit) kontrolüyle yönetilir.
+  const isWalletGateClosed = false;
   const feeEstimateRows = [
     {
       key: 'total',
@@ -414,7 +440,7 @@ export default function AuctionDetailScreen() {
       return;
     }
 
-    if (isBidEmpty) {
+    if (isBidEmpty && !isPreBid) {
       setShowComposer(false);
       showModal({
         title: t('common.error'),
@@ -424,7 +450,12 @@ export default function AuctionDetailScreen() {
       return;
     }
 
-    const amount = parsedBidAmount;
+    // Ön teklif modunda composer sadece maksimum tutarı ister; görünür
+    // açılış tutarı minimum tekliften başlar.
+    const amount =
+      isPreBid && (isBidEmpty || Number.isNaN(parsedBidAmount))
+        ? minBid
+        : parsedBidAmount;
     if (Number.isNaN(amount) || amount < minBid) {
       setShowComposer(false);
       showModal({
@@ -447,19 +478,6 @@ export default function AuctionDetailScreen() {
       return;
     }
 
-    if (isWalletGateClosed) {
-      setShowComposer(false);
-      showModal({
-        title: t('auction.walletGateTitle'),
-        message: t('auction.walletGateModalMessage', {
-          total: formatAmount(bidEstimate.estimatedTotal),
-          shortfall: formatAmount(bidEstimate.walletShortfall),
-        }),
-        type: 'error',
-      });
-      return;
-    }
-
     try {
       const result = await placeBid.mutateAsync({
         auctionId: id,
@@ -469,6 +487,19 @@ export default function AuctionDetailScreen() {
             ? parsedMaxBidAmount
             : undefined,
       });
+      if (result?.bid?.absentee) {
+        setShowComposer(false);
+        setBidState(null);
+        setActiveProxyAmount(null);
+        showModal({
+          title: t('auction.absenteeAcceptedTitle'),
+          message: t('auction.absenteeAcceptedMessage', {
+            amount: formatAmount(result.bid.maxAmount ?? amount),
+          }),
+          type: 'success',
+        });
+        return;
+      }
       if (result?.bid?.isLeadingBid === false) {
         setShowComposer(false);
         setBidState('outbid');
@@ -582,10 +613,24 @@ export default function AuctionDetailScreen() {
           message: t('auction.registeringWithSavedCard', { defaultValue: 'Kayıtlı kartınızla müzayede kaydı oluşturuluyor...' }),
           type: 'info',
         });
-        await registerMutation.mutateAsync({ auctionId: id });
+        const regRes = await registerMutation.mutateAsync({ auctionId: id });
         await refetchRegistrationStatus();
         hideModal();
-        setShowComposer(true);
+        // Kayıt PENDING açılır; onay admin/sistemden düşer.
+        if (regRes?.registration?.status === 'APPROVED') {
+          setShowComposer(true);
+        } else {
+          showModal({
+            title: t('auction.registrationPending', { defaultValue: 'Katılım Onayı Bekleniyor' }),
+            message: t('auction.registrationSubmittedMessage', {
+              defaultValue:
+                'Katılım talebiniz alındı. Onaylandığında bildirim alacaksınız ve pey verebileceksiniz.',
+            }),
+            type: 'info',
+            confirmText: t('common.ok'),
+            onConfirm: () => hideModal(),
+          });
+        }
       } catch (err) {
         showModal({
           title: t('common.error'),
@@ -609,16 +654,49 @@ export default function AuctionDetailScreen() {
 
     if (registration.status === 'REJECTED') {
       showModal({
-        title: t('common.error'),
-        message: t('auction.registrationRejectedMessage'),
+        title: t('auction.registrationRejectedTitle', { defaultValue: 'Onaylanmadın' }),
+        message: t('auction.registrationRejectedContactMessage', {
+          defaultValue:
+            'Müzayede katılımınız onaylanmadı. Onaylanmak için müşteri ilişkilerine mesaj yazabilir veya arayabilirsiniz.',
+        }),
         type: 'error',
-        confirmText: t('common.ok'),
-        onConfirm: () => hideModal(),
+        confirmText: t('auction.contactSupportMessage', { defaultValue: 'Mesaj Yaz' }),
+        cancelText: t('auction.contactSupportCall', { defaultValue: 'Ara' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(tabs)/messages');
+        },
+        onCancel: () => {
+          hideModal();
+          Linking.openURL(SUPPORT_PHONE_URL).catch(() => {});
+        },
       });
       return;
     }
 
     setShowComposer(true);
+  };
+
+  // Lot gezinme: aynı etkinlikteki önceki/sonraki lot (katalog sırasına göre).
+  const sortedEventLots = [...(eventDetails?.lots ?? [])].sort(
+    (a, b) => (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0),
+  );
+  const currentLotIndex = sortedEventLots.findIndex((lot) => lot.id === id);
+  const prevLot = currentLotIndex > 0 ? sortedEventLots[currentLotIndex - 1] : null;
+  const nextLot =
+    currentLotIndex >= 0 && currentLotIndex < sortedEventLots.length - 1
+      ? sortedEventLots[currentLotIndex + 1]
+      : null;
+
+  const isFavoriteActive = favoriteActive ?? Boolean(product?.isFavorited);
+  const handleToggleFavorite = async () => {
+    if (!auction?.productId) return;
+    try {
+      const res = await toggleFavorite.mutateAsync(auction.productId);
+      setFavoriteActive(res.isFavorited);
+    } catch {
+      // sessiz geç — favori değişimi kritik akış değil
+    }
   };
 
   // Auction state remains the source of truth for pricing and timing,
@@ -645,6 +723,48 @@ export default function AuctionDetailScreen() {
           onBack={() => router.back()}
           t={t}
         />
+
+        {sortedEventLots.length > 1 && currentLotIndex >= 0 ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: Spacing.base,
+              paddingVertical: Spacing.sm,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => prevLot && router.replace(`/auction/${prevLot.id}`)}
+              disabled={!prevLot}
+              style={{ flexDirection: 'row', alignItems: 'center', opacity: prevLot ? 1 : 0.35 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={18} color={Colors.primary} />
+              <Text style={{ color: Colors.primary, fontWeight: '600' }}>
+                {t('auction.previousLot', { defaultValue: 'Önceki' })}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontWeight: '700', color: Colors.onSurface }}>
+              {t('auction.lotPosition', {
+                defaultValue: 'Lot {{current}} / {{total}}',
+                current: currentLotIndex + 1,
+                total: sortedEventLots.length,
+              })}
+            </Text>
+            <TouchableOpacity
+              onPress={() => nextLot && router.replace(`/auction/${nextLot.id}`)}
+              disabled={!nextLot}
+              style={{ flexDirection: 'row', alignItems: 'center', opacity: nextLot ? 1 : 0.35 }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: Colors.primary, fontWeight: '600' }}>
+                {t('auction.nextLot', { defaultValue: 'Sonraki' })}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.content}>
           <AuctionSummaryPanel
@@ -695,14 +815,36 @@ export default function AuctionDetailScreen() {
 
       {isActive && !isSeller ? (
         <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
-          <TouchableOpacity
-            style={styles.openComposerButton}
-            onPress={handleOpenComposerClick}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
-          </TouchableOpacity>
-          {hasActiveHoldForAuction ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+            <TouchableOpacity
+              style={[styles.openComposerButton, { flex: 1 }]}
+              onPress={handleOpenComposerClick}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleToggleFavorite}
+              activeOpacity={0.7}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: Colors.slate200,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: Colors.white,
+              }}
+            >
+              <Ionicons
+                name={isFavoriteActive ? 'heart' : 'heart-outline'}
+                size={24}
+                color={isFavoriteActive ? Colors.accent : Colors.onSurface}
+              />
+            </TouchableOpacity>
+          </View>
+          {bidState === 'leading' ? (
             <TouchableOpacity
               style={styles.withdrawButton}
               onPress={handleWithdrawBid}
@@ -788,6 +930,26 @@ export default function AuctionDetailScreen() {
               <Text style={styles.openComposerButtonText}>
                 {t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleToggleFavorite}
+              activeOpacity={0.7}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: Colors.slate200,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: Colors.white,
+              }}
+            >
+              <Ionicons
+                name={isFavoriteActive ? 'heart' : 'heart-outline'}
+                size={24}
+                color={isFavoriteActive ? Colors.accent : Colors.onSurface}
+              />
             </TouchableOpacity>
           </View>
         )

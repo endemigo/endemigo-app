@@ -15,8 +15,10 @@ import {
   useNegotiationStoreMessages,
 } from '../../hooks/useNegotiations';
 import { useAuthStore } from '../../store/authStore';
+import { useCartStore } from '../../store/cartStore';
 import { useModalStore } from '../../store/modalStore';
-import { NegotiationStatus } from '../../types';
+import { NegotiationStatus, NegotiationOfferStatus } from '../../types';
+import { Image } from 'react-native';
 import { styles } from '../../styles/negotiation/[id].styles';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import { formatAmount } from '../../utils/transactionFormatters';
@@ -127,6 +129,87 @@ export default function NegotiationDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Ürün bağlam kartı: alıcı neyi pazarlık ettiğini her an görür */}
+      <TouchableOpacity
+        style={styles.productCard}
+        activeOpacity={0.8}
+        onPress={() => router.push(`/product/${negotiation.product.id}` as never)}
+      >
+        <Image
+          source={{ uri: negotiation.product.imageUrl || 'https://placehold.co/96x96/F8F9FA/0097D8?text=%20' }}
+          style={styles.productCardImage}
+        />
+        <View style={styles.productCardBody}>
+          <Text style={styles.productCardTitle} numberOfLines={1}>
+            {negotiation.product.title}
+          </Text>
+          <Text style={styles.productCardSubtitle} numberOfLines={1}>
+            {negotiation.seller.name}
+          </Text>
+        </View>
+        <View style={styles.productCardLink}>
+          <Text style={styles.productCardLinkText}>
+            {t('negotiation.viewProduct', { defaultValue: 'Ürüne Git' })}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+        </View>
+      </TouchableOpacity>
+
+      {/* Aktif teklif bandı: teklif mesaj akışında kaybolmaz, üstte sabit durur */}
+      {negotiation.latestOffer && negotiation.latestOffer.status === NegotiationOfferStatus.PENDING ? (
+        <View style={styles.offerBand}>
+          <View style={styles.offerBandInfo}>
+            <Text style={styles.offerBandLabel}>
+              {t('negotiation.currentOffer', { defaultValue: 'Güncel Teklif' })}
+            </Text>
+            <Text style={styles.offerBandAmount}>
+              {formatAmount(negotiation.latestOffer.amount)} ₺
+            </Text>
+          </View>
+          {canRespondToOffer(negotiation.latestOffer) ? (
+            <View style={styles.offerBandActions}>
+              <TouchableOpacity
+                style={styles.offerBandAccept}
+                activeOpacity={0.85}
+                disabled={actions.isPending}
+                onPress={() => actions.acceptOffer.mutate(
+                  { negotiationId: id, offerId: negotiation.latestOffer!.id },
+                  {
+                    onSuccess: () => {
+                      // Kabul edilen teklif sepete eklenir; alıcı sepetten öder.
+                      void useCartStore.getState().hydrateCart();
+                      router.push('/cart');
+                    },
+                    onError: handleActionError,
+                  },
+                )}
+              >
+                <Text style={styles.offerBandAcceptText}>
+                  {t('negotiation.actions.accept', { defaultValue: 'Kabul Et' })}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.offerBandReject}
+                activeOpacity={0.85}
+                disabled={actions.isPending}
+                onPress={() => actions.rejectOffer.mutate(
+                  { negotiationId: id, offerId: negotiation.latestOffer!.id },
+                  { onError: handleActionError },
+                )}
+              >
+                <Text style={styles.offerBandRejectText}>
+                  {t('negotiation.actions.reject', { defaultValue: 'Reddet' })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.offerBandWaiting}>
+              {t('negotiation.offerWaiting', { defaultValue: 'Yanıt bekleniyor' })}
+            </Text>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.statusRow}>
         <NegotiationStatusBadge status={negotiation.status} />
         {negotiation.policy?.hasViolation ? (
@@ -177,11 +260,10 @@ export default function NegotiationDetailScreen() {
               canRespondToOffer={canRespondToOffer(message.offer)}
               actionPending={actions.isPending}
               onAcceptOffer={(offerId) => actions.acceptOffer.mutate({ negotiationId: id, offerId }, {
-                onSuccess: (res) => {
-                  const orderId = (res as any).order?.id ?? (res as any).negotiation?.orderId;
-                  if (orderId) {
-                    router.push(`/(tabs)/orders/${orderId}`);
-                  }
+                onSuccess: () => {
+                  // Kabul edilen teklif sepete eklenir; alıcı sepetten öder.
+                  void useCartStore.getState().hydrateCart();
+                  router.push('/cart');
                 },
                 onError: handleActionError
               })}

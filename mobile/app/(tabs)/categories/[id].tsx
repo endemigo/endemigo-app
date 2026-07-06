@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { styles as layoutStyles } from '../../../styles/tabs/_layout.styles';
-import { useProducts, useCategories, Product, Category } from '../../../hooks/useProducts';
+import { useInfiniteProducts, useCategories, Product, Category } from '../../../hooks/useProducts';
 import { Colors, Spacing } from '../../../constants/theme';
 import { ProductCard } from '../../../components/ui';
 import { styles } from '../../../styles/tabs/categories/[id].styles';
@@ -13,7 +13,15 @@ export default function CategoryDetailScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const router = useRouter();
   const { t } = useTranslation();
-  const { data, isLoading, isError, refetch } = useProducts(1);
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteProducts({ categoryId: id });
   const { data: categories } = useCategories();
 
   const currentCategory = React.useMemo(() => {
@@ -48,10 +56,6 @@ export default function CategoryDetailScreen() {
     return findParentRecursive(categories || [], id);
   }, [categories, id]);
 
-  const subcategories = React.useMemo(() => {
-    return currentCategory?.children ?? [];
-  }, [currentCategory]);
-
   const filterChips = React.useMemo(() => {
     if (!currentCategory) return [];
 
@@ -68,25 +72,15 @@ export default function CategoryDetailScreen() {
     return [allChip, ...siblingList];
   }, [currentCategory, parentCategory, t]);
 
-  const allCategoryIds = React.useMemo(() => {
-    const ids = [id];
-    subcategories.forEach((child) => {
-      ids.push(child.id);
-      if (child.children) {
-        child.children.forEach((subChild) => {
-          ids.push(subChild.id);
-        });
-      }
-    });
-    return ids;
-  }, [subcategories, id]);
-
   const products = React.useMemo(() => {
-    const items = data?.items || [];
-    return items.filter(
-      (item) => allCategoryIds.includes(item.categoryId) || item.categoryName === name
-    );
-  }, [data?.items, allCategoryIds, name]);
+    return data?.pages.flatMap((page) => page.items) ?? [];
+  }, [data]);
+
+  const renderProduct = React.useCallback(({ item }: { item: Product }) => (
+    <View style={styles.cardWrap}>
+      <ProductCard item={item} onPress={() => router.push(`/product/${item.id}`)} />
+    </View>
+  ), [router]);
 
   const handleChipPress = (chip: { id: string; name: string; slug?: string }) => {
     router.push({
@@ -178,20 +172,34 @@ export default function CategoryDetailScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={products}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
           style={styles.scroll}
-          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.grid}>
-            {products.map((item: Product) => (
-              <View key={item.id} style={styles.cardWrap}>
-                <ProductCard item={item} onPress={() => router.push(`/product/${item.id}`)} />
-              </View>
-            ))}
-          </View>
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) {
+              fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            <>
+              {isFetchingNextPage ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: Spacing.md }} />
+              ) : null}
+              <View style={styles.bottomSpacer} />
+            </>
+          }
+          renderItem={renderProduct}
+        />
       )}
     </View>
   );

@@ -38,6 +38,15 @@ export default function NotificationsScreen() {
     }
     if (notification.relatedEntityType === 'auction' && notification.relatedEntityId) {
       router.push(`/auction/${notification.relatedEntityId}` as never);
+      return;
+    }
+    // Etkinlik bildirimleri (davet, satış onayı vb.) canlı müzayede ekranını açar.
+    if (notification.relatedEntityType === 'auction_event' && notification.relatedEntityId) {
+      router.push(`/auction/event/${notification.relatedEntityId}` as never);
+      return;
+    }
+    if (notification.relatedEntityType === 'order' && notification.relatedEntityId) {
+      router.push(`/(tabs)/orders/${notification.relatedEntityId}` as never);
     }
   };
 

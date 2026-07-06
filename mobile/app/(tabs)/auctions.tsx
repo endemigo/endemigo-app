@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useRoleModeStore } from '../../store/roleModeStore';
 import { useModalStore } from '../../store/modalStore';
 import { styles } from '../../styles/tabs/auctions.styles';
+import { getEventLifeStatus, formatStartsIn, type EventLifeStatus } from '../../utils/auctionEventStatus';
 import {
   getAudienceScopedAuctionCardConfig,
   resolveLocalizedText,
@@ -176,77 +177,104 @@ const SingleAuctionCard = React.memo(({
   );
 });
 
-const AuctionEventCard = React.memo(({
+// Canlı salon: büyük hero kart + tek CTA.
+const LiveEventHero = React.memo(({
+  item,
+  t,
+  onPress,
+}: {
+  item: AuctionEvent;
+  t: any;
+  onPress: (id: string) => void;
+}) => (
+  <TouchableOpacity style={styles.heroCard} onPress={() => onPress(item.id)} activeOpacity={0.85}>
+    <View style={styles.heroCover}>
+      <Image
+        source={{ uri: item.coverImageUrl || `https://placehold.co/600x300/F8F9FA/0097D8?text=${encodeURIComponent(item.title)}` }}
+        style={styles.image}
+      />
+      <View style={styles.heroLiveBadge}>
+        <View style={styles.heroLiveDot} />
+        <Text style={styles.heroLiveText}>{t('auctions.live').toLocaleUpperCase('tr-TR')}</Text>
+      </View>
+    </View>
+    <View style={styles.heroInfo}>
+      <Text style={styles.heroTitle} numberOfLines={1}>{item.title}</Text>
+      <View style={styles.heroMetaRow}>
+        {item.lotCount !== undefined && (
+          <Text style={styles.heroMetaText}>
+            <Ionicons name="hammer-outline" size={13} color={Colors.slate500} />
+            {' '}{t('auctions.eventCount', { count: item.lotCount, defaultValue: `${item.lotCount} Lot` })}
+          </Text>
+        )}
+        <Text style={styles.heroMetaText}>
+          <Ionicons name="radio-outline" size={13} color={Colors.slate500} />
+          {' '}{t('auctions.liveNow', { defaultValue: 'Şu an yayında' })}
+        </Text>
+      </View>
+      <View style={styles.heroCta}>
+        <Text style={styles.heroCtaText}>{t('auctions.enterRoom', { defaultValue: 'Salona Gir' })}</Text>
+      </View>
+    </View>
+  </TouchableOpacity>
+));
+
+// Yaklaşan: kompakt satır kartı — ekrana 4-5 tanesi sığar.
+const UpcomingEventRow = React.memo(({
   item,
   now,
-  eventStatusConfig,
   locale,
   t,
   onPress,
 }: {
   item: AuctionEvent;
   now: number;
-  eventStatusConfig: any;
-  locale: any;
+  locale: string;
   t: any;
   onPress: (id: string) => void;
-}) => {
-  const eventEndMs = new Date(item.endTime).getTime();
-  const hasEventEnded = eventEndMs <= now || item.status === 'ENDED' || item.status === 'COMPLETED';
-  const est = hasEventEnded
-    ? eventStatusConfig.ENDED
-    : (eventStatusConfig[item.status as keyof typeof eventStatusConfig] || eventStatusConfig.DRAFT);
-
-  const formattedDate = new Date(item.startTime).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  return (
-    <TouchableOpacity
-      style={styles.eventCard}
-      onPress={() => onPress(item.id)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.eventCover}>
-        <Image
-          source={{ uri: item.coverImageUrl || `https://placehold.co/600x300/F8F9FA/0097D8?text=${encodeURIComponent(item.title)}` }}
-          style={styles.image}
-        />
-        <View style={[styles.eventBadge, { backgroundColor: est.bg }]}>
-          <Text style={[styles.eventBadgeText, { color: est.color }]}>{est.label}</Text>
-        </View>
-        {item.categoryName && (
-          <View style={styles.eventCategoryBadge}>
-            <Text style={styles.eventCategoryBadgeText}>{item.categoryName}</Text>
-          </View>
+}) => (
+  <TouchableOpacity style={styles.compactCard} onPress={() => onPress(item.id)} activeOpacity={0.75}>
+    <Image
+      source={{ uri: item.coverImageUrl || `https://placehold.co/144x112/F8F9FA/0097D8?text=%20` }}
+      style={styles.compactThumb}
+    />
+    <View style={styles.compactBody}>
+      <Text style={styles.compactTitle} numberOfLines={1}>{item.title}</Text>
+      <View style={styles.compactMetaRow}>
+        <Text style={styles.compactCountdown}>
+          <Ionicons name="time-outline" size={12} color={Colors.primary} />
+          {' '}{formatStartsIn(new Date(item.startTime).getTime(), now, locale, t)}
+        </Text>
+        {item.lotCount !== undefined && (
+          <Text style={styles.compactMetaText}>
+            {t('auctions.lotCountShort', { defaultValue: `${item.lotCount} lot`, count: item.lotCount })}
+          </Text>
         )}
       </View>
-      <View style={styles.eventInfo}>
-        <Text style={styles.eventTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.eventDescription} numberOfLines={2}>
-          {item.description || t('auction.storyFallback')}
-        </Text>
-        <View style={styles.eventMetaRow}>
-          <Text style={styles.eventMetaText}>
-            <Ionicons name="calendar-outline" size={14} color={Colors.slate400} />
-            {' '}{formattedDate}
-          </Text>
-          {item.lotCount !== undefined && (
-            <Text style={styles.eventMetaText}>
-              <Ionicons name="list-outline" size={14} color={Colors.slate400} />
-              {' '}{t('auctions.eventCount', { count: item.lotCount, defaultValue: `${item.lotCount} Ürün` })}
-            </Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-});
+    </View>
+    <Ionicons name="chevron-forward" size={18} color={Colors.slate300} />
+  </TouchableOpacity>
+));
+
+// Geçmiş: sönük tek satır — yer kaplamaz, sonuçlara götürür.
+const PastEventRow = React.memo(({
+  item,
+  t,
+  onPress,
+}: {
+  item: AuctionEvent;
+  t: any;
+  onPress: (id: string) => void;
+}) => (
+  <TouchableOpacity style={styles.pastRow} onPress={() => onPress(item.id)} activeOpacity={0.7}>
+    <Text style={styles.pastTitle} numberOfLines={1}>{item.title}</Text>
+    <Text style={styles.pastMeta}>
+      {item.lotCount !== undefined
+        ? t('auctions.pastMeta', { defaultValue: `${item.lotCount} lot · Sonuçlar`, count: item.lotCount })
+        : t('auctions.results', { defaultValue: 'Sonuçlar' })}
+    </Text>
+  </TouchableOpacity>
+));
 
 export default function AuctionsScreen() {
   const router = useRouter();
@@ -255,14 +283,17 @@ export default function AuctionsScreen() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const showModal = useModalStore((state) => state.showModal);
   
-  const [activeTab, setActiveTab] = useState<'single' | 'events'>('events');
+  // Tek chip satırı hem sekmeyi hem durumu yönetir: Tümü/Canlı/Yaklaşan/Bitti
+  // etkinlikleri filtreler, Tekli ayrı listeye geçer.
+  const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'ended' | 'single'>('all');
+  const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'live' | 'upcoming' | 'ended'>('all');
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
-  const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
+
+  const activeTab: 'single' | 'events' = filter === 'single' ? 'single' : 'events';
 
   // Data fetching hooks
   const { data: categoriesData, isLoading: isCategoriesLoading } = useCategories();
@@ -318,16 +349,6 @@ export default function AuctionsScreen() {
     [AuctionStatus.FAILED]: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
   };
 
-  const eventStatusConfig = {
-    DRAFT: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
-    APPLICATION: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
-    UPCOMING: { label: t('auctions.waiting'), color: Colors.accent, bg: `${Colors.accent}1A` },
-    ACTIVE: { label: t('auctions.live'), color: Colors.error, bg: `${Colors.error}1A` },
-    ENDED: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
-    COMPLETED: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
-    CANCELLED: { label: t('auctions.ended'), color: Colors.slate500, bg: Colors.slate100 },
-  };
-
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -345,61 +366,73 @@ export default function AuctionsScreen() {
     storage.setLaunchSplashImages(launchImages).catch(() => {});
   }, [data?.items]);
 
-  // Client-side filtering logic
-  const filteredItems = useMemo(() => {
-    const currentItems = activeTab === 'single' ? data?.items : eventsData;
-    if (!currentItems) return [];
-
-    return currentItems.filter((item: any) => {
-      // 1. Text Search Filter
-      const query = searchQuery.trim().toLowerCase();
-      let matchesSearch = true;
-      if (query) {
-        if (activeTab === 'single') {
-          matchesSearch = (item.productTitle || '').toLowerCase().includes(query);
-        } else {
-          matchesSearch =
-            (item.title || '').toLowerCase().includes(query) ||
-            (item.description || '').toLowerCase().includes(query);
-        }
-      }
-
-      // 2. Category Filter
-      let matchesCategory = true;
-      if (selectedCategoryId) {
-        matchesCategory = item.categoryId === selectedCategoryId;
-      }
-
-      // 3. Status Filter
-      let matchesStatus = true;
-      if (statusFilter !== 'all') {
-        const nowMs = now;
-        if (activeTab === 'single') {
-          const endMs = new Date(item.endTime).getTime();
-          const startMs = new Date(item.startTime).getTime();
-          const isLive = item.status === AuctionStatus.ACTIVE && endMs > nowMs;
-          const isUpcoming = (item.status === AuctionStatus.PUBLISHED || item.status === AuctionStatus.DRAFT) && startMs > nowMs;
-          const isEnded = endMs <= nowMs || item.status === AuctionStatus.ENDED || item.status === AuctionStatus.COMPLETED;
-
-          if (statusFilter === 'live') matchesStatus = isLive;
-          else if (statusFilter === 'upcoming') matchesStatus = isUpcoming;
-          else if (statusFilter === 'ended') matchesStatus = isEnded;
-        } else {
-          const eventEndMs = new Date(item.endTime).getTime();
-          const eventStartMs = new Date(item.startTime).getTime();
-          const isLive = item.status === 'ACTIVE' && eventEndMs > nowMs;
-          const isUpcoming = (item.status === 'UPCOMING' || item.status === 'DRAFT') && eventStartMs > nowMs;
-          const isEnded = eventEndMs <= nowMs || item.status === 'ENDED' || item.status === 'COMPLETED';
-
-          if (statusFilter === 'live') matchesStatus = isLive;
-          else if (statusFilter === 'upcoming') matchesStatus = isUpcoming;
-          else if (statusFilter === 'ended') matchesStatus = isEnded;
-        }
-      }
-
-      return matchesSearch && matchesCategory && matchesStatus;
+  // Tekli müzayedeler: arama + kategori filtresi (ürün kategorisi gerçek).
+  const filteredSingles = useMemo(() => {
+    if (activeTab !== 'single' || !data?.items) return [];
+    const query = searchQuery.trim().toLowerCase();
+    return data.items.filter((item: Auction) => {
+      if (query && !(item.productTitle || '').toLowerCase().includes(query)) return false;
+      if (selectedCategoryId && item.categoryId !== selectedCategoryId) return false;
+      return true;
     });
-  }, [activeTab, data?.items, eventsData, searchQuery, selectedCategoryId, statusFilter, now]);
+  }, [activeTab, data?.items, searchQuery, selectedCategoryId]);
+
+  // Etkinlikler: durum tek yardımcıdan hesaplanır, bölümlere ayrılır.
+  // Canlı üstte hero, yaklaşanlar tarihe göre artan, geçmiş en altta sönük.
+  type EventRow =
+    | { key: string; kind: 'section'; title: string }
+    | { key: string; kind: EventLifeStatus; item: AuctionEvent };
+
+  const eventRows = useMemo<EventRow[]>(() => {
+    if (activeTab !== 'events' || !eventsData) return [];
+    const query = searchQuery.trim().toLowerCase();
+
+    const matching = eventsData.filter((item: AuctionEvent) => {
+      if (!query) return true;
+      return (
+        (item.title || '').toLowerCase().includes(query) ||
+        (item.description || '').toLowerCase().includes(query)
+      );
+    });
+
+    const live: AuctionEvent[] = [];
+    const upcoming: AuctionEvent[] = [];
+    const ended: AuctionEvent[] = [];
+    for (const item of matching) {
+      const status = getEventLifeStatus(item, now);
+      if (status === 'live') live.push(item);
+      else if (status === 'upcoming') upcoming.push(item);
+      else ended.push(item);
+    }
+    upcoming.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    ended.sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime());
+
+    const rows: EventRow[] = [];
+    if (filter === 'all' || filter === 'live') {
+      for (const item of live) rows.push({ key: `live-${item.id}`, kind: 'live', item });
+    }
+    if (filter === 'all' || filter === 'upcoming') {
+      if (upcoming.length > 0) {
+        rows.push({
+          key: 'section-upcoming',
+          kind: 'section',
+          title: t('auctions.sectionUpcoming', { defaultValue: 'YAKLAŞAN' }),
+        });
+        for (const item of upcoming) rows.push({ key: `up-${item.id}`, kind: 'upcoming', item });
+      }
+    }
+    if (filter === 'all' || filter === 'ended') {
+      if (ended.length > 0) {
+        rows.push({
+          key: 'section-past',
+          kind: 'section',
+          title: t('auctions.sectionPast', { defaultValue: 'GEÇMİŞ' }),
+        });
+        for (const item of ended) rows.push({ key: `past-${item.id}`, kind: 'ended', item });
+      }
+    }
+    return rows;
+  }, [activeTab, eventsData, searchQuery, filter, now, t]);
 
   const handleSingleAuctionPress = React.useCallback((id: string) => {
     router.push(`/auction/${id}` as never);
@@ -421,18 +454,37 @@ export default function AuctionsScreen() {
     />
   ), [now, statusConfig, auctionCardConfig, locale, t, handleSingleAuctionPress]);
 
-  const renderAuctionEvent = React.useCallback(({ item }: { item: AuctionEvent }) => (
-    <AuctionEventCard
-      item={item}
-      now={now}
-      eventStatusConfig={eventStatusConfig}
-      locale={locale}
-      t={t}
-      onPress={handleAuctionEventPress}
-    />
-  ), [now, eventStatusConfig, locale, t, handleAuctionEventPress]);
+  const renderEventRow = React.useCallback(({ item: row }: { item: EventRow }) => {
+    if (row.kind === 'section') {
+      return <Text style={styles.sectionLabel}>{row.title}</Text>;
+    }
+    if (row.kind === 'live') {
+      return <LiveEventHero item={row.item} t={t} onPress={handleAuctionEventPress} />;
+    }
+    if (row.kind === 'upcoming') {
+      return (
+        <UpcomingEventRow
+          item={row.item}
+          now={now}
+          locale={locale}
+          t={t}
+          onPress={handleAuctionEventPress}
+        />
+      );
+    }
+    return <PastEventRow item={row.item} t={t} onPress={handleAuctionEventPress} />;
+  }, [now, locale, t, handleAuctionEventPress]);
 
   const isCurrentLoading = activeTab === 'single' ? isLoading : isEventsLoading;
+  const listIsEmpty = activeTab === 'single' ? filteredSingles.length === 0 : eventRows.length === 0;
+
+  const filterChips: { key: typeof filter; label: string; dot?: boolean }[] = [
+    { key: 'all', label: t('common.all') },
+    { key: 'live', label: t('auctions.live'), dot: true },
+    { key: 'upcoming', label: t('auctions.waiting') },
+    { key: 'ended', label: t('auctions.ended') },
+    { key: 'single', label: t('auctions.singleTabShort', { defaultValue: 'Tekli' }) },
+  ];
 
   return (
     <View style={styles.container}>
@@ -445,6 +497,24 @@ export default function AuctionsScreen() {
             resizeMode="contain"
           />
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              activeOpacity={0.85}
+              onPress={() => {
+                setSearchVisible((v) => {
+                  if (v) setSearchQuery('');
+                  return !v;
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.search')}
+            >
+              <Ionicons
+                name={searchVisible ? 'close-outline' : 'search-outline'}
+                size={19}
+                color={Colors.primary}
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerActionButton}
               activeOpacity={0.85}
@@ -483,112 +553,87 @@ export default function AuctionsScreen() {
         <Text style={styles.headerTitle}>{t('auctions.title')}</Text>
       </View>
 
-      {/* Modern Search Input */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={18} color={Colors.slate400} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={t('common.search')}
-          placeholderTextColor={Colors.slate400}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={16} color={Colors.slate400} />
+      {/* Arama: başlıktaki ikonla açılır — kalıcı yer kaplamaz */}
+      {searchVisible && (
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={18} color={Colors.slate400} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={t('common.search')}
+            placeholderTextColor={Colors.slate400}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={16} color={Colors.slate400} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Tek chip satırı: durum + tekli/salon geçişi bir arada */}
+      <View style={styles.chipRow}>
+        {filterChips.map((chip) => {
+          const isActive = filter === chip.key;
+          return (
+            <TouchableOpacity
+              key={chip.key}
+              style={[styles.statusChip, isActive && styles.statusChipActive]}
+              onPress={() => {
+                setFilter(chip.key);
+                if (chip.key !== 'single') setSelectedCategoryId(null);
+              }}
+              activeOpacity={0.8}
+            >
+              {chip.dot && (
+                <View style={[styles.statusDot, { backgroundColor: Colors.error }]} />
+              )}
+              <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>
+                {chip.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Kategori: sadece tekli listede anlamlı (ürün kategorisi) */}
+      {activeTab === 'single' && (
+        <View style={styles.dropdownsRow}>
+          <TouchableOpacity
+            style={styles.dropdownSelector}
+            onPress={() => setIsCategoryModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.dropdownSelectorText,
+                selectedCategoryId ? styles.dropdownSelectorActiveText : null
+              ]}
+              numberOfLines={1}
+            >
+              {selectedCategoryId
+                ? categoriesData?.find(c => c.id === selectedCategoryId)?.name
+                : t('auction.filterCategory')}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={16}
+              color={selectedCategoryId ? Colors.primary : Colors.slate400}
+            />
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Tabs Selector */}
-      <View style={styles.segmentContainer}>
-        <TouchableOpacity
-          style={[styles.segmentButton, activeTab === 'events' && styles.segmentButtonActive]}
-          onPress={() => {
-            setActiveTab('events');
-            setSelectedCategoryId(null);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.segmentButtonText, activeTab === 'events' && styles.segmentButtonTextActive]}>
-            {t('auctions.eventsTab', { defaultValue: 'Canlı Salonlar' })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segmentButton, activeTab === 'single' && styles.segmentButtonActive]}
-          onPress={() => {
-            setActiveTab('single');
-            setSelectedCategoryId(null);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.segmentButtonText, activeTab === 'single' && styles.segmentButtonTextActive]}>
-            {t('auctions.singleTab', { defaultValue: 'Tekli Müzayedeler' })}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Dropdown Filter Selector */}
-      <View style={styles.dropdownsRow}>
-        <TouchableOpacity
-          style={styles.dropdownSelector}
-          onPress={() => setIsCategoryModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text 
-            style={[
-              styles.dropdownSelectorText,
-              selectedCategoryId ? styles.dropdownSelectorActiveText : null
-            ]}
-            numberOfLines={1}
-          >
-            {selectedCategoryId 
-              ? categoriesData?.find(c => c.id === selectedCategoryId)?.name 
-              : t('auction.filterCategory')}
-          </Text>
-          <Ionicons 
-            name="chevron-down" 
-            size={16} 
-            color={selectedCategoryId ? Colors.primary : Colors.slate400} 
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.dropdownSelector}
-          onPress={() => setIsStatusModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <Text 
-            style={[
-              styles.dropdownSelectorText,
-              statusFilter !== 'all' ? styles.dropdownSelectorActiveText : null
-            ]}
-            numberOfLines={1}
-          >
-            {statusFilter === 'live' 
-              ? t('auctions.live') 
-              : statusFilter === 'upcoming' 
-              ? t('auctions.waiting') 
-              : statusFilter === 'ended' 
-              ? t('auctions.ended') 
-              : t('auction.filterStatus')}
-          </Text>
-          <Ionicons 
-            name="chevron-down" 
-            size={16} 
-            color={statusFilter !== 'all' ? Colors.primary : Colors.slate400} 
-          />
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
 
       {isCurrentLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.auctionGreen} />
           <Text style={styles.loadingText}>{t('auctions.loading')}</Text>
         </View>
-      ) : !filteredItems?.length ? (
+      ) : listIsEmpty ? (
         <View style={styles.center}>
           <Ionicons name="hammer-outline" size={64} color={Colors.slate300} />
           <Text style={styles.emptyText}>
@@ -598,9 +643,9 @@ export default function AuctionsScreen() {
             {t('auctions.eventEmptySub', { defaultValue: 'Aradığınız kriterlere uygun müzayede bulunamadı.' })}
           </Text>
         </View>
-      ) : (
+      ) : activeTab === 'single' ? (
         <FlatList
-          data={filteredItems}
+          data={filteredSingles}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           initialNumToRender={6}
@@ -614,18 +659,36 @@ export default function AuctionsScreen() {
               tintColor={Colors.auctionGreen}
             />
           }
+          renderItem={renderSingleAuction}
+        />
+      ) : (
+        <FlatList
+          data={eventRows}
+          keyExtractor={(row) => row.key}
+          contentContainerStyle={styles.eventListContent}
+          initialNumToRender={8}
+          maxToRenderPerBatch={12}
+          windowSize={5}
+          removeClippedSubviews={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={manualRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.auctionGreen}
+            />
+          }
           onEndReached={() => {
-            if (activeTab === 'events' && hasNextPage && !isFetchingNextPage) {
+            if (hasNextPage && !isFetchingNextPage) {
               fetchNextPage();
             }
           }}
           onEndReachedThreshold={0.4}
           ListFooterComponent={
-            activeTab === 'events' && isFetchingNextPage ? (
+            isFetchingNextPage ? (
               <ActivityIndicator size="small" color={Colors.auctionGreen} style={{ paddingVertical: Spacing.md }} />
             ) : null
           }
-          renderItem={activeTab === 'single' ? renderSingleAuction : renderAuctionEvent as any}
+          renderItem={renderEventRow}
         />
       )}
 
@@ -696,116 +759,6 @@ export default function AuctionsScreen() {
         </View>
       </Modal>
 
-      {/* Status Selection Modal */}
-      <Modal
-        visible={isStatusModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setIsStatusModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('auction.selectStatusTitle')}</Text>
-              <TouchableOpacity 
-                style={styles.modalCloseButton} 
-                onPress={() => setIsStatusModalVisible(false)}
-              >
-                <Ionicons name="close" size={24} color={Colors.slate500} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={styles.modalList}>
-              {/* All Option */}
-              <TouchableOpacity
-                style={[
-                  styles.modalItem,
-                  statusFilter === 'all' ? styles.modalItemActive : null
-                ]}
-                onPress={() => {
-                  setStatusFilter('all');
-                  setIsStatusModalVisible(false);
-                }}
-              >
-                <Text 
-                  style={[
-                    styles.modalItemText,
-                    statusFilter === 'all' ? styles.modalItemTextActive : null
-                  ]}
-                >
-                  {t('common.all')}
-                </Text>
-                {statusFilter === 'all' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-
-              {/* Live Option */}
-              <TouchableOpacity
-                style={[
-                  styles.modalItem,
-                  statusFilter === 'live' ? styles.modalItemActive : null
-                ]}
-                onPress={() => {
-                  setStatusFilter('live');
-                  setIsStatusModalVisible(false);
-                }}
-              >
-                <Text 
-                  style={[
-                    styles.modalItemText,
-                    statusFilter === 'live' ? styles.modalItemTextActive : null
-                  ]}
-                >
-                  {t('auctions.live')}
-                </Text>
-                {statusFilter === 'live' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-
-              {/* Upcoming Option */}
-              <TouchableOpacity
-                style={[
-                  styles.modalItem,
-                  statusFilter === 'upcoming' ? styles.modalItemActive : null
-                ]}
-                onPress={() => {
-                  setStatusFilter('upcoming');
-                  setIsStatusModalVisible(false);
-                }}
-              >
-                <Text 
-                  style={[
-                    styles.modalItemText,
-                    statusFilter === 'upcoming' ? styles.modalItemTextActive : null
-                  ]}
-                >
-                  {t('auctions.waiting')}
-                </Text>
-                {statusFilter === 'upcoming' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-
-              {/* Ended Option */}
-              <TouchableOpacity
-                style={[
-                  styles.modalItem,
-                  statusFilter === 'ended' ? styles.modalItemActive : null
-                ]}
-                onPress={() => {
-                  setStatusFilter('ended');
-                  setIsStatusModalVisible(false);
-                }}
-              >
-                <Text 
-                  style={[
-                    styles.modalItemText,
-                    statusFilter === 'ended' ? styles.modalItemTextActive : null
-                  ]}
-                >
-                  {t('auctions.ended')}
-                </Text>
-                {statusFilter === 'ended' && <Ionicons name="checkmark" size={20} color={Colors.primary} />}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

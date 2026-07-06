@@ -22,6 +22,7 @@ interface AuctionSocketState {
     tone: 'accent' | 'error' | 'primary';
   }[];
   wasOutbid: boolean;
+  auctionStarted: boolean;
   auctionEnded: boolean;
   isWinner: boolean;
   finalPrice: number | null;
@@ -40,6 +41,7 @@ export function useAuctionSocket(auctionId: string) {
     lastBid: null,
     activityFeed: [],
     wasOutbid: false,
+    auctionStarted: false,
     auctionEnded: false,
     isWinner: false,
     finalPrice: null,
@@ -113,6 +115,33 @@ export function useAuctionSocket(auctionId: string) {
             }),
             'accent',
           );
+        }
+      };
+
+      const onBidWithdrawn = (data: { auctionId: string; currentPrice: number; bidCount: number; endTime: string; serverTime?: string }) => {
+        if (data.auctionId === auctionId) {
+          setState((s) => ({
+            ...s,
+            currentPrice: data.currentPrice,
+            bidCount: data.bidCount,
+            endTime: data.endTime,
+            serverTime: data.serverTime ?? s.serverTime,
+            // The leading bid was withdrawn — the previous "last bid" no
+            // longer reflects the auction state.
+            lastBid: null,
+          }));
+        }
+      };
+
+      const onAuctionStarted = (data: { auctionId: string; startPrice: number; currentPrice?: number; bidCount?: number; serverTime?: string }) => {
+        if (data.auctionId === auctionId) {
+          setState((s) => ({
+            ...s,
+            auctionStarted: true,
+            currentPrice: data.currentPrice ?? data.startPrice,
+            bidCount: data.bidCount ?? s.bidCount,
+            serverTime: data.serverTime ?? s.serverTime,
+          }));
         }
       };
 
@@ -246,6 +275,8 @@ export function useAuctionSocket(auctionId: string) {
       socket.on('disconnect', onDisconnect);
       socket.on('auction:joined', onAuctionJoined);
       socket.on('bid:new', onBidNew);
+      socket.on('bid:withdrawn', onBidWithdrawn);
+      socket.on('auction:started', onAuctionStarted);
       socket.on('bid:outbid', onBidOutbid);
       socket.on('bid:winner', onBidWinner);
       socket.on('bid:lost', onBidLost);
@@ -268,6 +299,8 @@ export function useAuctionSocket(auctionId: string) {
         socket.off('disconnect', onDisconnect);
         socket.off('auction:joined', onAuctionJoined);
         socket.off('bid:new', onBidNew);
+        socket.off('bid:withdrawn', onBidWithdrawn);
+        socket.off('auction:started', onAuctionStarted);
         socket.off('bid:outbid', onBidOutbid);
         socket.off('bid:winner', onBidWinner);
         socket.off('bid:lost', onBidLost);

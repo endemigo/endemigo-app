@@ -48,13 +48,16 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
         }
       });
 
-      // Join new rooms
-      targetIds.forEach((id) => {
-        if (!joinedRoomIdsRef.current.has(id)) {
+      // (Re-)join target rooms on every 'connect': server-side room
+      // membership is lost across reconnects, so a one-off join would leave
+      // the hook deaf after the first drop. Joining an already-joined room
+      // is idempotent on the server.
+      const onConnect = () => {
+        targetIds.forEach((id) => {
           socket.emit('auction:join', { auctionId: id });
           joinedRoomIdsRef.current.add(id);
-        }
-      });
+        });
+      };
 
       const updateQueryCache = (auctionId: string, updates: any) => {
         queryClient.setQueriesData({ queryKey: ['auctions'] }, (oldData: any) => {
@@ -69,6 +72,19 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
       };
 
       const onBidNew = (data: {
+        auctionId: string;
+        currentPrice: number;
+        bidCount: number;
+        endTime: string;
+      }) => {
+        updateQueryCache(data.auctionId, {
+          currentPrice: data.currentPrice,
+          bidCount: data.bidCount,
+          endTime: data.endTime,
+        });
+      };
+
+      const onBidWithdrawn = (data: {
         auctionId: string;
         currentPrice: number;
         bidCount: number;
@@ -108,17 +124,27 @@ export function useAuctionsSocket(auctions: any[] | undefined) {
         });
       };
 
+      socket.on('connect', onConnect);
       socket.on('bid:new', onBidNew);
+      socket.on('bid:withdrawn', onBidWithdrawn);
       socket.on('auction:started', onAuctionStarted);
       socket.on('auction:extended', onAuctionExtended);
       socket.on('auction:ended', onAuctionEnded);
       socket.on('auction:cancelled', onAuctionCancelled);
 
+      // The socket may already be connected (shared singleton) — in that
+      // case 'connect' will not fire again, so join immediately.
+      if (socket.connected) {
+        onConnect();
+      }
+
       // Detach only this hook's own handlers — the socket is shared across
       // screens, so a bare socket.off(event) would also remove the detail /
       // event screens' listeners for the same events.
       cleanup = () => {
+        socket.off('connect', onConnect);
         socket.off('bid:new', onBidNew);
+        socket.off('bid:withdrawn', onBidWithdrawn);
         socket.off('auction:started', onAuctionStarted);
         socket.off('auction:extended', onAuctionExtended);
         socket.off('auction:ended', onAuctionEnded);

@@ -5,6 +5,7 @@ import ENV from '../lib/config';
 import { mockService } from '../lib/mockService';
 import { useRoleModeStore } from './roleModeStore';
 import { disconnectAuctionSocket } from '../services/socket';
+import { disconnectNegotiationSocket } from '../services/negotiationSocket';
 
 export interface User {
   id: string;
@@ -20,7 +21,7 @@ interface AuthState {
   isLoggedIn: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
+  register: (email: string, password: string, firstName?: string, lastName?: string, kvkkAccepted?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setUser: (user: User) => void;
@@ -50,18 +51,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await storage.setUser(data.user);
     // Drop any anonymous/previous socket so it reconnects with the new token.
     disconnectAuctionSocket();
+    disconnectNegotiationSocket();
     useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
 
-  register: async (email: string, password: string, firstName?: string, lastName?: string) => {
+  register: async (email: string, password: string, firstName?: string, lastName?: string, kvkkAccepted?: boolean) => {
     const data = ENV.USE_MOCK
       ? await mockService.register(email, password, firstName, lastName)
-      : (await api.post('/auth/register', { email, password, firstName, lastName })).data;
+      : (await api.post('/auth/register', { email, password, firstName, lastName, kvkkAccepted })).data;
     await storage.setToken(data.accessToken);
     if (data.refreshToken) await storage.setRefreshToken(data.refreshToken);
     await storage.setUser(data.user);
     disconnectAuctionSocket();
+    disconnectNegotiationSocket();
     useRoleModeStore.getState().syncRoleModeFromUser(data.user);
     set({ user: data.user, isLoggedIn: true });
   },
@@ -78,9 +81,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {} // eslint-disable-line no-empty
     await storage.clear();
-    // Tear down the authenticated socket so it cannot keep delivering
+    // Tear down the authenticated sockets so they cannot keep delivering
     // personalized events to a logged-out session.
     disconnectAuctionSocket();
+    disconnectNegotiationSocket();
     useRoleModeStore.getState().resetRoleMode();
     set({ user: null, isLoggedIn: false });
   },

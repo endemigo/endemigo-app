@@ -9,6 +9,7 @@ export interface CartItem {
   productVariantSkuId?: string | null;
   variantId?: string | null;
   auctionId?: string | null;
+  offerId?: string | null;
   customPrice?: number | null;
   title: string;
   price: number;
@@ -47,6 +48,7 @@ interface CartApiResponse {
       productVariantSkuId?: string | null;
       variantId?: string | null;
       auctionId?: string | null;
+      offerId?: string | null;
       customPrice?: number | string | null;
       quantity: number;
       addedAt?: string;
@@ -88,6 +90,7 @@ function mapApiItemsToStore(data: CartApiResponse): CartItem[] {
     productVariantSkuId: item.productVariantSkuId ?? null,
     variantId: item.variantId ?? null,
     auctionId: item.auctionId ?? null,
+    offerId: item.offerId ?? null,
     customPrice: item.customPrice !== undefined && item.customPrice !== null ? Number(item.customPrice) : null,
     quantity: item.quantity,
     addedAt: item.addedAt,

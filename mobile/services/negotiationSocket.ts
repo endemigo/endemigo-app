@@ -3,17 +3,26 @@ import ENV from '../lib/config';
 import { storage } from '../lib/storage';
 
 let negotiationSocket: Socket | null = null;
+let negotiationSocketToken: string | null = null;
 
 export async function getNegotiationSocket(): Promise<Socket> {
-  if (negotiationSocket) return negotiationSocket;
-
   const token = (await storage.getToken()) || '';
 
+  // Recreate the socket whenever the auth token changes (login / logout /
+  // user switch) — a stale token would keep delivering the previous user's
+  // negotiation events (or none at all).
+  if (negotiationSocket && negotiationSocketToken !== token) {
+    disconnectNegotiationSocket();
+  }
+
+  if (negotiationSocket) return negotiationSocket;
+
+  negotiationSocketToken = token;
   negotiationSocket = io(`${ENV.API_URL}/negotiation`, {
     transports: ['polling', 'websocket'],
     auth: { token },
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
   });
 
@@ -26,4 +35,5 @@ export function disconnectNegotiationSocket() {
   negotiationSocket.removeAllListeners();
   negotiationSocket.disconnect();
   negotiationSocket = null;
+  negotiationSocketToken = null;
 }

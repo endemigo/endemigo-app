@@ -33,13 +33,6 @@ export const styles = StyleSheet.create({
     padding: Spacing.xl,
     ...Shadows.md,
   },
-  row: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  halfField: {
-    flex: 1,
-  },
   label: {
     fontSize: FontSize.meta,
     fontFamily: FontFamily.bodySemiBold,
@@ -62,46 +55,6 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.bodyXl,
     fontFamily: FontFamily.body,
     color: Colors.onSurface,
-  },
-  rulesContainer: {
-    marginBottom: Spacing.base,
-    marginLeft: Spacing.xs,
-    gap: Spacing.xs,
-  },
-  ruleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  ruleText: {
-    fontSize: FontSize.meta,
-    fontFamily: FontFamily.body,
-    color: Colors.onSurfaceVariant,
-  },
-  ruleTextMet: {
-    color: Colors.secondary,
-    fontFamily: FontFamily.bodySemiBold,
-    fontWeight: '600',
-  },
-  kvkkRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    marginBottom: Spacing.base,
-    marginLeft: Spacing.xs,
-  },
-  kvkkText: {
-    flex: 1,
-    fontSize: FontSize.meta,
-    fontFamily: FontFamily.body,
-    color: Colors.onSurfaceVariant,
-    lineHeight: 18,
-  },
-  kvkkLink: {
-    color: Colors.primary,
-    fontFamily: FontFamily.bodyBold,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
   },
   button: {
     backgroundColor: Colors.primary,

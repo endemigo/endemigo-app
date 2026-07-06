@@ -93,8 +93,37 @@ interface OrderDetailResponse extends ApiResponseEnvelope {
   reviewEligibility: {
     canRequestReturn: boolean;
     canReview: boolean;
+    canCancel?: boolean;
   };
+  returnWindowEndsAt?: string | null;
   submittedReview: RawReview | null;
+}
+
+export interface CheckoutQuoteSummary {
+  items: Array<{
+    cartItemId: string;
+    productId: string;
+    title: string | null;
+    quantity: number;
+    lineOriginal: number;
+    lineFinal: number;
+  }>;
+  subtotal: number;
+  discountTotal: number;
+  coupon: { code: string; discountAmount: number } | null;
+  discountedSubtotal: number;
+  shipping: number;
+  serviceFee: number;
+  grandTotal: number;
+}
+
+interface CheckoutQuoteResponse extends ApiResponseEnvelope {
+  quote: CheckoutQuoteSummary;
+}
+
+export interface CheckoutPayload {
+  shippingAddressId?: string;
+  couponCode?: string;
 }
 
 interface ConfirmDeliveryResponse extends ApiResponseEnvelope {
@@ -277,6 +306,7 @@ export function useOrderDetail(orderId?: string) {
         forwardShipment,
         returnShipment,
         reviewEligibility: data.reviewEligibility,
+        returnWindowEndsAt: data.returnWindowEndsAt ?? null,
         submittedReview: normalizeReview(data.submittedReview),
         returnReasonCode: order.returnReasonCode ?? null,
         returnReasonNote: order.returnReasonNote ?? null,
@@ -445,12 +475,44 @@ export function useSellerOrderTransition(orderId?: string) {
   });
 }
 
+export function useCheckoutQuote(couponCode?: string) {
+  return useQuery<CheckoutQuoteSummary | null>({
+    queryKey: ['checkout', 'quote', couponCode ?? null],
+    queryFn: async () => {
+      if (ENV.USE_MOCK) return null;
+      const { data } = await api.post<CheckoutQuoteResponse>(
+        '/payments/checkout/quote',
+        couponCode ? { couponCode } : {},
+      );
+      return data.quote;
+    },
+    retry: false,
+  });
+}
+
+export function useCancelOrder(orderId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<ApiResponseEnvelope, Error, void>({
+    mutationFn: async () => {
+      if (!orderId) throw new Error('Order id is required');
+      const { data } = await api.post<ApiResponseEnvelope>(
+        `/orders/${orderId}/cancel`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      invalidateOrderRelatedQueries(queryClient, orderId);
+    },
+  });
+}
+
 export function useCheckoutCart() {
   const queryClient = useQueryClient();
   const clearCart = useCartStore((state) => state.clearCart);
 
-  return useMutation<any, Error, void>({
-    mutationFn: async () => {
+  return useMutation<any, Error, CheckoutPayload | void>({
+    mutationFn: async (payload) => {
       if (ENV.USE_MOCK) {
         await new Promise((resolve) => setTimeout(resolve, 800));
         await clearCart();
@@ -460,6 +522,10 @@ export function useCheckoutCart() {
       const { data } = await api.post('/payments/checkout', {
         idempotencyKey: `checkout-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
         callbackUrl: 'endemigo://checkout/callback',
+        ...(payload?.shippingAddressId
+          ? { shippingAddressId: payload.shippingAddressId }
+          : {}),
+        ...(payload?.couponCode ? { couponCode: payload.couponCode } : {}),
       });
 
       const payment = (data as any).payment;
@@ -477,6 +543,7 @@ export function useCheckoutCart() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: ['checkout'] });
       queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEYS.summary });
     },
   });
