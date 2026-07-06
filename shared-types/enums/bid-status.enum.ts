@@ -4,4 +4,6 @@ export enum BidStatus {
   WON = 'WON',
   EXPIRED = 'EXPIRED',
   CANCELLED = 'CANCELLED',
+  /** Müzayede başlamadan verilen ön teklif; başlangıçta proxy olarak yarıştırılır. */
+  ABSENTEE = 'ABSENTEE',
 }

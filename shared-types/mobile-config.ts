@@ -110,6 +110,7 @@ export const MOBILE_HOME_SURFACE_SLOT_IDS = [
   'home-search-bar',
   'home-hero-banners',
   'home-entry-tiles',
+  'home-live-auctions',
   'home-listings',
   'home-recently-viewed',
   'home-categories',
@@ -991,8 +992,59 @@ export function validateMobileExperienceConfig(value: unknown): MobileConfigVali
       },
     ];
   }
-  // Robust and tolerant: Always return no errors so validation never blocks saving
-  return [];
+
+  const errors: MobileConfigValidationError[] = [];
+
+  // Yalnizca etkin (enabled) bloklar dogrulanir: kapali bloklar taslakta eksik kalabilir.
+  const validateBlocks = (
+    list: unknown,
+    basePath: string,
+    options: { requireTitle: boolean; routeOf?: (block: Record<string, unknown>) => unknown },
+  ) => {
+    if (list === undefined || list === null) {
+      return;
+    }
+    if (!Array.isArray(list)) {
+      addValidationError(errors, basePath, 'INVALID_BLOCK_LIST', 'Blok listesi bir dizi olmali.');
+      return;
+    }
+    list.forEach((block, index) => {
+      if (!isRecord(block)) {
+        addValidationError(errors, `${basePath}[${index}]`, 'INVALID_BLOCK', 'Blok gecerli bir obje olmali.');
+        return;
+      }
+      if (block.enabled === false) {
+        return;
+      }
+      const path = `${basePath}[${index}]`;
+      if (options.requireTitle) {
+        validateLocalizedRequired(errors, `${path}.title`, block.title);
+      }
+      validateAudiences(errors, `${path}.audiences`, block.audiences);
+      const routeValue = options.routeOf
+        ? options.routeOf(block)
+        : (isRecord(block.cta) ? block.cta.route : undefined);
+      validateRoute(errors, `${path}.route`, routeValue, false);
+    });
+  };
+
+  const home = isRecord(value.home) ? value.home : null;
+  if (home) {
+    validateBlocks(home.heroBanners, 'home.heroBanners', { requireTitle: true });
+    validateBlocks(home.entryTiles, 'home.entryTiles', { requireTitle: true });
+    validateBlocks(home.sections, 'home.sections', {
+      requireTitle: true,
+      routeOf: (block) => block.route,
+    });
+    validateBlocks(home.promoBanners, 'home.promoBanners', { requireTitle: true });
+    validateBlocks(home.trustBlocks, 'home.trustBlocks', { requireTitle: true });
+  } else if (value.home !== undefined) {
+    addValidationError(errors, 'home', 'INVALID_HOME_CONFIG', 'home alani gecerli bir obje olmali.');
+  }
+
+  validateBlocks(value.otherSurfaces, 'otherSurfaces', { requireTitle: false });
+
+  return errors;
 }
 
 export function sanitizeMobileExperienceConfig(value: unknown): MobileExperienceConfig {
