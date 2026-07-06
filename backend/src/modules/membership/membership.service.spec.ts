@@ -20,6 +20,11 @@ describe('MembershipService', () => {
   let trustService: {
     assertAllowed: jest.Mock;
   };
+  let membershipQueue: {
+    add: jest.Mock;
+    getJob: jest.Mock;
+    upsertJobScheduler: jest.Mock;
+  };
   let service: MembershipService;
 
   const premiumPackage = {
@@ -84,10 +89,16 @@ describe('MembershipService', () => {
     trustService = {
       assertAllowed: jest.fn().mockResolvedValue({ allowed: true }),
     };
+    membershipQueue = {
+      add: jest.fn().mockResolvedValue(undefined),
+      getJob: jest.fn().mockResolvedValue(null),
+      upsertJobScheduler: jest.fn().mockResolvedValue(undefined),
+    };
     service = new MembershipService(
       packageRepo as never,
       subscriptionRepo as never,
       paymentProvider,
+      membershipQueue as never,
       trustService as unknown as TrustService,
     );
   });

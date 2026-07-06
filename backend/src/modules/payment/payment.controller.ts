@@ -4,7 +4,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
-import { CheckoutInitiateDto } from './dto/checkout-initiate.dto';
+import { CheckoutInitiateDto, CheckoutQuoteDto } from './dto/checkout-initiate.dto';
 import { RegisterCardDto } from './dto/register-card.dto';
 import { PaymentService } from './payment.service';
 
@@ -25,6 +25,13 @@ export class PaymentController {
   @ApiOperation({ summary: 'Initiate cart payment checkout' })
   checkout(@CurrentUser('id') userId: string, @Body() dto: CheckoutInitiateDto) {
     return this.paymentService.checkoutCart(userId, dto);
+  }
+
+  @Post('checkout/quote')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Preview cart totals (discount, shipping, fees)' })
+  quote(@CurrentUser('id') userId: string, @Body() dto: CheckoutQuoteDto) {
+    return this.paymentService.quoteCheckout(userId, dto);
   }
 
   @Public()

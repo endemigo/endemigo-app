@@ -285,6 +285,7 @@ describe('PaymentService', () => {
           cart: {
             items: [
               {
+                id: 'cart-item-1',
                 productId: 'product-1',
                 quantity: 2,
                 product: { sellerId: 'seller-1', price: 100 },
@@ -299,6 +300,13 @@ describe('PaymentService', () => {
     const mockOrder = createOrder({ id: 'order-1', productId: 'product-1', amount: 100 });
     const orderService = {
       createFromDirectSale: jest.fn(() => Promise.resolve({ order: mockOrder })),
+      previewDirectSaleDiscount: jest.fn(() =>
+        Promise.resolve({
+          product: { id: 'product-1' },
+          unitAmount: 100,
+          discount: { finalAmount: 100, discountAmount: 0, appliedDiscount: null },
+        }),
+      ),
     } as unknown as OrderService;
 
     const paymentRepository = createPaymentRepository();

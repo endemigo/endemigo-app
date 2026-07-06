@@ -1,9 +1,9 @@
 import { MembershipProcessor } from './membership.processor';
 
 describe('MembershipProcessor', () => {
-  it('marks renewal failed when sellerId exists', async () => {
+  it('handles renewal due when sellerId exists', async () => {
     const membershipService = {
-      markRenewalFailed: jest.fn().mockResolvedValue(undefined),
+      handleRenewalDue: jest.fn().mockResolvedValue(undefined),
       expireGraceSubscriptions: jest.fn().mockResolvedValue(undefined),
     };
     const processor = new MembershipProcessor(membershipService as never);
@@ -13,12 +13,12 @@ describe('MembershipProcessor', () => {
       data: { sellerId: 'seller-1' },
     } as never);
 
-    expect(membershipService.markRenewalFailed).toHaveBeenCalledWith('seller-1');
+    expect(membershipService.handleRenewalDue).toHaveBeenCalledWith('seller-1');
   });
 
   it('expires grace subscriptions for grace expiry jobs', async () => {
     const membershipService = {
-      markRenewalFailed: jest.fn().mockResolvedValue(undefined),
+      handleRenewalDue: jest.fn().mockResolvedValue(undefined),
       expireGraceSubscriptions: jest.fn().mockResolvedValue(undefined),
     };
     const processor = new MembershipProcessor(membershipService as never);

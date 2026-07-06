@@ -13,6 +13,9 @@ export interface PushPayload {
   title: string;
   body: string;
   idempotencyKey: string;
+  // Deep-link verisi: mobil, tıklamada bu alanlarla ilgili ekranı açar.
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
 }
 
 export interface PushResult {
@@ -47,6 +50,13 @@ export class OneSignalProvider {
     notification.headings = { en: payload.title, tr: translateToTurkish(payload.title) };
     notification.contents = { en: payload.body, tr: translateToTurkish(payload.body) };
     notification.idempotency_key = payload.idempotencyKey;
+    // Tıklamada mobilin yönlendirme yapabilmesi için entity bilgisi taşınır.
+    if (payload.relatedEntityType && payload.relatedEntityId) {
+      notification.data = {
+        relatedEntityType: payload.relatedEntityType,
+        relatedEntityId: payload.relatedEntityId,
+      };
+    }
 
     const response = await this.client.createNotification(notification);
 

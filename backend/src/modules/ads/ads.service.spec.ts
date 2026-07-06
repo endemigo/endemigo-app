@@ -66,6 +66,7 @@ describe('AdsService', () => {
   };
   let membershipService: {
     getSellerBenefits: jest.Mock;
+    getBenefitsForSellers: jest.Mock;
   };
   let trustService: {
     assertAllowed: jest.Mock;
@@ -157,6 +158,7 @@ describe('AdsService', () => {
         payoutPriority: 'standard',
         badgeLevel: 'New',
       }),
+      getBenefitsForSellers: jest.fn().mockResolvedValue(new Map()),
     };
     trustService = {
       assertAllowed: jest.fn().mockResolvedValue({ allowed: true }),
@@ -285,14 +287,21 @@ describe('AdsService', () => {
   });
 
   it('orders visibilityBoost sponsored results ahead of organic without hiding organic items', async () => {
-    membershipService.getSellerBenefits.mockResolvedValueOnce({
-      visibilityBoost: 5,
-      adCredits: 0,
-      adDiscountRate: 0,
-      commissionRate: 0.1,
-      payoutPriority: 'priority',
-      badgeLevel: 'Trusted',
-    });
+    membershipService.getBenefitsForSellers.mockResolvedValueOnce(
+      new Map([
+        [
+          'seller-1',
+          {
+            visibilityBoost: 5,
+            adCredits: 0,
+            adDiscountRate: 0,
+            commissionRate: 0.1,
+            payoutPriority: 'priority',
+            badgeLevel: 'Trusted',
+          },
+        ],
+      ]),
+    );
     adPlacementRepo.createQueryBuilder.mockReturnValue(
       createPlacementQueryBuilder([
         {

@@ -37,6 +37,11 @@ export class AuctionEvent extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   minProductsCount: number;
 
+  // Ortak müzayedede açık ürün çağrısı: açıksa davetsiz tedarikçiler
+  // (≥20 aktif ürün şartıyla) etkinliğe ürün başvurusu yapabilir.
+  @Column({ default: false })
+  openCallEnabled: boolean;
+
   @Column({ type: 'int', default: 0 })
   maxProductsCount: number;
 
@@ -96,4 +101,8 @@ export class AuctionEvent extends BaseEntity {
 
   @Column({ default: 30 })
   lotTransitionSeconds: number;
+
+  // Otomatik lot geçişi; restart'ta kaybolmaması için DB'de tutulur.
+  @Column({ default: true })
+  autoProgressEnabled: boolean;
 }

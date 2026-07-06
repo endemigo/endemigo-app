@@ -5,10 +5,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminAuditModule } from '../admin-audit/admin-audit.module';
 import { AdminAuthModule } from '../admin-auth/admin-auth.module';
+import { CartModule } from '../cart/cart.module';
 import { NotificationModule } from '../notification/notification.module';
-import { OrderModule } from '../order/order.module';
 import { Product } from '../product/entities/product.entity';
-import { Category } from '../product/entities/category.entity';
 import { TrustModule } from '../trust/trust.module';
 import { User } from '../user/entities/user.entity';
 import { AiModerationService } from './ai-moderation.service';
@@ -40,11 +39,10 @@ import { ViolationLog } from './entities/violation-log.entity';
       ViolationLog,
       Product,
       User,
-      Category,
     ]),
     JwtModule.register({}),
     ConfigModule,
-    OrderModule,
+    CartModule,
     NotificationModule,
     AdminAuditModule,
     AdminAuthModule,

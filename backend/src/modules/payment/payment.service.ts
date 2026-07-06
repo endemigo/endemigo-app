@@ -7,7 +7,9 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import {
+  AddressType,
   LedgerAccountType,
   LedgerDirection,
   JournalEntryType,
@@ -15,17 +17,21 @@ import {
   PaymentProvider,
   PaymentStatus,
   EscrowStatus,
+  NegotiationStatus,
   NotificationEventType,
+  OfferStatus,
   OrderStatus,
   RC,
 } from '@endemigo/shared';
 import { EntityManager, Repository } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
+import { Conversation } from '../negotiation/entities/conversation.entity';
+import { Offer } from '../negotiation/entities/offer.entity';
 import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
-import { CheckoutInitiateDto } from './dto/checkout-initiate.dto';
+import { CheckoutInitiateDto, CheckoutQuoteDto } from './dto/checkout-initiate.dto';
 import { RegisterCardDto } from './dto/register-card.dto';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { Payment } from './entities/payment.entity';
@@ -35,6 +41,32 @@ import { Auction } from '../auction/entities/auction.entity';
 import { IyzicoProvider } from './providers/iyzico.provider';
 import { CartService } from '../cart/cart.service';
 import { User } from '../user/entities/user.entity';
+import { Address } from '../user/entities/address.entity';
+
+type CartResponse = NonNullable<
+  Awaited<ReturnType<CartService['getMyCart']>>['cart']
+>;
+type CartResponseItem = CartResponse['items'][number];
+
+interface CartQuoteUnit {
+  item: CartResponseItem;
+  unitIndex: number;
+  baseAmount: number;
+  finalAmount: number;
+  couponApplied: boolean;
+}
+
+interface CartQuote {
+  cart: CartResponse;
+  units: CartQuoteUnit[];
+  originalSubtotal: number;
+  subtotal: number;
+  discountTotal: number;
+  coupon: { code: string; discountAmount: number } | null;
+  shipping: number;
+  serviceFee: number;
+  grandTotal: number;
+}
 
 @Injectable()
 export class PaymentService {
@@ -62,6 +94,11 @@ export class PaymentService {
     @Optional()
     @InjectRepository(User)
     private readonly userRepository?: Repository<User>,
+    @Optional()
+    @InjectRepository(Address)
+    private readonly addressRepository?: Repository<Address>,
+    @Optional()
+    private readonly configService?: ConfigService,
   ) {}
 
 
@@ -151,33 +188,16 @@ export class PaymentService {
       });
     }
 
-    // 1. Fetch user's cart items
-    const cartRes = await this.cartService.getMyCart(userId);
-    const cart = cartRes.cart;
-    if (!cart || !cart.items || cart.items.length === 0) {
-      throw new BadRequestException({
-        code: RC.VALIDATION_ERROR,
-        message: 'Sepetiniz boş',
-      });
-    }
+    // 1. Sepet + birim tutarlar (kampanya/kupon sunucuda değerlendirilir)
+    const quote = await this.buildCartQuote(userId, dto.couponCode);
+    const grandTotal = quote.grandTotal;
 
-    // 2. Calculate totals (same formula as the mobile client)
-    let subtotal = 0;
-    for (const item of cart.items) {
-      if (!item.product) {
-        throw new BadRequestException({
-          code: RC.PRODUCT_NOT_FOUND,
-          message: 'Sepette geçersiz ürün bulunmaktadır',
-        });
-      }
-      const price = item.customPrice !== null && item.customPrice !== undefined
-        ? Number(item.customPrice)
-        : Number(item.product.price);
-      subtotal += price * item.quantity;
-    }
-    const shipping = subtotal > 1500 ? 0 : 89;
-    const serviceFee = Math.round(subtotal * 0.02);
-    const grandTotal = subtotal + shipping + serviceFee;
+    // 2. Teslimat adresi (verilmezse varsayılan teslimat adresi)
+    const address = await this.resolveShippingAddress(
+      userId,
+      dto.shippingAddressId,
+    );
+    const addressSnapshot = address ? this.toAddressSnapshot(address) : null;
 
     // 3. Initiate payment session
     const existing = await this.paymentRepository.findOne({
@@ -216,67 +236,136 @@ export class PaymentService {
         checkoutUrl: null,
         providerPaymentId: null,
         refundProviderId: null,
-        metadata: { groupId },
+        metadata: {
+          groupId,
+          couponCode: quote.coupon?.code ?? null,
+          shippingAddressId: address?.id ?? null,
+        },
         paidAt: null,
         refundedAt: null,
         adminReviewAt: null,
       });
       const savedPayment = await manager.save(Payment, draft);
 
-      // Create Orders for each item unit
-      for (const item of cart.items) {
-        const product = item.product;
-        if (!product) {
-          throw new BadRequestException({
-            code: RC.PRODUCT_NOT_FOUND,
-            message: 'Sepette geçersiz ürün bulunmaktadır',
-          });
-        }
-        const price = item.customPrice !== null && item.customPrice !== undefined
-          ? Number(item.customPrice)
-          : Number(product.price);
+      // Her birim (adet) için ayrı sipariş — tutarlar quote'tan gelir.
+      for (const unit of quote.units) {
+        const item = unit.item;
+        const product = item.product!;
+        const idempotencyKey = `checkout-${savedPayment.id}-${item.id}-${unit.unitIndex}`;
 
-        for (let q = 0; q < item.quantity; q++) {
-          const idempotencyKey = `checkout-${savedPayment.id}-${item.productId}-${q}`;
-          
-          let orderRes;
-          if (item.auctionId) {
-            // Komisyon split'i için müzayede etkinliğini taşı (Faz 1).
-            const auctionRow = await manager.findOne(Auction, { where: { id: item.auctionId } });
-            orderRes = await this.orderService!.createFromAuction({
-              auctionId: item.auctionId,
+        let orderRes;
+        if (item.auctionId) {
+          // Komisyon split'i için müzayede etkinliğini taşı (Faz 1).
+          const auctionRow = await manager.findOne(Auction, { where: { id: item.auctionId } });
+          if (auctionRow) {
+            if (auctionRow.winnerId !== userId) {
+              throw new BadRequestException({
+                code: RC.FORBIDDEN,
+                message: 'Bu müzayede ödemesi size ait değil',
+              });
+            }
+            if (!auctionRow.saleApprovedAt) {
+              throw new BadRequestException({
+                code: RC.VALIDATION_ERROR,
+                message: 'Müzayede satışı henüz onaylanmadı, ödeme onay sonrası açılır',
+              });
+            }
+            if (
+              auctionRow.winnerPaymentDeadlineAt &&
+              auctionRow.winnerPaymentDeadlineAt.getTime() <= Date.now()
+            ) {
+              throw new BadRequestException({
+                code: RC.VALIDATION_ERROR,
+                message: 'Müzayede ödeme süresi dolmuş',
+              });
+            }
+          }
+          orderRes = await this.orderService!.createFromAuction({
+            auctionId: item.auctionId,
+            buyerId: userId,
+            sellerId: product.sellerId,
+            productId: item.productId,
+            amount: unit.finalAmount,
+            currency: 'TRY',
+            paymentId: savedPayment.id,
+            isPending: true,
+            eventId: auctionRow?.eventId ?? null,
+            shippingAddressId: address?.id ?? null,
+            shippingAddressSnapshot: addressSnapshot,
+          }, manager);
+        } else if (item.offerId) {
+          // Fiyat-sor: kabul edilmiş teklif sepetten ödenir. Tutar sepetteki
+          // customPrice'tan (teklif tutarı) gelir; teklif sunucuda doğrulanır.
+          const offerRow = await manager.findOne(Offer, {
+            where: { id: item.offerId },
+          });
+          if (!offerRow || offerRow.status !== OfferStatus.ACCEPTED) {
+            throw new BadRequestException({
+              code: RC.VALIDATION_ERROR,
+              message: 'Sepetteki teklif artık geçerli değil',
+            });
+          }
+          const conversationRow = await manager.findOne(Conversation, {
+            where: { id: offerRow.conversationId },
+          });
+          if (!conversationRow || conversationRow.buyerId !== userId) {
+            throw new BadRequestException({
+              code: RC.FORBIDDEN,
+              message: 'Bu teklif ödemesi size ait değil',
+            });
+          }
+          orderRes = await this.orderService!.createFromAskPriceHook(
+            {
+              acceptedOfferId: item.offerId,
               buyerId: userId,
               sellerId: product.sellerId,
               productId: item.productId,
-              amount: price,
+              amount: unit.finalAmount,
               currency: 'TRY',
+            },
+            manager,
+            {
+              shippingAddressId: address?.id ?? null,
+              shippingAddressSnapshot: addressSnapshot,
               paymentId: savedPayment.id,
-              isPending: true,
-              eventId: auctionRow?.eventId ?? null,
-            }, manager);
-          } else {
-            orderRes = await this.orderService!.createFromDirectSale(userId, {
-              productId: item.productId,
-              sellerId: product.sellerId,
-              amount: price,
-              currency: 'TRY',
-              idempotencyKey,
-            }, manager);
+            },
+          );
+          const askPriceOrder = orderRes.order;
+          if (askPriceOrder) {
+            offerRow.orderId = askPriceOrder.id;
+            await manager.save(Offer, offerRow);
+            conversationRow.orderId = askPriceOrder.id;
+            conversationRow.status = NegotiationStatus.PAYMENT_PENDING;
+            conversationRow.lastActivityAt = new Date();
+            await manager.save(Conversation, conversationRow);
           }
-
-          const createdOrder = orderRes.order;
-          if (!createdOrder) {
-            throw new BadRequestException({
-              code: RC.ORDER_CREATED,
-              message: 'Sipariş oluşturulamadı',
-            });
-          }
-
-          // Link to the Payment and set groupId
-          createdOrder.paymentId = savedPayment.id;
-          createdOrder.groupId = groupId;
-          await manager.save(Order, createdOrder);
+        } else {
+          orderRes = await this.orderService!.createFromDirectSale(userId, {
+            productId: item.productId,
+            sellerId: product.sellerId,
+            productVariantSkuId: item.productVariantSkuId ?? undefined,
+            amount: unit.finalAmount,
+            currency: 'TRY',
+            idempotencyKey,
+            couponCode: unit.couponApplied ? dto.couponCode : undefined,
+          }, manager, {
+            shippingAddressId: address?.id ?? null,
+            shippingAddressSnapshot: addressSnapshot,
+          });
         }
+
+        const createdOrder = orderRes.order;
+        if (!createdOrder) {
+          throw new BadRequestException({
+            code: RC.ORDER_CREATED,
+            message: 'Sipariş oluşturulamadı',
+          });
+        }
+
+        // Link to the Payment and set groupId
+        createdOrder.paymentId = savedPayment.id;
+        createdOrder.groupId = groupId;
+        await manager.save(Order, createdOrder);
       }
 
       return savedPayment;
@@ -305,6 +394,261 @@ export class PaymentService {
       checkoutUrl: checkout?.checkoutUrl,
       checkoutToken: checkout?.checkoutToken,
       groupId,
+      summary: this.toQuoteSummary(quote),
+    };
+  }
+
+  /** Checkout ekranı için tutar özeti — sipariş/ödeme kaydı oluşturmaz. */
+  async quoteCheckout(userId: string, dto: CheckoutQuoteDto) {
+    const quote = await this.buildCartQuote(userId, dto.couponCode);
+    return {
+      code: RC.CHECKOUT_QUOTE_FETCHED,
+      message: 'Checkout özeti hesaplandı',
+      quote: this.toQuoteSummary(quote),
+    };
+  }
+
+  private toQuoteSummary(quote: CartQuote) {
+    const lineMap = new Map<
+      string,
+      {
+        cartItemId: string;
+        productId: string;
+        title: string | null;
+        quantity: number;
+        lineOriginal: number;
+        lineFinal: number;
+      }
+    >();
+    for (const unit of quote.units) {
+      const key = unit.item.id;
+      const line = lineMap.get(key) ?? {
+        cartItemId: unit.item.id,
+        productId: unit.item.productId,
+        title: unit.item.product?.title ?? null,
+        quantity: 0,
+        lineOriginal: 0,
+        lineFinal: 0,
+      };
+      line.quantity += 1;
+      line.lineOriginal += unit.baseAmount;
+      line.lineFinal += unit.finalAmount;
+      lineMap.set(key, line);
+    }
+    return {
+      items: [...lineMap.values()],
+      subtotal: quote.originalSubtotal,
+      discountTotal: quote.discountTotal,
+      coupon: quote.coupon,
+      discountedSubtotal: quote.subtotal,
+      shipping: quote.shipping,
+      serviceFee: quote.serviceFee,
+      grandTotal: quote.grandTotal,
+    };
+  }
+
+  private async buildCartQuote(
+    userId: string,
+    couponCode?: string,
+  ): Promise<CartQuote> {
+    if (!this.cartService) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Cart service is unavailable',
+      });
+    }
+
+    const cartRes = await this.cartService.getMyCart(userId);
+    const cart = cartRes.cart;
+    if (!cart || !cart.items || cart.items.length === 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sepetiniz boş',
+      });
+    }
+
+    const units: CartQuoteUnit[] = [];
+    let originalSubtotal = 0;
+
+    // Kuponsuz birim tutarlar (aktif kampanyalar otomatik uygulanır).
+    for (const item of cart.items) {
+      if (!item.product) {
+        throw new BadRequestException({
+          code: RC.PRODUCT_NOT_FOUND,
+          message: 'Sepette geçersiz ürün bulunmaktadır',
+        });
+      }
+      const baseAmount =
+        item.customPrice !== null && item.customPrice !== undefined
+          ? Number(item.customPrice)
+          : Number(item.product.price);
+
+      let finalAmount = baseAmount;
+      if (
+        !item.auctionId &&
+        !item.offerId &&
+        typeof this.orderService?.previewDirectSaleDiscount === 'function'
+      ) {
+        const preview = await this.orderService.previewDirectSaleDiscount(
+          userId,
+          item.productId,
+        );
+        finalAmount = preview.discount.finalAmount;
+      }
+
+      for (let q = 0; q < item.quantity; q++) {
+        units.push({
+          item,
+          unitIndex: q,
+          baseAmount,
+          finalAmount,
+          couponApplied: false,
+        });
+        originalSubtotal += baseAmount;
+      }
+    }
+
+    // Kupon tek birime uygulanır (perUserLimit'i sepette N kez tüketmemek için)
+    // — en yüksek indirimi veren ürün seçilir.
+    let coupon: CartQuote['coupon'] = null;
+    if (
+      couponCode &&
+      typeof this.orderService?.previewDirectSaleDiscount === 'function'
+    ) {
+      let best:
+        | { productId: string; finalAmount: number; discountAmount: number }
+        | null = null;
+      const seenProducts = new Set<string>();
+      for (const item of cart.items) {
+        if (item.auctionId || item.offerId || !item.product || seenProducts.has(item.productId)) {
+          continue;
+        }
+        seenProducts.add(item.productId);
+        const preview = await this.orderService.previewDirectSaleDiscount(
+          userId,
+          item.productId,
+          couponCode,
+        );
+        if (preview.discount.appliedDiscount?.source !== 'coupon') continue;
+        if (!best || preview.discount.discountAmount > best.discountAmount) {
+          best = {
+            productId: item.productId,
+            finalAmount: preview.discount.finalAmount,
+            discountAmount: preview.discount.discountAmount,
+          };
+        }
+      }
+
+      if (!best) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Kupon bu sepete uygulanamıyor',
+        });
+      }
+
+      const target = units.find(
+        (unit) =>
+          !unit.item.auctionId &&
+          !unit.item.offerId &&
+          unit.item.productId === best!.productId,
+      );
+      if (target) {
+        coupon = {
+          code: couponCode,
+          discountAmount: Number(
+            (target.finalAmount - best.finalAmount).toFixed(2),
+          ),
+        };
+        target.finalAmount = best.finalAmount;
+        target.couponApplied = true;
+      }
+    }
+
+    const subtotal = Number(
+      units.reduce((sum, unit) => sum + unit.finalAmount, 0).toFixed(2),
+    );
+    const discountTotal = Number((originalSubtotal - subtotal).toFixed(2));
+    const freeShippingThreshold = Number(
+      this.configService?.get('FREE_SHIPPING_THRESHOLD') ?? 1500,
+    );
+    const flatShippingFee = Number(
+      this.configService?.get('FLAT_SHIPPING_FEE') ?? 89,
+    );
+    const serviceFeeRate = Number(
+      this.configService?.get('SERVICE_FEE_RATE') ?? 0.02,
+    );
+    const shipping = subtotal > freeShippingThreshold ? 0 : flatShippingFee;
+    const serviceFee = Math.round(subtotal * serviceFeeRate);
+    const grandTotal = Number((subtotal + shipping + serviceFee).toFixed(2));
+
+    return {
+      cart,
+      units,
+      originalSubtotal: Number(originalSubtotal.toFixed(2)),
+      subtotal,
+      discountTotal,
+      coupon,
+      shipping,
+      serviceFee,
+      grandTotal,
+    };
+  }
+
+  private async resolveShippingAddress(
+    userId: string,
+    shippingAddressId?: string,
+  ): Promise<Address | null> {
+    // Test ortamında adres deposu bağlanmamış olabilir — adres bağlamadan devam.
+    if (!this.addressRepository) return null;
+
+    if (shippingAddressId) {
+      const requested = await this.addressRepository.findOne({
+        where: { id: shippingAddressId },
+      });
+      if (!requested || requested.userId !== userId) {
+        throw new BadRequestException({
+          code: RC.FORBIDDEN,
+          message: 'Adres size ait değil',
+        });
+      }
+      if (requested.type === AddressType.SENDER) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Gönderici adresi teslimat adresi olarak kullanılamaz',
+        });
+      }
+      return requested;
+    }
+
+    const fallback =
+      (await this.addressRepository.findOne({
+        where: { userId, type: AddressType.SHIPPING, isDefault: true },
+      })) ??
+      (await this.addressRepository.findOne({
+        where: { userId, type: AddressType.SHIPPING },
+        order: { createdAt: 'DESC' },
+      }));
+
+    if (!fallback) {
+      throw new BadRequestException({
+        code: RC.ORDER_SHIPPING_ADDRESS_REQUIRED,
+        message: 'Teslimat adresi seçin veya yeni bir adres ekleyin',
+      });
+    }
+    return fallback;
+  }
+
+  private toAddressSnapshot(address: Address): Record<string, unknown> {
+    return {
+      title: address.title,
+      fullName: address.fullName,
+      phone: address.phone,
+      city: address.city,
+      district: address.district,
+      neighborhood: address.neighborhood,
+      addressLine: address.addressLine,
+      postalCode: address.postalCode,
+      country: address.country,
     };
   }
 
@@ -804,7 +1148,8 @@ export class PaymentService {
 
       const currentDeposit = Number(user.totalDeposit ?? 0);
       const newDeposit = currentDeposit + Number(dto.amount);
-      const newLimit = 50000 + newDeposit * 5;
+      // Depozit hedef limitin %20'si → limit = depozit × 5; 50K depozitosuz taban.
+      const newLimit = Math.max(50000, newDeposit * 5);
 
       user.totalDeposit = newDeposit;
       user.biddingLimit = newLimit;
@@ -852,7 +1197,7 @@ export class PaymentService {
         lock: { mode: 'pessimistic_write' },
       });
       if (user) {
-        const depositLimit = 50000 + Number(user.totalDeposit ?? 0) * 5;
+        const depositLimit = Math.max(50000, Number(user.totalDeposit ?? 0) * 5);
         const newLimit = Math.max(Number(user.biddingLimit), depositLimit, loyaltyLimit);
         if (newLimit !== Number(user.biddingLimit)) {
           user.biddingLimit = newLimit;

@@ -378,19 +378,22 @@ export class AdsService {
       categoryId,
       limit: products.length,
     });
+    const visibilityBoosts = await this.getVisibilityBoosts(
+      placements
+        .map((placement) => placement.adRequest.sellerId)
+        .filter((sellerId): sellerId is string => !!sellerId),
+    );
     const metadataByProductId = new Map<string, SponsoredMetadata>();
     for (const placement of placements) {
       const productId = placement.adRequest.productId;
       if (!productId) continue;
-      const visibilityBoost = await this.getVisibilityBoost(
-        placement.adRequest.sellerId,
-      );
       metadataByProductId.set(productId, {
         isSponsored: true,
         sponsoredLabel: 'Sponsorlu',
         adRequestId: placement.adRequestId,
         placementType: placement.placementType,
-        visibilityBoost,
+        visibilityBoost:
+          visibilityBoosts.get(placement.adRequest.sellerId) ?? 0,
       });
     }
 
@@ -746,9 +749,16 @@ export class AdsService {
     return { reservedAmount, adCreditsApplied, adDiscountRate };
   }
 
-  private async getVisibilityBoost(sellerId: string) {
-    const benefits = await this.membershipService?.getSellerBenefits(sellerId);
-    return Math.max(0, Number(benefits?.visibilityBoost ?? 0));
+  private async getVisibilityBoosts(sellerIds: string[]) {
+    const boosts = new Map<string, number>();
+    if (!this.membershipService || sellerIds.length === 0) return boosts;
+
+    const benefitsBySeller =
+      await this.membershipService.getBenefitsForSellers(sellerIds);
+    for (const [sellerId, benefits] of benefitsBySeller) {
+      boosts.set(sellerId, Math.max(0, Number(benefits?.visibilityBoost ?? 0)));
+    }
+    return boosts;
   }
 
   private addDays(date: Date, days: number) {

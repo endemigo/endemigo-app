@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, Column, Index, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../user/entities/user.entity';
 import { Category } from './category.entity';
@@ -11,6 +11,10 @@ import { ProductProductionSeason } from '../../../shared/types/product-productio
 import { ProductVariantSku } from './product-variant-sku.entity';
 
 @Entity('products')
+@Index('idx_products_status_created_at', ['status', 'createdAt'])
+@Index('idx_products_status_favorite_count', ['status', 'favoriteCount'])
+@Index('idx_products_category_status', ['categoryId', 'status'])
+@Index('idx_products_seller', ['sellerId'])
 export class Product extends BaseEntity {
   // ─── Core Fields ──────────────────────────────────────────
   @Column()
@@ -147,6 +151,10 @@ export class Product extends BaseEntity {
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   askPriceMinAmount: number | null;
+
+  // Tedarikçi ürün bazında "Soru Sor" butonunu açar/kapar.
+  @Column({ default: false })
+  askQuestionEnabled: boolean;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   wholesalePrice: number | null;

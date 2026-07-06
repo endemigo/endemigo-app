@@ -5,6 +5,7 @@ import { RC } from '@endemigo/shared';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 import { Public } from '../../common/decorators/public.decorator';
+import { resolveRedisConnection } from '../../shared/config/redis.config';
 
 @ApiTags('Health')
 @Controller('health')
@@ -43,21 +44,12 @@ export class HealthController {
   @Get('redis')
   @ApiOperation({ summary: 'Redis bağlantı kontrolü' })
   async redisCheck() {
-    const redisUrl = this.configService.get<string>('REDIS_URL');
-    const redis = redisUrl
-      ? new Redis(redisUrl, {
-          lazyConnect: true,
-          maxRetriesPerRequest: 1,
-          enableOfflineQueue: false,
-        })
-      : new Redis({
-          host: this.configService.get<string>('REDIS_HOST', 'localhost'),
-          port: Number(this.configService.get<string | number>('REDIS_PORT', 6379)),
-          password: this.configService.get<string>('REDIS_PASSWORD') || undefined,
-          lazyConnect: true,
-          maxRetriesPerRequest: 1,
-          enableOfflineQueue: false,
-        });
+    const redis = new Redis({
+      ...resolveRedisConnection(this.configService),
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
 
     try {
       await redis.connect();

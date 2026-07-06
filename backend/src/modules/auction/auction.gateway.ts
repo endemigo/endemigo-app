@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -21,11 +21,18 @@ import { buildCorsOptions } from '../../common/http/cors.util';
   transports: ['websocket', 'polling'],
 })
 export class AuctionGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
 {
+  // Oda adları UUID'den türetilir; rastgele string'lerle sınırsız oda/Map
+  // büyümesini (memory DoS) kesmek için join'ler format + limit kontrolünden geçer.
+  private static readonly UUID_PATTERN =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  private static readonly MAX_JOINED_ROOMS = 50;
+
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(AuctionGateway.name);
   private viewerCounts: Map<string, number> = new Map();
+  private viewerBroadcastInterval?: NodeJS.Timeout;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -34,7 +41,7 @@ export class AuctionGateway
 
   async afterInit(server: Server) {
     // ─── Viewer count broadcast every 10 seconds ────────────
-    setInterval(() => {
+    this.viewerBroadcastInterval = setInterval(() => {
       this.viewerCounts.forEach((count, auctionId) => {
         server.to(`auction:${auctionId}`).emit('auction:viewer_count', {
           auctionId,
@@ -43,6 +50,22 @@ export class AuctionGateway
         });
       });
     }, 10000);
+  }
+
+  onModuleDestroy() {
+    if (this.viewerBroadcastInterval) clearInterval(this.viewerBroadcastInterval);
+  }
+
+  private isValidRoomId(id: unknown): id is string {
+    return typeof id === 'string' && AuctionGateway.UUID_PATTERN.test(id);
+  }
+
+  private joinedRoomCount(client: Socket): number {
+    let count = 0;
+    client.rooms.forEach((room) => {
+      if (room.startsWith('auction:') || room.startsWith('event:')) count += 1;
+    });
+    return count;
   }
 
   async handleConnection(client: Socket) {
@@ -111,27 +134,40 @@ export class AuctionGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { auctionId: string },
   ) {
-    const room = `auction:${data.auctionId}`;
-    client.join(room);
-    const count = (this.viewerCounts.get(data.auctionId) || 0) + 1;
-    this.viewerCounts.set(data.auctionId, count);
+    const auctionId = data?.auctionId;
+    if (!this.isValidRoomId(auctionId)) {
+      return { event: 'auction:error', data: { code: 'INVALID_AUCTION_ID' } };
+    }
+    const room = `auction:${auctionId}`;
     const serverTime = new Date().toISOString();
+    if (client.rooms.has(room)) {
+      // Aynı soketten mükerrer join sayacı şişirmesin.
+      return {
+        event: 'auction:joined',
+        data: {
+          auctionId,
+          viewerCount: this.viewerCounts.get(auctionId) || 1,
+          serverTime,
+        },
+      };
+    }
+    if (this.joinedRoomCount(client) >= AuctionGateway.MAX_JOINED_ROOMS) {
+      return { event: 'auction:error', data: { code: 'ROOM_LIMIT_EXCEEDED' } };
+    }
+    client.join(room);
+    const count = (this.viewerCounts.get(auctionId) || 0) + 1;
+    this.viewerCounts.set(auctionId, count);
     this.logger.debug(
       `Client ${client.id} joined ${room} (viewers: ${count})`,
     );
     this.server.to(room).emit('auction:viewer_count', {
-      auctionId: data.auctionId,
+      auctionId,
       count,
-      serverTime,
-    });
-    client.emit('auction:joined', {
-      auctionId: data.auctionId,
-      viewerCount: count,
       serverTime,
     });
     return {
       event: 'auction:joined',
-      data: { auctionId: data.auctionId, viewerCount: count, serverTime },
+      data: { auctionId, viewerCount: count, serverTime },
     };
   }
 
@@ -140,22 +176,33 @@ export class AuctionGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { auctionId: string },
   ) {
-    const room = `auction:${data.auctionId}`;
+    const auctionId = data?.auctionId;
+    if (!this.isValidRoomId(auctionId)) {
+      return { event: 'auction:error', data: { code: 'INVALID_AUCTION_ID' } };
+    }
+    const room = `auction:${auctionId}`;
+    if (!client.rooms.has(room)) {
+      // Üye olmayan soketin leave'i sayacı aşağı çekmesin.
+      return {
+        event: 'auction:left',
+        data: { auctionId, serverTime: new Date().toISOString() },
+      };
+    }
     client.leave(room);
     const count = Math.max(
       0,
-      (this.viewerCounts.get(data.auctionId) || 1) - 1,
+      (this.viewerCounts.get(auctionId) || 1) - 1,
     );
-    if (count <= 0) this.viewerCounts.delete(data.auctionId);
-    else this.viewerCounts.set(data.auctionId, count);
+    if (count <= 0) this.viewerCounts.delete(auctionId);
+    else this.viewerCounts.set(auctionId, count);
     this.server.to(room).emit('auction:viewer_count', {
-      auctionId: data.auctionId,
+      auctionId,
       count,
       serverTime: new Date().toISOString(),
     });
     return {
       event: 'auction:left',
-      data: { auctionId: data.auctionId, serverTime: new Date().toISOString() },
+      data: { auctionId, serverTime: new Date().toISOString() },
     };
   }
 
@@ -166,27 +213,39 @@ export class AuctionGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { eventId: string },
   ) {
-    const room = `event:${data.eventId}`;
-    client.join(room);
-    const count = (this.eventViewerCounts.get(data.eventId) || 0) + 1;
-    this.eventViewerCounts.set(data.eventId, count);
+    const eventId = data?.eventId;
+    if (!this.isValidRoomId(eventId)) {
+      return { event: 'event:error', data: { code: 'INVALID_EVENT_ID' } };
+    }
+    const room = `event:${eventId}`;
     const serverTime = new Date().toISOString();
+    if (client.rooms.has(room)) {
+      return {
+        event: 'event:joined',
+        data: {
+          eventId,
+          viewerCount: this.eventViewerCounts.get(eventId) || 1,
+          serverTime,
+        },
+      };
+    }
+    if (this.joinedRoomCount(client) >= AuctionGateway.MAX_JOINED_ROOMS) {
+      return { event: 'event:error', data: { code: 'ROOM_LIMIT_EXCEEDED' } };
+    }
+    client.join(room);
+    const count = (this.eventViewerCounts.get(eventId) || 0) + 1;
+    this.eventViewerCounts.set(eventId, count);
     this.logger.debug(
       `Client ${client.id} joined ${room} (viewers: ${count})`,
     );
     this.server.to(room).emit('event:viewer_count', {
-      eventId: data.eventId,
+      eventId,
       count,
-      serverTime,
-    });
-    client.emit('event:joined', {
-      eventId: data.eventId,
-      viewerCount: count,
       serverTime,
     });
     return {
       event: 'event:joined',
-      data: { eventId: data.eventId, viewerCount: count, serverTime },
+      data: { eventId, viewerCount: count, serverTime },
     };
   }
 
@@ -195,22 +254,32 @@ export class AuctionGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { eventId: string },
   ) {
-    const room = `event:${data.eventId}`;
+    const eventId = data?.eventId;
+    if (!this.isValidRoomId(eventId)) {
+      return { event: 'event:error', data: { code: 'INVALID_EVENT_ID' } };
+    }
+    const room = `event:${eventId}`;
+    if (!client.rooms.has(room)) {
+      return {
+        event: 'event:left',
+        data: { eventId, serverTime: new Date().toISOString() },
+      };
+    }
     client.leave(room);
     const count = Math.max(
       0,
-      (this.eventViewerCounts.get(data.eventId) || 1) - 1,
+      (this.eventViewerCounts.get(eventId) || 1) - 1,
     );
-    if (count <= 0) this.eventViewerCounts.delete(data.eventId);
-    else this.eventViewerCounts.set(data.eventId, count);
+    if (count <= 0) this.eventViewerCounts.delete(eventId);
+    else this.eventViewerCounts.set(eventId, count);
     this.server.to(room).emit('event:viewer_count', {
-      eventId: data.eventId,
+      eventId,
       count,
       serverTime: new Date().toISOString(),
     });
     return {
       event: 'event:left',
-      data: { eventId: data.eventId, serverTime: new Date().toISOString() },
+      data: { eventId, serverTime: new Date().toISOString() },
     };
   }
 
@@ -265,6 +334,24 @@ export class AuctionGateway
     }
   }
 
+  // Redis adapter'lı fetchSockets instance'lar arası timeout ile reject
+  // edebilir; catch'siz zincir unhandled rejection olarak prosesi düşürür.
+  private emitToMatchingSockets(rooms: string[], send: (socket: any) => void) {
+    for (const room of rooms) {
+      this.server
+        .to(room)
+        .fetchSockets()
+        .then((sockets) => {
+          sockets.forEach(send);
+        })
+        .catch((error: Error) =>
+          this.logger.error(
+            `fetchSockets failed for ${room}: ${error.message}`,
+          ),
+        );
+    }
+  }
+
   emitBidOutbid(
     auctionId: string,
     previousBidderId: string,
@@ -278,26 +365,14 @@ export class AuctionGateway
       }
     };
 
-    this.server
-      .to(`auction:${auctionId}`)
-      .fetchSockets()
-      .then((sockets) => {
-        sockets.forEach(sendToUser);
-      });
-
-    if (eventId) {
-      this.server
-        .to(`event:${eventId}`)
-        .fetchSockets()
-        .then((sockets) => {
-          sockets.forEach(sendToUser);
-        });
-    }
+    const rooms = [`auction:${auctionId}`];
+    if (eventId) rooms.push(`event:${eventId}`);
+    this.emitToMatchingSockets(rooms, sendToUser);
   }
 
   emitAuctionStarted(
     auctionId: string,
-    payload: { startPrice: number },
+    payload: { startPrice: number; currentPrice?: number; bidCount?: number },
     eventId?: string | null,
   ) {
     const serverTime = new Date().toISOString();
@@ -324,6 +399,23 @@ export class AuctionGateway
       this.server
         .to(`event:${eventId}`)
         .emit('auction:extended', { auctionId, ...payload, serverTime });
+    }
+  }
+
+  // Sunucu (auctioneer) anonsu: "ürün yakılıyor", "son ve adil çağrı",
+  // "satıyorum sattım" — canlı yayın ritüeli, feed'e düşer.
+  emitAuctioneerAnnouncement(
+    eventId: string,
+    payload: { type: string; message: string; lotId?: string | null },
+  ) {
+    const serverTime = new Date().toISOString();
+    this.server
+      .to(`event:${eventId}`)
+      .emit('event:announcement', { eventId, ...payload, serverTime });
+    if (payload.lotId) {
+      this.server
+        .to(`auction:${payload.lotId}`)
+        .emit('event:announcement', { eventId, ...payload, serverTime });
     }
   }
 
@@ -376,21 +468,9 @@ export class AuctionGateway
       }
     };
 
-    this.server
-      .to(`auction:${auctionId}`)
-      .fetchSockets()
-      .then((sockets) => {
-        sockets.forEach(sendToWinner);
-      });
-
-    if (eventId) {
-      this.server
-        .to(`event:${eventId}`)
-        .fetchSockets()
-        .then((sockets) => {
-          sockets.forEach(sendToWinner);
-        });
-    }
+    const rooms = [`auction:${auctionId}`];
+    if (eventId) rooms.push(`event:${eventId}`);
+    this.emitToMatchingSockets(rooms, sendToWinner);
   }
 
   emitBidLost(
@@ -406,21 +486,9 @@ export class AuctionGateway
       }
     };
 
-    this.server
-      .to(`auction:${auctionId}`)
-      .fetchSockets()
-      .then((sockets) => {
-        sockets.forEach(sendToLosers);
-      });
-
-    if (eventId) {
-      this.server
-        .to(`event:${eventId}`)
-        .fetchSockets()
-        .then((sockets) => {
-          sockets.forEach(sendToLosers);
-        });
-    }
+    const rooms = [`auction:${auctionId}`];
+    if (eventId) rooms.push(`event:${eventId}`);
+    this.emitToMatchingSockets(rooms, sendToLosers);
   }
 
   emitAuctionCancelled(

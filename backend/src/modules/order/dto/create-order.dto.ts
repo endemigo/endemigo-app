@@ -7,6 +7,10 @@ export class CreateOrderDto {
   @IsUUID()
   sellerId: string;
 
+  @IsOptional()
+  @IsUUID()
+  productVariantSkuId?: string;
+
   @IsNumber()
   @Min(0.01)
   amount: number;

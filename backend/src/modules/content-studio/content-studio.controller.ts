@@ -19,7 +19,7 @@ interface ContentStudioAdminRequest {
 interface UpdateContentStudioBody {
   document: ContentStudioDocument;
   version: number;
-  reason: string;
+  reason?: string;
 }
 
 @ApiTags('Content Studio')

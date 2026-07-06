@@ -46,6 +46,11 @@ export class CartItem extends BaseEntity {
   @JoinColumn({ name: 'auctionId' })
   auction: Auction | null;
 
+  // Fiyat-sor akışında kabul edilen teklifin kimliği; customPrice bu teklifin
+  // tutarını taşır ve checkout ödeme tutarı olarak bunu okur.
+  @Column({ type: 'uuid', nullable: true })
+  offerId: string | null;
+
   @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true })
   customPrice: number | null;
 

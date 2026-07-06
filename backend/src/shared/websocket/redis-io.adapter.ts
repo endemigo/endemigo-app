@@ -4,6 +4,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { Server, ServerOptions } from 'socket.io';
+import { resolveRedisUrl } from '../config/redis.config';
 
 export class RedisIoAdapter extends IoAdapter {
   private readonly logger = new Logger(RedisIoAdapter.name);
@@ -19,12 +20,21 @@ export class RedisIoAdapter extends IoAdapter {
   }
 
   async connectToRedis(): Promise<void> {
-    const redisUrl = this.configService.get<string>('REDIS_URL')
-      || `redis://${this.configService.get<string>('REDIS_HOST', 'localhost')}:${this.configService.get<number>('REDIS_PORT', 6379)}`;
+    const redisUrl = resolveRedisUrl(this.configService);
 
     try {
       this.pubClient = createClient({ url: redisUrl });
       this.subClient = this.pubClient.duplicate();
+
+      // Bağlantı sonrası Redis kopmalarında node-redis 'error' emit eder;
+      // dinleyici yoksa unhandled error prosesi çökertir. Client kendi
+      // kendine reconnect dener, burada yalnızca loglamak yeterli.
+      this.pubClient.on('error', (error: Error) =>
+        this.logger.error(`Socket.IO Redis pub client error: ${error.message}`),
+      );
+      this.subClient.on('error', (error: Error) =>
+        this.logger.error(`Socket.IO Redis sub client error: ${error.message}`),
+      );
 
       await Promise.all([
         this.pubClient.connect(),

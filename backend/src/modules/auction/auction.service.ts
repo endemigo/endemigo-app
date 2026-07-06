@@ -10,7 +10,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
@@ -42,6 +42,7 @@ import {
 
 import { NotificationService } from '../notification/notification.service';
 import { PaymentService } from '../payment/payment.service';
+import { ProductService } from '../product/product.service';
 
 
 const WINNER_PAYMENT_WINDOW_HOURS = 24;
@@ -56,8 +57,6 @@ type AuctionProductOwnership = {
 @Injectable()
 export class AuctionService implements OnApplicationBootstrap {
   private readonly logger = new Logger(AuctionService.name);
-  private readonly pausedRemainingSecondsMap = new Map<string, number>();
-  private readonly eventAutoProgressMap = new Map<string, boolean>();
 
   constructor(
     @InjectRepository(Auction)
@@ -77,6 +76,9 @@ export class AuctionService implements OnApplicationBootstrap {
     @Inject(forwardRef(() => PaymentService))
     private readonly paymentService: PaymentService,
     @Optional()
+    @Inject(forwardRef(() => ProductService))
+    private readonly productService?: ProductService,
+    @Optional()
     private readonly orderService?: OrderService,
     @Optional()
     private readonly notificationService?: NotificationService,
@@ -87,9 +89,58 @@ export class AuctionService implements OnApplicationBootstrap {
     this.logger.log('Müzayede durumu eşitleme ve kurtarma motoru başlatılıyor...');
     try {
       await this.reconcileActiveAuctions();
+      await this.reconcilePublishedAuctions();
       await this.reconcilePendingPayments();
     } catch (err) {
       this.logger.error(`Kurtarma motoru çalışırken hata oluştu: ${err}`);
+    }
+  }
+
+  /**
+   * Publish sonrası start/end görevleri kaybolmuş (Redis hatası, restart,
+   * silinmiş kuyruk) PUBLISHED müzayedeleri yeniden planlar. Event lotları
+   * (eventId dolu) lot akışıyla yönetilir ve duraklatılmış lot da PUBLISHED
+   * göründüğünden bilerek kapsam dışıdır.
+   */
+  private async reconcilePublishedAuctions() {
+    const publishedAuctions = await this.auctionRepo.find({
+      where: { status: AuctionStatus.PUBLISHED, eventId: IsNull() },
+    });
+
+    for (const auction of publishedAuctions) {
+      try {
+        const now = Date.now();
+        const jobs = [
+          {
+            name: 'start-auction',
+            delay: Math.max(0, new Date(auction.startTime).getTime() - now),
+            jobId: `start-${auction.id}`,
+          },
+          {
+            name: 'end-auction',
+            delay: Math.max(0, new Date(auction.endTime).getTime() - now),
+            jobId: `end-${auction.id}`,
+          },
+        ];
+        for (const jobSpec of jobs) {
+          try {
+            const oldJob = await this.auctionQueue.getJob(jobSpec.jobId);
+            if (oldJob) await oldJob.remove();
+          } catch {}
+          await this.auctionQueue.add(
+            jobSpec.name,
+            { auctionId: auction.id },
+            { delay: jobSpec.delay, jobId: jobSpec.jobId },
+          );
+        }
+        this.logger.log(
+          `PUBLISHED müzayede görevleri yeniden kuruldu: ${auction.id}`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `PUBLISHED müzayede (${auction.id}) planlaması başarısız: ${err}`,
+        );
+      }
     }
   }
 
@@ -176,7 +227,14 @@ export class AuctionService implements OnApplicationBootstrap {
 
   // ─── Apply to Event (Model 2) ───────────────────────────
 
-  async applyToEvent(sellerId: string, eventId: string, dto: CreateAuctionDto) {
+  // Etkinliğe ürün başvurusunun tüm ön koşulları (tek ürün ve toplu yükleme
+  // aynı kuralları kullanır). addingCount: bu istekte eklenmek istenen lot sayısı.
+  private async assertEventApplicationAllowed(
+    sellerId: string,
+    eventId: string,
+    guaranteeAccepted: boolean | undefined,
+    addingCount: number,
+  ): Promise<AuctionEvent> {
     const user = await this.userService.findById(sellerId);
     if (!user?.isSeller) {
       throw new ForbiddenException({
@@ -212,14 +270,14 @@ export class AuctionService implements OnApplicationBootstrap {
       const existingCount = await this.auctionRepo.count({
         where: { eventId, sellerId },
       });
-      if (existingCount >= 5) {
+      if (existingCount + addingCount > 5) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Endemigo müzayedelerine en fazla 5 ürün ile katılabilirsiniz',
         });
       }
 
-      if (!dto.guaranteeAccepted) {
+      if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
@@ -247,7 +305,7 @@ export class AuctionService implements OnApplicationBootstrap {
         });
       }
 
-      if (!dto.guaranteeAccepted) {
+      if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
@@ -268,23 +326,34 @@ export class AuctionService implements OnApplicationBootstrap {
         });
       }
 
-      if (!dto.guaranteeAccepted) {
+      if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
         });
       }
 
-      // Check if not owner, must have accepted invitation
+      // Sahip değilse: kabul edilmiş davet YA DA açık çağrı (+ ≥20 aktif ürün) gerekir.
       if (event.ownerId !== sellerId) {
         const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
           where: { eventId, inviteeId: sellerId, status: InvitationStatus.ACCEPTED },
         });
         if (!invitation) {
-          throw new ForbiddenException({
-            code: RC.FORBIDDEN,
-            message: 'Bu ortak müzayedeye katılmak için davet edilmeli ve kabul etmelisiniz',
+          if (!event.openCallEnabled) {
+            throw new ForbiddenException({
+              code: RC.FORBIDDEN,
+              message: 'Bu ortak müzayedeye katılmak için davet edilmeli ve kabul etmelisiniz',
+            });
+          }
+          const applicantProductCount = await this.auctionRepo.manager.count('Product', {
+            where: { sellerId, status: ProductStatus.ACTIVE },
           });
+          if (applicantProductCount < 20) {
+            throw new ForbiddenException({
+              code: RC.FORBIDDEN,
+              message: 'Açık çağrıya katılmak için en az 20 aktif ürününüz olmalıdır',
+            });
+          }
         }
       }
     }
@@ -295,6 +364,17 @@ export class AuctionService implements OnApplicationBootstrap {
         message: 'Bu müzayede etkinliği için son ürün ekleme tarihi geçmiştir',
       });
     }
+
+    return event;
+  }
+
+  async applyToEvent(sellerId: string, eventId: string, dto: CreateAuctionDto) {
+    const event = await this.assertEventApplicationAllowed(
+      sellerId,
+      eventId,
+      dto.guaranteeAccepted,
+      1,
+    );
 
     // BIZ-03: Product ownership check
     const product = (await this.auctionRepo.manager.findOne('Product', {
@@ -356,6 +436,7 @@ export class AuctionService implements OnApplicationBootstrap {
         startTime: event.startTime, // Etkinlik başlangıç zamanını miras alır
         endTime: event.endTime,
         lotNumber,
+        guaranteeAcceptedAt: dto.guaranteeAccepted ? new Date() : null,
       });
 
       const saved = await queryRunner.manager.save(Auction, auction);
@@ -371,6 +452,166 @@ export class AuctionService implements OnApplicationBootstrap {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  // ─── Toplu lot yükleme (Excel): ürün + lot tek adımda ────
+  // Satır bazlı hata raporu: hatalı satır partiyi durdurmaz ({ created, failed[] }).
+  async bulkImportLots(
+    sellerId: string,
+    eventId: string,
+    dto: { guaranteeAccepted?: boolean; lots: Record<string, unknown>[] },
+  ) {
+    if (!this.productService) {
+      throw new BadRequestException({
+        code: RC.INTERNAL_ERROR,
+        message: 'Ürün servisi kullanılamıyor',
+      });
+    }
+
+    const rows = dto.lots ?? [];
+    if (!rows.length) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Yüklenecek satır bulunamadı',
+      });
+    }
+
+    const event = await this.assertEventApplicationAllowed(
+      sellerId,
+      eventId,
+      dto.guaranteeAccepted,
+      rows.length,
+    );
+
+    const failed: { row: number; reason: string }[] = [];
+    // Satır → oluşturulan kayıt eşlemesi; görsel yükleme adımı productId ile devam eder.
+    const createdLots: {
+      row: number;
+      productId: string;
+      auctionId: string;
+      lotNumber: string;
+    }[] = [];
+    let created = 0;
+
+    for (const [index, rawRow] of rows.entries()) {
+      const row = index + 1;
+      try {
+        // Lot alanları: açılış fiyatı zorunlu (yoksa ürün fiyatı kullanılır).
+        const startPriceRaw = rawRow.startPrice ?? rawRow.price;
+        const startPrice = Number(startPriceRaw);
+        if (!Number.isFinite(startPrice) || startPrice <= 0) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Açılış fiyatı (startPrice) pozitif bir sayı olmalıdır',
+          });
+        }
+
+        const minIncrementRaw = rawRow.minIncrement;
+        const minIncrement =
+          minIncrementRaw === undefined ||
+          minIncrementRaw === null ||
+          String(minIncrementRaw).trim() === ''
+            ? 1
+            : Number(minIncrementRaw);
+        if (!Number.isFinite(minIncrement) || minIncrement <= 0) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Artış miktarı (minIncrement) pozitif bir sayı olmalıdır',
+          });
+        }
+
+        const reservePriceRaw = rawRow.reservePrice;
+        const reservePrice =
+          reservePriceRaw === undefined ||
+          reservePriceRaw === null ||
+          String(reservePriceRaw).trim() === ''
+            ? null
+            : Number(reservePriceRaw);
+        if (reservePrice !== null && !Number.isFinite(reservePrice)) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Rezerv fiyat (reservePrice) sayısal olmalıdır',
+          });
+        }
+        if (reservePrice !== null && reservePrice < startPrice) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Rezerv fiyat açılış fiyatından düşük olamaz',
+          });
+        }
+
+        // Ürün: mevcut toplu içe aktarma doğrulamasıyla oluşturulur (DRAFT).
+        const rowDto = await this.productService.buildBulkImportRowDto(rawRow);
+        rowDto.status = ProductStatus.DRAFT;
+        const productRes = await this.productService.create(sellerId, rowDto);
+        const productId = (productRes as { id?: string }).id;
+        if (!productId) {
+          throw new BadRequestException({
+            code: RC.INTERNAL_ERROR,
+            message: 'Ürün oluşturulamadı',
+          });
+        }
+
+        // Lot: LOT numaralama ve insert aynı transaction içinde (D-12).
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+          const lotNumber = await this.generateLotNumber(queryRunner.manager);
+          const auction = this.auctionRepo.create({
+            productId,
+            sellerId,
+            eventId,
+            startPrice,
+            currentPrice: startPrice,
+            minIncrement,
+            reservePrice,
+            reserveMet: false,
+            auctionType: event.auctionType,
+            antiSnipingEnabled: event.antiSnipingEnabled ?? true,
+            extensionSeconds: event.extensionSeconds ?? 60,
+            maxExtensions: event.maxExtensions ?? 5,
+            extensionDuration: event.extensionDuration ?? 60,
+            culturalAssetRestricted: false,
+            status: AuctionStatus.DRAFT,
+            approvalStatus: AuctionApprovalStatus.PENDING,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            lotNumber,
+            guaranteeAcceptedAt: new Date(),
+          });
+          const savedLot = await queryRunner.manager.save(Auction, auction);
+          await queryRunner.commitTransaction();
+          createdLots.push({
+            row,
+            productId,
+            auctionId: savedLot.id,
+            lotNumber: savedLot.lotNumber,
+          });
+        } catch (lotError) {
+          await queryRunner.rollbackTransaction();
+          throw lotError;
+        } finally {
+          await queryRunner.release();
+        }
+
+        created++;
+      } catch (error) {
+        const reason =
+          (error as { response?: { message?: string } })?.response?.message ||
+          (error as Error)?.message ||
+          'Bilinmeyen hata';
+        failed.push({ row, reason });
+      }
+    }
+
+    return {
+      code: RC.SUCCESS,
+      message: `${created} lot eklendi, ${failed.length} satır başarısız`,
+      created,
+      failed,
+      createdLots,
+    };
   }
 
   // ─── Create (D-18: DRAFT status, no BullMQ jobs) ─────────
@@ -456,6 +697,7 @@ export class AuctionService implements OnApplicationBootstrap {
         startTime,
         endTime,
         lotNumber,
+        guaranteeAcceptedAt: dto.guaranteeAccepted ? new Date() : null,
       });
 
       const saved = await queryRunner.manager.save(Auction, auction);
@@ -582,6 +824,15 @@ export class AuctionService implements OnApplicationBootstrap {
       );
     }
 
+    // Etkinliğe bağlı lotlar etkinlik takvimini miras alır — tekil lotta
+    // tarih değişikliği akış senkronunu bozar, sadece fiyat alanları serbest.
+    if (auction.eventId && (dto.startTime || dto.endTime)) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Etkinliğe bağlı lotların tarihleri etkinlikten yönetilir, tekil olarak değiştirilemez',
+      );
+    }
+
     // Zaman ve fiyat alanları tek tek güncellenebildiğinden çapraz kurallar
     // güncel + mevcut değerlerin birleşimi üzerinden doğrulanmalı.
     const newStartTime = dto.startTime
@@ -671,6 +922,12 @@ export class AuctionService implements OnApplicationBootstrap {
     auction.status = AuctionStatus.CANCELLED;
     await this.auctionRepo.save(auction);
 
+    // AUCT-ABS: bekleyen ön teklifler askıda kalmasın (hold'ları yok).
+    await this.bidRepo.update(
+      { auctionId, status: BidStatus.ABSENTEE },
+      { status: BidStatus.CANCELLED },
+    );
+
     // Clean up BullMQ jobs
     try {
       const startJob = await this.auctionQueue.getJob(`start-${auctionId}`);
@@ -690,6 +947,135 @@ export class AuctionService implements OnApplicationBootstrap {
       code: RC.AUCTION_CANCELLED,
       message: 'Auction cancelled',
       auctionId,
+    };
+  }
+
+  // ─── Admin Cancel ─────────────────────────────────────────
+  // Teklif almış/bitmiş müzayedelerde iptal sadece status değişimi değildir:
+  // hold'lar, zamanlanmış işler ve kazananın sepet kalemi de temizlenmeli.
+  async adminCancelAuction(auctionId: string, reason?: string) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+
+    if (
+      [
+        AuctionStatus.CANCELLED,
+        AuctionStatus.COMPLETED,
+        AuctionStatus.FAILED,
+      ].includes(auction.status)
+    ) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Bu durumdaki müzayede iptal edilemez',
+      );
+    }
+
+    auction.status = AuctionStatus.CANCELLED;
+    auction.winnerId = null;
+    auction.winningBidId = null;
+    auction.winnerPaymentStatus = AuctionPaymentStatus.NONE;
+    auction.winnerPaymentDeadlineAt = null;
+    auction.winnerPaymentCompletedAt = null;
+    auction.orderId = null;
+    await this.auctionRepo.save(auction);
+
+    // Canlı teklif satırları kapanır; OUTBID/EXPIRED geçmişi denetim için kalır.
+    await this.bidRepo.update(
+      {
+        auctionId,
+        status: In([BidStatus.ACTIVE, BidStatus.ABSENTEE, BidStatus.WON]),
+      },
+      { status: BidStatus.CANCELLED },
+    );
+
+    const jobIds = [`start-${auctionId}`, `end-${auctionId}`];
+    for (let i = 1; i <= (auction.currentExtensions ?? 0); i++) {
+      jobIds.push(`end-${auctionId}-ext${i}`);
+    }
+    const round = auction.fallbackRound ?? 0;
+    jobIds.push(
+      `winner-payment-expiry-${auctionId}-r${round}`,
+      `winner-payment-reminder-${auctionId}-r${round}`,
+    );
+    for (const jobId of jobIds) {
+      try {
+        const job = await this.auctionQueue.getJob(jobId);
+        if (job) await job.remove();
+      } catch {
+        // Job zaten işlenmiş olabilir
+      }
+    }
+
+    // Finalize kazananın sepetine lot eklemiş olabilir
+    await this.cartItemRepo.delete({ auctionId });
+
+    await this.walletService.releaseAllHoldsForAuction(auctionId);
+
+    this.auctionGateway.emitAuctionCancelled(auctionId, {
+      reason: reason || 'Müzayede yönetimi tarafından iptal edildi',
+    });
+    this.auctionGateway.clearViewerCount(auctionId);
+
+    return {
+      code: RC.AUCTION_CANCELLED,
+      message: 'Auction cancelled by admin',
+      auctionId,
+      auction,
+    };
+  }
+
+  // ─── Admin Finalize ───────────────────────────────────────
+  // Scheduler job'ı düşer/kaybolursa müzayede süresiz ACTIVE kalır; bu uç
+  // restart beklemeden elle sonlandırma sağlar. endTime öne çekilir çünkü
+  // finalizeAuction'daki orphan-guard geçmiş endTime şartı arar.
+  async adminFinalizeAuction(auctionId: string) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
+    if (!auction)
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+
+    if (auction.status !== AuctionStatus.ACTIVE) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Sadece aktif müzayede sonlandırılabilir',
+      );
+    }
+
+    if (auction.endTime > new Date()) {
+      auction.endTime = new Date(Date.now() - 1000);
+      await this.auctionRepo.save(auction);
+    }
+
+    const jobIds = [`end-${auctionId}`];
+    for (let i = 1; i <= (auction.currentExtensions ?? 0); i++) {
+      jobIds.push(`end-${auctionId}-ext${i}`);
+    }
+    for (const jobId of jobIds) {
+      try {
+        const job = await this.auctionQueue.getJob(jobId);
+        if (job) await job.remove();
+      } catch {
+        // Job zaten işlenmiş olabilir
+      }
+    }
+
+    const finalized = await this.finalizeAuction(auctionId, true);
+    if (!finalized) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Müzayede sonlandırılamadı; durumu değişmiş olabilir',
+      );
+    }
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Auction finalized by admin',
+      auctionId,
+      auction: finalized,
     };
   }
 
@@ -777,11 +1163,12 @@ export class AuctionService implements OnApplicationBootstrap {
 
     const mappedLots = lots.map((lot) => {
       const resp = this.toResponse(lot);
-      if (lot.status === AuctionStatus.PUBLISHED) {
-        const pausedSec = this.getPausedRemainingSeconds(lot.id);
-        if (pausedSec !== undefined) {
-          (resp as any).pausedRemainingSeconds = pausedSec;
-        }
+      if (
+        lot.status === AuctionStatus.PUBLISHED &&
+        lot.pausedRemainingSeconds !== null &&
+        lot.pausedRemainingSeconds !== undefined
+      ) {
+        (resp as any).pausedRemainingSeconds = lot.pausedRemainingSeconds;
       }
       return resp;
     });
@@ -882,7 +1269,9 @@ export class AuctionService implements OnApplicationBootstrap {
       const biddingLimit = Number(bidder.biddingLimit ?? 50000);
       
       if (totalRisk > biddingLimit) {
-        const requiredDeposit = (totalRisk - 50000) * 0.20 - Number(bidder.totalDeposit ?? 0);
+        // Limit = depozit × 5 (depozit, hedef limitin %20'si). 50K taban limit
+        // depozitosuzdur; hedef riskin tamamı depozitle teminatlandırılır.
+        const requiredDeposit = totalRisk * 0.20 - Number(bidder.totalDeposit ?? 0);
         throw new ForbiddenException({
           code: 'BIDDING_LIMIT_EXCEEDED',
           message: 'Müzayede limitiniz yetersizdir. Limiti yükseltmek için depozito ödemesi yapın.',
@@ -923,18 +1312,13 @@ export class AuctionService implements OnApplicationBootstrap {
         throw this.badRequest(RC.AUCTION_ENDED, 'Müzayede sona erdi');
       }
 
-      // PUBLISHED durumunda startTime öncesi teklif kabul edilmez;
-      // finalizeAuction sadece ACTIVE işlediğinden erken teklifler askıda
-      // hold bırakır.
-      if (
+      // AUCT-ABS: PUBLISHED + startTime öncesi teklifler absentee (ön teklif)
+      // olarak kaydedilir — hold açılmaz, fiyat değişmez. Müzayede başlarken
+      // resolveAbsenteeBids proxy mantığıyla yarıştırır; finalizeAuction
+      // sadece ACTIVE işlediğinden askıda hold kalmaz.
+      const isAbsenteeWindow =
         auction.status === AuctionStatus.PUBLISHED &&
-        now < new Date(auction.startTime)
-      ) {
-        throw this.badRequest(
-          RC.AUCTION_NOT_ACTIVE,
-          'Müzayede henüz başlamadı',
-        );
-      }
+        now < new Date(auction.startTime);
 
       // AUCT-18: Kültür varlığı kısıtlı müzayede — T.C. vatandaşı kontrolü
       if (auction.culturalAssetRestricted) {
@@ -983,6 +1367,52 @@ export class AuctionService implements OnApplicationBootstrap {
 
       const submittedMaxAmount = Number(dto.maxAmount ?? dto.amount);
 
+      // 6b. Absentee penceresi: teklif ABSENTEE olarak saklanır ve döngü biter.
+      // Bidder başına tek aktif ön teklif — eskisi audit için CANCELLED yapılır.
+      if (isAbsenteeWindow) {
+        await queryRunner.manager.update(
+          Bid,
+          { auctionId, bidderId, status: BidStatus.ABSENTEE },
+          { status: BidStatus.CANCELLED },
+        );
+
+        const absenteeBid = queryRunner.manager.create(Bid, {
+          auctionId,
+          bidderId,
+          amount: dto.amount,
+          maxAmount: submittedMaxAmount,
+          status: BidStatus.ABSENTEE,
+          isWinningBid: false,
+        });
+        await queryRunner.manager.save(absenteeBid);
+        await queryRunner.commitTransaction();
+
+        return {
+          code: RC.BID_ACCEPTED,
+          message: 'Absentee bid recorded',
+          bid: {
+            id: absenteeBid.id,
+            amount: Number(absenteeBid.amount),
+            maxAmount: submittedMaxAmount,
+            premiumAmount: 0,
+            buyerPremiumAmount: 0,
+            estimatedTotal: Number(absenteeBid.amount),
+            createdAt: absenteeBid.createdAt,
+            isLeadingBid: false,
+            outbidImmediately: false,
+            absentee: true,
+          },
+          auction: {
+            currentPrice: Number(auction.currentPrice),
+            bidCount: auction.bidCount,
+            endTime: auction.endTime,
+            serverTime: new Date().toISOString(),
+            leadingBidderId: null,
+            reserveMet: auction.reserveMet,
+          },
+        };
+      }
+
       // 7. Find previous leading bid (for outbid notification)
       const previousLeadBid = await queryRunner.manager.findOne(Bid, {
         where: { auctionId, isWinningBid: true },
@@ -1007,22 +1437,6 @@ export class AuctionService implements OnApplicationBootstrap {
           minimumBid: minBid,
           minIncrement,
         });
-        await this.walletService.releaseHold(
-          auctionId,
-          bidderId,
-          queryRunner.manager,
-        );
-        await this.walletService.releaseHold(
-          auctionId,
-          previousLeadBid.bidderId,
-          queryRunner.manager,
-        );
-        await this.walletService.createHold(
-          auctionId,
-          previousLeadBid.bidderId,
-          effectiveCurrentPrice,
-          queryRunner.manager,
-        );
 
         previousLeadBid.amount = effectiveCurrentPrice;
         previousLeadBid.isWinningBid = true;
@@ -1093,14 +1507,22 @@ export class AuctionService implements OnApplicationBootstrap {
             0,
             antiSnipingResult.newEndTime!.getTime() - Date.now(),
           );
-          await this.auctionQueue.add(
-            'end-auction',
-            { auctionId },
-            {
-              delay,
-              jobId: `end-${auctionId}-ext${currentExt}`,
-            },
-          );
+          try {
+            await this.auctionQueue.add(
+              'end-auction',
+              { auctionId },
+              {
+                delay,
+                jobId: `end-${auctionId}-ext${currentExt}`,
+              },
+            );
+          } catch (queueError) {
+            // Teklif kabul edildi, endTime DB'de uzadı; görev kurulamazsa
+            // bitiş açılış reconcile'ında yeniden planlanır. Teklifi bozma.
+            this.logger.error(
+              `Anti-sniping bitiş görevi kurulamadı (${auctionId}): ${queueError}`,
+            );
+          }
         }
 
         return {
@@ -1142,28 +1564,8 @@ export class AuctionService implements OnApplicationBootstrap {
             })
           : dto.amount;
 
-      // 9-10. Wallet hold reservation uses WalletService so wallet row locks and
-      // ledger movements are part of the same bid transaction.
-      await this.walletService.releaseHold(
-        auctionId,
-        bidderId,
-        queryRunner.manager,
-      );
-      await this.walletService.createHold(
-        auctionId,
-        bidderId,
-        effectiveCurrentPrice,
-        queryRunner.manager,
-      );
-
-      // 10. Release previous leader's hold when they are outbid by another user.
-      if (previousLeadBid && previousLeadBid.bidderId !== bidderId) {
-        await this.walletService.releaseHold(
-          auctionId,
-          previousLeadBid.bidderId,
-          queryRunner.manager,
-        );
-      }
+      // 9-10. Pey verirken para hareketi/bloke yapılmaz — risk yönetimi
+      // yukarıdaki biddingLimit kontrolüyle sağlanır (depozit modeli).
 
       // 11. Mark previous lead bid as OUTBID (BIZ-12)
       if (previousLeadBid) {
@@ -1258,14 +1660,22 @@ export class AuctionService implements OnApplicationBootstrap {
           0,
           antiSnipingResult.newEndTime!.getTime() - Date.now(),
         );
-        await this.auctionQueue.add(
-          'end-auction',
-          { auctionId },
-          {
-            delay,
-            jobId: `end-${auctionId}-ext${currentExt}`,
-          },
-        );
+        try {
+          await this.auctionQueue.add(
+            'end-auction',
+            { auctionId },
+            {
+              delay,
+              jobId: `end-${auctionId}-ext${currentExt}`,
+            },
+          );
+        } catch (queueError) {
+          // Teklif kabul edildi, endTime DB'de uzadı; görev kurulamazsa
+          // bitiş açılış reconcile'ında yeniden planlanır. Teklifi bozma.
+          this.logger.error(
+            `Anti-sniping bitiş görevi kurulamadı (${auctionId}): ${queueError}`,
+          );
+        }
       }
 
       return {
@@ -1317,6 +1727,33 @@ export class AuctionService implements OnApplicationBootstrap {
         throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
       }
 
+      // AUCT-ABS: başlamamış müzayedede ön teklif serbestçe geri çekilir
+      // (hold ve fiyat etkisi yok).
+      if (
+        auction.status === AuctionStatus.PUBLISHED &&
+        new Date() < new Date(auction.startTime)
+      ) {
+        const absenteeBid = await queryRunner.manager.findOne(Bid, {
+          where: { auctionId, bidderId, status: BidStatus.ABSENTEE },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!absenteeBid) {
+          throw this.badRequest(
+            RC.BID_WITHDRAWAL_NOT_ALLOWED,
+            'Geri cekilebilecek on teklif bulunamadi',
+          );
+        }
+        absenteeBid.status = BidStatus.CANCELLED;
+        await queryRunner.manager.save(absenteeBid);
+        await queryRunner.commitTransaction();
+        return {
+          code: RC.BID_WITHDRAWN,
+          message: 'On teklif geri cekildi',
+          auctionId,
+          bidId: absenteeBid.id,
+        };
+      }
+
       if (auction.status !== AuctionStatus.ACTIVE) {
         throw this.badRequest(
           RC.BID_WITHDRAWAL_NOT_ALLOWED,
@@ -1363,12 +1800,6 @@ export class AuctionService implements OnApplicationBootstrap {
           'Rekabete girmis lider teklif geri cekilemez',
         );
       }
-
-      await this.walletService.releaseHold(
-        auctionId,
-        bidderId,
-        queryRunner.manager,
-      );
 
       activeBid.status = BidStatus.CANCELLED;
       activeBid.isWinningBid = false;
@@ -1575,7 +2006,6 @@ export class AuctionService implements OnApplicationBootstrap {
         await queryRunner.commitTransaction();
         transactionCommitted = true;
 
-        await this.walletService.releaseAllHoldsForAuction(auctionId);
         await this.handleSequentialLotProgression(auction, force);
         this.auctionGateway.emitAuctionEnded(auctionId, {
           finalPrice: Number(auction.currentPrice),
@@ -1613,7 +2043,6 @@ export class AuctionService implements OnApplicationBootstrap {
         await queryRunner.commitTransaction();
         transactionCommitted = true;
 
-        await this.walletService.releaseAllHoldsForAuction(auctionId);
         this.auctionGateway.emitAuctionEnded(auctionId, {
           finalPrice: Number(auction.currentPrice),
           winnerId: null,
@@ -1626,7 +2055,10 @@ export class AuctionService implements OnApplicationBootstrap {
       auction.winnerId = winningBid.bidderId;
       auction.winningBidId = winningBid.id;
       auction.winnerPaymentStatus = AuctionPaymentStatus.PENDING;
-      auction.winnerPaymentDeadlineAt = this.buildWinnerPaymentDeadline();
+      // Ödeme penceresi satış onayı (approveSale) ile açılır — deadline o anda kurulur.
+      auction.winnerPaymentDeadlineAt = null;
+      auction.saleApprovedAt = null;
+      auction.saleApprovedBy = null;
       auction.winnerPaymentCompletedAt = null;
       auction.orderId = null;
       auction.fallbackRound = 0;
@@ -1741,12 +2173,82 @@ export class AuctionService implements OnApplicationBootstrap {
   ): Promise<void> {
     const auctionId = auction.id;
 
+    this.auctionGateway.emitAuctionEnded(auctionId, {
+      finalPrice: Number(auction.currentPrice),
+      winnerId: auction.winnerId,
+      bidCount: auction.bidCount,
+    });
+
+    this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
+      finalPrice: Number(winningBid.amount),
+      premiumAmount: 0,
+    });
+    this.auctionGateway.emitBidLost(
+      auctionId,
+      winningBid.bidderId,
+      {
+        finalPrice: Number(winningBid.amount),
+        holdReleased: false,
+      },
+      auction.eventId,
+    );
+    // Ödeme, satış onayı (approveSale) sonrasında açılır; kazanan şimdilik
+    // sadece bilgilendirilir.
+    await this.notificationService?.createFromEvent({
+      eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
+      userId: winningBid.bidderId,
+      eventType: NotificationEventType.AUCTION_WON,
+      title: 'Müzayedeyi kazandınız',
+      body: 'Satış, müzayede kontrolleri tamamlandıktan sonra onaylanacak ve ödeme sepetinize düşecek.',
+      relatedEntityType: 'auction',
+      relatedEntityId: auctionId,
+    });
+  }
+
+  // ─── Satış Onayı: admin/organizatör onayı → ödeme penceresi açılır ───
+  async approveSale(auctionId: string, adminId?: string) {
+    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    if (!auction) {
+      throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
+    }
+    if (
+      auction.status !== AuctionStatus.ENDED ||
+      !auction.winnerId ||
+      !auction.winningBidId ||
+      auction.winnerPaymentStatus !== AuctionPaymentStatus.PENDING
+    ) {
+      throw this.badRequest(
+        RC.VALIDATION_ERROR,
+        'Sadece kazananı belli olmuş ve ödemesi bekleyen müzayedeler için satış onayı verilebilir',
+      );
+    }
+    if (auction.saleApprovedAt) {
+      return {
+        code: RC.SUCCESS,
+        message: 'Satış zaten onaylanmış',
+        auctionId,
+        saleApprovedAt: auction.saleApprovedAt,
+      };
+    }
+
+    const winningBid = await this.bidRepo.findOne({
+      where: { id: auction.winningBidId, auctionId },
+    });
+    if (!winningBid) {
+      throw this.notFound(RC.NOT_FOUND, 'Kazanan teklif bulunamadı');
+    }
+
+    auction.saleApprovedAt = new Date();
+    auction.saleApprovedBy = adminId ?? null;
+    auction.winnerPaymentDeadlineAt = this.buildWinnerPaymentDeadline();
+    await this.auctionRepo.save(auction);
+
+    // Kazanılan ürün ödeme için sepete düşer.
     try {
       await this.cartItemRepo.delete({
         userId: winningBid.bidderId,
         productId: auction.productId,
       });
-
       const cartItem = this.cartItemRepo.create({
         userId: winningBid.bidderId,
         productId: auction.productId,
@@ -1756,61 +2258,65 @@ export class AuctionService implements OnApplicationBootstrap {
       });
       await this.cartItemRepo.save(cartItem);
     } catch (cartError) {
-      this.logger.error(`Failed to add won auction ${auction.id} to cart for user ${winningBid.bidderId}: ${cartError}`);
+      this.logger.error(
+        `Failed to add won auction ${auction.id} to cart for user ${winningBid.bidderId}: ${cartError}`,
+      );
     }
 
-    await this.walletService.releaseAllHoldsForAuction(
-      auctionId,
-      winningBid.bidderId,
-    );
     await this.scheduleWinnerPaymentJobs(
       auctionId,
       auction.winnerPaymentDeadlineAt,
       auction.fallbackRound,
     );
 
-    const premiumAmount = 0;
-
-    this.auctionGateway.emitAuctionEnded(auctionId, {
-      finalPrice: Number(auction.currentPrice),
-      winnerId: auction.winnerId,
-      bidCount: auction.bidCount,
-    });
-
-    this.auctionGateway.emitBidWinner(auctionId, winningBid.bidderId, {
-      finalPrice: Number(winningBid.amount),
-      premiumAmount,
-    });
-    // Notify the losing bidders — their holds were released above.
-    this.auctionGateway.emitBidLost(
-      auctionId,
-      winningBid.bidderId,
-      {
-        finalPrice: Number(winningBid.amount),
-        holdReleased: true,
-      },
-      auction.eventId,
-    );
     await this.notificationService?.createFromEvent({
-      eventId: `auction-won:${auctionId}:${winningBid.bidderId}`,
+      eventId: `auction-payment-window:${auctionId}:${winningBid.bidderId}:${auction.fallbackRound}`,
       userId: winningBid.bidderId,
-      eventType: NotificationEventType.AUCTION_WON,
-      title: 'Auction won',
-      body: 'You won the auction.',
+      eventType: NotificationEventType.PAYMENT_REMINDER,
+      title: 'Ödeme açıldı',
+      body: 'Kazandığınız ürün sepetinize eklendi. Ödemenizi kartınızla tamamlayabilirsiniz.',
       relatedEntityType: 'auction',
       relatedEntityId: auctionId,
     });
-    if (auction.winnerPaymentDeadlineAt) {
-      await this.notificationService?.createFromEvent({
-        eventId: `auction-payment-window:${auctionId}:${winningBid.bidderId}:${auction.fallbackRound}`,
-        userId: winningBid.bidderId,
-        eventType: NotificationEventType.PAYMENT_REMINDER,
-        title: 'Payment required',
-        body: 'Complete your auction payment before the deadline.',
-        relatedEntityType: 'auction',
-        relatedEntityId: auctionId,
-      });
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Satış onaylandı, kazanana ödeme penceresi açıldı',
+      auctionId,
+      saleApprovedAt: auction.saleApprovedAt,
+      winnerPaymentDeadlineAt: auction.winnerPaymentDeadlineAt,
+    };
+  }
+
+  // Etkinlikteki tüm biten lotların satışını topluca onayla.
+  async approveEventSales(eventId: string, adminId?: string) {
+    const endedLots = await this.auctionRepo.find({
+      where: {
+        eventId,
+        status: AuctionStatus.ENDED,
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+      },
+    });
+
+    const results: { auctionId: string; approved: boolean; error?: string }[] = [];
+    for (const lot of endedLots) {
+      try {
+        await this.approveSale(lot.id, adminId);
+        results.push({ auctionId: lot.id, approved: true });
+      } catch (err) {
+        results.push({
+          auctionId: lot.id,
+          approved: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
+
+    return {
+      code: RC.SUCCESS,
+      message: `${results.filter((r) => r.approved).length}/${results.length} lot satışı onaylandı`,
+      results,
+    };
   }
 
   async completeWinnerPayment(auctionId: string, userId: string) {
@@ -1839,6 +2345,12 @@ export class AuctionService implements OnApplicationBootstrap {
           'Sadece mevcut kazanan odemeyi tamamlayabilir',
         );
       }
+      if (!auction.saleApprovedAt) {
+        throw this.badRequest(
+          RC.VALIDATION_ERROR,
+          'Satış henüz onaylanmadı. Onay sonrası ödeme sepetinize açılacak.',
+        );
+      }
       if (
         auction.winnerPaymentDeadlineAt &&
         auction.winnerPaymentDeadlineAt.getTime() <= Date.now()
@@ -1854,52 +2366,37 @@ export class AuctionService implements OnApplicationBootstrap {
         throw this.notFound(RC.NOT_FOUND, 'Kazanan teklif bulunamadı');
       }
 
-      const capturedHold = await this.walletService.captureHold(
-        auctionId,
-        userId,
-        queryRunner.manager,
-      );
-      if (!capturedHold) {
-        throw this.badRequest(
-          RC.INSUFFICIENT_BALANCE,
-          'Odeme icin gecerli bloke bulunamadi',
-        );
+      // Ödeme kredi kartıyla sepet üzerinden (Iyzico) yapılır — cüzdan/bloke
+      // kullanılmaz. Burada sadece sepette ödeme kalemi garanti edilir.
+      const existingCartItem = await queryRunner.manager.findOne(CartItem, {
+        where: { userId, auctionId },
+      });
+      if (!existingCartItem) {
+        await queryRunner.manager.delete(CartItem, {
+          userId,
+          productId: auction.productId,
+        });
+        const cartItem = queryRunner.manager.create(CartItem, {
+          userId,
+          productId: auction.productId,
+          auctionId: auction.id,
+          customPrice: Number(winningBid.amount),
+          quantity: 1,
+        });
+        await queryRunner.manager.save(cartItem);
       }
 
-      await this.walletService.releaseAllHoldsForAuction(
-        auctionId,
-        userId,
-        queryRunner.manager,
-      );
-
-      const orderResult = await this.orderService?.createFromAuction(
-        {
-          auctionId,
-          buyerId: userId,
-          sellerId: auction.sellerId,
-          productId: auction.productId,
-          amount: Number(winningBid.amount),
-          currency: 'TRY',
-          paymentId: capturedHold.id ?? null,
-          eventId: auction.eventId ?? null,
-        },
-        queryRunner.manager,
-      );
-
-      auction.status = AuctionStatus.COMPLETED;
-      auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
-      auction.winnerPaymentCompletedAt = new Date();
-      auction.orderId = orderResult?.order?.id ?? auction.orderId;
-      auction.paymentAttemptCount = (auction.paymentAttemptCount || 0) + 1;
-      await queryRunner.manager.save(auction);
       await queryRunner.commitTransaction();
 
       return {
-        code: RC.AUCTION_WINNER_PAYMENT_COMPLETED,
-        message: 'Auction winner payment completed',
+        code: RC.SUCCESS,
+        message:
+          'Kazandığınız ürün sepetinizde. Ödemeyi sepetten kredi kartınızla tamamlayın.',
         auctionId,
-        orderId: auction.orderId,
+        paymentVia: 'cart',
+        amount: Number(winningBid.amount),
         paymentStatus: auction.winnerPaymentStatus,
+        winnerPaymentDeadlineAt: auction.winnerPaymentDeadlineAt,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1975,12 +2472,6 @@ export class AuctionService implements OnApplicationBootstrap {
         winningBid.isWinningBid = false;
         await queryRunner.manager.save(winningBid);
       }
-
-      await this.walletService.releaseHold(
-        auctionId,
-        expiredWinnerId,
-        queryRunner.manager,
-      );
 
       const fallbackBid =
         (auction.fallbackRound || 0) < MAX_FALLBACK_ROUNDS
@@ -2072,26 +2563,6 @@ export class AuctionService implements OnApplicationBootstrap {
         auction.reservePrice !== undefined &&
         !reserveSatisfied
       ) {
-        continue;
-      }
-
-      try {
-        await this.walletService.releaseHold(
-          auction.id,
-          candidate.bidderId,
-          manager,
-        );
-        await this.walletService.createHold(
-          auction.id,
-          candidate.bidderId,
-          Number(candidate.amount),
-          manager,
-        );
-      } catch {
-        candidate.status = BidStatus.EXPIRED;
-        candidate.isWinningBid = false;
-        await manager.save(candidate);
-        excluded.add(candidate.bidderId);
         continue;
       }
 
@@ -2193,8 +2664,12 @@ export class AuctionService implements OnApplicationBootstrap {
   async getBids(auctionId: string) {
     // Withdrawn bids stay in storage for audit, but the public ladder should
     // only show currently effective offers so lead ranking remains accurate.
+    // Absentee (ön) teklifler müzayede başlayana kadar mühürlü kalır.
     const bids = await this.bidRepo.find({
-      where: { auctionId, status: Not(BidStatus.CANCELLED) },
+      where: {
+        auctionId,
+        status: Not(In([BidStatus.CANCELLED, BidStatus.ABSENTEE])),
+      },
       relations: ['bidder'],
       order: { amount: 'DESC' },
     });
@@ -2220,6 +2695,10 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 
+  async findAuctionById(auctionId: string) {
+    return this.auctionRepo.findOne({ where: { id: auctionId } });
+  }
+
   async activateAuction(auctionId: string) {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
@@ -2227,7 +2706,273 @@ export class AuctionService implements OnApplicationBootstrap {
     if (!auction || auction.status !== AuctionStatus.PUBLISHED) return;
     auction.status = AuctionStatus.ACTIVE;
     await this.auctionRepo.save(auction);
-    return auction;
+
+    // AUCT-ABS: ön teklifler yarıştırılamasa bile aktivasyon geri alınmaz;
+    // teklifler ABSENTEE kalır ve canlı akış temiz başlar.
+    try {
+      await this.resolveAbsenteeBids(auctionId);
+    } catch (error) {
+      this.logger.error(
+        `Absentee resolution failed for auction ${auctionId}: ${error}`,
+      );
+    }
+
+    return (
+      (await this.auctionRepo.findOne({ where: { id: auctionId } })) ?? auction
+    );
+  }
+
+  // ─── Absentee (Ön Teklif) Çözümleme (AUCT-ABS) ────────────
+  // Müzayede ACTIVE olurken ABSENTEE teklifleri proxy kurallarıyla yarıştırır:
+  // en yüksek max kazanır (eşitlikte erken kayıt), görünür fiyat rakip
+  // baskısına göre açılır. Hold'u karşılanamayan aday EXPIRED düşer ve
+  // sıradaki aday denenir; hiçbiri karşılayamazsa fiyat değişmez.
+  async resolveAbsenteeBids(auctionId: string): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let emitPayload: {
+      leaderBidderId: string;
+      leaderAmount: number;
+      bidCount: number;
+      endTime: string;
+      eventId: string | null;
+      outbidBids: { bidderId: string; bidId: string; yourBid: number }[];
+    } | null = null;
+
+    try {
+      const auction = await queryRunner.manager.findOne(Auction, {
+        where: { id: auctionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!auction) {
+        await queryRunner.commitTransaction();
+        return;
+      }
+
+      const absenteeBids = await queryRunner.manager.find(Bid, {
+        where: { auctionId, status: BidStatus.ABSENTEE },
+        order: { maxAmount: 'DESC', createdAt: 'ASC' },
+      });
+      if (!absenteeBids.length) {
+        await queryRunner.commitTransaction();
+        return;
+      }
+
+      const currentPrice = Number(auction.currentPrice);
+      const minIncrement = Number(auction.minIncrement);
+      const minBid = currentPrice + minIncrement;
+
+      const previousLeadBid = await queryRunner.manager.findOne(Bid, {
+        where: { auctionId, isWinningBid: true },
+      });
+      const previousLeadMaxAmount = this.getBidMaxAmount(previousLeadBid);
+
+      // Liderin kendi zayıf ön teklifi fiyatı kendine karşı yükseltmesin.
+      const candidates: Bid[] = [];
+      for (const bid of absenteeBids) {
+        if (
+          previousLeadBid &&
+          bid.bidderId === previousLeadBid.bidderId &&
+          this.getBidMaxAmount(bid) <= previousLeadMaxAmount
+        ) {
+          bid.status = BidStatus.OUTBID;
+          await queryRunner.manager.save(bid);
+        } else {
+          candidates.push(bid);
+        }
+      }
+
+      let winner: Bid | null = null;
+      let winnerVisibleAmount = 0;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        const candidateMax = this.getBidMaxAmount(candidate);
+
+        const beatsLead =
+          !previousLeadBid ||
+          candidate.bidderId === previousLeadBid.bidderId ||
+          candidateMax > previousLeadMaxAmount ||
+          (candidateMax === previousLeadMaxAmount &&
+            candidate.createdAt < previousLeadBid.createdAt);
+        // Liste max'e göre sıralı — ilk yenilemeyen adaydan sonrası da kaybeder.
+        if (!beatsLead) break;
+
+        const challengerMaxes = candidates
+          .slice(i + 1)
+          .filter((b) => b.bidderId !== candidate.bidderId)
+          .map((b) => this.getBidMaxAmount(b));
+        if (
+          previousLeadBid &&
+          previousLeadBid.bidderId !== candidate.bidderId
+        ) {
+          challengerMaxes.push(previousLeadMaxAmount);
+        }
+        const challengerMaxAmount = challengerMaxes.length
+          ? Math.max(...challengerMaxes)
+          : undefined;
+
+        const visibleAmount = this.calculateVisibleWinningAmount({
+          leadingMaxAmount: candidateMax,
+          challengerMaxAmount,
+          requestedAmount: Number(candidate.amount),
+          minimumBid: minBid,
+          minIncrement,
+        });
+
+        winner = candidate;
+        winnerVisibleAmount = visibleAmount;
+        break;
+      }
+
+      const losers = candidates.filter(
+        (b) => b !== winner && b.status === BidStatus.ABSENTEE,
+      );
+
+      if (winner) {
+        const outbidBids: {
+          bidderId: string;
+          bidId: string;
+          yourBid: number;
+        }[] = [];
+
+        if (previousLeadBid && previousLeadBid.id !== winner.id) {
+          previousLeadBid.isWinningBid = false;
+          previousLeadBid.status = BidStatus.OUTBID;
+          await queryRunner.manager.save(previousLeadBid);
+          if (previousLeadBid.bidderId !== winner.bidderId) {
+            outbidBids.push({
+              bidderId: previousLeadBid.bidderId,
+              bidId: previousLeadBid.id,
+              yourBid: Number(previousLeadBid.amount),
+            });
+          }
+        }
+
+        for (const loser of losers) {
+          loser.status = BidStatus.OUTBID;
+          await queryRunner.manager.save(loser);
+          if (loser.bidderId !== winner.bidderId) {
+            outbidBids.push({
+              bidderId: loser.bidderId,
+              bidId: loser.id,
+              yourBid: this.getBidMaxAmount(loser),
+            });
+          }
+        }
+
+        winner.amount = winnerVisibleAmount;
+        winner.status = BidStatus.ACTIVE;
+        winner.isWinningBid = true;
+        await queryRunner.manager.save(winner);
+
+        auction.currentPrice = winnerVisibleAmount;
+        auction.bidCount = (auction.bidCount || 0) + absenteeBids.length;
+        auction.reserveMet = this.isReserveMet(
+          auction.reservePrice,
+          this.getBidMaxAmount(winner),
+        );
+        await queryRunner.manager.save(auction);
+
+        emitPayload = {
+          leaderBidderId: winner.bidderId,
+          leaderAmount: winnerVisibleAmount,
+          bidCount: auction.bidCount,
+          endTime: auction.endTime.toISOString(),
+          eventId: auction.eventId ?? null,
+          outbidBids,
+        };
+      } else if (previousLeadBid && losers.length) {
+        // Lider ayakta; en güçlü kaybeden görünür fiyatı yukarı iter.
+        const topLoser = losers[0];
+        const newVisible = this.calculateVisibleWinningAmount({
+          leadingMaxAmount: previousLeadMaxAmount,
+          challengerMaxAmount: this.getBidMaxAmount(topLoser),
+          requestedAmount: Number(topLoser.amount),
+          minimumBid: minBid,
+          minIncrement,
+        });
+
+        const outbidBids = losers.map((loser) => ({
+          bidderId: loser.bidderId,
+          bidId: loser.id,
+          yourBid: this.getBidMaxAmount(loser),
+        }));
+        for (const loser of losers) {
+          loser.status = BidStatus.OUTBID;
+          await queryRunner.manager.save(loser);
+        }
+
+        if (newVisible > Number(previousLeadBid.amount)) {
+          previousLeadBid.amount = newVisible;
+          await queryRunner.manager.save(previousLeadBid);
+          auction.currentPrice = newVisible;
+        }
+
+        auction.bidCount = (auction.bidCount || 0) + absenteeBids.length;
+        await queryRunner.manager.save(auction);
+
+        emitPayload = {
+          leaderBidderId: previousLeadBid.bidderId,
+          leaderAmount: Number(previousLeadBid.amount),
+          bidCount: auction.bidCount,
+          endTime: auction.endTime.toISOString(),
+          eventId: auction.eventId ?? null,
+          outbidBids,
+        };
+      } else {
+        // Hiçbir aday lideri geçemedi — fiyat değişmez, sayaç işler.
+        auction.bidCount = (auction.bidCount || 0) + absenteeBids.length;
+        await queryRunner.manager.save(auction);
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    // ─── Post-commit: gateway + bildirimler ───────────────────
+    if (!emitPayload) return;
+
+    const bidderName = await this.getBidderName(emitPayload.leaderBidderId);
+    this.auctionGateway.emitBidNew(
+      auctionId,
+      {
+        amount: emitPayload.leaderAmount,
+        bidderName,
+        currentPrice: emitPayload.leaderAmount,
+        bidCount: emitPayload.bidCount,
+        endTime: emitPayload.endTime,
+        serverTime: new Date().toISOString(),
+      },
+      emitPayload.eventId ?? undefined,
+    );
+
+    for (const outbid of emitPayload.outbidBids) {
+      this.auctionGateway.emitBidOutbid(
+        auctionId,
+        outbid.bidderId,
+        {
+          newAmount: emitPayload.leaderAmount,
+          yourBid: outbid.yourBid,
+        },
+        emitPayload.eventId ?? undefined,
+      );
+      await this.notificationService?.createFromEvent({
+        eventId: `auction-absentee-outbid:${auctionId}:${outbid.bidderId}:${outbid.bidId}`,
+        userId: outbid.bidderId,
+        eventType: NotificationEventType.AUCTION_OUTBID,
+        title: 'Outbid',
+        body: 'A higher bid was placed.',
+        relatedEntityType: 'auction',
+        relatedEntityId: auctionId,
+      });
+    }
   }
 
   async getResult(auctionId: string) {
@@ -2261,6 +3006,7 @@ export class AuctionService implements OnApplicationBootstrap {
         ? { id: auction.product.id, title: auction.product.title }
         : null,
       paymentStatus: auction.winnerPaymentStatus,
+      saleApprovedAt: auction.saleApprovedAt,
       paymentDeadlineAt: auction.winnerPaymentDeadlineAt,
       paymentCompletedAt: auction.winnerPaymentCompletedAt,
       fallbackRound: auction.fallbackRound,
@@ -2418,7 +3164,7 @@ export class AuctionService implements OnApplicationBootstrap {
     if (!auction.eventId || auction.auctionType !== AuctionType.REALTIME) return;
 
     // Otomatik lot geçişi aktif mi kontrol et (force=true ise bypass et)
-    const autoProgress = this.isAutoProgressEnabled(auction.eventId);
+    const autoProgress = await this.isAutoProgressEnabled(auction.eventId);
     if (!autoProgress && !force) {
       this.logger.log(`Otomatik lot geçişi kapalı. Event: ${auction.eventId}`);
       // Aktif lot alanını temizle ama etkinliği ACTIVE olarak bırak
@@ -2554,6 +3300,18 @@ export class AuctionService implements OnApplicationBootstrap {
     lot.status = AuctionStatus.ACTIVE;
     await this.auctionRepo.save(lot);
 
+    // AUCT-ABS: lot canlıya dönerken ön teklifleri yarıştır.
+    try {
+      await this.resolveAbsenteeBids(lot.id);
+    } catch (error) {
+      this.logger.error(
+        `Absentee resolution failed for lot ${lot.id}: ${error}`,
+      );
+    }
+    const resolvedLot = await this.auctionRepo.findOne({
+      where: { id: lot.id },
+    });
+
     await this.auctionRepo.manager.update(AuctionEvent, eventId, {
       activeLotId: lot.id,
       status: AuctionEventStatus.ACTIVE,
@@ -2567,7 +3325,7 @@ export class AuctionService implements OnApplicationBootstrap {
       activeLotId: lot.id,
       lotNumber: lot.lotNumber,
       productTitle: product?.title ?? null,
-      currentPrice: Number(lot.startPrice),
+      currentPrice: Number(resolvedLot?.currentPrice ?? lot.startPrice),
       endTime: lot.endTime.toISOString(),
     });
 
@@ -2602,8 +3360,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
     const remainingMs = lot.endTime.getTime() - Date.now();
     lot.status = AuctionStatus.PUBLISHED; // Bids can't be placed while paused
-    const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
-    this.pausedRemainingSecondsMap.set(lot.id, remainingSec);
+    lot.pausedRemainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
     await this.auctionRepo.save(lot);
 
     // Bitiş BullMQ görevini kaldır
@@ -2635,14 +3392,19 @@ export class AuctionService implements OnApplicationBootstrap {
       });
     }
 
-    const remainingSec = this.pausedRemainingSecondsMap.get(lot.id) || 60;
-    this.pausedRemainingSecondsMap.delete(lot.id);
+    const remainingSec = lot.pausedRemainingSeconds ?? 60;
+    lot.pausedRemainingSeconds = null;
     const now = new Date();
     lot.status = AuctionStatus.ACTIVE;
     lot.endTime = new Date(now.getTime() + remainingSec * 1000);
     await this.auctionRepo.save(lot);
 
-    // BullMQ görevini yeniden programla
+    // BullMQ görevini yeniden programla. Aynı jobId tamamlanmış set'te
+    // bekliyorsa BullMQ eklemeyi sessizce yutar ve lot hiç bitmez — önce sil.
+    try {
+      const oldEndJob = await this.auctionQueue.getJob(`end-${lot.id}`);
+      if (oldEndJob) await oldEndJob.remove();
+    } catch {}
     await this.auctionQueue.add(
       'end-auction',
       { auctionId: lot.id },
@@ -2663,6 +3425,41 @@ export class AuctionService implements OnApplicationBootstrap {
 
     this.auctionGateway.emitEventStatusChanged(eventId, { status: 'ACTIVE' });
     return { code: RC.SUCCESS, message: 'Müzayede devam ettiriliyor' };
+  }
+
+  // Sunucu anonsu: "ürün yakılıyor / son ve adil çağrı / satıyorum sattım".
+  // Sadece feed'e düşen ritüel mesajıdır; satışı skipLot/finalize kapatır.
+  async announceLot(eventId: string, type: string, message?: string) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Müzayede odası bulunamadı',
+      });
+    }
+
+    const defaultMessages: Record<string, string> = {
+      BURNING: 'Ürün yakılıyor!',
+      LAST_CALL: 'Son ve adil çağrı!',
+      SOLD: 'Satıyorum... Sattım!',
+    };
+    const resolvedMessage = message?.trim() || defaultMessages[type];
+    if (!resolvedMessage) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz anons türü — BURNING, LAST_CALL, SOLD veya özel mesaj gerekli',
+      });
+    }
+
+    this.auctionGateway.emitAuctioneerAnnouncement(eventId, {
+      type,
+      message: resolvedMessage,
+      lotId: event.activeLotId ?? null,
+    });
+
+    return { code: RC.SUCCESS, message: 'Anons yayınlandı', announcement: resolvedMessage };
   }
 
   async skipLot(eventId: string) {
@@ -2749,6 +3546,11 @@ export class AuctionService implements OnApplicationBootstrap {
         });
 
         const delay = nextLot.endTime.getTime() - Date.now();
+        // Tamamlanmış set'teki aynı jobId eklemeyi sessizce yutmasın.
+        try {
+          const oldEndJob = await this.auctionQueue.getJob(`end-${nextLot.id}`);
+          if (oldEndJob) await oldEndJob.remove();
+        } catch {}
         await this.auctionQueue.add(
           'end-auction',
           { auctionId: nextLot.id },
@@ -2766,13 +3568,23 @@ export class AuctionService implements OnApplicationBootstrap {
     }
   }
 
-  isAutoProgressEnabled(eventId: string): boolean {
-    const val = this.eventAutoProgressMap.get(eventId);
-    return val !== false; // defaults to true
+  async isAutoProgressEnabled(eventId: string): Promise<boolean> {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    return event?.autoProgressEnabled !== false; // defaults to true
   }
 
-  setAutoProgress(eventId: string, enabled: boolean) {
-    this.eventAutoProgressMap.set(eventId, enabled);
+  async setAutoProgress(eventId: string, enabled: boolean) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw this.notFound(RC.NOT_FOUND, 'Müzayede etkinliği bulunamadı');
+    }
+    await this.auctionRepo.manager.update(AuctionEvent, eventId, {
+      autoProgressEnabled: enabled,
+    });
     this.auctionGateway.emitEventAutoProgressChanged(eventId, enabled);
     return {
       code: RC.SUCCESS,
@@ -2781,8 +3593,9 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 
-  getPausedRemainingSeconds(lotId: string): number | undefined {
-    return this.pausedRemainingSecondsMap.get(lotId);
+  async getPausedRemainingSeconds(lotId: string): Promise<number | undefined> {
+    const lot = await this.auctionRepo.findOne({ where: { id: lotId } });
+    return lot?.pausedRemainingSeconds ?? undefined;
   }
 
   async getIcsContent(id: string): Promise<string> {
@@ -2848,7 +3661,7 @@ export class AuctionService implements OnApplicationBootstrap {
     const savedCardsRes = await this.paymentService.listSavedCards(userId);
     const hasSavedCard = savedCardsRes.cards && savedCardsRes.cards.length > 0;
 
-    let shouldApprove = hasSavedCard;
+    let hasVerifiedCard = hasSavedCard;
     let cardRegistered = false;
 
     // If card details are supplied in the request, register the new card (simulating 1 TL validation charge and refund)
@@ -2861,7 +3674,7 @@ export class AuctionService implements OnApplicationBootstrap {
           expireYear: dto.expireYear,
           cvc: dto.cvc,
         });
-        shouldApprove = true;
+        hasVerifiedCard = true;
         cardRegistered = true;
       } catch (err) {
         throw new BadRequestException({
@@ -2871,7 +3684,7 @@ export class AuctionService implements OnApplicationBootstrap {
       }
     }
 
-    if (!shouldApprove) {
+    if (!hasVerifiedCard) {
       throw new BadRequestException({
         code: RC.AUCTION_REGISTRATION_REQUIRED,
         message: 'Müzayedeye katılabilmek için doğrulanmış bir kredi kartınızın bulunması gerekmektedir.',
@@ -2899,23 +3712,25 @@ export class AuctionService implements OnApplicationBootstrap {
       }
     }
 
-    // Create or update registration
+    // Kayıt PENDING açılır — her müzayedede katılım talebi sistem/admin
+    // tarafından ayrıca onaylanır (şartname kabulü + uygunluk kontrolü).
     if (!registration) {
       registration = this.registrationRepo.create({
         userId,
         auctionId: auction.eventId ? null : auctionId,
         eventId: auction.eventId || null,
-        status: AuctionRegistrationStatus.APPROVED,
+        status: AuctionRegistrationStatus.PENDING,
         acceptedTermsAt: new Date(),
       });
-    } else {
-      registration.status = AuctionRegistrationStatus.APPROVED;
+    } else if (registration.status === AuctionRegistrationStatus.REJECTED) {
+      registration.status = AuctionRegistrationStatus.PENDING;
     }
 
     const saved = await this.registrationRepo.save(registration);
     return {
-      code: RC.AUCTION_REGISTRATION_APPROVED_SUCCESS,
-      message: 'Kredi kartınız doğrulandı ve müzayede kaydınız başarıyla onaylandı.',
+      code: RC.AUCTION_REGISTRATION_PENDING,
+      message:
+        'Kredi kartınız doğrulandı, katılım talebiniz alındı. Onaylandığında bildirim alacaksınız.',
       registration: saved,
     };
   }
@@ -2979,6 +3794,22 @@ export class AuctionService implements OnApplicationBootstrap {
     registration.status = status;
     const saved = await this.registrationRepo.save(registration);
 
+    await this.notificationService?.createFromEvent({
+      eventId: `auction-registration:${saved.id}:${status}`,
+      userId: saved.userId,
+      eventType: NotificationEventType.AUCTION_STARTED,
+      title:
+        status === AuctionRegistrationStatus.APPROVED
+          ? 'Müzayede katılımınız onaylandı'
+          : 'Müzayede katılımınız reddedildi',
+      body:
+        status === AuctionRegistrationStatus.APPROVED
+          ? 'Artık pey verebilirsiniz. Canlı yayın için hatırlatıcı kurabilirsiniz.'
+          : 'Onaylanmak için müşteri ilişkilerine mesaj yazabilir veya arayabilirsiniz.',
+      relatedEntityType: 'auction',
+      relatedEntityId: saved.auctionId ?? saved.eventId ?? saved.id,
+    });
+
     const code = status === AuctionRegistrationStatus.APPROVED
       ? RC.AUCTION_REGISTRATION_APPROVED_SUCCESS
       : RC.AUCTION_REGISTRATION_REJECTED_SUCCESS;
@@ -3018,6 +3849,10 @@ export class AuctionService implements OnApplicationBootstrap {
     const profileRes = await this.userService.getSellerProfile(sellerId);
     const profile = profileRes.sellerProfile;
 
+    const activeProductCount = await this.auctionRepo.manager.count('Product', {
+      where: { sellerId, status: ProductStatus.ACTIVE },
+    });
+
     if (dto.eventType === AuctionEventSystemType.INDEPENDENT) {
       if (!profile.independentPreContractAcceptedAt) {
         throw new BadRequestException({
@@ -3025,11 +3860,32 @@ export class AuctionService implements OnApplicationBootstrap {
           message: 'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
         });
       }
+      // Bağımsız müzayede: en az 40 aktif ürünü olan tedarikçi açabilir.
+      if (activeProductCount < 40) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: `Bağımsız müzayede açabilmek için en az 40 aktif ürününüz olmalıdır. Mevcut: ${activeProductCount}`,
+        });
+      }
     } else if (dto.eventType === AuctionEventSystemType.JOINT) {
       if (!profile.jointPreContractAcceptedAt) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Ortak müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+        });
+      }
+      // Kreatör müzayedeci rolü admin onayıyla verilir (en zor kazanılan rol).
+      if (!profile.canCreateJoint) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Ortak müzayede düzenleme yetkiniz bulunmuyor. Kreatör müzayedeci başvurusu için müşteri ilişkileriyle iletişime geçin.',
+        });
+      }
+      // Organizatörün kendisinin de en az 20 aktif ürünü olmalı.
+      if (activeProductCount < 20) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: `Ortak müzayede açabilmek için en az 20 aktif ürününüz olmalıdır. Mevcut: ${activeProductCount}`,
         });
       }
     } else {
@@ -3061,6 +3917,141 @@ export class AuctionService implements OnApplicationBootstrap {
       code: RC.SUCCESS,
       message: 'Müzayede etkinliği oluşturuldu. Admin onayı bekleniyor.',
       event: saved,
+    };
+  }
+
+  // ─── Açık ürün çağrısı (JOINT): davetsiz katılım kapısını aç/kapat ───
+  async setOpenCall(eventId: string, sellerId: string, enabled: boolean) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Müzayede etkinliği bulunamadı',
+      });
+    }
+    if (event.ownerId !== sellerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Sadece etkinlik sahibi ürün çağrısını yönetebilir',
+      });
+    }
+    if (event.eventType !== AuctionEventSystemType.JOINT) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün çağrısı sadece ortak müzayedelerde açılabilir',
+      });
+    }
+    if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün çağrısı sadece taslak/başvuru aşamasındaki etkinliklerde değiştirilebilir',
+      });
+    }
+
+    event.openCallEnabled = enabled;
+    await this.auctionRepo.manager.save(AuctionEvent, event);
+    return {
+      code: RC.SUCCESS,
+      message: enabled
+        ? 'Ürün çağrısı açıldı — en az 20 aktif ürünü olan tedarikçiler başvurabilir'
+        : 'Ürün çağrısı kapatıldı',
+      openCallEnabled: enabled,
+    };
+  }
+
+  // ─── Organizatör lot onayı (JOINT): kendi etkinliğine gelen lotları yönetir ───
+  async organizerApproveLot(
+    eventId: string,
+    lotId: string,
+    sellerId: string,
+    status: AuctionApprovalStatus,
+    reason?: string,
+  ) {
+    const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Müzayede etkinliği bulunamadı',
+      });
+    }
+    if (event.ownerId !== sellerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Sadece etkinlik sahibi lotları onaylayabilir',
+      });
+    }
+    if (event.eventType !== AuctionEventSystemType.JOINT) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Organizatör lot onayı sadece ortak müzayedelerde geçerlidir',
+      });
+    }
+    if (![AuctionApprovalStatus.APPROVED, AuctionApprovalStatus.REJECTED].includes(status)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz onay durumu',
+      });
+    }
+
+    const lot = await this.auctionRepo.findOne({
+      where: { id: lotId, eventId },
+      relations: ['product'],
+    });
+    if (!lot) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Lot bu etkinlikte bulunamadı',
+      });
+    }
+    if (lot.approvalStatus !== AuctionApprovalStatus.PENDING) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece onay bekleyen lotlar karara bağlanabilir',
+      });
+    }
+
+    lot.approvalStatus = status;
+    if (status === AuctionApprovalStatus.APPROVED) {
+      const maxSequence = await this.auctionRepo
+        .createQueryBuilder('a')
+        .where('a.eventId = :eventId', { eventId })
+        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .select('MAX(a.sequenceNumber)', 'max')
+        .getRawOne<{ max: number | null }>();
+      lot.sequenceNumber = (maxSequence?.max ?? 0) + 1;
+      lot.status = AuctionStatus.PUBLISHED;
+    } else {
+      lot.status = AuctionStatus.CANCELLED;
+    }
+    const saved = await this.auctionRepo.save(lot);
+
+    await this.notificationService?.createFromEvent({
+      eventId: `organizer-lot-approval:${lot.id}:${status}`,
+      userId: lot.sellerId,
+      eventType: NotificationEventType.AUCTION_STARTED,
+      title:
+        status === AuctionApprovalStatus.APPROVED
+          ? 'Lot başvurunuz onaylandı'
+          : 'Lot başvurunuz reddedildi',
+      body:
+        status === AuctionApprovalStatus.APPROVED
+          ? `"${lot.product?.title ?? 'Ürününüz'}" ortak müzayede kataloğuna eklendi.`
+          : `"${lot.product?.title ?? 'Ürününüz'}" başvurusu organizatör tarafından reddedildi.${reason ? ` Neden: ${reason}` : ''}`,
+      relatedEntityType: 'auction',
+      relatedEntityId: lot.id,
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message:
+        status === AuctionApprovalStatus.APPROVED
+          ? 'Lot onaylandı ve kataloğa eklendi'
+          : 'Lot reddedildi',
+      auction: saved,
     };
   }
 
@@ -3132,7 +4123,12 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 
-  async sendInvitation(eventId: string, hostSellerId: string, inviteeId: string) {
+  async sendInvitation(
+    eventId: string,
+    hostSellerId: string,
+    inviteeId?: string,
+    inviteeEmail?: string,
+  ) {
     const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
       where: { id: eventId },
     });
@@ -3140,6 +4136,24 @@ export class AuctionService implements OnApplicationBootstrap {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
         message: 'Müzayede etkinliği bulunamadı',
+      });
+    }
+
+    // E-posta ile davet: organizatör UUID bilmek zorunda değil.
+    if (!inviteeId && inviteeEmail) {
+      const byEmail = await this.userService.findByEmail(inviteeEmail.trim().toLowerCase());
+      if (!byEmail) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Bu e-posta ile kayıtlı bir kullanıcı bulunamadı',
+        });
+      }
+      inviteeId = byEmail.id;
+    }
+    if (!inviteeId) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Davet için tedarikçi e-postası veya ID gereklidir',
       });
     }
 
@@ -3195,9 +4209,55 @@ export class AuctionService implements OnApplicationBootstrap {
     });
 
     const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+
+    // Davetli haberdar edilmezse davet ölü kalır — bildirim zorunlu adım.
+    await this.notificationService?.createFromEvent({
+      eventId: `auction-invitation:${saved.id}`,
+      userId: inviteeId,
+      eventType: NotificationEventType.AUCTION_STARTED,
+      title: 'Ortak müzayede daveti',
+      body: `"${event.title}" ortak müzayedesine davet edildiniz. Kabul ederek en az 20 ürünle katılabilirsiniz.`,
+      relatedEntityType: 'auction_event',
+      relatedEntityId: eventId,
+    });
+
     return {
       code: RC.SUCCESS,
       message: 'Davet gönderildi',
+      invitation: saved,
+    };
+  }
+
+  // Organizatör bekleyen daveti geri çeker (davetlinin reddi değil).
+  async cancelInvitation(invitationId: string, requesterId: string) {
+    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
+      where: { id: invitationId },
+      relations: ['event'],
+    });
+    if (!invitation) {
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Davet bulunamadı',
+      });
+    }
+    if (invitation.event?.ownerId !== requesterId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Sadece etkinlik sahibi daveti geri çekebilir',
+      });
+    }
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece beklemedeki davetler geri çekilebilir',
+      });
+    }
+
+    invitation.status = InvitationStatus.EXPIRED;
+    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    return {
+      code: RC.SUCCESS,
+      message: 'Davet geri çekildi',
       invitation: saved,
     };
   }
@@ -3242,6 +4302,19 @@ export class AuctionService implements OnApplicationBootstrap {
     invitation.status = InvitationStatus.ACCEPTED;
     const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
 
+    // Organizatör katılımcının kararından haberdar olur.
+    if (invitation.event?.ownerId) {
+      await this.notificationService?.createFromEvent({
+        eventId: `auction-invitation-accepted:${saved.id}`,
+        userId: invitation.event.ownerId,
+        eventType: NotificationEventType.AUCTION_STARTED,
+        title: 'Davet kabul edildi',
+        body: `"${invitation.event.title}" müzayedenize bir tedarikçi katıldı. Artık lot ekleyebilir.`,
+        relatedEntityType: 'auction_event',
+        relatedEntityId: invitation.eventId,
+      });
+    }
+
     return {
       code: RC.SUCCESS,
       message: 'Davet kabul edildi',
@@ -3252,6 +4325,7 @@ export class AuctionService implements OnApplicationBootstrap {
   async rejectInvitation(invitationId: string, inviteeId: string) {
     const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
       where: { id: invitationId },
+      relations: ['event'],
     });
     if (!invitation) {
       throw new NotFoundException({
@@ -3276,6 +4350,18 @@ export class AuctionService implements OnApplicationBootstrap {
 
     invitation.status = InvitationStatus.REJECTED;
     const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+
+    if (invitation.event?.ownerId) {
+      await this.notificationService?.createFromEvent({
+        eventId: `auction-invitation-rejected:${saved.id}`,
+        userId: invitation.event.ownerId,
+        eventType: NotificationEventType.AUCTION_STARTED,
+        title: 'Davet reddedildi',
+        body: `"${invitation.event.title}" müzayedenize gönderdiğiniz bir davet reddedildi.`,
+        relatedEntityType: 'auction_event',
+        relatedEntityId: invitation.eventId,
+      });
+    }
 
     return {
       code: RC.SUCCESS,

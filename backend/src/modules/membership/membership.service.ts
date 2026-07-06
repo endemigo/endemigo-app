@@ -2,16 +2,20 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Queue } from 'bullmq';
 import {
   MembershipPeriod,
   MembershipStatus,
   RC,
 } from '@endemigo/shared';
-import { LessThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, Repository } from 'typeorm';
 import { CreateMembershipPackageDto } from './dto/create-membership-package.dto';
 import { MembershipPackage } from './entities/membership-package.entity';
 import { MembershipSubscription } from './entities/membership-subscription.entity';
@@ -29,7 +33,9 @@ export interface MembershipBenefits {
 }
 
 @Injectable()
-export class MembershipService {
+export class MembershipService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(MembershipService.name);
+
   constructor(
     @InjectRepository(MembershipPackage)
     private readonly packageRepo: Repository<MembershipPackage>,
@@ -37,9 +43,37 @@ export class MembershipService {
     private readonly subscriptionRepo: Repository<MembershipSubscription>,
     @Inject(MEMBERSHIP_PAYMENT_PROVIDER)
     private readonly paymentProvider: MembershipPaymentProvider,
+    @InjectQueue('membership')
+    private readonly membershipQueue: Queue,
     @Optional()
     private readonly trustService?: TrustService,
   ) {}
+
+  async onApplicationBootstrap() {
+    try {
+      // Grace süresi dolan abonelikleri süpüren tekrarlı iş; upsert
+      // olduğu için her açılışta güvenle yeniden kurulur.
+      await this.membershipQueue.upsertJobScheduler(
+        'membership-grace-expiry',
+        { every: 60 * 60 * 1000 },
+        { name: 'membership-grace-expiry' },
+      );
+
+      // Restart sonrası aktif aboneliklerin dönem sonu kontrol işlerini
+      // yeniden kur; deterministik jobId sayesinde çift iş oluşmaz.
+      const activeSubscriptions = await this.subscriptionRepo.find({
+        where: { status: MembershipStatus.ACTIVE },
+      });
+      for (const subscription of activeSubscriptions) {
+        await this.scheduleRenewalCheck(subscription);
+      }
+    } catch (error) {
+      this.logger.error(
+        'Membership zamanlayıcıları kurulamadı',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
 
   async listPackages() {
     const items = await this.ensureFreePackage();
@@ -146,12 +180,79 @@ export class MembershipService {
     };
 
     const saved = await this.subscriptionRepo.save(subscription);
+    await this.scheduleRenewalCheck(saved);
     return {
       code: RC.MEMBERSHIP_UPGRADE_STARTED,
       message: 'Paketim yükseltmesi başlatıldı',
       subscription: saved,
       benefits: this.resolveBenefits(membershipPackage),
     };
+  }
+
+  /**
+   * Dönem sonunda çalışacak yenileme kontrol işini kurar. Abonelik
+   * yenilendiğinde aynı jobId ile yeni dönem sonuna taşınır.
+   */
+  private async scheduleRenewalCheck(subscription: MembershipSubscription) {
+    if (!subscription.currentPeriodEndsAt) return;
+    const jobId = `membership-renewal-${subscription.sellerId}`;
+    try {
+      const existing = await this.membershipQueue.getJob(jobId);
+      if (existing) await existing.remove();
+      await this.membershipQueue.add(
+        'membership-renewal-check',
+        { sellerId: subscription.sellerId },
+        {
+          delay: Math.max(
+            0,
+            new Date(subscription.currentPeriodEndsAt).getTime() - Date.now(),
+          ),
+          jobId,
+        },
+      );
+    } catch (error) {
+      // Abonelik geçerli; kontrol işi bir sonraki açılış reconcile'ında kurulur.
+      this.logger.error(
+        `Yenileme kontrol işi kurulamadı (seller: ${subscription.sellerId})`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  /**
+   * Dönem sonu geldiğinde işlenir: iptal planlıysa Free pakete indirir,
+   * değilse grace sürecini başlatır. Abonelik bu arada yenilendiyse no-op.
+   */
+  async handleRenewalDue(sellerId: string) {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { sellerId },
+      relations: ['package'],
+    });
+    if (!subscription || subscription.status !== MembershipStatus.ACTIVE) return;
+    if (
+      !subscription.currentPeriodEndsAt ||
+      new Date(subscription.currentPeriodEndsAt).getTime() > Date.now()
+    ) {
+      return;
+    }
+
+    if (subscription.cancelAtPeriodEnd) {
+      const freePackage = await this.getFreePackage();
+      subscription.status = MembershipStatus.FREE;
+      subscription.packageId = freePackage.id;
+      subscription.package = freePackage;
+      subscription.cancelAtPeriodEnd = false;
+      subscription.currentPeriodEndsAt = null;
+      subscription.graceEndsAt = null;
+      subscription.metadata = {
+        ...(subscription.metadata ?? {}),
+        downgradedAtPeriodEnd: new Date().toISOString(),
+      };
+      await this.subscriptionRepo.save(subscription);
+      return;
+    }
+
+    await this.markRenewalFailed(sellerId);
   }
 
   async requestDowngradeOrCancel(sellerId: string, nextPackageId?: string) {
@@ -231,6 +332,61 @@ export class MembershipService {
       return this.resolveBenefits(subscription.package);
     }
     return this.resolveBenefits(await this.getFreePackage());
+  }
+
+  async getBenefitsForSellers(
+    sellerIds: string[],
+  ): Promise<Map<string, MembershipBenefits>> {
+    const benefitsBySeller = new Map<string, MembershipBenefits>();
+    const uniqueSellerIds = [...new Set(sellerIds)];
+    if (uniqueSellerIds.length === 0) return benefitsBySeller;
+
+    const restrictedIds = this.trustService
+      ? await this.trustService.getRestrictedTargetIds(
+          uniqueSellerIds,
+          'MEMBERSHIP_BENEFIT',
+        )
+      : new Set<string>();
+
+    const eligibleIds = uniqueSellerIds.filter((id) => !restrictedIds.has(id));
+    if (eligibleIds.length > 0) {
+      const subscriptions = await this.subscriptionRepo.find({
+        where: { sellerId: In(eligibleIds) },
+        relations: ['package'],
+        order: { createdAt: 'DESC' },
+      });
+      const latestBySeller = new Map<string, MembershipSubscription>();
+      for (const subscription of subscriptions) {
+        if (!latestBySeller.has(subscription.sellerId)) {
+          latestBySeller.set(subscription.sellerId, subscription);
+        }
+      }
+      for (const [sellerId, subscription] of latestBySeller) {
+        if (
+          subscription.package &&
+          [MembershipStatus.ACTIVE, MembershipStatus.GRACE].includes(
+            subscription.status,
+          )
+        ) {
+          benefitsBySeller.set(
+            sellerId,
+            this.resolveBenefits(subscription.package),
+          );
+        }
+      }
+    }
+
+    const missingIds = uniqueSellerIds.filter(
+      (id) => !benefitsBySeller.has(id),
+    );
+    if (missingIds.length > 0) {
+      const freeBenefits = this.resolveBenefits(await this.getFreePackage());
+      for (const sellerId of missingIds) {
+        benefitsBySeller.set(sellerId, freeBenefits);
+      }
+    }
+
+    return benefitsBySeller;
   }
 
   private async ensureFreePackage(): Promise<MembershipPackage[]> {

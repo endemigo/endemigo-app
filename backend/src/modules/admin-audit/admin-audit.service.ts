@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { AdminAuditAction, AdminRole, RC } from '@endemigo/shared';
+import { AdminUser } from '../admin-auth/entities/admin-user.entity';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
 
 export interface AdminAuditInput {
@@ -36,6 +37,8 @@ export class AdminAuditService {
   constructor(
     @InjectRepository(AdminAuditLog)
     private readonly auditRepo: Repository<AdminAuditLog>,
+    @InjectRepository(AdminUser)
+    private readonly adminUserRepo: Repository<AdminUser>,
   ) {}
 
   async recordAction(input: AdminAuditInput): Promise<AdminAuditLog> {
@@ -83,16 +86,39 @@ export class AdminAuditService {
       take: limit,
     });
 
+    const actorNames = await this.resolveActorNames(
+      items.map((item) => item.actorAdminId),
+    );
+
     return {
       code: RC.ADMIN_AUDIT_FETCHED,
       message: 'Admin audit kayıtları getirildi',
-      items,
+      items: items.map((item) => ({
+        ...item,
+        actorDisplayName: actorNames.get(item.actorAdminId) ?? null,
+      })),
       pagination: {
         page,
         limit,
         total,
       },
     };
+  }
+
+  private async resolveActorNames(actorIds: string[]): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(actorIds.filter(Boolean))];
+    if (!uniqueIds.length) {
+      return new Map();
+    }
+    try {
+      const admins = await this.adminUserRepo.find({
+        where: { id: In(uniqueIds) },
+        select: ['id', 'displayName'],
+      });
+      return new Map(admins.map((admin) => [admin.id, admin.displayName]));
+    } catch {
+      return new Map();
+    }
   }
 
   async detail(id: string) {

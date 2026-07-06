@@ -21,14 +21,14 @@ interface DraftActorInput {
   actorRoles: AdminRole[];
   version: number;
   draft: MobileExperienceConfig;
-  reason: string;
+  reason?: string;
 }
 
 interface PublishActorInput {
   actorAdminId: string;
   actorRoles: AdminRole[];
   version: number;
-  reason: string;
+  reason?: string;
 }
 
 @Injectable()
@@ -80,7 +80,7 @@ export class MobileConfigService {
       action: AdminAuditAction.SETTING_UPDATED,
       targetType: 'SETTING',
       targetId: 'MOBILE_CONFIG_DRAFT',
-      reason: input.reason,
+      reason: input.reason?.trim() || 'Panel üzerinden taslak güncellendi',
       before: { draft: previousDraft },
       after: { draft: saved.draft },
       metadata: { version: saved.version },
@@ -121,7 +121,7 @@ export class MobileConfigService {
       action: AdminAuditAction.SETTING_UPDATED,
       targetType: 'SETTING',
       targetId: 'MOBILE_CONFIG_PUBLISHED',
-      reason: input.reason,
+      reason: input.reason?.trim() || 'Panel üzerinden yayına alındı',
       before: { published: previousPublished },
       after: { published: saved.published },
       metadata: { version: saved.version },

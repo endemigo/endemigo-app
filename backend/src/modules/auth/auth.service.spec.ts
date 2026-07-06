@@ -49,6 +49,7 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      createConsent: jest.fn(async () => undefined),
     };
     const jwtService = {
       sign: jest.fn(() => 'access-token'),

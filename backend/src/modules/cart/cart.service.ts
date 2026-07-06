@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
-import { AdminRole } from '@endemigo/shared';
+import { AdminRole, AuctionPaymentStatus, ListingType, ProductStatus } from '@endemigo/shared';
+import { Auction } from '../auction/entities/auction.entity';
 import { Product } from '../product/entities/product.entity';
 import { VariantNumber } from '../product/entities/variant-number.entity';
 import { ProductVariantSku } from '../product/entities/product-variant-sku.entity';
@@ -45,6 +46,30 @@ export class CartService {
     if (!product) {
       throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
     }
+
+    // Müzayede ürünü sabit fiyatla satılamaz. Kazanılan lot ise yalnızca
+    // gerçek kazanan ekleyebilir ve fiyat sunucudaki nihai fiyattan gelir —
+    // istemcinin gönderdiği customPrice asla kullanılmaz (checkout bu alanı
+    // ödeme tutarı olarak okuyor).
+    let wonAuctionPrice: number | null = null;
+    if (dto.auctionId) {
+      const auction = await this.cartRepo.manager.findOne(Auction, {
+        where: { id: dto.auctionId },
+      });
+      if (!auction || auction.productId !== dto.productId) {
+        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Müzayede bilgisi doğrulanamadı' });
+      }
+      if (auction.winnerId !== userId || auction.winnerPaymentStatus !== AuctionPaymentStatus.PENDING) {
+        throw new ForbiddenException({ code: RC.FORBIDDEN, message: 'Bu müzayede için ödeme yetkiniz yok' });
+      }
+      wonAuctionPrice = Number(auction.currentPrice);
+    } else if (
+      product.listingType === ListingType.AUCTION ||
+      product.status === ProductStatus.UNDER_AUCTION
+    ) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Müzayede ürünleri sepete eklenemez' });
+    }
+
     let variantNumberId = dto.variantId ?? null;
     let productVariantSkuId = dto.productVariantSkuId ?? null;
 
@@ -55,7 +80,19 @@ export class CartService {
       if (!sku || sku.productId !== dto.productId || sku.isActive === false) {
         throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Varyant kombinasyonu bulunamadı' });
       }
+      if (!dto.auctionId && sku.stockQuantity < quantity) {
+        throw new BadRequestException({
+          code: RC.PRODUCT_OUT_OF_STOCK,
+          message: 'Seçilen varyant için yeterli stok yok',
+        });
+      }
       variantNumberId = sku.sizeVariantNumberId ?? sku.colorVariantNumberId ?? variantNumberId;
+    } else if (!dto.auctionId && product.stockQuantity < quantity) {
+      // Kesin kontrol checkout'ta atomik yapılır; burada erken uyarı verilir.
+      throw new BadRequestException({
+        code: RC.PRODUCT_OUT_OF_STOCK,
+        message: 'Ürün için yeterli stok yok',
+      });
     }
 
     if (variantNumberId) {
@@ -71,12 +108,14 @@ export class CartService {
         productId: dto.productId,
         productVariantSkuId: productVariantSkuId ?? IsNull(),
         variantNumberId: variantNumberId ?? IsNull(),
+        // Pazarlıklı (teklif fiyatlı) kalemler normal ekleme ile birleşmez.
+        offerId: IsNull(),
       },
     });
     if (item) {
       if (dto.auctionId) {
         item.auctionId = dto.auctionId;
-        item.customPrice = dto.customPrice ?? null;
+        item.customPrice = wonAuctionPrice;
         item.quantity = 1;
       } else {
         item.quantity = Math.min(99, item.quantity + quantity);
@@ -88,7 +127,7 @@ export class CartService {
         productVariantSkuId,
         variantNumberId,
         auctionId: dto.auctionId ?? null,
-        customPrice: dto.customPrice ?? null,
+        customPrice: wonAuctionPrice,
         quantity: dto.auctionId ? 1 : quantity,
       });
     }
@@ -102,6 +141,55 @@ export class CartService {
     };
   }
 
+  /**
+   * Fiyat-sor akışı: kabul edilen teklif, teklif tutarı customPrice olarak
+   * alıcının sepetine girer. Tutar sunucudaki Offer kaydından gelir —
+   * istemciden asla alınmaz. offerId üzerinden idempotenttir.
+   */
+  async addNegotiatedItem(
+    userId: string,
+    input: { productId: string; offerId: string; amount: number },
+  ) {
+    const product = await this.productRepo.findOne({ where: { id: input.productId } });
+    if (!product) {
+      throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
+    }
+    if (product.status !== ProductStatus.ACTIVE) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Ürün satışta değil' });
+    }
+    const amount = Number(input.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Teklif tutarı geçersiz' });
+    }
+
+    let item = await this.cartRepo.findOne({
+      where: { userId, offerId: input.offerId },
+    });
+    if (!item) {
+      item = this.cartRepo.create({
+        userId,
+        productId: input.productId,
+        productVariantSkuId: null,
+        variantNumberId: null,
+        auctionId: null,
+        offerId: input.offerId,
+        customPrice: amount,
+        quantity: 1,
+      });
+    } else {
+      item.customPrice = amount;
+      item.quantity = 1;
+    }
+    await this.cartRepo.save(item);
+
+    const items = await this.getUserCartItems(userId);
+    return {
+      code: RC.CART_ITEM_ADDED,
+      message: 'Ürün teklif fiyatıyla sepete eklendi',
+      cart: this.toCartResponse(items),
+    };
+  }
+
   async updateItem(userId: string, itemId: string, dto: UpdateCartItemDto) {
     const item = await this.cartRepo.findOne({ where: { id: itemId, userId } });
     if (!item) {
@@ -109,6 +197,9 @@ export class CartService {
     }
     if (item.auctionId) {
       throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünlerinin adedi güncellenemez' });
+    }
+    if (item.offerId) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Teklifle eklenen ürünün adedi güncellenemez' });
     }
     item.quantity = dto.quantity;
     await this.cartRepo.save(item);
@@ -129,6 +220,9 @@ export class CartService {
     if (item.auctionId) {
       throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünleri sepetten çıkarılamaz' });
     }
+    if (item.offerId) {
+      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kabul edilen teklif ürünü sepetten çıkarılamaz' });
+    }
 
     await this.cartRepo.remove(item);
     const items = await this.getUserCartItems(userId);
@@ -143,7 +237,7 @@ export class CartService {
     if (force) {
       await this.cartRepo.delete({ userId });
     } else {
-      await this.cartRepo.delete({ userId, auctionId: IsNull() });
+      await this.cartRepo.delete({ userId, auctionId: IsNull(), offerId: IsNull() });
     }
     const items = await this.getUserCartItems(userId);
     return {
@@ -287,6 +381,7 @@ export class CartService {
         productVariantSkuId: item.productVariantSkuId,
         variantId: item.variantNumberId,
         auctionId: item.auctionId,
+        offerId: item.offerId,
         customPrice: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : null,
         variant: item.variantNumber
           ? {

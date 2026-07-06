@@ -21,6 +21,7 @@ import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { AdminActionDto } from './dto/admin-action.dto';
 import { AdminProductActionDto } from './dto/admin-product-action.dto';
+import { AdminProductReviewDto } from './dto/admin-product-review.dto';
 import { AdminDashboardQueryDto } from './dto/admin-dashboard-query.dto';
 import { AdminListQueryDto } from './dto/admin-list-query.dto';
 import { AdminUserRelatedQueryDto } from './dto/admin-user-related-query.dto';
@@ -400,6 +401,17 @@ export class AdminOperationsController {
     return this.adminOperationsService.reactivateUser(id, dto, request.adminUser);
   }
 
+  @Patch('products/:id/review')
+  @ApiOperation({ summary: 'Ürün onay kuyruğu: onayla (ACTIVE) / reddet (DRAFT)' })
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
+  async reviewProduct(
+    @Param('id') id: string,
+    @Body() dto: AdminProductReviewDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.reviewProduct(id, dto, request.adminUser);
+  }
+
   @Patch('products/:id/remove')
   async removeProduct(
     @Param('id') id: string,
@@ -416,6 +428,17 @@ export class AdminOperationsController {
     @Request() request: AdminOperationsRequest,
   ) {
     return this.adminOperationsService.cancelAuction(id, dto, request.adminUser);
+  }
+
+  @Patch('auctions/:id/finalize')
+  @ApiOperation({ summary: 'Aktif müzayedeyi elle sonlandırır (takılı lot kurtarma)' })
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
+  async finalizeAuction(
+    @Param('id') id: string,
+    @Body() dto: AdminActionDto,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.adminOperationsService.finalizeAuction(id, dto, request.adminUser);
   }
 
   @Patch('orders/:id/admin-review')
@@ -618,13 +641,13 @@ export class AdminOperationsController {
   ) {
     const detail = await this.adminOperationsService.detail('auction-events', id, request.adminUser);
     if (detail && detail.overview) {
-      (detail.overview as any).autoProgress = this.auctionService.isAutoProgressEnabled(id);
+      (detail.overview as any).autoProgress = await this.auctionService.isAutoProgressEnabled(id);
     }
     const anyDetail = detail as any;
     if (anyDetail && anyDetail.approvedLots) {
       for (const lot of anyDetail.approvedLots) {
         if (lot.status === 'PUBLISHED') {
-          const pausedSec = this.auctionService.getPausedRemainingSeconds(lot.id);
+          const pausedSec = await this.auctionService.getPausedRemainingSeconds(lot.id);
           if (pausedSec !== undefined) {
             (lot as any).pausedRemainingSeconds = pausedSec;
           }
@@ -719,6 +742,15 @@ export class AdminOperationsController {
     return this.auctionService.skipLot(id);
   }
 
+  @Patch('auction-events/:id/announce')
+  @ApiOperation({ summary: 'Sunucu anonsu yayınla (yakılıyor / son çağrı / sattım)' })
+  async announceLot(
+    @Param('id') id: string,
+    @Body() dto: { type: string; message?: string },
+  ) {
+    return this.auctionService.announceLot(id, dto.type, dto.message);
+  }
+
   @Patch('auction-events/:id/auto-progress')
   @ApiOperation({ summary: 'Müzayede otomatik lot geçişini açar/kapatır' })
   async toggleAutoProgress(
@@ -748,6 +780,24 @@ export class AdminOperationsController {
     @Request() request: AdminOperationsRequest,
   ) {
     return this.auctionService.updateRegistrationStatus(id, dto.status, request.adminUser.id);
+  }
+
+  @Patch('auctions/:id/approve-sale')
+  @ApiOperation({ summary: 'Müzayede satışını onayla — kazanana ödeme penceresi açılır' })
+  async approveAuctionSale(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.auctionService.approveSale(id, request.adminUser.id);
+  }
+
+  @Patch('auction-events/:id/approve-sales')
+  @ApiOperation({ summary: 'Etkinlikteki tüm biten lot satışlarını topluca onayla' })
+  async approveAuctionEventSales(
+    @Param('id') id: string,
+    @Request() request: AdminOperationsRequest,
+  ) {
+    return this.auctionService.approveEventSales(id, request.adminUser.id);
   }
 
   @Patch('users/:id/bidding-limit')

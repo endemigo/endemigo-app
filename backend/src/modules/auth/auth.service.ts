@@ -20,6 +20,7 @@ import {
 import { EmailService } from '../../shared/email/email.service';
 import { RC } from '../../shared/constants/response-codes';
 import { User } from '../user/entities/user.entity';
+import { ConsentType } from '../user/entities/kvkk-consent.entity';
 
 interface DatabaseError {
   code?: unknown;
@@ -42,7 +43,7 @@ export class AuthService {
     private readonly verificationTokenRepo: Repository<VerificationToken>,
   ) {}
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, ipAddress?: string, userAgent?: string) {
     // BIZ-16: Email normalization — prevent duplicate accounts via case ("User@X.com" vs "user@x.com")
     const normalizedEmail = dto.email.trim().toLowerCase();
 
@@ -79,6 +80,14 @@ export class AuthService {
       }
       throw error;
     }
+
+    // KVKK: Kayıt sırasında zorunlu veri işleme onayı kaydı
+    await this.userService.createConsent(
+      user.id,
+      { consentType: ConsentType.DATA_PROCESSING, isAccepted: true },
+      ipAddress,
+      userAgent,
+    );
 
     // AUTH-02: Email doğrulama tokeni oluştur ve gönder
     const verificationToken = await this.createVerificationToken(

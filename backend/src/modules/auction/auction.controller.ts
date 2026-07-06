@@ -26,7 +26,7 @@ import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { RC, AuctionEventStatus, AuctionRegistrationStatus, AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
+import { RC, AuctionEventStatus, AuctionRegistrationStatus, AuctionEventSystemType, JointManagementType, AuctionApprovalStatus } from '@endemigo/shared';
 
 
 function parsePositiveIntQuery(
@@ -328,16 +328,70 @@ export class AuctionController {
     return this.auctionService.submitEventForApproval(eventId, userId);
   }
 
+  @Post('events/:eventId/lots/bulk')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Excel toplu lot yükleme — ürün + lot tek adımda (satır bazlı hata raporu)' })
+  async bulkImportLots(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: { guaranteeAccepted?: boolean; lots: Record<string, unknown>[] },
+  ) {
+    return this.auctionService.bulkImportLots(userId, eventId, dto);
+  }
+
+  @Patch('events/:eventId/open-call')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Ortak müzayedede açık ürün çağrısını aç/kapat (sadece organizatör)' })
+  async setOpenCall(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser('id') userId: string,
+    @Body('enabled') enabled: boolean,
+  ) {
+    return this.auctionService.setOpenCall(eventId, userId, Boolean(enabled));
+  }
+
+  @Patch('events/:eventId/lots/:lotId/approve')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Ortak müzayede lotunu onayla/reddet (sadece organizatör)' })
+  async organizerApproveLot(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: { status: AuctionApprovalStatus; reason?: string },
+  ) {
+    return this.auctionService.organizerApproveLot(
+      eventId,
+      lotId,
+      userId,
+      dto.status,
+      dto.reason,
+    );
+  }
+
   @Post('events/:eventId/invite')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Ortak müzayedeye tedarikçi davet et' })
+  @ApiOperation({ summary: 'Ortak müzayedeye tedarikçi davet et (ID veya e-posta ile)' })
   async inviteToEvent(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
-    @Body('inviteeId', ParseUUIDPipe) inviteeId: string,
+    @Body() dto: { inviteeId?: string; email?: string },
   ) {
-    return this.auctionService.sendInvitation(eventId, userId, inviteeId);
+    return this.auctionService.sendInvitation(eventId, userId, dto.inviteeId, dto.email);
+  }
+
+  @Post('invitations/:invitationId/cancel')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Bekleyen daveti geri çek (sadece etkinlik sahibi)' })
+  async cancelInvitation(
+    @Param('invitationId', ParseUUIDPipe) invitationId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.auctionService.cancelInvitation(invitationId, userId);
   }
 
   @Post('invitations/:invitationId/accept')

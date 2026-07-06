@@ -3,6 +3,7 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { AuctionStatus } from '@endemigo/shared';
 import { AuctionService } from './auction.service';
 import { AuctionGateway } from './auction.gateway';
 
@@ -44,32 +45,43 @@ export class AuctionProcessor extends WorkerHost {
 
         case 'start-auction': {
           this.logger.log(`Starting auction ${auctionId}`);
-          const auction = await this.auctionService.activateAuction(auctionId);
+          const activated = await this.auctionService.activateAuction(auctionId);
 
-          if (auction) {
+          // Retry senaryosu: önceki denemede aktivasyon başarılı olup uyarı
+          // planlaması patlamış olabilir. Aktivasyon dönmediyse müzayedeyi
+          // yükle; hâlâ ACTIVE ise uyarıları (deterministik jobId ile) kur.
+          const auction =
+            activated ?? (await this.auctionService.findAuctionById(auctionId));
+          if (!auction || auction.status !== AuctionStatus.ACTIVE) break;
+
+          if (activated) {
+            // AUCT-ABS: absentee çözümlemesi fiyatı açmış olabilir.
             this.auctionGateway.emitAuctionStarted(auctionId, {
               startPrice: Number(auction.startPrice),
+              currentPrice: Number(auction.currentPrice),
+              bidCount: auction.bidCount ?? 0,
             }, (auction as any).eventId);
+          }
 
-            // Schedule warning events (5min, 1min before end)
-            const endMs = new Date(auction.endTime).getTime();
-            const warn5 = endMs - 5 * 60 * 1000 - Date.now();
-            const warn1 = endMs - 1 * 60 * 1000 - Date.now();
+          // Schedule warning events (5min, 1min before end)
+          const warningEventId = (auction as any).eventId ?? null;
+          const endMs = new Date(auction.endTime).getTime();
+          const warn5 = endMs - 5 * 60 * 1000 - Date.now();
+          const warn1 = endMs - 1 * 60 * 1000 - Date.now();
 
-            if (warn5 > 0) {
-              await this.auctionQueue.add(
-                'warning',
-                { auctionId, minutesLeft: 5 },
-                { delay: warn5 },
-              );
-            }
-            if (warn1 > 0) {
-              await this.auctionQueue.add(
-                'warning',
-                { auctionId, minutesLeft: 1 },
-                { delay: warn1 },
-              );
-            }
+          if (warn5 > 0) {
+            await this.auctionQueue.add(
+              'warning',
+              { auctionId, minutesLeft: 5, eventId: warningEventId },
+              { delay: warn5, jobId: `warn5-${auctionId}` },
+            );
+          }
+          if (warn1 > 0) {
+            await this.auctionQueue.add(
+              'warning',
+              { auctionId, minutesLeft: 1, eventId: warningEventId },
+              { delay: warn1, jobId: `warn1-${auctionId}` },
+            );
           }
           break;
         }
@@ -104,7 +116,13 @@ export class AuctionProcessor extends WorkerHost {
           this.logger.log(
             `Warning for auction ${auctionId}: ${minutesLeft} minute(s) left`,
           );
-          this.auctionGateway.emitAuctionWarning(auctionId, { minutesLeft });
+          // eventId olmadan yalnız auction odası duyurulur; ortak müzayede
+          // (Model 2) ekranları event odasında dinler.
+          this.auctionGateway.emitAuctionWarning(
+            auctionId,
+            { minutesLeft },
+            job.data.eventId ?? null,
+          );
           break;
         }
 

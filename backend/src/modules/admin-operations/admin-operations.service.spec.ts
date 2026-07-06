@@ -1,6 +1,7 @@
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { AdminAuditAction, AdminRole, PayoutRequestStatus, RC } from '@endemigo/shared';
+import { AdminAuditAction, AdminRole, PayoutRequestStatus, ProductStatus, RC } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { AuctionService } from '../auction/auction.service';
 import { SellerStatus } from '../user/entities/seller-profile.entity';
 import { AdminOperationsService } from './admin-operations.service';
 
@@ -53,12 +54,28 @@ describe('AdminOperationsService', () => {
   let adminAuditService: {
     recordAction: jest.Mock;
   };
+  let auctionService: {
+    adminCancelAuction: jest.Mock;
+    adminFinalizeAuction: jest.Mock;
+  };
   let service: AdminOperationsService;
 
   beforeEach(() => {
     repos = Array.from({ length: 23 }, createRepo);
     adminAuditService = {
       recordAction: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    };
+    auctionService = {
+      adminCancelAuction: jest.fn().mockResolvedValue({
+        code: RC.AUCTION_CANCELLED,
+        auctionId: 'auction-1',
+        auction: { id: 'auction-1', status: 'CANCELLED' },
+      }),
+      adminFinalizeAuction: jest.fn().mockResolvedValue({
+        code: RC.SUCCESS,
+        auctionId: 'auction-1',
+        auction: { id: 'auction-1', status: 'ENDED' },
+      }),
     };
     service = new AdminOperationsService(
       repos[0] as never,
@@ -85,7 +102,48 @@ describe('AdminOperationsService', () => {
       repos[21] as never,
       repos[22] as never,
       adminAuditService as unknown as AdminAuditService,
+      auctionService as unknown as AuctionService,
     );
+  });
+
+  it('delegates auction cancel to auction module and records audit', async () => {
+    repos[7].findOne.mockResolvedValue({ id: 'auction-1', status: 'ACTIVE' });
+
+    const result = await service.cancelAuction(
+      'auction-1',
+      { reason: 'Şüpheli işlem' },
+      { id: 'admin-1', roles: [AdminRole.SUPER_ADMIN] },
+    );
+
+    expect(auctionService.adminCancelAuction).toHaveBeenCalledWith('auction-1', 'Şüpheli işlem');
+    expect(adminAuditService.recordAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AdminAuditAction.AUCTION_CANCELLED,
+        targetId: 'auction-1',
+      }),
+    );
+    expect(result.code).toBe(RC.SUCCESS);
+    expect(result.auction.status).toBe('CANCELLED');
+  });
+
+  it('delegates auction finalize to auction module and records audit', async () => {
+    repos[7].findOne.mockResolvedValue({ id: 'auction-1', status: 'ACTIVE' });
+
+    const result = await service.finalizeAuction(
+      'auction-1',
+      { reason: 'Takılı lot kurtarma' },
+      { id: 'admin-1', roles: [AdminRole.SUPER_ADMIN] },
+    );
+
+    expect(auctionService.adminFinalizeAuction).toHaveBeenCalledWith('auction-1');
+    expect(adminAuditService.recordAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AdminAuditAction.AUCTION_FINALIZED,
+        targetId: 'auction-1',
+      }),
+    );
+    expect(result.code).toBe(RC.SUCCESS);
+    expect(result.auction.status).toBe('ENDED');
   });
 
   it('returns queue empty-state counts for admin dashboard queues', async () => {
@@ -102,6 +160,93 @@ describe('AdminOperationsService', () => {
     expect(repos[16].findAndCount).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: PayoutRequestStatus.ADMIN_REVIEW } }),
     );
+  });
+
+  it('includes product review queue with seller name mapping', async () => {
+    repos[2].find.mockResolvedValueOnce([
+      {
+        id: 'product-1',
+        title: 'Pekmez',
+        sellerId: 'seller-1',
+        createdAt: new Date('2026-06-01T00:00:00.000Z'),
+        seller: { id: 'seller-1', firstName: 'Ali', lastName: 'Kaya', email: 'seller@endemigo.test' },
+      },
+    ]);
+    repos[2].count.mockResolvedValueOnce(1);
+
+    const result = await service.getQueues();
+
+    expect(repos[2].find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: ProductStatus.PENDING_REVIEW } }),
+    );
+    expect(result.productReviews.count).toBe(1);
+    expect(result.productReviews.latest[0]).toEqual({
+      id: 'product-1',
+      title: 'Pekmez',
+      sellerName: 'Ali Kaya',
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    });
+  });
+
+  describe('reviewProduct', () => {
+    const mockActor = { id: 'admin-1', roles: [AdminRole.OPERATIONS] };
+
+    it('approves a pending product and activates it', async () => {
+      repos[2].findOne.mockResolvedValueOnce({
+        id: 'product-1',
+        title: 'Pekmez',
+        sellerId: 'seller-1',
+        status: ProductStatus.PENDING_REVIEW,
+        createdAt: new Date(),
+      });
+
+      const result = await service.reviewProduct('product-1', { approve: true }, mockActor);
+
+      expect(result.code).toBe(RC.PRODUCT_UPDATED);
+      expect(result.product.status).toBe(ProductStatus.ACTIVE);
+      expect(repos[2].save).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'product-1', status: ProductStatus.ACTIVE }),
+      );
+    });
+
+    it('rejects a pending product back to draft', async () => {
+      repos[2].findOne.mockResolvedValueOnce({
+        id: 'product-1',
+        title: 'Pekmez',
+        sellerId: 'seller-1',
+        status: ProductStatus.PENDING_REVIEW,
+        createdAt: new Date(),
+      });
+
+      const result = await service.reviewProduct(
+        'product-1',
+        { approve: false, reason: 'eksik görsel' },
+        mockActor,
+      );
+
+      expect(result.code).toBe(RC.PRODUCT_UPDATED);
+      expect(result.product.status).toBe(ProductStatus.DRAFT);
+    });
+
+    it('throws when product is not pending review', async () => {
+      repos[2].findOne.mockResolvedValueOnce({
+        id: 'product-1',
+        title: 'Pekmez',
+        sellerId: 'seller-1',
+        status: ProductStatus.ACTIVE,
+        createdAt: new Date(),
+      });
+
+      await expect(
+        service.reviewProduct('product-1', { approve: true }, mockActor),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws when product does not exist', async () => {
+      await expect(
+        service.reviewProduct('missing-product', { approve: true }, mockActor),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
   it('lists admin resources with pagination metadata', async () => {

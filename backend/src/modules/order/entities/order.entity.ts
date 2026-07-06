@@ -23,6 +23,10 @@ export class Order extends BaseEntity {
   @Column()
   productId: string;
 
+  // Sepetteki varyant kombinasyonu — stok düşümü/iadesi SKU seviyesinde yapılır.
+  @Column({ type: 'uuid', nullable: true })
+  productVariantSkuId: string | null;
+
   @Column({ type: 'enum', enum: OrderSource })
   source: OrderSource;
 
@@ -107,4 +111,15 @@ export class Order extends BaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   returnImages: string[] | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  shippingAddressId: string | null;
+
+  // Adres sonradan silinse/değişse bile sipariş anındaki teslimat bilgisi korunur.
+  @Column({ type: 'jsonb', nullable: true })
+  shippingAddressSnapshot: Record<string, unknown> | null;
+
+  // İptal/başarısız ödeme sonrası stok iadesi yapıldıysa damgalanır (çift iade koruması).
+  @Column({ type: 'timestamptz', nullable: true })
+  stockRestoredAt: Date | null;
 }

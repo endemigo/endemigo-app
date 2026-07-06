@@ -18,6 +18,7 @@ import { UserModule } from '../user/user.module';
 import { OrderModule } from '../order/order.module';
 import { NotificationModule } from '../notification/notification.module';
 import { PaymentModule } from '../payment/payment.module';
+import { ProductModule } from '../product/product.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PaymentModule } from '../payment/payment.module';
     OrderModule,
     NotificationModule,
     forwardRef(() => PaymentModule),
+    forwardRef(() => ProductModule),
   ],
   controllers: [AuctionController],
   providers: [AuctionService, AuctionProcessor, AuctionGateway],

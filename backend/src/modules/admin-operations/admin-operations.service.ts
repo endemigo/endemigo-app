@@ -33,6 +33,7 @@ import {
   NotificationEventType,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { AuctionService } from '../auction/auction.service';
 import { NotificationService } from '../notification/notification.service';
 import { User } from '../user/entities/user.entity';
 import { Address } from '../user/entities/address.entity';
@@ -61,6 +62,7 @@ import { PayoutRequest } from '../wallet/entities/payout-request.entity';
 import { Favorite } from '../search/entities/favorite.entity';
 import { AdminActionDto } from './dto/admin-action.dto';
 import { AdminProductActionDto } from './dto/admin-product-action.dto';
+import { AdminProductReviewDto } from './dto/admin-product-review.dto';
 import {
   type AdminDashboardPeriod,
   type AdminDashboardQueryDto,
@@ -131,6 +133,7 @@ export interface AdminProductPayload {
   retailPrice?: number;
   askPriceMinAmount?: number;
   askPriceEnabled?: boolean;
+  askQuestionEnabled?: boolean;
   shippingProvince?: string;
   shippingDistrict?: string;
   shippingAddress?: string;
@@ -481,6 +484,7 @@ export class AdminOperationsService {
     @InjectRepository(FeatureBadge)
     private readonly featureBadgeRepo: Repository<FeatureBadge>,
     private readonly adminAuditService: AdminAuditService,
+    private readonly auctionService: AuctionService,
     @Optional()
     @Inject(STORAGE_SERVICE)
     private readonly storage?: IStorageService,
@@ -489,7 +493,7 @@ export class AdminOperationsService {
   ) {}
 
   async getQueues() {
-    const [sellerApprovals, adApprovals, payoutReviews, trustFlags, orderReviews, paymentReviews, membershipGrace] =
+    const [sellerApprovals, adApprovals, payoutReviews, trustFlags, orderReviews, paymentReviews, membershipGrace, productReviews] =
       await Promise.all([
         this.queueFromRepo(this.sellerProfileRepo, { status: SellerStatus.PENDING }),
         Promise.resolve({ count: 0, latest: [] }),
@@ -498,6 +502,7 @@ export class AdminOperationsService {
         this.queueFromRepo(this.orderRepo, { status: OrderStatus.ADMIN_REVIEW }),
         this.queueFromRepo(this.paymentRepo, { status: PaymentStatus.ADMIN_REVIEW }),
         Promise.resolve({ count: 0, latest: [] }),
+        this.queueProductReviews(),
       ]);
 
     return {
@@ -510,6 +515,7 @@ export class AdminOperationsService {
       orderReviews,
       paymentReviews,
       membershipGrace,
+      productReviews,
     };
   }
 
@@ -1710,6 +1716,9 @@ export class AdminOperationsService {
         minIncrement: Number(auction.minIncrement ?? 0),
         buyerPremiumRate: 0,
         bidCount: Number(auction.bidCount ?? 0),
+        winnerPaymentStatus: auction.winnerPaymentStatus,
+        saleApprovedAt: auction.saleApprovedAt?.toISOString() ?? null,
+        winnerPaymentDeadlineAt: auction.winnerPaymentDeadlineAt?.toISOString() ?? null,
         startTime: auction.startTime.toISOString(),
         endTime: auction.endTime.toISOString(),
         createdAt: auction.createdAt.toISOString(),
@@ -3421,6 +3430,50 @@ export class AdminOperationsService {
     return { code: RC.SUCCESS, message: 'Ürün güncellendi', product: saved };
   }
 
+  // Ürün onay kuyruğu aksiyonu: PENDING_REVIEW → ACTIVE (onay) veya DRAFT (red).
+  // NOT: AdminAuditAction PostgreSQL enum'u shared-types altında tanımlı olduğundan
+  // (bu modül dışında) ürün incelemesine özel yeni bir audit aksiyonu eklenemedi;
+  // updateProduct ile tutarlı olarak audit kaydı atlanıyor.
+  async reviewProduct(id: string, dto: AdminProductReviewDto, actor: AdminActor) {
+    const product = await this.findOneOrFail(this.productRepo, id);
+
+    if (product.status !== ProductStatus.PENDING_REVIEW) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Sadece onay bekleyen (PENDING_REVIEW) ürünler incelenebilir',
+      });
+    }
+
+    product.status = dto.approve ? ProductStatus.ACTIVE : ProductStatus.DRAFT;
+    const saved = await this.productRepo.save(product);
+
+    // Satıcıya bilgilendirme: onayda updateProduct'taki mevcut bildirim kalıbı
+    // (aynı eventId → çift bildirim engellenir), redde ise ayrı bir eventId kullanılır.
+    if (this.notificationService) {
+      await this.notificationService
+        .createFromEvent({
+          eventId: dto.approve ? `prod-appr-${saved.id}` : `prod-rej-${saved.id}`,
+          userId: saved.sellerId,
+          eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+          title: dto.approve ? 'Ürününüz Onaylandı' : 'Ürününüz Reddedildi',
+          body: dto.approve
+            ? `"${saved.title}" başlıklı ürününüz onaylandı ve yayına alındı.`
+            : `"${saved.title}" başlıklı ürününüz reddedildi ve taslağa alındı.${dto.reason ? ` Gerekçe: ${dto.reason}` : ''}`,
+          relatedEntityType: 'product',
+          relatedEntityId: saved.id,
+        })
+        .catch(() => {});
+    }
+
+    return {
+      code: RC.PRODUCT_UPDATED,
+      message: dto.approve
+        ? 'Ürün onaylandı ve yayına alındı'
+        : 'Ürün reddedildi ve taslağa alındı',
+      product: saved,
+    };
+  }
+
   async uploadAdminImage(file: Express.Multer.File, kind?: string) {
     if (!this.storage) {
       throw new BadRequestException({
@@ -3441,12 +3494,23 @@ export class AdminOperationsService {
   async cancelAuction(id: string, dto: AdminActionDto, actor: AdminActor) {
     const auction = await this.findOneOrFail(this.auctionRepo, id);
     const before = { status: auction.status };
-    auction.status = AuctionStatus.CANCELLED;
-    await this.auctionRepo.save(auction);
+    // Hold serbest bırakma, BullMQ iş temizliği ve gateway yayını
+    // müzayede modülünde tek noktadan yapılır.
+    const result = await this.auctionService.adminCancelAuction(id, dto.reason);
     await this.record(actor, AdminAuditAction.AUCTION_CANCELLED, 'AUCTION', id, dto, before, {
-      status: auction.status,
+      status: result.auction.status,
     });
-    return { code: RC.SUCCESS, message: 'Müzayede iptal edildi', auction };
+    return { code: RC.SUCCESS, message: 'Müzayede iptal edildi', auction: result.auction };
+  }
+
+  async finalizeAuction(id: string, dto: AdminActionDto, actor: AdminActor) {
+    const auction = await this.findOneOrFail(this.auctionRepo, id);
+    const before = { status: auction.status };
+    const result = await this.auctionService.adminFinalizeAuction(id);
+    await this.record(actor, AdminAuditAction.AUCTION_FINALIZED, 'AUCTION', id, dto, before, {
+      status: result.auction.status,
+    });
+    return { code: RC.SUCCESS, message: 'Müzayede sonlandırıldı', auction: result.auction };
   }
 
   async markOrderAdminReview(id: string, dto: AdminActionDto, actor: AdminActor) {
@@ -3842,6 +3906,49 @@ export class AdminOperationsService {
       repo.count({ where: where as FindOptionsWhere<T> }),
     ]);
     return { count, latest };
+  }
+
+  // Ürün onay kuyruğu: PENDING_REVIEW durumundaki ürünler. Kart üzerinde
+  // "başlık + satıcı adı" gösterilebilmesi için seller ilişkisi join'lenir;
+  // queueFromRepo'daki legacy kolon notu nedeniyle burada da minimal select kullanılır.
+  private async queueProductReviews() {
+    const where: FindOptionsWhere<Product> = { status: ProductStatus.PENDING_REVIEW };
+    const [latest, count] = await Promise.all([
+      this.productRepo.find({
+        where,
+        relations: { seller: true },
+        select: {
+          id: true,
+          title: true,
+          sellerId: true,
+          createdAt: true,
+          seller: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        order: { createdAt: 'DESC' },
+        take: 5,
+      }),
+      this.productRepo.count({ where }),
+    ]);
+
+    return {
+      count,
+      latest: latest.map((product) => ({
+        id: product.id,
+        title: product.title,
+        sellerName:
+          [product.seller?.firstName?.trim(), product.seller?.lastName?.trim()]
+            .filter(Boolean)
+            .join(' ') ||
+          product.seller?.email ||
+          product.sellerId,
+        createdAt: product.createdAt,
+      })),
+    };
   }
 
   private async loadUserOrdersAsBuyer(
@@ -4665,6 +4772,9 @@ export class AdminOperationsService {
     }
     if (!partial || payload.askPriceEnabled !== undefined) {
       product.askPriceEnabled = this.toBoolean(payload.askPriceEnabled, product.askPriceEnabled ?? false);
+    }
+    if (!partial || payload.askQuestionEnabled !== undefined) {
+      product.askQuestionEnabled = this.toBoolean(payload.askQuestionEnabled, product.askQuestionEnabled ?? false);
     }
     if (!partial || payload.shippingProvince !== undefined) {
       product.shippingProvince = this.toNullableString(payload.shippingProvince) ?? '';
@@ -5827,7 +5937,7 @@ export class AdminOperationsService {
     }
 
     const currentDeposit = Number(user.totalDeposit ?? 0);
-    const maxAllowedLimit = Math.max(250000, 50000 + currentDeposit * 5);
+    const maxAllowedLimit = Math.max(250000, currentDeposit * 5);
 
     if (newLimit > maxAllowedLimit) {
       throw new BadRequestException({

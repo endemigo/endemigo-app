@@ -53,7 +53,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
     it('should register seller', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/register')
-        .send({ email: SELLER_EMAIL, password: PASSWORD, firstName: 'E2E', lastName: 'Seller' })
+        .send({ email: SELLER_EMAIL, password: PASSWORD, firstName: 'E2E', lastName: 'Seller', kvkkAccepted: true })
         .expect(201);
 
       expect(res.body.accessToken).toBeDefined();
@@ -65,7 +65,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
     it('should register buyer', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/register')
-        .send({ email: BUYER_EMAIL, password: PASSWORD, firstName: 'E2E', lastName: 'Buyer' })
+        .send({ email: BUYER_EMAIL, password: PASSWORD, firstName: 'E2E', lastName: 'Buyer', kvkkAccepted: true })
         .expect(201);
 
       expect(res.body.accessToken).toBeDefined();
@@ -620,7 +620,7 @@ describe('Vertical Slice E2E — Full Auction Flow', () => {
     it('should register temp account for delete test', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/register')
-        .send({ email: TEMP_EMAIL, password: PASSWORD, firstName: 'Temp', lastName: 'User' })
+        .send({ email: TEMP_EMAIL, password: PASSWORD, firstName: 'Temp', lastName: 'User', kvkkAccepted: true })
         .expect(201);
 
       tempToken = res.body.accessToken;

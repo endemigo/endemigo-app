@@ -10,6 +10,7 @@ import { Payment } from './entities/payment.entity';
 import { SavedCard } from './entities/saved-card.entity';
 import { Order } from '../order/entities/order.entity';
 import { User } from '../user/entities/user.entity';
+import { Address } from '../user/entities/address.entity';
 import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';
 import { IyzicoProvider } from './providers/iyzico.provider';
@@ -17,7 +18,7 @@ import { AuctionModule } from '../auction/auction.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentProviderEvent, Order, SavedCard, User]),
+    TypeOrmModule.forFeature([Payment, PaymentProviderEvent, Order, SavedCard, User, Address]),
     LedgerModule,
     NotificationModule,
     forwardRef(() => OrderModule),

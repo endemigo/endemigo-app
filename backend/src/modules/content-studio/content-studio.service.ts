@@ -21,7 +21,7 @@ export interface UpdateContentStudioInput {
   actorRoles: AdminRole[];
   document: ContentStudioDocument;
   version: number;
-  reason: string;
+  reason?: string;
 }
 
 @Injectable()
@@ -73,7 +73,7 @@ export class ContentStudioService {
       action: AdminAuditAction.SETTING_UPDATED,
       targetType: 'SETTING',
       targetId: 'CONTENT_STUDIO_DOCUMENT',
-      reason: input.reason,
+      reason: input.reason?.trim() || 'Panel üzerinden içerik güncellendi',
       before: currentDocument as unknown as Record<string, unknown>,
       after: nextDocument as unknown as Record<string, unknown>,
     });

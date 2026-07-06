@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import {
   CargoShipmentType,
   CargoStatus,
@@ -704,6 +704,90 @@ describe('OrderService', () => {
         reasonCode: OrderReturnReasonCode.WRONG_ITEM,
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects return requests after the return window expires', async () => {
+    const twentyDaysAgo = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.COMPLETED,
+          escrowStatus: EscrowStatus.RELEASED,
+          deliveryConfirmedAt: twentyDaysAgo,
+          completedAt: twentyDaysAgo,
+        }),
+      ],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    await expect(
+      service.requestReturn('order-1', 'buyer-1', {
+        reasonCode: OrderReturnReasonCode.WRONG_ITEM,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('lets the buyer cancel an unpaid order', async () => {
+    const orders: OrderStore = new Map([
+      ['order-1', createOrder({ status: OrderStatus.PAYMENT_PENDING })],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      createNotificationService(),
+    );
+
+    const result = await service.cancelOrder('order-1', 'buyer-1');
+
+    expect(result.code).toBe(RC.ORDER_CANCELLED);
+    expect(result.order?.status).toBe(OrderStatus.CANCELLED);
+  });
+
+  it('blocks buyer cancellation once escrow is held', async () => {
+    const orders: OrderStore = new Map([
+      [
+        'order-1',
+        createOrder({
+          status: OrderStatus.ESCROW_HELD,
+          escrowStatus: EscrowStatus.HELD,
+        }),
+      ],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+    );
+
+    await expect(service.cancelOrder('order-1', 'buyer-1')).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('blocks cancellation by someone other than the buyer', async () => {
+    const orders: OrderStore = new Map([
+      ['order-1', createOrder({ status: OrderStatus.PAYMENT_PENDING })],
+    ]);
+    const service = new OrderService(
+      createOrderRepository(orders),
+      createAuditRepository(),
+    );
+
+    await expect(service.cancelOrder('order-1', 'intruder')).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('finalizes refund after return delivery', async () => {

@@ -13,10 +13,9 @@ import {
   ViolationType,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { CartService } from '../cart/cart.service';
 import { NotificationService } from '../notification/notification.service';
-import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
-import { Category } from '../product/entities/category.entity';
 import { TrustFlagType } from '../trust/entities/trust-flag.entity';
 import { TrustService } from '../trust/trust.service';
 import { ContentModerationService } from './content-moderation.service';
@@ -35,7 +34,7 @@ describe('NegotiationService', () => {
   let violationRepo: Record<string, jest.Mock>;
   let productRepo: Record<string, jest.Mock>;
   let queue: Record<string, jest.Mock>;
-  let orderService: Record<string, jest.Mock>;
+  let cartService: Record<string, jest.Mock>;
   let notificationService: Record<string, jest.Mock>;
   let adminAuditService: Record<string, jest.Mock>;
   let trustService: Record<string, jest.Mock>;
@@ -132,10 +131,10 @@ describe('NegotiationService', () => {
     queue = {
       add: jest.fn(async () => undefined),
     };
-    orderService = {
-      createFromAskPriceHook: jest.fn(async () => ({
-        code: RC.ORDER_CREATED,
-        order: { id: 'order-1' },
+    cartService = {
+      addNegotiatedItem: jest.fn(async () => ({
+        code: RC.CART_ITEM_ADDED,
+        cart: { itemCount: 1, totalQuantity: 1, items: [] },
       })),
     };
     notificationService = {
@@ -158,9 +157,8 @@ describe('NegotiationService', () => {
         { provide: getRepositoryToken(NegotiationMessage), useValue: messageRepo },
         { provide: getRepositoryToken(ViolationLog), useValue: violationRepo },
         { provide: getRepositoryToken(Product), useValue: productRepo },
-        { provide: getRepositoryToken(Category), useValue: { findOne: jest.fn() } },
         { provide: getQueueToken('negotiation'), useValue: queue },
-        { provide: OrderService, useValue: orderService },
+        { provide: CartService, useValue: cartService },
         { provide: NotificationService, useValue: notificationService },
         { provide: AdminAuditService, useValue: adminAuditService },
         { provide: TrustService, useValue: trustService },
@@ -313,7 +311,7 @@ describe('NegotiationService', () => {
     );
   });
 
-  it('accepts a pending offer and creates an Ask Price order handoff', async () => {
+  it('accepts a pending offer and adds it to the buyer cart at the offer price', async () => {
     const pendingOffer = offer();
     offerRepo.findOne.mockResolvedValue(pendingOffer);
     conversationRepo.findOne.mockResolvedValue(
@@ -326,13 +324,10 @@ describe('NegotiationService', () => {
     const result = await service.acceptOffer('buyer-1', 'offer-1');
 
     expect(result.code).toBe(RC.OFFER_ACCEPTED);
-    expect(orderService.createFromAskPriceHook).toHaveBeenCalledWith({
-      acceptedOfferId: 'offer-1',
-      buyerId: 'buyer-1',
-      sellerId: 'seller-1',
+    expect(cartService.addNegotiatedItem).toHaveBeenCalledWith('buyer-1', {
       productId: 'product-1',
+      offerId: 'offer-1',
       amount: 250,
-      currency: 'TRY',
     });
   });
 

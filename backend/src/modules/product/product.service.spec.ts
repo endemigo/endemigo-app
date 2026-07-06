@@ -382,6 +382,58 @@ describe('ProductService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    // Rol bazlı durum guard'ı — satıcı onay akışını atlayamaz
+    it('should reject seller-supplied ACTIVE status on create', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+
+      await expect(
+        service.create('seller-1', {
+          title: 'Antik Halı',
+          price: 25000,
+          status: ProductStatus.ACTIVE,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: RC.FORBIDDEN },
+      });
+      expect(productRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('should allow seller to create with PENDING_REVIEW status', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      await service.create('seller-1', {
+        title: 'Antik Halı',
+        price: 25000,
+        status: ProductStatus.PENDING_REVIEW,
+      });
+
+      expect(productRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ProductStatus.PENDING_REVIEW }),
+      );
+    });
+
+    it('should allow admin actor to create with ACTIVE status', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      await service.create(
+        'seller-1',
+        {
+          title: 'Antik Halı',
+          price: 25000,
+          status: ProductStatus.ACTIVE,
+        },
+        { roles: ['SUPER_ADMIN'] },
+      );
+
+      expect(productRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ProductStatus.ACTIVE }),
+      );
+    });
   });
 
   // ==========================================
@@ -439,11 +491,84 @@ describe('ProductService', () => {
         price: 100,
       });
 
+      // ACTIVE geçişi artık admin yetkisi gerektirir; K5 kalite kontrolü
+      // admin geçişinde de çalışmaya devam eder.
       await expect(
-        service.update('seller-1', 'product-1', {
-          status: ProductStatus.ACTIVE,
-        }),
+        service.update(
+          'seller-1',
+          'product-1',
+          { status: ProductStatus.ACTIVE },
+          { isAdmin: true },
+        ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // Rol bazlı durum guard'ı — satıcı ACTIVE/UNDER_AUCTION/SOLD geçişi yapamaz
+    it.each([
+      ProductStatus.ACTIVE,
+      ProductStatus.UNDER_AUCTION,
+      ProductStatus.SOLD,
+    ])(
+      'should reject seller transitioning product to %s',
+      async (blockedStatus) => {
+        productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+        await expect(
+          service.update('seller-1', 'product-1', { status: blockedStatus }),
+        ).rejects.toMatchObject({
+          response: { code: RC.FORBIDDEN },
+        });
+        expect(productRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should allow admin actor to transition product to ACTIVE', async () => {
+      productRepo.findOne
+        .mockResolvedValueOnce({
+          ...mockProduct,
+          images: [{ id: 'img-1' }],
+          description: 'Yeterince uzun ürün açıklaması',
+          categoryId: 'cat-1',
+          price: 100,
+        })
+        .mockResolvedValueOnce({
+          ...mockProduct,
+          status: ProductStatus.ACTIVE,
+        });
+
+      const result = await service.update(
+        'seller-1',
+        'product-1',
+        { status: ProductStatus.ACTIVE },
+        { isAdmin: true },
+      );
+
+      expect(result.code).toBe(RC.PRODUCT_UPDATED);
+      expect(productRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ProductStatus.ACTIVE }),
+      );
+    });
+
+    it('should allow seller to keep an already ACTIVE product ACTIVE (no transition)', async () => {
+      productRepo.findOne
+        .mockResolvedValueOnce({
+          ...mockProduct,
+          status: ProductStatus.ACTIVE,
+          images: [{ id: 'img-1' }],
+          description: 'Yeterince uzun ürün açıklaması',
+          categoryId: 'cat-1',
+          price: 100,
+        })
+        .mockResolvedValueOnce({
+          ...mockProduct,
+          status: ProductStatus.ACTIVE,
+        });
+
+      const result = await service.update('seller-1', 'product-1', {
+        status: ProductStatus.ACTIVE,
+      });
+
+      expect(result.code).toBe(RC.PRODUCT_UPDATED);
     });
   });
 
@@ -477,6 +602,92 @@ describe('ProductService', () => {
       await expect(service.remove('seller-1', 'nonexistent')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ==========================================
+  // bulkImport
+  // ==========================================
+  describe('bulkImport', () => {
+    it('creates valid rows and reports failed rows with 1-based row numbers and reasons', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      const result = await service.bulkImport('seller-1', {
+        products: [
+          { title: 'Antik Halı', price: 25000 },
+          { price: 100 }, // title eksik
+          { title: 'Bakır Cezve', price: 0 }, // fiyat 0
+          { title: 'Cam Vazo', price: 'abc' }, // fiyat sayısal değil
+        ],
+      });
+
+      expect(result).toMatchObject({
+        created: 1,
+        failed: [
+          { row: 2, reason: 'Ürün adı (title) zorunludur' },
+          { row: 3, reason: "Fiyat 0'dan büyük olmalıdır" },
+          { row: 4, reason: 'Fiyat sayısal bir değer olmalıdır' },
+        ],
+      });
+      expect(productRepo.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not abort the batch when a row fails during creation', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+      // İlk satırın kategorisi geçersiz → create() BadRequest fırlatır,
+      // ikinci satır yine de işlenmelidir.
+      categoryRepo.findOne.mockResolvedValueOnce(null);
+
+      const result = await service.bulkImport('seller-1', {
+        products: [
+          {
+            title: 'Kategorisi Bozuk',
+            price: 100,
+            categoryId: '550e8400-e29b-41d4-a716-446655440000',
+          },
+          { title: 'Antik Halı', price: 25000 },
+        ],
+      });
+
+      expect(result.created).toBe(1);
+      expect(result.failed).toEqual([
+        { row: 1, reason: 'Geçersiz kategori seçimi' },
+      ]);
+    });
+
+    it('forces seller-imported rows to DRAFT even when ACTIVE is provided', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      const result = await service.bulkImport('seller-1', {
+        products: [
+          { title: 'Antik Halı', price: 25000, status: ProductStatus.ACTIVE },
+        ],
+      });
+
+      expect(result.created).toBe(1);
+      expect(result.failed).toEqual([]);
+      expect(productRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ProductStatus.DRAFT }),
+      );
+    });
+
+    it('rejects bulk import for non-sellers', async () => {
+      userService.findById.mockResolvedValue({
+        ...mockSeller,
+        isSeller: false,
+      });
+
+      await expect(
+        service.bulkImport('buyer-1', {
+          products: [{ title: 'Antik Halı', price: 25000 }],
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -867,6 +1078,31 @@ describe('ProductService', () => {
         }),
       );
     });
+
+    it('ignores admin-only status smuggled into the draft payload when publishing', async () => {
+      userService.findById.mockResolvedValue(mockSeller);
+      draftRepo.findOne.mockResolvedValue({
+        id: 'draft-1',
+        sellerId: 'seller-1',
+        status: 'DRAFT',
+        entryMode: ListingDraftEntryMode.MARKETPLACE,
+        listingType: ListingType.DIRECT_SALE,
+        payload: {
+          title: 'Taslak Ürün',
+          price: 100,
+          status: ProductStatus.ACTIVE, // izinli olmayan durum yok sayılır
+        },
+      });
+      productRepo.save.mockResolvedValue({ ...mockProduct });
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      const result = await service.publishListingDraft('seller-1', 'draft-1');
+
+      expect(result.code).toBe(RC.LISTING_DRAFT_PUBLISHED);
+      expect(productRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ProductStatus.DRAFT }),
+      );
+    });
   });
 
   // ==========================================
@@ -922,27 +1158,21 @@ describe('ProductService', () => {
       });
     });
 
-    it('should resolve askQuestionEnabled to true if parent category has isCommunicationEnabled true', async () => {
-      const mockProductWithCategory = {
+    it('should resolve askQuestionEnabled from the product-level supplier toggle', async () => {
+      productRepo.findOne.mockResolvedValue({
         ...mockProduct,
-        categoryId: 'child-cat',
-      };
-      productRepo.findOne.mockResolvedValue(mockProductWithCategory);
-
-      categoryRepo.findOne
-        .mockResolvedValueOnce({
-          id: 'child-cat',
-          parentId: 'parent-cat',
-          metadata: {},
-        })
-        .mockResolvedValueOnce({
-          id: 'parent-cat',
-          parentId: null,
-          metadata: { isCommunicationEnabled: true },
-        });
+        askQuestionEnabled: true,
+      });
 
       const result = await service.findById('product-1');
       expect(result.askQuestionEnabled).toBe(true);
+    });
+
+    it('should default askQuestionEnabled to false when the supplier toggle is off', async () => {
+      productRepo.findOne.mockResolvedValue({ ...mockProduct });
+
+      const result = await service.findById('product-1');
+      expect(result.askQuestionEnabled).toBe(false);
     });
 
     it('should throw NotFoundException', async () => {

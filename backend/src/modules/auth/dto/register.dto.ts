@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, Matches, IsBoolean, Equals } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -29,4 +29,11 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   deviceToken?: string;
+
+  @ApiProperty({ example: true, description: 'KVKK aydınlatma metni onayı — zorunlu' })
+  @IsBoolean()
+  @Equals(true, {
+    message: 'Kayıt olmak için KVKK aydınlatma metnini kabul etmelisiniz',
+  })
+  kvkkAccepted: boolean;
 }

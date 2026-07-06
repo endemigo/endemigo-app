@@ -31,7 +31,7 @@ echo "--- Phase 1: Auth ---"
 # Register new user (may already exist)
 REG=$(curl -s -o /dev/null -w "%{http_code}" -X POST $API/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"regtest@test.com","password":"Test1234!","firstName":"Reg","lastName":"Test"}')
+  -d '{"email":"regtest@test.com","password":"Test1234!","firstName":"Reg","lastName":"Test","kvkkAccepted":true}')
 if [ "$REG" = "201" ] || [ "$REG" = "409" ]; then
   pass "P1.1: Register ($REG)"
 else

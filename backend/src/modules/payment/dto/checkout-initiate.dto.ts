@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CheckoutInitiateDto {
   @IsString()
@@ -7,4 +7,21 @@ export class CheckoutInitiateDto {
   @IsOptional()
   @IsString()
   callbackUrl?: string;
+
+  // Verilmezse kullanıcının varsayılan teslimat adresi kullanılır.
+  @IsOptional()
+  @IsUUID()
+  shippingAddressId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  couponCode?: string;
+}
+
+export class CheckoutQuoteDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  couponCode?: string;
 }

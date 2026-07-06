@@ -69,6 +69,13 @@ export class Auction extends BaseEntity {
   @Column({ type: 'timestamptz', nullable: true })
   winnerPaymentDeadlineAt: Date | null;
 
+  // Satış onayı: admin/organizatör onaylamadan kazanana ödeme açılmaz.
+  @Column({ type: 'timestamptz', nullable: true })
+  saleApprovedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  saleApprovedBy: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   winnerPaymentCompletedAt: Date | null;
 
@@ -107,6 +114,10 @@ export class Auction extends BaseEntity {
   @Column({ default: 60 })
   extensionDuration: number;
 
+  // Duraklatılan lotun kalan süresi; restart sonrası resume için DB'de tutulur.
+  @Column({ type: 'int', nullable: true })
+  pausedRemainingSeconds: number | null;
+
   // ─── Oda Kapasitesi (AUCT-13) ─────────────────────────
   @Column({ nullable: true })
   roomCapacity: number;
@@ -135,4 +146,8 @@ export class Auction extends BaseEntity {
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.00 })
   requiredDeposit: number;
+
+  // Menşei/tedarik garantisi taahhüdünün lot bazında kaydı (hukuki iz).
+  @Column({ type: 'timestamptz', nullable: true })
+  guaranteeAcceptedAt: Date | null;
 }

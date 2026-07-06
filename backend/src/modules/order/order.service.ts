@@ -42,6 +42,7 @@ import { OrderAuditEvent } from './entities/order-audit-event.entity';
 import { Order } from './entities/order.entity';
 import { OrderReview } from './entities/order-review.entity';
 import { Product } from '../product/entities/product.entity';
+import { ProductVariantSku } from '../product/entities/product-variant-sku.entity';
 import { User } from '../user/entities/user.entity';
 import { Auction } from '../auction/entities/auction.entity';
 import { AuctionEvent } from '../auction/entities/auction-event.entity';
@@ -67,6 +68,7 @@ export const ALLOWED_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PAYMENT_PENDING]: [
     OrderStatus.ESCROW_HELD,
     OrderStatus.FAILED,
+    OrderStatus.CANCELLED,
     OrderStatus.ADMIN_REVIEW,
   ],
   [OrderStatus.ESCROW_HELD]: [
@@ -126,6 +128,8 @@ interface AuctionOrderInput {
   paymentId?: string | null;
   isPending?: boolean;
   eventId?: string | null;
+  shippingAddressId?: string | null;
+  shippingAddressSnapshot?: Record<string, unknown> | null;
 }
 
 interface AskPriceOrderInput {
@@ -186,7 +190,15 @@ export class OrderService {
     private readonly storage?: IStorageService,
   ) {}
 
-  async createFromDirectSale(buyerId: string, dto: CreateOrderDto, manager?: EntityManager) {
+  async createFromDirectSale(
+    buyerId: string,
+    dto: CreateOrderDto,
+    manager?: EntityManager,
+    opts?: {
+      shippingAddressId?: string | null;
+      shippingAddressSnapshot?: Record<string, unknown> | null;
+    },
+  ) {
     const product = await this.loadDirectSaleProduct(dto.productId);
     const productAmount = Number(product.price);
     const currency = dto.currency ?? 'TRY';
@@ -228,17 +240,36 @@ export class OrderService {
       });
     }
 
+    // Stok, koşullu UPDATE ile atomik düşülür (oversell koruması). Sipariş
+    // zaten varsa (idempotent tekrar) düşüm geri alınır.
+    await this.reserveDirectSaleStock(
+      product.id,
+      dto.productVariantSkuId ?? null,
+      manager,
+    );
+
     const result = await this.createFromSource({
       buyerId,
       sellerId: product.sellerId,
       productId: product.id,
+      productVariantSkuId: dto.productVariantSkuId ?? null,
       amount: finalAmount,
       currency,
       source: OrderSource.DIRECT_SALE,
       sourceReferenceId:
         dto.idempotencyKey ?? `direct-sale:${product.id}:${buyerId}`,
       discountResult,
+      shippingAddressId: opts?.shippingAddressId ?? null,
+      shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
     }, manager);
+
+    if (result.message === 'Order already exists') {
+      await this.releaseDirectSaleStock(
+        product.id,
+        dto.productVariantSkuId ?? null,
+        manager,
+      );
+    }
 
     if (
       result.message === 'Order created' &&
@@ -275,6 +306,8 @@ export class OrderService {
         source: OrderSource.AUCTION,
         sourceReferenceId: input.auctionId,
         eventId: input.eventId ?? null,
+        shippingAddressId: input.shippingAddressId ?? null,
+        shippingAddressSnapshot: input.shippingAddressSnapshot ?? null,
         initialStatus: isPending ? OrderStatus.PAYMENT_PENDING : OrderStatus.ESCROW_HELD,
         initialEscrowStatus: isPending ? EscrowStatus.NOT_FUNDED : EscrowStatus.HELD,
         paymentId: input.paymentId ?? null,
@@ -301,7 +334,15 @@ export class OrderService {
     return result;
   }
 
-  async createFromAskPriceHook(input: AskPriceOrderInput) {
+  async createFromAskPriceHook(
+    input: AskPriceOrderInput,
+    manager?: EntityManager,
+    opts?: {
+      shippingAddressId?: string | null;
+      shippingAddressSnapshot?: Record<string, unknown> | null;
+      paymentId?: string | null;
+    },
+  ) {
     return this.createFromSource({
       buyerId: input.buyerId,
       sellerId: input.sellerId,
@@ -310,7 +351,11 @@ export class OrderService {
       currency: input.currency ?? 'TRY',
       source: OrderSource.ASK_PRICE,
       sourceReferenceId: input.acceptedOfferId,
-    });
+      shippingAddressId: opts?.shippingAddressId ?? null,
+      shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
+      paymentId: opts?.paymentId ?? null,
+      auditReason: 'ask_price_checkout_initiated',
+    }, manager);
   }
 
   async transitionOrder(
@@ -378,6 +423,12 @@ export class OrderService {
       actorId,
       reason,
     );
+    if (
+      normalizedStatus === OrderStatus.CANCELLED ||
+      normalizedStatus === OrderStatus.FAILED
+    ) {
+      await this.restoreOrderStockOnce(saved);
+    }
     if (autoConfirmAt) {
       await this.scheduleAutoConfirm(saved.id, autoConfirmAt);
     }
@@ -667,6 +718,40 @@ export class OrderService {
     );
   }
 
+  async cancelOrder(orderId: string, buyerId: string) {
+    const order = await this.requireOrder(orderId);
+
+    if (order.buyerId !== buyerId) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Siparişi yalnızca alıcı iptal edebilir',
+      });
+    }
+
+    // Ödeme tamamlandıktan sonra iptal, iade akışından yürür.
+    if (
+      ![OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING].includes(order.status)
+    ) {
+      throw new BadRequestException({
+        code: RC.ORDER_INVALID_TRANSITION,
+        message: 'Sipariş bu aşamada iptal edilemez',
+      });
+    }
+
+    const result = await this.transitionOrder(
+      orderId,
+      OrderStatus.CANCELLED,
+      buyerId,
+      'buyer_cancelled',
+    );
+
+    return {
+      code: RC.ORDER_CANCELLED,
+      message: 'Sipariş iptal edildi',
+      order: (result as { order?: Order }).order ?? null,
+    };
+  }
+
   async requestReturn(orderId: string, buyerId: string, dto: RequestReturnDto) {
     const order = await this.requireOrder(orderId);
 
@@ -681,6 +766,14 @@ export class OrderService {
       throw new BadRequestException({
         code: RC.ORDER_INVALID_TRANSITION,
         message: 'Return can only be requested for completed orders',
+      });
+    }
+
+    const returnWindowEndsAt = this.getReturnWindowEndsAt(order);
+    if (returnWindowEndsAt && Date.now() > returnWindowEndsAt.getTime()) {
+      throw new BadRequestException({
+        code: RC.ORDER_RETURN_WINDOW_EXPIRED,
+        message: `İade süresi doldu (teslimattan itibaren ${this.getReturnWindowDays()} gün)`,
       });
     }
 
@@ -1031,9 +1124,18 @@ export class OrderService {
       returnShipment,
       shipments,
       reviewEligibility: {
-        canRequestReturn: order.status === OrderStatus.COMPLETED,
+        canRequestReturn:
+          order.status === OrderStatus.COMPLETED &&
+          !order.returnRequestedAt &&
+          this.isReturnWindowOpen(order),
         canReview: order.status === OrderStatus.COMPLETED && !review,
+        canCancel:
+          order.buyerId === userId &&
+          [OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING].includes(
+            order.status,
+          ),
       },
+      returnWindowEndsAt: this.getReturnWindowEndsAt(order),
       submittedReview: review ?? null,
     };
   }
@@ -1170,6 +1272,20 @@ export class OrderService {
     order.escrowStatus = EscrowStatus.HELD;
     order.paymentId = paymentId;
 
+    // ADMIN_REVIEW'dan kurtarılan siparişte stok iade edilmiş olabilir —
+    // yeniden düşmeyi dene; stok bittiyse sipariş yine ilerler, operasyon çözer.
+    if (order.source === OrderSource.DIRECT_SALE && order.stockRestoredAt) {
+      try {
+        await this.reserveDirectSaleStock(
+          order.productId,
+          order.productVariantSkuId ?? null,
+        );
+        order.stockRestoredAt = null;
+      } catch {
+        // Stok yeniden ayrılamadı; damga korunur.
+      }
+    }
+
     const saved = await this.orderRepository.save(order);
     await this.writeAuditEvent(
       saved.id,
@@ -1212,6 +1328,9 @@ export class OrderService {
       source: OrderSource;
       sourceReferenceId: string;
       eventId?: string | null;
+      productVariantSkuId?: string | null;
+      shippingAddressId?: string | null;
+      shippingAddressSnapshot?: Record<string, unknown> | null;
       discountResult?: DiscountEvaluationResult;
       initialStatus?: OrderStatus;
       initialEscrowStatus?: EscrowStatus;
@@ -1282,6 +1401,9 @@ export class OrderService {
       buyerId: input.buyerId,
       sellerId: input.sellerId,
       productId: input.productId,
+      productVariantSkuId: input.productVariantSkuId ?? null,
+      shippingAddressId: input.shippingAddressId ?? null,
+      shippingAddressSnapshot: input.shippingAddressSnapshot ?? null,
       amount: input.amount,
       currency: input.currency,
       source: input.source,
@@ -1461,6 +1583,145 @@ export class OrderService {
       appliedDiscount: null,
       rejectedDiscounts: [],
     };
+  }
+
+  /**
+   * Checkout ekranı için birim indirim önizlemesi — sipariş/kupon kaydı
+   * oluşturmadan nihai birim tutarı döner.
+   */
+  async previewDirectSaleDiscount(
+    buyerId: string,
+    productId: string,
+    couponCode?: string,
+  ) {
+    const product = await this.loadDirectSaleProduct(productId);
+    const unitAmount = Number(product.price);
+    const discount = await this.evaluateDirectSaleDiscount(
+      buyerId,
+      product,
+      unitAmount,
+      couponCode,
+    );
+    return { product, unitAmount, discount };
+  }
+
+  private getReturnWindowDays(): number {
+    return Number(this.configService?.get('RETURN_WINDOW_DAYS') ?? 14);
+  }
+
+  private getReturnWindowEndsAt(order: Order): Date | null {
+    const base = order.deliveryConfirmedAt ?? order.completedAt;
+    if (!base) return null;
+    return new Date(
+      new Date(base).getTime() + this.getReturnWindowDays() * 24 * 60 * 60 * 1000,
+    );
+  }
+
+  private isReturnWindowOpen(order: Order): boolean {
+    const endsAt = this.getReturnWindowEndsAt(order);
+    return !endsAt || Date.now() <= endsAt.getTime();
+  }
+
+  private getStockManager(manager?: EntityManager): EntityManager | undefined {
+    const em = manager ?? this.orderRepository?.manager;
+    // Birim testlerdeki mock repository'lerde manager bulunmaz — stok
+    // muhasebesi yalnızca gerçek bağlantı varken çalışır.
+    return typeof em?.createQueryBuilder === 'function' ? em : undefined;
+  }
+
+  private async reserveDirectSaleStock(
+    productId: string,
+    productVariantSkuId: string | null,
+    manager?: EntityManager,
+  ) {
+    const em = this.getStockManager(manager);
+    if (!em) return;
+
+    if (productVariantSkuId) {
+      const skuResult = await em
+        .createQueryBuilder()
+        .update(ProductVariantSku)
+        .set({ stockQuantity: () => '"stockQuantity" - 1' })
+        .where('id = :skuId AND "stockQuantity" >= 1', {
+          skuId: productVariantSkuId,
+        })
+        .execute();
+      if (!skuResult.affected) {
+        throw new BadRequestException({
+          code: RC.PRODUCT_OUT_OF_STOCK,
+          message: 'Seçilen varyant stokta kalmadı',
+        });
+      }
+      // Ürün toplamı bilgilendirme amaçlı; SKU stoğu esas alınır.
+      await em
+        .createQueryBuilder()
+        .update(Product)
+        .set({ stockQuantity: () => 'GREATEST("stockQuantity" - 1, 0)' })
+        .where('id = :productId', { productId })
+        .execute();
+      return;
+    }
+
+    const result = await em
+      .createQueryBuilder()
+      .update(Product)
+      .set({ stockQuantity: () => '"stockQuantity" - 1' })
+      .where('id = :productId AND "stockQuantity" >= 1', { productId })
+      .execute();
+    if (!result.affected) {
+      throw new BadRequestException({
+        code: RC.PRODUCT_OUT_OF_STOCK,
+        message: 'Ürün stokta kalmadı',
+      });
+    }
+  }
+
+  private async releaseDirectSaleStock(
+    productId: string,
+    productVariantSkuId: string | null,
+    manager?: EntityManager,
+  ) {
+    const em = this.getStockManager(manager);
+    if (!em) return;
+
+    if (productVariantSkuId) {
+      await em
+        .createQueryBuilder()
+        .update(ProductVariantSku)
+        .set({ stockQuantity: () => '"stockQuantity" + 1' })
+        .where('id = :skuId', { skuId: productVariantSkuId })
+        .execute();
+    }
+    await em
+      .createQueryBuilder()
+      .update(Product)
+      .set({ stockQuantity: () => '"stockQuantity" + 1' })
+      .where('id = :productId', { productId })
+      .execute();
+  }
+
+  /**
+   * İptal/başarısız siparişte stoğu bir kez iade eder. stockRestoredAt
+   * koşullu UPDATE ile damgalanır; yarışan çağrılarda yalnızca biri kazanır.
+   */
+  private async restoreOrderStockOnce(order: Order, manager?: EntityManager) {
+    if (order.source !== OrderSource.DIRECT_SALE) return;
+    const em = this.getStockManager(manager);
+    if (!em) return;
+
+    const claim = await em
+      .createQueryBuilder()
+      .update(Order)
+      .set({ stockRestoredAt: () => 'NOW()' })
+      .where('id = :id AND "stockRestoredAt" IS NULL', { id: order.id })
+      .execute();
+    if (!claim.affected) return;
+
+    await this.releaseDirectSaleStock(
+      order.productId,
+      order.productVariantSkuId ?? null,
+      manager,
+    );
   }
 
   private async loadDirectSaleProduct(productId: string): Promise<Product> {

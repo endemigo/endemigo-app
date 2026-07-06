@@ -15,7 +15,7 @@ export class MembershipProcessor extends WorkerHost {
     switch (job.name) {
       case 'membership-renewal-check':
         if (job.data.sellerId) {
-          await this.membershipService.markRenewalFailed(job.data.sellerId);
+          await this.membershipService.handleRenewalDue(job.data.sellerId);
         }
         break;
       case 'membership-grace-expiry':

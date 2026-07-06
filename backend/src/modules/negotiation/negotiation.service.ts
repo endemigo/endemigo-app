@@ -23,10 +23,9 @@ import {
 } from '@endemigo/shared';
 import { In, Repository } from 'typeorm';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
+import { CartService } from '../cart/cart.service';
 import { NotificationService } from '../notification/notification.service';
-import { OrderService } from '../order/order.service';
 import { Product } from '../product/entities/product.entity';
-import { Category } from '../product/entities/category.entity';
 import { TrustFlagType } from '../trust/entities/trust-flag.entity';
 import { TrustService } from '../trust/trust.service';
 import { User } from '../user/entities/user.entity';
@@ -88,14 +87,12 @@ export class NegotiationService {
     private readonly violationLogRepository: Repository<ViolationLog>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-    @InjectRepository(Category)
-    private readonly categoryRepository: Repository<Category>,
     @InjectQueue('negotiation')
     private readonly negotiationQueue: Queue,
     private readonly contentModerationService: ContentModerationService,
     private readonly negotiationGateway: NegotiationGateway,
     @Optional()
-    private readonly orderService?: OrderService,
+    private readonly cartService?: CartService,
     @Optional()
     private readonly notificationService?: NotificationService,
     @Optional()
@@ -405,25 +402,24 @@ export class NegotiationService {
     this.assertCanRespondToOffer(userId, offer);
     this.assertOfferPending(offer);
 
-    const orderResult = await this.orderService?.createFromAskPriceHook({
-      acceptedOfferId: offer.id,
-      buyerId: conversation.buyerId,
-      sellerId: conversation.sellerId,
-      productId: conversation.productId,
-      amount: Number(offer.amount),
-      currency: 'TRY',
-    });
-    const order = orderResult && 'order' in orderResult ? orderResult.order : null;
+    // Kabul edilen teklif sipariş açmaz: teklif fiyatıyla alıcının sepetine
+    // girer, sipariş sepet checkout'unda (ASK_PRICE kaynaklı) oluşur.
+    const cartResult = await this.cartService?.addNegotiatedItem(
+      conversation.buyerId,
+      {
+        productId: conversation.productId,
+        offerId: offer.id,
+        amount: Number(offer.amount),
+      },
+    );
 
     offer.status = OfferStatus.ACCEPTED;
     offer.acceptedAt = new Date();
     offer.resolvedAt = new Date();
-    offer.orderId = order?.id ?? null;
     await this.offerRepository.save(offer);
 
     conversation.status = NegotiationStatus.PAYMENT_PENDING;
     conversation.acceptedOfferId = offer.id;
-    conversation.orderId = order?.id ?? null;
     conversation.paymentHoldExpiresAt = new Date(
       Date.now() + PAYMENT_HOLD_MINUTES * 60 * 1000,
     );
@@ -432,7 +428,7 @@ export class NegotiationService {
 
     await this.createSystemMessage(
       conversation.id,
-      'Teklif kabul edildi. Sipariş ödeme bekliyor.',
+      'Teklif kabul edildi. Ürün teklif fiyatıyla sepete eklendi.',
       offer.id,
     );
     await this.notificationService?.createAskPriceOrderHookNotification({
@@ -458,10 +454,10 @@ export class NegotiationService {
 
     return {
       code: RC.OFFER_ACCEPTED,
-      message: 'Teklif kabul edildi',
+      message: 'Teklif kabul edildi, ürün sepete eklendi',
       offer: serializedOffer,
       negotiation: this.serializeConversation(hydrated),
-      order,
+      cart: cartResult?.cart ?? null,
     };
   }
 
@@ -513,6 +509,7 @@ export class NegotiationService {
     };
     await this.conversationRepository.save(conversation);
     await this.createSystemMessage(conversation.id, 'Fiyat görüşmesi kapatıldı.');
+    await this.scheduleArchiveAfterClose(conversation.id);
 
     const hydrated = await this.findConversationForParticipant(userId, conversation.id);
     const serialized = this.serializeConversation(hydrated);
@@ -625,30 +622,6 @@ export class NegotiationService {
     await this.conversationRepository.save(conversation);
   }
 
-  private async checkAskQuestionEnabled(categoryId: string | null): Promise<boolean> {
-    if (!categoryId) {
-      return false;
-    }
-    let currentId: string | null = categoryId;
-    for (let depth = 0; depth < 10; depth++) {
-      const category = await this.categoryRepository.findOne({
-        where: { id: currentId },
-        select: ['id', 'parentId', 'metadata'],
-      });
-      if (!category) {
-        break;
-      }
-      if (category.metadata?.isCommunicationEnabled === true) {
-        return true;
-      }
-      if (!category.parentId) {
-        break;
-      }
-      currentId = category.parentId;
-    }
-    return false;
-  }
-
   private async loadAskPriceProduct(productId: string) {
     const product = await this.productRepository.findOne({
       where: { id: productId },
@@ -661,12 +634,11 @@ export class NegotiationService {
       });
     }
 
-    const askQuestionEnabled = await this.checkAskQuestionEnabled(product.categoryId);
-
+    // Tedarikçi ürün bazında karar verir: fiyat sor VEYA soru sor açık olmalı.
     if (
       product.status !== ProductStatus.ACTIVE ||
       product.listingType === ListingType.AUCTION ||
-      (product.askPriceEnabled !== true && askQuestionEnabled !== true)
+      (product.askPriceEnabled !== true && product.askQuestionEnabled !== true)
     ) {
       throw new BadRequestException({
         code: RC.ASK_PRICE_NOT_ENABLED,
@@ -971,6 +943,27 @@ export class NegotiationService {
         jobId: `negotiation-offer-expire-${offer.id}`,
       },
     );
+  }
+
+  /**
+   * Kapatılan (CANCELLED) görüşmeyi bir süre sonra arşivler; görüşme bu
+   * arada yeniden açılırsa consumer status kontrolüyle no-op kalır.
+   * Arşivleme kritik olmadığından kuyruğa ekleme hatası kapatmayı bozmaz.
+   */
+  private async scheduleArchiveAfterClose(conversationId: string) {
+    const ARCHIVE_DELAY_MS = 24 * 60 * 60 * 1000;
+    try {
+      await this.negotiationQueue.add(
+        'archive-inactive',
+        { conversationId },
+        {
+          delay: ARCHIVE_DELAY_MS,
+          jobId: `negotiation-archive-${conversationId}`,
+        },
+      );
+    } catch {
+      // Redis anlık erişilemezse görüşme yalnızca arşivsiz kalır.
+    }
   }
 
   private async notifyOtherParticipant(

@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsObject, IsString, Min } from 'class-validator';
+import { IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateMobileConfigDraftDto {
   @IsInt()
@@ -8,7 +8,7 @@ export class UpdateMobileConfigDraftDto {
   @IsObject()
   draft: Record<string, unknown>;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  reason: string;
+  reason?: string;
 }

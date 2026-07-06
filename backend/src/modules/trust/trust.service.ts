@@ -293,6 +293,95 @@ export class TrustService {
     return this.toBadge(trustScore.badgeLevel);
   }
 
+  async getSellerTrustBadges(
+    sellerIds: string[],
+  ): Promise<Map<string, TrustBadge>> {
+    const badges = new Map<string, TrustBadge>();
+    const uniqueSellerIds = [...new Set(sellerIds)];
+    if (uniqueSellerIds.length === 0) return badges;
+
+    const restrictedIds = await this.getRestrictedTargetIds(
+      uniqueSellerIds,
+      'SELLING',
+    );
+    for (const sellerId of restrictedIds) {
+      badges.set(sellerId, this.toBadge(TrustBadgeLevel.RESTRICTED));
+    }
+
+    const remainingIds = uniqueSellerIds.filter((id) => !badges.has(id));
+    if (remainingIds.length === 0) return badges;
+
+    const trustScores = await this.trustScoreRepo.find({
+      where: { sellerId: In(remainingIds) },
+    });
+    for (const trustScore of trustScores) {
+      badges.set(trustScore.sellerId, this.toBadge(trustScore.badgeLevel));
+    }
+
+    for (const sellerId of remainingIds) {
+      if (badges.has(sellerId)) continue;
+      const recalculated = await this.recalculateSellerTrust(sellerId);
+      badges.set(sellerId, this.toBadge(recalculated.trustScore.badgeLevel));
+    }
+
+    return badges;
+  }
+
+  async getRestrictedTargetIds(
+    targetIds: string[],
+    capability: TrustCapability,
+  ): Promise<Set<string>> {
+    const restricted = new Set<string>();
+    if (targetIds.length === 0) return restricted;
+
+    const now = new Date();
+    const typeWhere = {
+      restrictionType: In(this.restrictionTypesForCapability(capability)),
+    };
+    const restrictions = await this.restrictionRepo.find({
+      where: [
+        {
+          targetUserId: In(targetIds),
+          status: RestrictionStatus.ACTIVE,
+          endsAt: IsNull(),
+          ...typeWhere,
+        },
+        {
+          targetUserId: In(targetIds),
+          status: RestrictionStatus.ACTIVE,
+          endsAt: MoreThan(now),
+          ...typeWhere,
+        },
+        {
+          sellerId: In(targetIds),
+          status: RestrictionStatus.ACTIVE,
+          endsAt: IsNull(),
+          ...typeWhere,
+        },
+        {
+          sellerId: In(targetIds),
+          status: RestrictionStatus.ACTIVE,
+          endsAt: MoreThan(now),
+          ...typeWhere,
+        },
+      ],
+    });
+
+    const targetIdSet = new Set(targetIds);
+    for (const restriction of restrictions) {
+      if (
+        restriction.targetUserId &&
+        targetIdSet.has(restriction.targetUserId)
+      ) {
+        restricted.add(restriction.targetUserId);
+      }
+      if (restriction.sellerId && targetIdSet.has(restriction.sellerId)) {
+        restricted.add(restriction.sellerId);
+      }
+    }
+    return restricted;
+  }
+
   private async applyRestrictionInternal(
     dto: ApplyAccountRestrictionDto,
     actor: TrustAdminActor,

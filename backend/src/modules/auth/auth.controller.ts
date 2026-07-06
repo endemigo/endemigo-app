@@ -3,9 +3,11 @@ import {
   Post,
   Get,
   Body,
+  Req,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
@@ -38,8 +40,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Yeni kullanıcı kaydı' })
   @ApiResponse({ status: 201, type: AuthResponseDto, description: 'Kayıt başarılı' })
   @ApiResponse({ status: 409, description: 'E-posta zaten kayıtlı' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.register(dto, ip, userAgent);
   }
 
   @Public()

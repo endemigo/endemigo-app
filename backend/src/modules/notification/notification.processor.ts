@@ -38,6 +38,8 @@ export class NotificationProcessor extends WorkerHost {
         title: notification.title,
         body: notification.body,
         idempotencyKey: this.buildIdempotencyKey(notification.id),
+        relatedEntityType: notification.relatedEntityType,
+        relatedEntityId: notification.relatedEntityId,
       });
 
       await this.notificationService.updateDeliveryStatus(

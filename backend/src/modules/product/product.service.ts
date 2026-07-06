@@ -3,11 +3,14 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  HttpException,
   Inject,
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, In } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { Product } from './entities/product.entity';
 import { ProductDraft } from './entities/product-draft.entity';
 import { ProductImage } from './entities/product-image.entity';
@@ -367,6 +370,38 @@ const SEEDED_CATEGORIES: SeedCategoryDefinition[] = [
   },
 ];
 
+/**
+ * Ürün durum guard'ı için çağıranın yetki bağlamı.
+ * Controller'lar request.user (JWT) nesnesini olduğu gibi geçirebilir;
+ * admin paneli yazma işlemleri ayrıca admin-operations modülünde
+ * AdminRoles(SUPER_ADMIN, OPERATIONS) ile korunur.
+ */
+export interface ProductActorContext {
+  isAdmin?: boolean;
+  roles?: string[];
+}
+
+// Satıcıların ürün oluştururken kendilerinin atayabileceği durumlar —
+// onay akışının (PENDING_REVIEW → admin onayı) atlanmasını engeller.
+const SELLER_ALLOWED_CREATE_STATUSES: readonly ProductStatus[] = [
+  ProductStatus.DRAFT,
+  ProductStatus.PENDING_REVIEW,
+];
+
+// Yalnızca admin rollerinin (SUPER_ADMIN, OPERATIONS) geçiş yapabileceği durumlar.
+const ADMIN_ONLY_STATUSES: readonly ProductStatus[] = [
+  ProductStatus.ACTIVE,
+  ProductStatus.UNDER_AUCTION,
+  ProductStatus.SOLD,
+];
+
+// JWT payload'ında admin yetkisi sayılan roller (RolesGuard 'admin' + admin panel rolleri).
+const PRIVILEGED_STATUS_ROLES: readonly string[] = [
+  'admin',
+  'SUPER_ADMIN',
+  'OPERATIONS',
+];
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -412,7 +447,11 @@ export class ProductService {
   // Create Product
   // ==========================================
 
-  async create(sellerId: string, dto: CreateProductDto) {
+  async create(
+    sellerId: string,
+    dto: CreateProductDto,
+    actor?: ProductActorContext,
+  ) {
     const user = await this.userService.findById(sellerId);
     if (!user || !user.isSeller) {
       throw new ForbiddenException({
@@ -420,9 +459,27 @@ export class ProductService {
         message: 'Sadece satıcılar ürün ekleyebilir',
       });
     }
+    // Rol bazlı durum guard'ı: satıcı, onay akışını atlayıp ürünü doğrudan
+    // ACTIVE/UNDER_AUCTION/SOLD gibi bir durumda oluşturamaz.
+    const canManageStatus = this.canManageProductStatus(actor);
+    if (
+      dto.status !== undefined &&
+      !canManageStatus &&
+      !SELLER_ALLOWED_CREATE_STATUSES.includes(dto.status)
+    ) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message:
+          'Satıcılar ürünü yalnızca taslak veya onay bekliyor durumunda oluşturabilir',
+      });
+    }
     this.validateAskPriceCompatibility(dto.listingType, dto.askPriceEnabled);
     await this.validateLeafCategorySelection(dto.categoryId);
-    const { variantSkus, ...createData } = this.stripClientImageUrl(dto);
+    const {
+      variantSkus,
+      status: requestedStatus,
+      ...createData
+    } = this.stripClientImageUrl(dto);
     const normalizedGeoTypes =
       createData.geoIndicationTypes && createData.geoIndicationTypes.length > 0
         ? createData.geoIndicationTypes
@@ -435,7 +492,8 @@ export class ProductService {
       geoIndicationTypes: normalizedGeoTypes,
       geoIndicationType: normalizedGeoTypes[0] ?? createData.geoIndicationType ?? null,
       sellerId,
-      status: ProductStatus.DRAFT,
+      // Durum belirtilmemişse mevcut davranış korunur: DRAFT ile başlar.
+      status: requestedStatus ?? ProductStatus.DRAFT,
     });
     const saved = await this.productRepo.save(product);
     await this.syncProductVariantSkus(saved.id, variantSkus);
@@ -541,7 +599,12 @@ export class ProductService {
   // Update Product
   // ==========================================
 
-  async update(sellerId: string, productId: string, dto: UpdateProductDto) {
+  async update(
+    sellerId: string,
+    productId: string,
+    dto: UpdateProductDto,
+    actor?: ProductActorContext,
+  ) {
     const product = await this.productRepo.findOne({
       where: { id: productId },
       relations: ['images'],
@@ -604,8 +667,24 @@ export class ProductService {
       status,
       askPriceEnabled,
       askPriceMinAmount,
+      askQuestionEnabled,
       variantSkus,
     } = dto;
+    // Rol bazlı durum guard'ı: satıcı ürünü kendi başına ACTIVE/UNDER_AUCTION/SOLD
+    // durumuna taşıyamaz — bu geçişler yalnızca admin (SUPER_ADMIN, OPERATIONS)
+    // onayıyla yapılır. Aynı durumda kalan (no-op) güncellemeler engellenmez.
+    const canManageStatus = this.canManageProductStatus(actor);
+    if (
+      status !== undefined &&
+      status !== product.status &&
+      ADMIN_ONLY_STATUSES.includes(status) &&
+      !canManageStatus
+    ) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Bu ürün durumuna geçiş için yönetici yetkisi gereklidir',
+      });
+    }
     this.validateAskPriceCompatibility(
       listingType ?? product.listingType,
       askPriceEnabled ?? product.askPriceEnabled,
@@ -659,6 +738,7 @@ export class ProductService {
         status,
         askPriceEnabled,
         askPriceMinAmount,
+        askQuestionEnabled,
       }).filter(([, v]) => v !== undefined),
     );
     const nextGeoTypes = geoIndicationTypes ?? (geoIndicationType ? [geoIndicationType] : undefined);
@@ -690,8 +770,10 @@ export class ProductService {
         });
       }
 
-      // Güvenilirlik kontrolü — Güvenilmeyen satıcının ürünü onay sürecine gider
-      if (this.trustService) {
+      // Güvenilirlik kontrolü — Güvenilmeyen satıcının ürünü onay sürecine gider.
+      // Admin (canManageStatus) geçişleri açıkça onay anlamına geldiği için
+      // güven rozetine göre PENDING_REVIEW'a düşürülmez.
+      if (this.trustService && !canManageStatus) {
         const trustBadge = await this.trustService.getSellerTrustBadge(sellerId);
         const isTrusted =
           trustBadge.level === TrustBadgeLevel.TRUSTED ||
@@ -856,7 +938,13 @@ export class ProductService {
   // List — Public
   // ==========================================
 
-  async findAll(page = 1, limit = 20, sort?: string, brand?: string) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    sort?: string,
+    brand?: string,
+    categoryId?: string,
+  ) {
     const qb = this.productRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.category', 'category')
@@ -867,6 +955,11 @@ export class ProductService {
     const normalizedBrand = brand?.trim();
     if (normalizedBrand) {
       qb.andWhere('LOWER(p.brand) = LOWER(:brand)', { brand: normalizedBrand });
+    }
+
+    if (categoryId) {
+      const categoryIds = await this.resolveCategorySubtreeIds(categoryId);
+      qb.andWhere('p.categoryId IN (:...categoryIds)', { categoryIds });
     }
 
     if (sort === 'likes' || sort === 'popular') {
@@ -880,11 +973,10 @@ export class ProductService {
       .take(limit)
       .getManyAndCount();
 
-    const categoryCache = new Map<string, boolean>();
     const responseItems = await this.applyMembershipVisibilityBoost(
       await this.annotateSponsoredProducts(
         await this.attachTrustBadges(
-          await Promise.all(items.map((p) => this.toResponse(p, undefined, false, categoryCache))),
+          await Promise.all(items.map((p) => this.toResponse(p, undefined, false))),
         ),
         AdPlacementType.CATEGORY_SHOWCASE,
       ),
@@ -913,12 +1005,11 @@ export class ProductService {
       take: limit,
     });
 
-    const categoryCache = new Map<string, boolean>();
     return {
       code: RC.PRODUCT_LIST,
       message: 'Satıcı ürünleri listelendi',
       items: await this.attachTrustBadges(
-        await Promise.all(items.map((p) => this.toResponse(p, undefined, true, categoryCache))),
+        await Promise.all(items.map((p) => this.toResponse(p, undefined, true))),
       ),
       total,
       page,
@@ -1239,30 +1330,6 @@ export class ProductService {
     ].some((keyword) => slug.includes(keyword));
   }
 
-  private async checkAskQuestionEnabled(categoryId: string | null): Promise<boolean> {
-    if (!categoryId) {
-      return false;
-    }
-    let currentId: string | null = categoryId;
-    for (let depth = 0; depth < 10; depth++) {
-      const category = await this.categoryRepo.findOne({
-        where: { id: currentId },
-        select: ['id', 'parentId', 'metadata'],
-      });
-      if (!category) {
-        break;
-      }
-      if (category.metadata?.isCommunicationEnabled === true) {
-        return true;
-      }
-      if (!category.parentId) {
-        break;
-      }
-      currentId = category.parentId;
-    }
-    return false;
-  }
-
   // ==========================================
   // Response Mapper
   // ==========================================
@@ -1271,7 +1338,6 @@ export class ProductService {
     product: Product,
     isFavorited?: boolean,
     revealAskPriceAmounts = false,
-    categoryCache?: Map<string, boolean>,
   ) {
     const hideAskPriceAmounts =
       product.askPriceEnabled && !revealAskPriceAmounts;
@@ -1279,18 +1345,6 @@ export class ProductService {
       .filter((item) => item.isActive !== false)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const variantOptions = this.buildVariantOptionsFromSkus(activeVariantSkus);
-
-    let askQuestionEnabled = false;
-    if (product.categoryId) {
-      if (categoryCache && categoryCache.has(product.categoryId)) {
-        askQuestionEnabled = categoryCache.get(product.categoryId)!;
-      } else {
-        askQuestionEnabled = await this.checkAskQuestionEnabled(product.categoryId);
-        if (categoryCache) {
-          categoryCache.set(product.categoryId, askQuestionEnabled);
-        }
-      }
-    }
 
     return {
       id: product.id,
@@ -1388,7 +1442,7 @@ export class ProductService {
         : null,
       weight: product.weight ? Number(product.weight) : null,
       favoriteCount: product.favoriteCount,
-      askQuestionEnabled,
+      askQuestionEnabled: product.askQuestionEnabled === true,
       ...(isFavorited !== undefined ? { isFavorited } : {}),
       createdAt: product.createdAt,
     };
@@ -1413,14 +1467,15 @@ export class ProductService {
     const trustService = this.trustService;
     if (!trustService) return items;
 
-    return Promise.all(
-      items.map(async (item) => {
-        if (!item.sellerId) return item;
-        return {
-          ...item,
-          trustBadge: await trustService.getSellerTrustBadge(item.sellerId),
-        };
-      }),
+    const sellerIds = items
+      .map((item) => item.sellerId)
+      .filter((sellerId): sellerId is string => !!sellerId);
+    const trustBadges = await trustService.getSellerTrustBadges(sellerIds);
+
+    return items.map((item) =>
+      item.sellerId
+        ? { ...item, trustBadge: trustBadges.get(item.sellerId) }
+        : item,
     );
   }
 
@@ -1430,21 +1485,23 @@ export class ProductService {
     const membershipService = this.membershipService;
     if (!membershipService) return items;
 
-    const boosted = await Promise.all(
-      items.map(async (item, index) => {
-        if (!item.sellerId) return { item, index };
-        const benefits = await membershipService.getSellerBenefits(
-          item.sellerId,
-        );
-        return {
-          item: {
-            ...item,
-            visibilityBoost: Math.max(0, Number(benefits.visibilityBoost ?? 0)),
-          },
-          index,
-        };
-      }),
-    );
+    const sellerIds = items
+      .map((item) => item.sellerId)
+      .filter((sellerId): sellerId is string => !!sellerId);
+    const benefitsBySeller =
+      await membershipService.getBenefitsForSellers(sellerIds);
+
+    const boosted = items.map((item, index) => {
+      if (!item.sellerId) return { item, index };
+      const benefits = benefitsBySeller.get(item.sellerId);
+      return {
+        item: {
+          ...item,
+          visibilityBoost: Math.max(0, Number(benefits?.visibilityBoost ?? 0)),
+        },
+        index,
+      };
+    });
 
     return boosted
       .sort((left, right) => {
@@ -1684,6 +1741,15 @@ export class ProductService {
       });
     }
 
+    // Taslak payload'ı istemci kontrollü JSON olduğu için durum alanı yalnızca
+    // satıcıya izin verilen değerlerle geçirilir; diğer değerler (örn. ACTIVE)
+    // eski davranışla uyumlu şekilde DRAFT başlangıcına düşer.
+    const payloadStatus =
+      typeof payload.status === 'string' &&
+      SELLER_ALLOWED_CREATE_STATUSES.includes(payload.status as ProductStatus)
+        ? (payload.status as ProductStatus)
+        : undefined;
+
     return {
       ...(payload as Partial<CreateProductDto>),
       title,
@@ -1693,6 +1759,7 @@ export class ProductService {
           ? payload.categoryId
           : draft.categoryId ?? undefined,
       listingType: draft.listingType,
+      status: payloadStatus,
     } as CreateProductDto;
   }
 
@@ -1718,6 +1785,23 @@ export class ProductService {
         message: 'Lütfen alt kategori seçin',
       });
     }
+  }
+
+  private async resolveCategorySubtreeIds(categoryId: string) {
+    const categoryIds = [categoryId];
+    let parentIds = [categoryId];
+    for (let depth = 0; depth < 10 && parentIds.length > 0; depth++) {
+      const children = await this.categoryRepo.find({
+        where: { parentId: In(parentIds), isActive: true },
+        select: ['id'],
+      });
+      const childIds = children
+        .map((child) => child.id)
+        .filter((id) => !categoryIds.includes(id));
+      categoryIds.push(...childIds);
+      parentIds = childIds;
+    }
+    return categoryIds;
   }
 
   private stripClientImageUrl<T extends object>(dto: T): Omit<T, 'imageUrl'> {
@@ -1889,7 +1973,11 @@ export class ProductService {
     }
   }
 
-  async bulkImport(sellerId: string, dto: BulkImportDto) {
+  async bulkImport(
+    sellerId: string,
+    dto: BulkImportDto,
+    actor?: ProductActorContext,
+  ) {
     const user = await this.userService.findById(sellerId);
     if (!user?.isSeller) {
       throw new ForbiddenException({
@@ -1898,21 +1986,140 @@ export class ProductService {
       });
     }
 
-    let successCount = 0;
-    // Iterate over each product and create it
-    for (const productDto of dto.products) {
+    const canManageStatus = this.canManageProductStatus(actor);
+    const failed: { row: number; reason: string }[] = [];
+    let created = 0;
+
+    // Satırlar tek tek işlenir: hatalı bir satır partinin geri kalanını durdurmaz,
+    // her hata 1 tabanlı satır numarasıyla failed[] listesine yazılır.
+    for (const [index, rawRow] of (dto.products ?? []).entries()) {
+      const row = index + 1;
       try {
-        await this.create(sellerId, productDto);
-        successCount++;
+        const rowDto = await this.buildBulkImportRowDto(rawRow);
+        // Satıcı içe aktarımlarında durum daima DRAFT'a zorlanır —
+        // toplu yükleme ile onay akışı (PENDING_REVIEW) atlanamaz.
+        if (!canManageStatus) {
+          rowDto.status = ProductStatus.DRAFT;
+        }
+        await this.create(sellerId, rowDto, actor);
+        created++;
       } catch (error) {
-        console.error(`Bulk import fail for ${productDto.title}: ${error.message}`);
+        failed.push({ row, reason: this.resolveBulkImportFailReason(error) });
       }
     }
 
     return {
       code: RC.SUCCESS,
-      message: `${successCount} ürün başarıyla eklendi.`,
-      importedCount: successCount,
+      message: `${created} ürün eklendi, ${failed.length} satır başarısız`,
+      created,
+      failed,
     };
+  }
+
+  /**
+   * Toplu içe aktarma satırını CreateProductDto'ya dönüştürür ve doğrular.
+   * BulkImportDto satırları global pipe'tan doğrulanmadan geçtiği için
+   * (satır bazlı hata raporu gereksinimi) zorunlu alan ve tip kontrolleri
+   * burada, Türkçe hata mesajlarıyla yapılır.
+   * Auction modülündeki toplu lot yüklemesi de aynı doğrulamayı kullanır.
+   */
+  async buildBulkImportRowDto(
+    rawRow: Record<string, unknown>,
+  ): Promise<CreateProductDto> {
+    if (!rawRow || typeof rawRow !== 'object' || Array.isArray(rawRow)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Satır verisi geçersiz',
+      });
+    }
+
+    const title = typeof rawRow.title === 'string' ? rawRow.title.trim() : '';
+    if (!title) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün adı (title) zorunludur',
+      });
+    }
+    if (title.length < 3) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün adı en az 3 karakter olmalıdır',
+      });
+    }
+
+    const rawPrice = rawRow.price;
+    if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Fiyat (price) zorunludur',
+      });
+    }
+    // Excel parserları fiyatı string gönderebildiği için sayıya çevrilerek doğrulanır
+    const price = typeof rawPrice === 'number' ? rawPrice : Number(rawPrice);
+    if (typeof rawPrice === 'boolean' || !Number.isFinite(price)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Fiyat sayısal bir değer olmalıdır',
+      });
+    }
+    if (price <= 0) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: "Fiyat 0'dan büyük olmalıdır",
+      });
+    }
+
+    // Kalan alanlar CreateProductDto kurallarıyla doğrulanır; whitelist ile
+    // tanımsız alanlar temizlenir (mass assignment koruması).
+    const rowDto = plainToInstance(CreateProductDto, {
+      ...rawRow,
+      title,
+      price,
+    });
+    const validationErrors = await validate(rowDto, {
+      whitelist: true,
+      forbidNonWhitelisted: false,
+    });
+    if (validationErrors.length > 0) {
+      const invalidFields = validationErrors
+        .map((error) => error.property)
+        .join(', ');
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: `Geçersiz alan değerleri: ${invalidFields}`,
+      });
+    }
+
+    return rowDto;
+  }
+
+  /** Satır hatasını kullanıcıya gösterilebilir Türkçe bir nedene dönüştürür. */
+  private resolveBulkImportFailReason(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') return response;
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        typeof (response as { message?: unknown }).message === 'string'
+      ) {
+        return (response as { message: string }).message;
+      }
+    }
+    return 'Ürün oluşturulamadı';
+  }
+
+  /**
+   * Çağıranın ürün durumunu serbestçe yönetme yetkisi var mı?
+   * RolesGuard'daki admin tanımıyla (isAdmin bayrağı / 'admin' rolü) ve
+   * admin panel rolleriyle (SUPER_ADMIN, OPERATIONS) hizalıdır.
+   */
+  private canManageProductStatus(actor?: ProductActorContext): boolean {
+    if (!actor) return false;
+    if (actor.isAdmin === true) return true;
+    return (
+      actor.roles?.some((role) => PRIVILEGED_STATUS_ROLES.includes(role)) ??
+      false
+    );
   }
 }

@@ -48,6 +48,12 @@ export class OrderController {
     return this.orderService.confirmDelivery(id, buyerId);
   }
 
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel order (buyer, before payment held)' })
+  cancelOrder(@CurrentUser('id') buyerId: string, @Param('id') id: string) {
+    return this.orderService.cancelOrder(id, buyerId);
+  }
+
   @Post(':id/return-request')
   @ApiOperation({ summary: 'Create return request' })
   requestReturn(

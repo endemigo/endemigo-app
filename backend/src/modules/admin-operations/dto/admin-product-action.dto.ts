@@ -144,6 +144,10 @@ export class AdminProductMetadataDto {
   @IsOptional()
   askPriceEnabled?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  askQuestionEnabled?: boolean;
+
   @IsString()
   @IsOptional()
   shippingProvince?: string;

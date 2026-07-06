@@ -9,6 +9,9 @@ describe('AdminAuditService', () => {
     findAndCount: jest.Mock;
     findOne: jest.Mock;
   };
+  let adminUserRepo: {
+    find: jest.Mock;
+  };
   let service: AdminAuditService;
 
   beforeEach(() => {
@@ -18,7 +21,10 @@ describe('AdminAuditService', () => {
       findAndCount: jest.fn().mockResolvedValue([[], 0]),
       findOne: jest.fn().mockResolvedValue(null),
     };
-    service = new AdminAuditService(repo as never);
+    adminUserRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    service = new AdminAuditService(repo as never, adminUserRepo as never);
   });
 
   it('records audited admin actions with trimmed reason', async () => {

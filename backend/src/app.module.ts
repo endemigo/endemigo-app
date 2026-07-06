@@ -34,6 +34,7 @@ import { ContentStudioModule } from './modules/content-studio/content-studio.mod
 import { BannerModule } from './modules/banner/banner.module';
 import { StorageModule } from './shared/storage/storage.module';
 import { EmailModule } from './shared/email/email.module';
+import { resolveRedisConnection } from './shared/config/redis.config';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -55,11 +56,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        connection: {
-          host: configService.get<string>('REDIS_HOST', 'localhost'),
-          port: Number(configService.get<string | number>('REDIS_PORT', 6381)),
-          password: configService.get<string>('REDIS_PASSWORD') || undefined,
-        },
+        connection: resolveRedisConnection(configService),
       }),
       inject: [ConfigService],
     }),

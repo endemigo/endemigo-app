@@ -55,6 +55,26 @@ function parsePositiveIntQuery(
   return maxValue ? Math.min(parsed, maxValue) : parsed;
 }
 
+const UUID_QUERY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseOptionalUuidQuery(
+  value: unknown,
+  field: string,
+): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+
+  const stringValue = String(value);
+  if (!UUID_QUERY_PATTERN.test(stringValue)) {
+    throw new BadRequestException({
+      code: RC.VALIDATION_ERROR,
+      message: `${field} must be a valid UUID`,
+    });
+  }
+
+  return stringValue;
+}
+
 @ApiTags('Products')
 @Controller('products')
 export class ProductController {
@@ -89,7 +109,9 @@ export class ProductController {
     type: ProductResponseDto,
   })
   async create(@CurrentUser() user: any, @Body() dto: CreateProductDto) {
-    return this.productService.create(user.id, dto);
+    // user (JWT) aynı zamanda aktör bağlamıdır: isAdmin/roles alanları
+    // servisteki rol bazlı ürün durumu guard'ında kullanılır.
+    return this.productService.create(user.id, dto, user);
   }
 
   @Post('bulk-import')
@@ -97,7 +119,7 @@ export class ProductController {
   @Roles('seller')
   @ApiOperation({ summary: 'Satıcı - Toplu ürün yükleme (Frontend Excel parserından gelen array)' })
   async bulkImport(@CurrentUser() user: any, @Body() dto: BulkImportDto) {
-    return this.productService.bulkImport(user.id, dto);
+    return this.productService.bulkImport(user.id, dto, user);
   }
 
   @Post('drafts')
@@ -169,11 +191,13 @@ export class ProductController {
   @Roles('seller')
   @ApiOperation({ summary: 'Ürün güncelle (sadece ürün sahibi)' })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ) {
-    return this.productService.update(userId, id, dto);
+    // Aktör bağlamı servise geçirilir: satıcı, ürünü kendi başına
+    // ACTIVE/UNDER_AUCTION/SOLD durumuna taşıyamaz (servis guard'ı).
+    return this.productService.update(user.id, id, dto, user);
   }
 
   @Delete(':id')
@@ -265,17 +289,24 @@ export class ProductController {
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'likes', 'popular'] })
   @ApiQuery({ name: 'brand', required: false, example: 'Endemigo' })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Kategori filtresi (alt kategoriler dahil)',
+  })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
     @Query('brand') brand?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     return this.productService.findAll(
       parsePositiveIntQuery(page, 'page', 1),
       parsePositiveIntQuery(limit, 'limit', 20, 100),
       sort,
       brand,
+      parseOptionalUuidQuery(categoryId, 'categoryId'),
     );
   }
 

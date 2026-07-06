@@ -21,6 +21,7 @@ import { ProductCondition } from '../../../shared/types/product-condition.enum';
 import { ListingType } from '../../../shared/types/listing-type.enum';
 import { GeoIndicationType } from '../../../shared/types/geo-indication-type.enum';
 import { ProductProductionSeason } from '../../../shared/types/product-production-season.enum';
+import { ProductStatus } from '../../../shared/types/product-status.enum';
 
 export class ProductVariantSkuInputDto {
   @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000' })
@@ -219,6 +220,11 @@ export class CreateProductDto {
   @IsOptional()
   askPriceMinAmount?: number;
 
+  @ApiPropertyOptional({ default: false })
+  @IsBoolean()
+  @IsOptional()
+  askQuestionEnabled?: boolean;
+
   @ApiPropertyOptional({ example: 500 })
   @IsNumber()
   @Min(0)
@@ -309,4 +315,12 @@ export class CreateProductDto {
   @Type(() => ProductVariantSkuInputDto)
   @IsOptional()
   variantSkus?: ProductVariantSkuInputDto[];
+
+  // Rol bazlı durum guard'ı (ProductService.create): satıcılar yalnızca
+  // DRAFT veya PENDING_REVIEW gönderebilir; ACTIVE/UNDER_AUCTION/SOLD
+  // yalnızca admin rollerine açıktır. Boş bırakılırsa DRAFT olarak başlar.
+  @ApiPropertyOptional({ enum: ProductStatus, default: ProductStatus.DRAFT })
+  @IsEnum(ProductStatus)
+  @IsOptional()
+  status?: ProductStatus;
 }
