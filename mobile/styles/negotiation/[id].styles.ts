@@ -233,4 +233,18 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodyMedium,
     color: Colors.slate400,
   },
+  realtimeBanner: {
+    alignItems: 'center',
+    backgroundColor: Colors.errorContainer,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+  },
+  realtimeBannerText: {
+    color: Colors.error,
+    flex: 1,
+    fontFamily: FontFamily.bodyMedium,
+    fontSize: FontSize.caption,
+  },
 });

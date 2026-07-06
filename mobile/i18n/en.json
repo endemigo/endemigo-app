@@ -854,7 +854,8 @@
       "loading": "Loading conversation...",
       "notFound": "Conversation not found",
       "emptyTitle": "Conversation started",
-      "emptyText": "Continue with structured offers and short notes."
+      "emptyText": "Continue with structured offers and short notes.",
+      "realtimeDown": "Live connection unavailable. New messages may appear with a delay."
     },
     "status": {
       "OPEN": "Open",

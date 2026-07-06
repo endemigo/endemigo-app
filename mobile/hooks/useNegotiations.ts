@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Socket } from 'socket.io-client';
 import api from '../lib/api';
 import ENV from '../lib/config';
-import { getNegotiationSocket } from '../services/negotiationSocket';
+import {
+  disconnectNegotiationSocket,
+  getNegotiationSocket,
+} from '../services/negotiationSocket';
 import { useNegotiationStore } from '../store/negotiationStore';
 import {
   NegotiationMessageType,
@@ -387,9 +390,16 @@ export function useNegotiationRealtime(negotiationId?: string) {
   const addMessage = useNegotiationStore((state) => state.addMessage);
   const upsertConversation = useNegotiationStore((state) => state.upsertConversation);
   const upsertOffer = useNegotiationStore((state) => state.upsertOffer);
+  // Sunucu join'i reddettiyse (ör. süresi dolmuş token) ekran bilsin:
+  // aksi halde kullanıcı sohbette oturur, mesajlar sessizce gelmez.
+  const [realtimeDown, setRealtimeDown] = useState(false);
+  const retriedAuthRef = useRef(false);
 
   useEffect(() => {
     if (!negotiationId || ENV.USE_MOCK) return;
+
+    retriedAuthRef.current = false;
+    setRealtimeDown(false);
 
     let cancelled = false;
     let cleanup: (() => void) | null = null;
@@ -405,6 +415,26 @@ export function useNegotiationRealtime(negotiationId?: string) {
       // after the first drop.
       const onConnect = () => {
         socket.emit('negotiation:join', { negotiationId });
+      };
+
+      const onJoined = (payload?: { negotiationId?: string; conversationId?: string }) => {
+        const joinedId = payload?.negotiationId ?? payload?.conversationId;
+        if (joinedId && joinedId !== negotiationId) return;
+        setRealtimeDown(false);
+      };
+
+      const onError = (payload?: { code?: string }) => {
+        // UNAUTHORIZED çoğu zaman bayat token'la kurulmuş soket demek:
+        // bir kez taze token'la yeniden kurmayı dene, olmazsa ekrana bildir.
+        if (payload?.code === 'UNAUTHORIZED' && !retriedAuthRef.current) {
+          retriedAuthRef.current = true;
+          cleanup?.();
+          cleanup = null;
+          disconnectNegotiationSocket();
+          void connect();
+          return;
+        }
+        setRealtimeDown(true);
       };
 
       const handleMessage = (message: NegotiationMessage) => {
@@ -426,6 +456,8 @@ export function useNegotiationRealtime(negotiationId?: string) {
       };
 
       socket.on('connect', onConnect);
+      socket.on('negotiation:joined', onJoined);
+      socket.on('negotiation:error', onError);
       socket.on('message:new', handleMessage);
       socket.on('offer:updated', handleOffer);
       socket.on('negotiation:updated', handleNegotiation);
@@ -442,6 +474,8 @@ export function useNegotiationRealtime(negotiationId?: string) {
       cleanup = () => {
         socket.emit('negotiation:leave', { negotiationId });
         socket.off('connect', onConnect);
+        socket.off('negotiation:joined', onJoined);
+        socket.off('negotiation:error', onError);
         socket.off('message:new', handleMessage);
         socket.off('offer:updated', handleOffer);
         socket.off('negotiation:updated', handleNegotiation);
@@ -455,6 +489,8 @@ export function useNegotiationRealtime(negotiationId?: string) {
       cleanup?.();
     };
   }, [addMessage, negotiationId, queryClient, upsertConversation, upsertOffer]);
+
+  return { realtimeDown };
 }
 
 export function useNegotiationStoreMessages(negotiationId?: string) {

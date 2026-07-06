@@ -45,7 +45,7 @@ export default function NegotiationDetailScreen() {
   const messages = useNegotiationStoreMessages(id);
   const actions = useNegotiationActions();
   const canRespondToOffer = useCanRespondToOffer(user?.id);
-  useNegotiationRealtime(id);
+  const { realtimeDown } = useNegotiationRealtime(id);
 
   const conversationClosed = useMemo(
     () => Boolean(
@@ -128,6 +128,15 @@ export default function NegotiationDetailScreen() {
           <Ionicons name="close-circle-outline" size={20} color={Colors.onSurfaceVariant} />
         </TouchableOpacity>
       </View>
+
+      {realtimeDown && (
+        <View style={styles.realtimeBanner}>
+          <Ionicons name="cloud-offline-outline" size={16} color={Colors.error} />
+          <Text style={styles.realtimeBannerText}>
+            {t('negotiation.detail.realtimeDown')}
+          </Text>
+        </View>
+      )}
 
       {/* Ürün bağlam kartı: alıcı neyi pazarlık ettiğini her an görür */}
       <TouchableOpacity

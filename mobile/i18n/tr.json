@@ -854,7 +854,8 @@
       "loading": "Görüşme yükleniyor...",
       "notFound": "Görüşme bulunamadı",
       "emptyTitle": "Görüşme başladı",
-      "emptyText": "Satıcıyla teklif ve kısa notlar üzerinden ilerleyebilirsiniz."
+      "emptyText": "Satıcıyla teklif ve kısa notlar üzerinden ilerleyebilirsiniz.",
+      "realtimeDown": "Canlı bağlantı kurulamadı. Yeni mesajlar gecikmeli görünebilir."
     },
     "status": {
       "OPEN": "Açık",
