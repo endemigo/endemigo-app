@@ -2074,7 +2074,14 @@ export class AuctionService implements OnApplicationBootstrap {
       if (!transactionCommitted) {
         await queryRunner.rollbackTransaction();
       } else {
-        await this.scheduleFinalizationCompensation(auctionId, error);
+        try {
+          await this.scheduleFinalizationCompensation(auctionId, error);
+        } catch (compensationError) {
+          // Kompanzasyon kurulumu patlarsa asıl hatayı gölgelemesin.
+          this.logger.error(
+            `Finalization kompanzasyon görevi kurulamadı (${auctionId}): ${compensationError}`,
+          );
+        }
       }
       throw error;
     } finally {
