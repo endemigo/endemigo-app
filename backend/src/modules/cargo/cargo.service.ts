@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -41,6 +42,8 @@ const ALLOWED_CARGO_TRANSITIONS: Record<CargoStatus, CargoStatus[]> = {
 
 @Injectable()
 export class CargoService {
+  private readonly logger = new Logger(CargoService.name);
+
   constructor(
     @InjectRepository(CargoShipment)
     private readonly cargoShipmentRepository?: Repository<CargoShipment>,
@@ -362,6 +365,13 @@ export class CargoService {
   }
 
   private async enqueueTransitions(shipmentId: string) {
+    if (!this.cargoQueue) {
+      // DI kuyruğu vermezse geçişler sessizce kaybolmasın.
+      this.logger.warn(
+        `Cargo kuyruğu yok; geçiş görevleri kurulamadı (shipment: ${shipmentId})`,
+      );
+      return;
+    }
     await this.cargoQueue?.add(
       'mark-in-transit',
       { shipmentId },

@@ -1,7 +1,14 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { RC } from '@endemigo/shared';
+import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 import { Public } from '../../common/decorators/public.decorator';
@@ -13,6 +20,9 @@ export class HealthController {
   constructor(
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
+    @Optional()
+    @InjectQueue('auction')
+    private readonly auctionQueue?: Queue,
   ) {}
 
   @Public()
@@ -54,11 +64,31 @@ export class HealthController {
     try {
       await redis.connect();
       await redis.ping();
+
+      // Çıplak PING kuyruk sağlığını söylemez: worker'ın gördüğü bağlantı
+      // üzerinden iş sayaçlarını da dön ki biriken failed/waiting görünsün.
+      let queues: Record<string, unknown> | undefined;
+      if (this.auctionQueue) {
+        try {
+          queues = {
+            auction: await this.auctionQueue.getJobCounts(
+              'waiting',
+              'active',
+              'delayed',
+              'failed',
+            ),
+          };
+        } catch {
+          queues = { auction: 'unreachable' };
+        }
+      }
+
       return {
         code: RC.SUCCESS,
         message: 'Redis bağlantısı sağlıklı',
         status: 'ok',
         redis: 'connected',
+        ...(queues ? { queues } : {}),
       };
     } catch {
       throw new ServiceUnavailableException({

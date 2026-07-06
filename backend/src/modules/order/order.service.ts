@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   forwardRef,
@@ -148,6 +149,8 @@ interface ReviewableOrderUser {
 
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository?: Repository<Order>,
@@ -535,6 +538,13 @@ export class OrderService {
   }
 
   async scheduleAutoConfirm(orderId: string, autoConfirmAt: Date) {
+    if (!this.orderQueue) {
+      // DI kuyruğu vermezse otomatik teslim onayı sessizce kaybolmasın.
+      this.logger.warn(
+        `Order kuyruğu yok; auto-confirm görevi kurulamadı (order: ${orderId})`,
+      );
+      return;
+    }
     await this.orderQueue?.add(
       'auto-confirm-delivery',
       { orderId },

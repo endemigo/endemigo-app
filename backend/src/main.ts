@@ -57,4 +57,8 @@ async function bootstrap() {
   logger.log(`🚀 Endemigo API running on http://localhost:${port}`);
   logger.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
 }
-bootstrap();
+bootstrap().catch((error) => {
+  // Açılış hatası unhandled rejection olarak kaybolmasın.
+  console.error('Bootstrap failed:', error);
+  process.exit(1);
+});

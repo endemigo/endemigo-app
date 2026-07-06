@@ -97,6 +97,19 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   /**
+   * Kuyruktaki işi (varsa) kaldırır. "İş yok / çoktan işlendi" normaldir;
+   * gerçek hatalar (ör. Redis erişimi) debug'da izlenebilsin diye loglanır.
+   */
+  private async removeQueueJob(jobId: string): Promise<void> {
+    try {
+      const job = await this.auctionQueue.getJob(jobId);
+      if (job) await job.remove();
+    } catch (error) {
+      this.logger.debug(`Kuyruk işi kaldırılamadı (${jobId}): ${error}`);
+    }
+  }
+
+  /**
    * Publish sonrası start/end görevleri kaybolmuş (Redis hatası, restart,
    * silinmiş kuyruk) PUBLISHED müzayedeleri yeniden planlar. Event lotları
    * (eventId dolu) lot akışıyla yönetilir ve duraklatılmış lot da PUBLISHED
@@ -123,10 +136,7 @@ export class AuctionService implements OnApplicationBootstrap {
           },
         ];
         for (const jobSpec of jobs) {
-          try {
-            const oldJob = await this.auctionQueue.getJob(jobSpec.jobId);
-            if (oldJob) await oldJob.remove();
-          } catch {}
+          await this.removeQueueJob(jobSpec.jobId);
           await this.auctionQueue.add(
             jobSpec.name,
             { auctionId: auction.id },
@@ -163,10 +173,7 @@ export class AuctionService implements OnApplicationBootstrap {
         this.logger.log(`Aktif lot için bitiş görevi yeniden planlanıyor: ${auction.id} (Kalan: ${Math.round(delay / 1000)}sn)`);
         try {
           // Remove old job if exists
-          try {
-            const oldJob = await this.auctionQueue.getJob(`end-${auction.id}`);
-            if (oldJob) await oldJob.remove();
-          } catch {}
+          await this.removeQueueJob(`end-${auction.id}`);
           
           await this.auctionQueue.add(
             'end-auction',
@@ -204,14 +211,8 @@ export class AuctionService implements OnApplicationBootstrap {
         try {
           // Remove old jobs if exists
           const round = auction.fallbackRound;
-          try {
-            const oldExpiry = await this.auctionQueue.getJob(`winner-payment-expiry-${auction.id}-r${round}`);
-            if (oldExpiry) await oldExpiry.remove();
-          } catch {}
-          try {
-            const oldReminder = await this.auctionQueue.getJob(`winner-payment-reminder-${auction.id}-r${round}`);
-            if (oldReminder) await oldReminder.remove();
-          } catch {}
+          await this.removeQueueJob(`winner-payment-expiry-${auction.id}-r${round}`);
+          await this.removeQueueJob(`winner-payment-reminder-${auction.id}-r${round}`);
 
           await this.scheduleWinnerPaymentJobs(
             auction.id,
@@ -929,14 +930,8 @@ export class AuctionService implements OnApplicationBootstrap {
     );
 
     // Clean up BullMQ jobs
-    try {
-      const startJob = await this.auctionQueue.getJob(`start-${auctionId}`);
-      if (startJob) await startJob.remove();
-      const endJob = await this.auctionQueue.getJob(`end-${auctionId}`);
-      if (endJob) await endJob.remove();
-    } catch {
-      // Job may have already completed
-    }
+    await this.removeQueueJob(`start-${auctionId}`);
+    await this.removeQueueJob(`end-${auctionId}`);
 
     // Gateway event (Plan 05-04, Task 4)
     this.auctionGateway.emitAuctionCancelled(auctionId, {
@@ -1001,12 +996,7 @@ export class AuctionService implements OnApplicationBootstrap {
       `winner-payment-reminder-${auctionId}-r${round}`,
     );
     for (const jobId of jobIds) {
-      try {
-        const job = await this.auctionQueue.getJob(jobId);
-        if (job) await job.remove();
-      } catch {
-        // Job zaten işlenmiş olabilir
-      }
+      await this.removeQueueJob(jobId);
     }
 
     // Finalize kazananın sepetine lot eklemiş olabilir
@@ -1055,12 +1045,7 @@ export class AuctionService implements OnApplicationBootstrap {
       jobIds.push(`end-${auctionId}-ext${i}`);
     }
     for (const jobId of jobIds) {
-      try {
-        const job = await this.auctionQueue.getJob(jobId);
-        if (job) await job.remove();
-      } catch {
-        // Job zaten işlenmiş olabilir
-      }
+      await this.removeQueueJob(jobId);
     }
 
     const finalized = await this.finalizeAuction(auctionId, true);
@@ -1495,12 +1480,7 @@ export class AuctionService implements OnApplicationBootstrap {
             jobIdsToRemove.push(`end-${auctionId}-ext${i}`);
           }
           for (const jobId of jobIdsToRemove) {
-            try {
-              const oldJob = await this.auctionQueue.getJob(jobId);
-              if (oldJob) await oldJob.remove();
-            } catch {
-              /* job may already be processed */
-            }
+            await this.removeQueueJob(jobId);
           }
 
           const delay = Math.max(
@@ -1648,12 +1628,7 @@ export class AuctionService implements OnApplicationBootstrap {
           jobIdsToRemove.push(`end-${auctionId}-ext${i}`);
         }
         for (const jobId of jobIdsToRemove) {
-          try {
-            const oldJob = await this.auctionQueue.getJob(jobId);
-            if (oldJob) await oldJob.remove();
-          } catch {
-            /* job may already be processed */
-          }
+          await this.removeQueueJob(jobId);
         }
 
         const delay = Math.max(
@@ -3364,10 +3339,7 @@ export class AuctionService implements OnApplicationBootstrap {
     await this.auctionRepo.save(lot);
 
     // Bitiş BullMQ görevini kaldır
-    try {
-      const endJob = await this.auctionQueue.getJob(`end-${lot.id}`);
-      if (endJob) await endJob.remove();
-    } catch {}
+    await this.removeQueueJob(`end-${lot.id}`);
 
     this.auctionGateway.emitEventStatusChanged(eventId, { status: 'PAUSED' });
     return { code: RC.SUCCESS, message: 'Müzayede duraklatıldı' };
@@ -3401,10 +3373,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
     // BullMQ görevini yeniden programla. Aynı jobId tamamlanmış set'te
     // bekliyorsa BullMQ eklemeyi sessizce yutar ve lot hiç bitmez — önce sil.
-    try {
-      const oldEndJob = await this.auctionQueue.getJob(`end-${lot.id}`);
-      if (oldEndJob) await oldEndJob.remove();
-    } catch {}
+    await this.removeQueueJob(`end-${lot.id}`);
     await this.auctionQueue.add(
       'end-auction',
       { auctionId: lot.id },
@@ -3482,19 +3451,13 @@ export class AuctionService implements OnApplicationBootstrap {
         lot.endTime = new Date(Date.now() - 1000);
         await this.auctionRepo.save(lot);
 
-        try {
-          const endJob = await this.auctionQueue.getJob(`end-${lot.id}`);
-          if (endJob) await endJob.remove();
-        } catch {}
+        await this.removeQueueJob(`end-${lot.id}`);
 
         await this.finalizeAuction(lot.id, true);
         return { code: RC.SUCCESS, message: 'Sıradaki Lot\'a geçildi' };
       } else {
         // Geçiş aşaması (Transition): Bekleyen job'ı iptal et ve hemen başlat
-        try {
-          const startJob = await this.auctionQueue.getJob(`start-next-${lot.id}`);
-          if (startJob) await startJob.remove();
-        } catch {}
+        await this.removeQueueJob(`start-next-${lot.id}`);
 
         await this.startNextLot(event.id, lot.id);
         return { code: RC.SUCCESS, message: 'Bekleme süresi atlandı ve Lot başlatıldı' };
@@ -3547,10 +3510,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
         const delay = nextLot.endTime.getTime() - Date.now();
         // Tamamlanmış set'teki aynı jobId eklemeyi sessizce yutmasın.
-        try {
-          const oldEndJob = await this.auctionQueue.getJob(`end-${nextLot.id}`);
-          if (oldEndJob) await oldEndJob.remove();
-        } catch {}
+        await this.removeQueueJob(`end-${nextLot.id}`);
         await this.auctionQueue.add(
           'end-auction',
           { auctionId: nextLot.id },
