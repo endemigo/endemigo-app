@@ -49,6 +49,7 @@ import { CardVerificationModal } from '../../../components/auction/CardVerificat
 import { AuthRegisterWizardModal } from '../../../components/auth/AuthRegisterWizardModal';
 import { updateClockOffset, getSynchronizedTime } from '../../../utils/clockSync';
 import { BiddingLimitModal } from '../../../components/auction/BiddingLimitModal';
+import { LiveFeedOverlay } from '../../../components/auction/LiveFeedOverlay';
 import { ProductImageCarousel } from '../../../components/ui';
 
 export default function LiveEventRoomScreen() {
@@ -957,6 +958,7 @@ export default function LiveEventRoomScreen() {
                 )}
                 height={240}
               />
+              <LiveFeedOverlay items={socket.activityFeed} />
               <View style={styles.activeLotImageBadgeContainer}>
                 <View style={[styles.activeLotBadge, isLotEnded && { backgroundColor: Colors.slate400 }]}>
                   <Text style={styles.activeLotBadgeText}>
@@ -1347,9 +1349,14 @@ export default function LiveEventRoomScreen() {
                       />
                     </View>
                     <View style={styles.feedContent}>
-                      <Text style={[styles.feedTitle, { color: getToneColor() }]}>
-                        {item.title}
-                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={[styles.feedTitle, { color: getToneColor(), flexShrink: 1 }]}>
+                          {item.title}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: Colors.slate400, marginLeft: 8 }}>
+                          {new Date(item.at).toLocaleTimeString(i18n.language === 'tr' ? 'tr-TR' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </View>
                       <Text style={styles.feedBody}>{item.body}</Text>
                     </View>
                   </View>

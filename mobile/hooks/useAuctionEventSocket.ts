@@ -24,6 +24,7 @@ interface AuctionEventSocketState {
     title: string;
     body: string;
     tone: 'accent' | 'error' | 'primary';
+    at: string;
   }[];
   wasOutbid: boolean;
   lotEnded: boolean;
@@ -98,6 +99,7 @@ export function useAuctionEventSocket(
         title: string,
         body: string,
         tone: 'accent' | 'error' | 'primary' = 'primary',
+        at?: string,
       ) => {
         setState((currentState) => ({
           ...currentState,
@@ -107,9 +109,11 @@ export function useAuctionEventSocket(
               title,
               body,
               tone,
+              // Sunucu saati varsa onu kullan — "ne zaman oldu" akışta görünsün.
+              at: at ?? new Date().toISOString(),
             },
             ...currentState.activityFeed,
-          ].slice(0, 5),
+          ].slice(0, 20),
         }));
       };
 
@@ -130,6 +134,7 @@ export function useAuctionEventSocket(
             t('auction.activityEventJoinedTitle', { defaultValue: 'Müzayede Odası' }),
             t('auction.activityEventJoinedBody', { defaultValue: 'Ortak canlı müzayede odasına başarıyla bağlandınız.' }),
             'primary',
+            data.serverTime,
           );
         }
       };
@@ -158,6 +163,7 @@ export function useAuctionEventSocket(
             t('auction.eventStatusChangedTitle', { defaultValue: 'Müzayede Durumu' }),
             t('auction.eventStatusChangedBody', { defaultValue: 'Müzayede akışı şu an: {{label}}', label }),
             data.status === 'PAUSED' ? 'error' : 'accent',
+            data.serverTime,
           );
         }
       };
@@ -185,6 +191,7 @@ export function useAuctionEventSocket(
               title: data.productTitle,
             }),
             'accent',
+            data.serverTime,
           );
         }
         setState((s) => ({
@@ -233,6 +240,7 @@ export function useAuctionEventSocket(
               title: data.productTitle,
             }),
             'primary',
+            data.serverTime,
           );
         }
       };
@@ -252,6 +260,7 @@ export function useAuctionEventSocket(
           t('auction.auctioneerAnnouncementTitle', { defaultValue: 'Sunucu' }),
           data.message,
           data.type === 'LAST_CALL' || data.type === 'BURNING' ? 'error' : 'accent',
+          data.serverTime,
         );
       };
 
@@ -281,6 +290,7 @@ export function useAuctionEventSocket(
             amount: formatCurrency(data.amount, currencyRef.current),
           }),
           'accent',
+          data.serverTime,
         );
       };
 
@@ -338,6 +348,7 @@ export function useAuctionEventSocket(
             count: data.extensionNumber,
           }),
           'primary',
+          data.serverTime,
         );
       };
 
@@ -364,6 +375,7 @@ export function useAuctionEventSocket(
           t('auction.activityWarningTitle'),
           t('auction.activityWarningBody'),
           'primary',
+          data.serverTime,
         );
       };
 

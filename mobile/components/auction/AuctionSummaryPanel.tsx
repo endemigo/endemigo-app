@@ -36,6 +36,7 @@ type AuctionSummaryPanelProps = {
     title: string;
     body: string;
     tone: 'accent' | 'error' | 'primary';
+    at?: string;
   }[];
   winnerName?: string | null;
   onViewResult?: () => void;
@@ -182,7 +183,14 @@ export function AuctionSummaryPanel({
                   ]}
                 />
                 <View style={styles.feedTextWrap}>
-                  <Text style={styles.feedItemTitle}>{item.title}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.feedItemTitle, { flexShrink: 1 }]}>{item.title}</Text>
+                    {item.at ? (
+                      <Text style={{ fontSize: 11, color: Colors.slate400, marginLeft: 8 }}>
+                        {new Date(item.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    ) : null}
+                  </View>
                   <Text style={styles.feedItemBody}>{item.body}</Text>
                 </View>
               </View>

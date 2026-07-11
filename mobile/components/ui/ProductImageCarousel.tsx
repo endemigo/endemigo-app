@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, FlatList, Image, Dimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { View, FlatList, Image, Dimensions, NativeScrollEvent, NativeSyntheticEvent, TouchableOpacity } from 'react-native';
 import { ProductImage } from '../../types';
 import { styles } from './ProductImageCarousel.styles';
+import { FullscreenImageViewer } from './FullscreenImageViewer';
 
 interface Props {
   images?: ProductImage[];
@@ -12,6 +13,7 @@ interface Props {
 export function ProductImageCarousel({ images = [], fallbackImage, height }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   // Sort images by sortOrder ASC
   const sortedImages = [...images].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -31,8 +33,8 @@ export function ProductImageCarousel({ images = [], fallbackImage, height }: Pro
   };
 
   return (
-    <View 
-      style={[styles.wrapper, { height }]} 
+    <View
+      style={[styles.wrapper, { height }]}
       onLayout={handleLayout}
     >
       <FlatList
@@ -44,25 +46,35 @@ export function ProductImageCarousel({ images = [], fallbackImage, height }: Pro
         onMomentumScrollEnd={onScrollEnd}
         style={styles.listContainer}
         renderItem={({ item }) => (
-          <View style={[styles.imageContainer, { width: containerWidth, height }]}>
-            <Image 
-              source={{ uri: item }} 
-              style={styles.image} 
-              resizeMode="cover" 
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setViewerOpen(true)}
+            style={[styles.imageContainer, { width: containerWidth, height }]}
+          >
+            <Image
+              source={{ uri: item }}
+              style={styles.image}
+              resizeMode="cover"
             />
-          </View>
+          </TouchableOpacity>
         )}
       />
       {slides.length > 1 && (
         <View style={styles.dotsRow}>
           {slides.map((_, i) => (
-            <View 
-              key={i} 
-              style={[styles.dot, i === activeIndex && styles.dotActive]} 
+            <View
+              key={i}
+              style={[styles.dot, i === activeIndex && styles.dotActive]}
             />
           ))}
         </View>
       )}
+      <FullscreenImageViewer
+        visible={viewerOpen}
+        images={slides}
+        initialIndex={activeIndex}
+        onClose={() => setViewerOpen(false)}
+      />
     </View>
   );
 }

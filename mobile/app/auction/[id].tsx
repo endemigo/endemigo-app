@@ -710,6 +710,7 @@ export default function AuctionDetailScreen() {
       >
         <AuctionHero
           imageUri={productImageUri}
+          galleryImages={product?.images}
           title={auction.productTitle || t('auction.placeholderImage')}
           lotNumber={auction.lotNumber}
           sellerName={auction.sellerName}

@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TFunction } from 'i18next';
 
 import { Colors } from '../../constants/theme';
+import { FullscreenImageViewer } from '../ui/FullscreenImageViewer';
+import type { ProductImage } from '../../types';
 import { styles } from './AuctionHero.styles';
 
 type AuctionHeroProps = {
   imageUri: string;
+  // Ürün galerisi; verilirse tam ekranda tüm görseller kaydırılır.
+  galleryImages?: ProductImage[];
   title: string;
   lotNumber?: string;
   sellerName?: string | null;
@@ -25,6 +29,7 @@ type AuctionHeroProps = {
 
 export function AuctionHero({
   imageUri,
+  galleryImages,
   title,
   lotNumber,
   sellerName,
@@ -39,6 +44,10 @@ export function AuctionHero({
   onBack,
   t,
 }: AuctionHeroProps) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const fullscreenImages = galleryImages?.length
+    ? [...galleryImages].sort((a, b) => a.sortOrder - b.sortOrder).map((img) => img.url)
+    : [imageUri];
   const showAuctionTypeChip = !(isEnded && auctionType === 'REALTIME');
   const statusTone = isActive
     ? styles.statusBadgeActive
@@ -48,8 +57,14 @@ export function AuctionHero({
 
   return (
     <View style={styles.heroCard}>
-      <Image source={{ uri: imageUri }} style={styles.heroImage} resizeMode="cover" />
-      <View style={styles.overlay} />
+      <TouchableOpacity
+        style={styles.heroImage}
+        activeOpacity={0.9}
+        onPress={() => setViewerOpen(true)}
+      >
+        <Image source={{ uri: imageUri }} style={styles.heroImage} resizeMode="cover" />
+      </TouchableOpacity>
+      <View style={styles.overlay} pointerEvents="none" />
 
       <TouchableOpacity
         style={styles.backButton}
@@ -113,6 +128,12 @@ export function AuctionHero({
           </View>
         </View>
       </View>
+
+      <FullscreenImageViewer
+        visible={viewerOpen}
+        images={fullscreenImages}
+        onClose={() => setViewerOpen(false)}
+      />
     </View>
   );
 }

@@ -20,6 +20,7 @@ interface AuctionSocketState {
     title: string;
     body: string;
     tone: 'accent' | 'error' | 'primary';
+    at: string;
   }[];
   wasOutbid: boolean;
   auctionStarted: boolean;
@@ -71,6 +72,7 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
         title: string,
         body: string,
         tone: 'accent' | 'error' | 'primary' = 'primary',
+        at?: string,
       ) => {
         setState((currentState) => ({
           ...currentState,
@@ -80,9 +82,11 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
               title,
               body,
               tone,
+              // Sunucu saati varsa onu kullan — "ne zaman oldu" akışta görünsün.
+              at: at ?? new Date().toISOString(),
             },
             ...currentState.activityFeed,
-          ].slice(0, 4),
+          ].slice(0, 20),
         }));
       };
 
@@ -120,6 +124,7 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
               amount: formatCurrency(data.amount, currencyRef.current),
             }),
             'accent',
+            data.serverTime,
           );
         }
       };
@@ -172,6 +177,7 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
               amount: formatCurrency(data.newAmount, currencyRef.current),
             }),
             'error',
+            data.serverTime,
           );
         }
       };
@@ -221,6 +227,7 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
               count: data.extensionNumber,
             }),
             'primary',
+            data.serverTime,
           );
         }
       };
@@ -258,6 +265,7 @@ export function useAuctionSocket(auctionId: string, currency?: string | null) {
             t('auction.activityWarningTitle'),
             t('auction.activityWarningBody'),
             'primary',
+            data.serverTime,
           );
         }
       };
