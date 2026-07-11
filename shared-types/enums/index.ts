@@ -3,6 +3,7 @@ export { AuctionPaymentStatus } from './auction-payment-status.enum';
 export { AuctionType } from './auction-type.enum';
 export { AuctionEventStatus } from './auction-event-status.enum';
 export { AuctionApprovalStatus } from './auction-approval-status.enum';
+export { Currency, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS } from './currency.enum';
 export { ProductStatus } from './product-status.enum';
 export { ProductCondition } from './product-condition.enum';
 export { ProductProductionSeason } from './product-production-season.enum';

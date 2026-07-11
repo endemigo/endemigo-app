@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   forwardRef,
@@ -23,7 +24,7 @@ import {
   OrderStatus,
   RC,
 } from '@endemigo/shared';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { LedgerService } from '../ledger/ledger.service';
 import { Conversation } from '../negotiation/entities/conversation.entity';
 import { Offer } from '../negotiation/entities/offer.entity';
@@ -38,6 +39,7 @@ import { Payment } from './entities/payment.entity';
 import { SavedCard } from './entities/saved-card.entity';
 import { Order } from '../order/entities/order.entity';
 import { Auction } from '../auction/entities/auction.entity';
+import { AuctionEvent } from '../auction/entities/auction-event.entity';
 import { IyzicoProvider } from './providers/iyzico.provider';
 import { CartService } from '../cart/cart.service';
 import { User } from '../user/entities/user.entity';
@@ -59,6 +61,9 @@ interface CartQuoteUnit {
 interface CartQuote {
   cart: CartResponse;
   units: CartQuoteUnit[];
+  // Sepetin tek para birimi: müzayede kalemleri event para biriminden,
+  // diğer kalemler TRY. Karma sepet buildCartQuote'ta reddedilir.
+  currency: string;
   originalSubtotal: number;
   subtotal: number;
   discountTotal: number;
@@ -70,6 +75,7 @@ interface CartQuote {
 
 @Injectable()
 export class PaymentService {
+  private readonly logger = new Logger(PaymentService.name);
   private readonly fallbackEvents = new Set<string>();
 
   constructor(
@@ -191,6 +197,7 @@ export class PaymentService {
     // 1. Sepet + birim tutarlar (kampanya/kupon sunucuda değerlendirilir)
     const quote = await this.buildCartQuote(userId, dto.couponCode);
     const grandTotal = quote.grandTotal;
+    const checkoutCurrency = quote.currency;
 
     // 2. Teslimat adresi (verilmezse varsayılan teslimat adresi)
     const address = await this.resolveShippingAddress(
@@ -228,7 +235,7 @@ export class PaymentService {
         buyerId: userId,
         orderId: null, // Multiple orders in a cart checkout
         amount: grandTotal,
-        currency: 'TRY',
+        currency: checkoutCurrency,
         provider: PaymentProvider.IYZICO,
         status: PaymentStatus.PENDING,
         idempotencyKey: dto.idempotencyKey,
@@ -286,7 +293,7 @@ export class PaymentService {
             sellerId: product.sellerId,
             productId: item.productId,
             amount: unit.finalAmount,
-            currency: 'TRY',
+            currency: checkoutCurrency,
             paymentId: savedPayment.id,
             isPending: true,
             eventId: auctionRow?.eventId ?? null,
@@ -376,7 +383,7 @@ export class PaymentService {
       paymentId: payment.id,
       buyerId: userId,
       amount: grandTotal,
-      currency: 'TRY',
+      currency: checkoutCurrency,
       callbackUrl: dto.callbackUrl,
     });
 
@@ -444,6 +451,7 @@ export class PaymentService {
       shipping: quote.shipping,
       serviceFee: quote.serviceFee,
       grandTotal: quote.grandTotal,
+      currency: quote.currency,
     };
   }
 
@@ -577,13 +585,23 @@ export class PaymentService {
     const serviceFeeRate = Number(
       this.configService?.get('SERVICE_FEE_RATE') ?? 0.02,
     );
-    const shipping = subtotal > freeShippingThreshold ? 0 : flatShippingFee;
+    const currency = await this.resolveCartCurrency(cart.items);
+    // Sabit kargo ücreti ve eşik TL bazlı tanımlı; döviz sepetinde (yalnız
+    // müzayede lotları) uygulanmaz — kargo operasyonu ayrıca yönetilir.
+    // Servis bedeli oransal olduğundan para biriminden bağımsız çalışır.
+    const shipping =
+      currency !== 'TRY'
+        ? 0
+        : subtotal > freeShippingThreshold
+          ? 0
+          : flatShippingFee;
     const serviceFee = Math.round(subtotal * serviceFeeRate);
     const grandTotal = Number((subtotal + shipping + serviceFee).toFixed(2));
 
     return {
       cart,
       units,
+      currency,
       originalSubtotal: Number(originalSubtotal.toFixed(2)),
       subtotal,
       discountTotal,
@@ -592,6 +610,71 @@ export class PaymentService {
       serviceFee,
       grandTotal,
     };
+  }
+
+  /**
+   * Sepetin para birimini çözer. Müzayede kalemleri event para biriminden
+   * tahsil edilir; diğer tüm kalemler TRY. iyzico checkout tek para birimi
+   * desteklediğinden karma sepet reddedilir — kullanıcı ayrı ödemelidir.
+   */
+  private async resolveCartCurrency(
+    items: CartResponseItem[],
+  ): Promise<string> {
+    const auctionIds = [
+      ...new Set(
+        items
+          .map((item) => item.auctionId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+
+    const currencies = new Set<string>();
+    let hasNonAuctionItem = false;
+    for (const item of items) {
+      if (!item.auctionId) hasNonAuctionItem = true;
+    }
+    if (hasNonAuctionItem) currencies.add('TRY');
+
+    if (auctionIds.length > 0) {
+      const manager = this.paymentRepository?.manager;
+      if (manager) {
+        const auctions = await manager.find(Auction, {
+          where: { id: In(auctionIds) },
+        });
+        const eventIds = [
+          ...new Set(
+            auctions
+              .map((auction) => auction.eventId)
+              .filter((id): id is string => !!id),
+          ),
+        ];
+        const events = eventIds.length
+          ? await manager.find(AuctionEvent, { where: { id: In(eventIds) } })
+          : [];
+        const eventCurrency = new Map(
+          events.map((event) => [event.id, event.currency || 'TRY']),
+        );
+        for (const auction of auctions) {
+          currencies.add(
+            auction.eventId
+              ? eventCurrency.get(auction.eventId) ?? 'TRY'
+              : 'TRY',
+          );
+        }
+      } else {
+        currencies.add('TRY');
+      }
+    }
+
+    if (currencies.size > 1) {
+      throw new BadRequestException({
+        code: RC.CART_MIXED_CURRENCY,
+        message:
+          'Sepetinizde farklı para birimlerinde ürünler var. Farklı para birimindeki ürünler ayrı ödenmelidir.',
+      });
+    }
+
+    return currencies.values().next().value ?? 'TRY';
   }
 
   private async resolveShippingAddress(
@@ -707,7 +790,37 @@ export class PaymentService {
       return undefined;
     }
 
-    if ((retrieved?.status ?? payload.status) === 'success') {
+    // Sağlayıcının bildirdiği tutar/kur, bizim Payment kaydıyla uyuşmalı.
+    // Örn. USD event lotu için iyzico yanlışlıkla TL çektiyse ödeme asla
+    // onaylanmaz — ADMIN_REVIEW'a düşer. (Stub sağlayıcı bu alanları
+    // doldurmadığından geliştirmede kontrol atlanır.)
+    const providerCurrency = retrieved?.currency;
+    const providerAmount = retrieved?.amount;
+    const currencyMismatch =
+      providerCurrency !== undefined && providerCurrency !== payment.currency;
+    const amountMismatch =
+      providerAmount !== undefined &&
+      Math.abs(Number(providerAmount) - Number(payment.amount)) > 0.01;
+
+    if (
+      (retrieved?.status ?? payload.status) === 'success' &&
+      (currencyMismatch || amountMismatch)
+    ) {
+      this.logger.error(
+        `Payment ${payment.id} provider mismatch — expected ${payment.amount} ${payment.currency}, provider reported ${providerAmount ?? '?'} ${providerCurrency ?? '?'}; sent to admin review`,
+      );
+      payment.status = PaymentStatus.ADMIN_REVIEW;
+      payment.adminReviewAt = new Date();
+      payment.metadata = {
+        ...(payment.metadata ?? {}),
+        providerMismatch: {
+          expectedAmount: Number(payment.amount),
+          expectedCurrency: payment.currency,
+          providerAmount: providerAmount ?? null,
+          providerCurrency: providerCurrency ?? null,
+        },
+      };
+    } else if ((retrieved?.status ?? payload.status) === 'success') {
       payment.status = PaymentStatus.ESCROW_HELD;
       payment.providerPaymentId =
           retrieved?.providerPaymentId ?? payment.providerPaymentId;

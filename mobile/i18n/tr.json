@@ -702,6 +702,7 @@
     "usedProducts": "Mevcut Ürünler"
   },
   "cart": {
+      "mixedCurrencyWarning": "Sepetinizde farklı para birimlerinde ürünler var. Farklı para birimindeki ürünler ayrı ödenmelidir.",
     "title": "Sepetim",
     "empty": "Sepetiniz boş",
     "emptySub": "Ürün eklemek için alışverişe başlayın",

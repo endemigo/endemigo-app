@@ -8,13 +8,21 @@ type ApiErrorLike = {
   message?: string;
 };
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  TRY: '₺',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+};
+
 export function formatCurrency(amount: number | string | null | undefined, currency = 'TRY') {
   const normalized = normalizeAmount(amount);
   const formatted = normalized.toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return currency === 'TRY' ? `₺${formatted}` : `${formatted} ${currency}`;
+  const symbol = CURRENCY_SYMBOLS[currency];
+  return symbol ? `${symbol}${formatted}` : `${formatted} ${currency}`;
 }
 
 export function formatAmount(value: number | string | null | undefined) {

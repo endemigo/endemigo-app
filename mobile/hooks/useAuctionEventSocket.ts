@@ -5,7 +5,7 @@ import { Socket } from 'socket.io-client';
 import { getAuctionSocket } from '../services/socket';
 import ENV from '../lib/config';
 import { useModalStore } from '../store/modalStore';
-import { formatAmount } from '../utils/transactionFormatters';
+import { formatCurrency } from '../utils/transactionFormatters';
 
 interface AuctionEventSocketState {
   eventStatus: string;
@@ -35,7 +35,15 @@ interface AuctionEventSocketState {
   nextLotId: string | null;
 }
 
-export function useAuctionEventSocket(eventId: string) {
+export function useAuctionEventSocket(
+  eventId: string,
+  // API'den gelen activeLotId — socket henüz event:active_lot_changed
+  // yaymadıysa (ör. sayfa açılışında) bid:new olaylarını doğru lot'a
+  // eşleyebilmek için yedek kaynak.
+  fallbackActiveLotId?: string | null,
+  // Event para birimi (API'den) — feed/modal tutar formatları için.
+  currency?: string | null,
+) {
   const { t } = useTranslation();
   const showModal = useModalStore((modalState) => modalState.showModal);
   const [state, setState] = useState<AuctionEventSocketState>({
@@ -66,8 +74,14 @@ export function useAuctionEventSocket(eventId: string) {
   // (modal/vibration) WITHOUT running them inside a setState updater.
   const activeLotIdRef = useRef<string | null>(null);
   useEffect(() => {
-    activeLotIdRef.current = state.activeLotId;
-  }, [state.activeLotId]);
+    activeLotIdRef.current = state.activeLotId ?? fallbackActiveLotId ?? null;
+  }, [state.activeLotId, fallbackActiveLotId]);
+  // Ref, effect'i yeniden bağlamadan (socket leave/join tetiklemeden)
+  // handler'ların güncel para birimini görmesini sağlar.
+  const currencyRef = useRef(currency ?? 'TRY');
+  useEffect(() => {
+    currencyRef.current = currency ?? 'TRY';
+  }, [currency]);
 
   useEffect(() => {
     if (ENV.USE_MOCK) return;
@@ -264,7 +278,7 @@ export function useAuctionEventSocket(eventId: string) {
           t('auction.activityBidTitle'),
           t('auction.latestBidMessage', {
             bidder: data.bidderName,
-            amount: formatAmount(data.amount),
+            amount: formatCurrency(data.amount, currencyRef.current),
           }),
           'accent',
         );
@@ -276,7 +290,7 @@ export function useAuctionEventSocket(eventId: string) {
         showModal({
           title: t('auction.outbidTitle'),
           message: t('auction.outbidMessage', {
-            amount: formatAmount(data.newAmount),
+            amount: formatCurrency(data.newAmount, currencyRef.current),
           }),
           type: 'info',
         });

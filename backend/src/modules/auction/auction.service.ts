@@ -38,6 +38,7 @@ import {
   JointManagementType,
   InvitationStatus,
   ProductStatus,
+  SUPPORTED_CURRENCIES,
 } from '@endemigo/shared';
 
 import { NotificationService } from '../notification/notification.service';
@@ -1148,6 +1149,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
     const mappedLots = lots.map((lot) => {
       const resp = this.toResponse(lot);
+      (resp as any).currency = event.currency ?? 'TRY';
       if (
         lot.status === AuctionStatus.PUBLISHED &&
         lot.pausedRemainingSeconds !== null &&
@@ -1177,7 +1179,7 @@ export class AuctionService implements OnApplicationBootstrap {
   private async loadAuctionResponse(id: string) {
     const auction = await this.auctionRepo.findOne({
       where: { id },
-      relations: ['product', 'product.category', 'seller', 'winner'],
+      relations: ['product', 'product.category', 'seller', 'winner', 'event'],
     });
     if (!auction)
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
@@ -2960,7 +2962,7 @@ export class AuctionService implements OnApplicationBootstrap {
   async getResult(auctionId: string) {
     const auction = await this.auctionRepo.findOne({
       where: { id: auctionId },
-      relations: ['product', 'winner'],
+      relations: ['product', 'winner', 'event'],
     });
     if (!auction)
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
@@ -2970,6 +2972,7 @@ export class AuctionService implements OnApplicationBootstrap {
       message: 'Auction result fetched',
       id: auction.id,
       status: auction.status,
+      currency: auction.event?.currency ?? 'TRY',
       finalPrice: Number(auction.currentPrice),
       buyerPremium: 0,
       bidCount: auction.bidCount,
@@ -3055,6 +3058,9 @@ export class AuctionService implements OnApplicationBootstrap {
           : null,
       reserveMet: auction.reserveMet,
       buyerPremiumRate: 0,
+      // Event'e bağlı lotlar event para biriminde peylenir; bağımsız
+      // müzayedeler TRY. Relation yüklenmediyse TRY varsayılır.
+      currency: auction.event?.currency ?? 'TRY',
       status: auction.status,
       auctionType: auction.auctionType,
       startTime: auction.startTime,
@@ -3796,6 +3802,19 @@ export class AuctionService implements OnApplicationBootstrap {
     return this.userService.acceptPreContract(userId, eventType);
   }
 
+  /** Müzayede para birimi: whitelist dışı değer reddedilir, boş = TRY. */
+  private normalizeEventCurrency(value?: string | null): string {
+    if (!value) return 'TRY';
+    const normalized = value.toUpperCase();
+    if (!SUPPORTED_CURRENCIES.includes(normalized as any)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: `Geçersiz para birimi. Desteklenenler: ${SUPPORTED_CURRENCIES.join(', ')}`,
+      });
+    }
+    return normalized;
+  }
+
   async createEvent(
     sellerId: string,
     dto: {
@@ -3804,6 +3823,7 @@ export class AuctionService implements OnApplicationBootstrap {
       coverImageUrl?: string;
       categoryId?: string;
       auctionType?: AuctionType;
+      currency?: string;
       startTime: string;
       endTime: string;
       submissionDeadline?: string;
@@ -3869,6 +3889,7 @@ export class AuctionService implements OnApplicationBootstrap {
     event.categoryId = dto.categoryId ?? null;
     event.status = AuctionEventStatus.DRAFT;
     event.auctionType = dto.auctionType || AuctionType.REALTIME;
+    event.currency = this.normalizeEventCurrency(dto.currency);
     event.startTime = new Date(dto.startTime);
     event.endTime = new Date(dto.endTime);
     event.submissionDeadline = dto.submissionDeadline ? new Date(dto.submissionDeadline) : null;

@@ -5,7 +5,7 @@ import { Socket } from 'socket.io-client';
 import { getAuctionSocket } from '../services/socket';
 import ENV from '../lib/config';
 import { useModalStore } from '../store/modalStore';
-import { formatAmount } from '../utils/transactionFormatters';
+import { formatCurrency } from '../utils/transactionFormatters';
 
 interface AuctionSocketState {
   currentPrice: number;
@@ -28,7 +28,7 @@ interface AuctionSocketState {
   finalPrice: number | null;
 }
 
-export function useAuctionSocket(auctionId: string) {
+export function useAuctionSocket(auctionId: string, currency?: string | null) {
   const { t } = useTranslation();
   const showModal = useModalStore((modalState) => modalState.showModal);
   const [state, setState] = useState<AuctionSocketState>({
@@ -48,6 +48,12 @@ export function useAuctionSocket(auctionId: string) {
   });
 
   const socketRef = useRef<Socket | null>(null);
+  // Ref, effect'i yeniden bağlamadan (socket leave/join tetiklemeden)
+  // handler'ların güncel para birimini görmesini sağlar.
+  const currencyRef = useRef(currency ?? 'TRY');
+  useEffect(() => {
+    currencyRef.current = currency ?? 'TRY';
+  }, [currency]);
 
   useEffect(() => {
     // Mock mode — no socket
@@ -111,7 +117,7 @@ export function useAuctionSocket(auctionId: string) {
             t('auction.activityBidTitle'),
             t('auction.latestBidMessage', {
               bidder: data.bidderName,
-              amount: formatAmount(data.amount),
+              amount: formatCurrency(data.amount, currencyRef.current),
             }),
             'accent',
           );
@@ -156,14 +162,14 @@ export function useAuctionSocket(auctionId: string) {
           showModal({
             title: t('auction.outbidTitle'),
             message: t('auction.outbidMessage', {
-              amount: formatAmount(data.newAmount),
+              amount: formatCurrency(data.newAmount, currencyRef.current),
             }),
             type: 'info',
           });
           appendActivity(
             t('auction.outbidTitle'),
             t('auction.outbidMessage', {
-              amount: formatAmount(data.newAmount),
+              amount: formatCurrency(data.newAmount, currencyRef.current),
             }),
             'error',
           );

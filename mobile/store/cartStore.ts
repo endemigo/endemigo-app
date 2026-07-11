@@ -11,6 +11,8 @@ export interface CartItem {
   auctionId?: string | null;
   offerId?: string | null;
   customPrice?: number | null;
+  // Müzayede kalemleri event para biriminde; diğerleri TRY.
+  currency?: string;
   title: string;
   price: number;
   imageUrl?: string;
@@ -50,6 +52,7 @@ interface CartApiResponse {
       auctionId?: string | null;
       offerId?: string | null;
       customPrice?: number | string | null;
+      currency?: string;
       quantity: number;
       addedAt?: string;
       product?: {
@@ -91,6 +94,7 @@ function mapApiItemsToStore(data: CartApiResponse): CartItem[] {
     variantId: item.variantId ?? null,
     auctionId: item.auctionId ?? null,
     offerId: item.offerId ?? null,
+    currency: item.currency ?? 'TRY',
     customPrice: item.customPrice !== undefined && item.customPrice !== null ? Number(item.customPrice) : null,
     quantity: item.quantity,
     addedAt: item.addedAt,

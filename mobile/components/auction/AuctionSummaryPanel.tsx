@@ -5,10 +5,12 @@ import type { TFunction } from 'i18next';
 
 import { CountdownTimer } from './CountdownTimer';
 import { Colors } from '../../constants/theme';
-import { formatAmount, formatCurrency } from '../../utils/transactionFormatters';
+import { formatCurrency } from '../../utils/transactionFormatters';
 import { styles } from './AuctionSummaryPanel.styles';
 
 type AuctionSummaryPanelProps = {
+  // Lot fiyatlarının para birimi (cüzdan alanı TL kalır).
+  currency?: string;
   currentPrice: number;
   startPrice: number;
   minBid: number;
@@ -40,6 +42,7 @@ type AuctionSummaryPanelProps = {
 };
 
 export function AuctionSummaryPanel({
+  currency = 'TRY',
   currentPrice,
   startPrice,
   minBid,
@@ -87,7 +90,7 @@ export function AuctionSummaryPanel({
         <View>
           <Text style={styles.overline}>{summaryTitle}</Text>
           <Text style={styles.currentPriceLabel}>{t('auction.currentPrice')}</Text>
-          <Text style={styles.currentPriceValue}>{formatCurrency(currentPrice)}</Text>
+          <Text style={styles.currentPriceValue}>{formatCurrency(currentPrice, currency)}</Text>
         </View>
 
         <View style={styles.timerShell}>
@@ -117,7 +120,7 @@ export function AuctionSummaryPanel({
       <View style={styles.metricsGrid}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{t('auction.openingPrice')}</Text>
-          <Text style={styles.metricValue}>{formatCurrency(startPrice)}</Text>
+          <Text style={styles.metricValue}>{formatCurrency(startPrice, currency)}</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{leadMetricLabel}</Text>
@@ -127,7 +130,7 @@ export function AuctionSummaryPanel({
               !isEnded && styles.metricValueAccent,
             ]}
           >
-            {formatCurrency(leadMetricValue)}
+            {formatCurrency(leadMetricValue, currency)}
           </Text>
         </View>
         <View style={styles.metricCard}>
@@ -148,7 +151,7 @@ export function AuctionSummaryPanel({
             <Text style={styles.activityBody}>
               {t('auction.latestBidMessage', {
                 bidder: lastBid.bidderName,
-                amount: formatCurrency(lastBid.amount),
+                amount: formatCurrency(lastBid.amount, currency),
               })}
             </Text>
           </View>
@@ -209,7 +212,7 @@ export function AuctionSummaryPanel({
           </View>
           <Text style={styles.calloutBody}>
             {t('auction.winnerMessage', {
-              amount: formatAmount(finalPrice ?? currentPrice),
+              amount: formatCurrency(finalPrice ?? currentPrice, currency),
             })}
           </Text>
         </View>

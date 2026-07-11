@@ -252,6 +252,9 @@
                 <div>
                   <p class="overview-eyebrow">Müzayede Etkinliği</p>
                   <h3 class="overview-title">{{ event?.title }}</h3>
+                  <p v-if="event?.currency && event.currency !== 'TRY'" class="overview-eyebrow" style="margin-top: 0.25rem;">
+                    Para Birimi: <strong>{{ event.currency }}</strong> — peyler ve tahsilat bu kurdan yürür
+                  </p>
                 </div>
                 <span class="status-badge" :class="event?.status?.toLowerCase()">
                   {{ getEventStatusLabel(event?.status) }}
@@ -1492,8 +1495,11 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 function formatMoney(amount: number | null | undefined): string {
-  if (amount === null || amount === undefined) return '0,00 ₺';
-  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(amount);
+  const currency = event.value?.currency || 'TRY';
+  if (amount === null || amount === undefined) {
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency }).format(0);
+  }
+  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency }).format(amount);
 }
 
 function goToAuctionDetail(lotId: string): void {

@@ -17,6 +17,8 @@ import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { PaymentService } from './payment.service';
 import { IyzicoProvider } from './providers/iyzico.provider';
 import { CartService } from '../cart/cart.service';
+import { Auction } from '../auction/entities/auction.entity';
+import { AuctionEvent } from '../auction/entities/auction-event.entity';
 
 const createPayment = (overrides: Partial<Payment> = {}): Payment =>
   ({
@@ -354,6 +356,265 @@ describe('PaymentService', () => {
     expect(result.groupId).toBeDefined();
     expect(cartService.getMyCart).toHaveBeenCalledWith('buyer-1');
     expect(orderService.createFromDirectSale).toHaveBeenCalled();
+  });
+
+
+  it('charges a foreign-currency auction lot in the event currency end-to-end', async () => {
+    const cartService = {
+      getMyCart: jest.fn(() =>
+        Promise.resolve({
+          code: RC.CART_FETCHED,
+          cart: {
+            items: [
+              {
+                id: 'cart-item-1',
+                productId: 'product-1',
+                auctionId: 'auction-1',
+                customPrice: 100,
+                quantity: 1,
+                product: { sellerId: 'seller-1', price: 100 },
+              },
+            ],
+          },
+        }),
+      ),
+      clearCart: jest.fn(() => Promise.resolve()),
+    } as unknown as CartService;
+
+    const mockOrder = createOrder({ id: 'order-1', productId: 'product-1', amount: 100 });
+    const createFromAuction = jest.fn(() => Promise.resolve({ order: mockOrder }));
+    const orderService = { createFromAuction } as unknown as OrderService;
+
+    const usdAuction = {
+      id: 'auction-1',
+      eventId: 'event-1',
+      winnerId: 'buyer-1',
+      saleApprovedAt: new Date(),
+      winnerPaymentDeadlineAt: null,
+    };
+    const paymentCreate = jest.fn((entity: any, data: any) => data);
+    const paymentRepository = createPaymentRepository();
+    paymentRepository.findOne = jest.fn(() => Promise.resolve(null));
+    (paymentRepository as any).manager = {
+      // buildCartQuote → resolveCartCurrency: auction + event para birimi araması
+      find: jest.fn((entity: any) =>
+        entity === Auction
+          ? Promise.resolve([usdAuction])
+          : entity === AuctionEvent
+            ? Promise.resolve([{ id: 'event-1', currency: 'USD' }])
+            : Promise.resolve([]),
+      ),
+      transaction: jest.fn(async (cb: any) =>
+        cb({
+          create: paymentCreate,
+          save: jest.fn((entity: any, data: any) => Promise.resolve(data)),
+          findOne: jest.fn((entity: any) =>
+            entity === Auction ? Promise.resolve(usdAuction) : Promise.resolve(null),
+          ),
+        }),
+      ),
+    } as any;
+
+    const orderRepository = {
+      create: jest.fn((data: any) => data),
+      save: jest.fn((data: any) => Promise.resolve(data)),
+    } as any;
+
+    const initializeCheckout = jest.fn(() =>
+      Promise.resolve({
+        checkoutToken: 'checkout-token',
+        checkoutUrl: 'https://checkout.url',
+      }),
+    );
+    const iyzicoProvider = { initializeCheckout } as unknown as IyzicoProvider;
+
+    const service = new PaymentService(
+      paymentRepository,
+      undefined,
+      undefined,
+      iyzicoProvider,
+      undefined,
+      undefined,
+      orderService,
+      cartService,
+      orderRepository,
+    );
+
+    const result = await service.checkoutCart('buyer-1', {
+      idempotencyKey: 'checkout-key',
+      callbackUrl: 'https://callback.url',
+    });
+
+    expect(result.code).toBe(RC.PAYMENT_INITIATED);
+    // Payment kaydı USD açılır
+    expect(paymentCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ currency: 'USD' }),
+    );
+    // Sipariş USD oluşturulur
+    expect(createFromAuction).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'USD', auctionId: 'auction-1' }),
+      expect.anything(),
+    );
+    // iyzico checkout USD başlatılır — 100 USD yerine 100 TL çekilmesini engelleyen ana hat
+    expect(initializeCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'USD' }),
+    );
+    // Döviz sepetinde TL bazlı sabit kargo uygulanmaz: 100 + %2 servis bedeli
+    expect(initializeCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 102 }),
+    );
+  });
+
+  it('rejects a cart that mixes currencies', async () => {
+    const cartService = {
+      getMyCart: jest.fn(() =>
+        Promise.resolve({
+          code: RC.CART_FETCHED,
+          cart: {
+            items: [
+              {
+                id: 'cart-item-1',
+                productId: 'product-1',
+                auctionId: 'auction-1',
+                customPrice: 100,
+                quantity: 1,
+                product: { sellerId: 'seller-1', price: 100 },
+              },
+              {
+                id: 'cart-item-2',
+                productId: 'product-2',
+                quantity: 1,
+                product: { sellerId: 'seller-2', price: 50 },
+              },
+            ],
+          },
+        }),
+      ),
+    } as unknown as CartService;
+
+    const orderService = {
+      previewDirectSaleDiscount: jest.fn(() =>
+        Promise.resolve({
+          discount: { finalAmount: 50, discountAmount: 0, appliedDiscount: null },
+        }),
+      ),
+    } as unknown as OrderService;
+
+    const paymentRepository = createPaymentRepository();
+    paymentRepository.findOne = jest.fn(() => Promise.resolve(null));
+    (paymentRepository as any).manager = {
+      find: jest.fn((entity: any) =>
+        entity === Auction
+          ? Promise.resolve([{ id: 'auction-1', eventId: 'event-1' }])
+          : entity === AuctionEvent
+            ? Promise.resolve([{ id: 'event-1', currency: 'USD' }])
+            : Promise.resolve([]),
+      ),
+      transaction: jest.fn(),
+    } as any;
+
+    const service = new PaymentService(
+      paymentRepository,
+      undefined,
+      undefined,
+      {} as IyzicoProvider,
+      undefined,
+      undefined,
+      orderService,
+      cartService,
+      {} as any,
+    );
+
+    await expect(
+      service.checkoutCart('buyer-1', { idempotencyKey: 'checkout-key' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: RC.CART_MIXED_CURRENCY }),
+    });
+  });
+
+  it('sends payment to admin review when provider-reported currency mismatches', async () => {
+    const payment = createPayment({ amount: 100, currency: 'USD' });
+    const paymentRepository = createPaymentRepository(payment);
+    const iyzicoProvider = {
+      retrieveCheckout: jest.fn(() =>
+        Promise.resolve({
+          checkoutToken: 'checkout-token',
+          providerPaymentId: 'provider-payment-1',
+          status: 'success',
+          amount: 100,
+          currency: 'TRY',
+        }),
+      ),
+    } as unknown as IyzicoProvider;
+    const markPaymentEscrowHeld = jest.fn();
+    const markPaymentEscrowHeldForPayment = jest.fn();
+    const orderService = {
+      markPaymentEscrowHeld,
+      markPaymentEscrowHeldForPayment,
+    } as unknown as OrderService;
+
+    const service = new PaymentService(
+      paymentRepository,
+      undefined as unknown as Repository<PaymentProviderEvent>,
+      undefined,
+      iyzicoProvider,
+      createLedgerService(),
+      undefined,
+      orderService,
+    );
+
+    const result = await service.retrieveAndApplyPayment({
+      eventKey: 'event-1',
+      token: 'checkout-token',
+      status: 'success',
+    });
+
+    // 100 USD beklerken 100 TL tahsilat: asla escrow'a geçmez
+    expect(result?.status).toBe(PaymentStatus.ADMIN_REVIEW);
+    expect(markPaymentEscrowHeld).not.toHaveBeenCalled();
+    expect(markPaymentEscrowHeldForPayment).not.toHaveBeenCalled();
+    expect((result?.metadata as any)?.providerMismatch).toMatchObject({
+      expectedCurrency: 'USD',
+      providerCurrency: 'TRY',
+    });
+  });
+
+  it('sends payment to admin review when provider-reported amount mismatches', async () => {
+    const payment = createPayment({ amount: 2450, currency: 'TRY' });
+    const paymentRepository = createPaymentRepository(payment);
+    const iyzicoProvider = {
+      retrieveCheckout: jest.fn(() =>
+        Promise.resolve({
+          checkoutToken: 'checkout-token',
+          providerPaymentId: 'provider-payment-1',
+          status: 'success',
+          amount: 100,
+          currency: 'TRY',
+        }),
+      ),
+    } as unknown as IyzicoProvider;
+    const markPaymentEscrowHeld = jest.fn();
+    const orderService = { markPaymentEscrowHeld } as unknown as OrderService;
+
+    const service = new PaymentService(
+      paymentRepository,
+      undefined as unknown as Repository<PaymentProviderEvent>,
+      undefined,
+      iyzicoProvider,
+      createLedgerService(),
+      undefined,
+      orderService,
+    );
+
+    const result = await service.retrieveAndApplyPayment({
+      eventKey: 'event-1',
+      token: 'checkout-token',
+      status: 'success',
+    });
+
+    expect(result?.status).toBe(PaymentStatus.ADMIN_REVIEW);
+    expect(markPaymentEscrowHeld).not.toHaveBeenCalled();
   });
 
   describe('saved cards', () => {

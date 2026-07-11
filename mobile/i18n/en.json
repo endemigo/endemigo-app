@@ -702,6 +702,7 @@
     "usedProducts": "Existing Products"
   },
   "cart": {
+      "mixedCurrencyWarning": "Your cart contains items in different currencies. Items in different currencies must be paid separately.",
     "title": "My Cart",
     "empty": "Your cart is empty",
     "emptySub": "Start shopping to add items",

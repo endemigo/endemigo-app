@@ -131,7 +131,7 @@ const SingleAuctionCard = React.memo(({
           <View>
             <Text style={styles.priceLabel}>{t('auctions.highestBid')}</Text>
             <Text style={styles.price}>
-              {formatCurrency(item.currentPrice)}
+              {formatCurrency(item.currentPrice, item.currency)}
             </Text>
           </View>
           {canBid ? (

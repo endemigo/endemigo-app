@@ -31,6 +31,7 @@ import {
   AuctionApprovalStatus,
   AuctionType,
   NotificationEventType,
+  SUPPORTED_CURRENCIES,
 } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AuctionService } from '../auction/auction.service';
@@ -5299,6 +5300,19 @@ export class AdminOperationsService {
     return value === true || value === 'true' || value === 1 || value === '1';
   }
 
+  /** Müzayede para birimi: whitelist dışı değer reddedilir, boş = TRY. */
+  private toCurrencyValue(value: unknown): string {
+    if (value === undefined || value === null || value === '') return 'TRY';
+    const normalized = String(value).toUpperCase();
+    if (!SUPPORTED_CURRENCIES.includes(normalized as any)) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: `Geçersiz para birimi. Desteklenenler: ${SUPPORTED_CURRENCIES.join(', ')}`,
+      });
+    }
+    return normalized;
+  }
+
   // ─── Ortak Müzayede Etkinliği (Model 2) Servis Fonksiyonları ───
 
   /** Sadece-satıcı mı (admin/operasyon rolü yok)? */
@@ -5490,6 +5504,7 @@ export class AdminOperationsService {
     event.categoryId = payload.categoryId || null;
     event.status = requestedStatus;
     event.auctionType = payload.auctionType || AuctionType.REALTIME;
+    event.currency = this.toCurrencyValue(payload.currency);
     event.eventType = (payload.systemType as any) || AuctionEventSystemType.ENDEMIGO_MANAGED;
     event.jointManagementType = (payload.jointManagementType as any) || null;
     event.startTime = new Date(payload.startTime);
@@ -5622,6 +5637,31 @@ export class AdminOperationsService {
       event.status = payload.status;
     }
     if (payload.auctionType !== undefined) event.auctionType = payload.auctionType;
+    if (payload.currency !== undefined) {
+      const nextCurrency = this.toCurrencyValue(payload.currency);
+      if (nextCurrency !== event.currency) {
+        // Peylenmiş lot varken para birimi değişirse mevcut peyler anlamını
+        // yitirir; yalnızca hiç pey alınmamış Taslak/Başvuru etkinliğinde izin ver.
+        if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Para birimi yalnızca Taslak veya Başvuru durumundaki müzayedede değiştirilebilir.',
+          });
+        }
+        const bidCount = await this.bidRepo
+          .createQueryBuilder('bid')
+          .innerJoin(Auction, 'a', 'a.id = bid."auctionId"')
+          .where('a."eventId" = :id', { id })
+          .getCount();
+        if (bidCount > 0) {
+          throw new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Bu müzayedede pey verilmiş; para birimi artık değiştirilemez.',
+          });
+        }
+        event.currency = nextCurrency;
+      }
+    }
     if (payload.startTime !== undefined) event.startTime = new Date(payload.startTime);
     if (payload.endTime !== undefined) event.endTime = new Date(payload.endTime);
     if (payload.submissionDeadline !== undefined) {

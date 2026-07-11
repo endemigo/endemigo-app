@@ -75,6 +75,11 @@ export class AuctionEvent extends BaseEntity {
   })
   auctionType: AuctionType;
 
+  // Etkinliğin tüm lotları bu para biriminde peylenir ve tahsil edilir.
+  // Depozito/pey limiti risk sistemi TL bazlı kalır.
+  @Column({ type: 'varchar', length: 3, default: 'TRY' })
+  currency: string;
+
   @Column({ type: 'timestamp' })
   startTime: Date;
 

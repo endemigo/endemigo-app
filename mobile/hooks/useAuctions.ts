@@ -20,6 +20,7 @@ interface Auction {
   reservePrice?: number | null;
   reserveMet?: boolean;
   buyerPremiumRate: number;
+  currency?: string;
   status: AuctionStatus;
   auctionType?: string;
   startTime: string;
@@ -62,6 +63,7 @@ interface AuctionResult {
   message?: string;
   id: string;
   status: string;
+  currency?: string;
   finalPrice: number;
   buyerPremium: number;
   bidCount: number;
@@ -252,6 +254,7 @@ interface AuctionEvent {
   coverImageUrl: string | null;
   status: string;
   auctionType: string;
+  currency?: string;
   startTime: string;
   endTime: string;
   submissionDeadline?: string | null;

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { AdminRole, AuctionPaymentStatus, ListingType, ProductStatus } from '@endemigo/shared';
 import { Auction } from '../auction/entities/auction.entity';
 import { Product } from '../product/entities/product.entity';
@@ -33,11 +33,27 @@ export class CartService {
 
   async getMyCart(userId: string) {
     const items = await this.getUserCartItems(userId);
+    const currencies = await this.resolveItemCurrencies(items);
     return {
       code: RC.CART_FETCHED,
       message: 'Sepet getirildi',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, currencies),
     };
+  }
+
+  /** Müzayede kalemleri event para biriminde tahsil edilir; diğerleri TRY. */
+  private async resolveItemCurrencies(items: CartItem[]): Promise<Map<string, string>> {
+    const currencies = new Map<string, string>();
+    const auctionIds = [...new Set(items.map((i) => i.auctionId).filter((id): id is string => !!id))];
+    if (auctionIds.length === 0) return currencies;
+    const auctions = await this.cartRepo.manager.find(Auction, {
+      where: { id: In(auctionIds) },
+      relations: ['event'],
+    });
+    for (const auction of auctions) {
+      currencies.set(auction.id, auction.event?.currency ?? 'TRY');
+    }
+    return currencies;
   }
 
   async addItem(userId: string, dto: AddCartItemDto) {
@@ -137,7 +153,7 @@ export class CartService {
     return {
       code: RC.CART_ITEM_ADDED,
       message: 'Ürün sepete eklendi',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, await this.resolveItemCurrencies(items)),
     };
   }
 
@@ -186,7 +202,7 @@ export class CartService {
     return {
       code: RC.CART_ITEM_ADDED,
       message: 'Ürün teklif fiyatıyla sepete eklendi',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, await this.resolveItemCurrencies(items)),
     };
   }
 
@@ -208,7 +224,7 @@ export class CartService {
     return {
       code: RC.CART_ITEM_UPDATED,
       message: 'Sepet güncellendi',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, await this.resolveItemCurrencies(items)),
     };
   }
 
@@ -229,7 +245,7 @@ export class CartService {
     return {
       code: RC.CART_ITEM_REMOVED,
       message: 'Ürün sepetten kaldırıldı',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, await this.resolveItemCurrencies(items)),
     };
   }
 
@@ -243,7 +259,7 @@ export class CartService {
     return {
       code: RC.CART_CLEARED,
       message: 'Sepet temizlendi',
-      cart: this.toCartResponse(items),
+      cart: this.toCartResponse(items, await this.resolveItemCurrencies(items)),
     };
   }
 
@@ -371,7 +387,7 @@ export class CartService {
     });
   }
 
-  private toCartResponse(items: CartItem[]) {
+  private toCartResponse(items: CartItem[], currencies?: Map<string, string>) {
     return {
       itemCount: items.length,
       totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -381,6 +397,7 @@ export class CartService {
         productVariantSkuId: item.productVariantSkuId,
         variantId: item.variantNumberId,
         auctionId: item.auctionId,
+        currency: (item.auctionId && currencies?.get(item.auctionId)) || 'TRY',
         offerId: item.offerId,
         customPrice: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : null,
         variant: item.variantNumber

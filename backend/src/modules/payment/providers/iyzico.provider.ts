@@ -25,6 +25,11 @@ export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentPro
       'https://sandbox-api.iyzipay.com';
   }
 
+  // GERÇEK ENTEGRASYON NOTU: iyzipay isteğinde `currency` alanı MUTLAKA
+  // input.currency'den set edilmeli (Iyzipay.CURRENCY.TRY varsayılanına
+  // bırakılırsa USD/EUR/GBP müzayede lotu TL olarak tahsil edilir!).
+  // retrieveCheckout da iyzico yanıtındaki paidPrice + currency değerlerini
+  // döndürmeli ki webhook doğrulaması uyuşmazlığı yakalayabilsin.
   async initializeCheckout(input: CheckoutInput): Promise<CheckoutResult> {
     const checkoutToken = `iyzico:${input.paymentId}`;
     return {

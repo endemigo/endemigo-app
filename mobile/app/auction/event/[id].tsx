@@ -61,7 +61,8 @@ export default function LiveEventRoomScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: eventDetails, isLoading: isDetailsLoading, refetch: refetchDetails } = useAuctionEventDetails(id);
-  const socket = useAuctionEventSocket(id);
+  const eventCurrency = eventDetails?.event?.currency || 'TRY';
+  const socket = useAuctionEventSocket(id, eventDetails?.event.activeLotId, eventCurrency);
 
   const { data: wallet } = useWalletBalance();
   const { data: walletHolds = [] } = useWalletHolds();
@@ -440,15 +441,15 @@ export default function LiveEventRoomScreen() {
     if (isBidEmpty || Number.isNaN(parsedBidAmount)) return null;
     if (isBidBelowMinimum) {
       return t('auction.bidBelowMinimumError', {
-        amount: formatAmount(minBid),
+        amount: formatCurrency(minBid, eventCurrency),
       });
     }
     if (isBidNotIncrementMultiple) {
       return t('auction.bidIncrementMultipleError', {
-        minIncrement: formatAmount(minIncrement),
-        val1: formatAmount(minBid),
-        val2: formatAmount(minBid + minIncrement),
-        val3: formatAmount(minBid + 2 * minIncrement),
+        minIncrement: formatCurrency(minIncrement, eventCurrency),
+        val1: formatCurrency(minBid, eventCurrency),
+        val2: formatCurrency(minBid + minIncrement, eventCurrency),
+        val3: formatCurrency(minBid + 2 * minIncrement, eventCurrency),
       });
     }
     return null;
@@ -483,7 +484,7 @@ export default function LiveEventRoomScreen() {
     {
       key: 'total',
       label: t('auction.estimatedTotalLabel'),
-      value: formatCurrency(bidEstimate.estimatedTotal),
+      value: formatCurrency(bidEstimate.estimatedTotal, eventCurrency),
       tone: isWalletGateClosed ? ('error' as const) : ('accent' as const),
     },
   ];
@@ -498,20 +499,20 @@ export default function LiveEventRoomScreen() {
     ? [
         {
           key: 'min',
-          label: t('auction.quickBidMin', { amount: formatAmount(minBid) }),
+          label: t('auction.quickBidMin', { amount: formatCurrency(minBid, eventCurrency) }),
           amount: String(minBid),
         },
         {
           key: 'plusOne',
           label: t('auction.quickBidPlusOne', {
-            amount: formatAmount(minBid + Number(biddingLotDetails.minIncrement)),
+            amount: formatCurrency(minBid + Number(biddingLotDetails.minIncrement), eventCurrency),
           }),
           amount: String(minBid + Number(biddingLotDetails.minIncrement)),
         },
         {
           key: 'plusThree',
           label: t('auction.quickBidPlusThree', {
-            amount: formatAmount(minBid + Number(biddingLotDetails.minIncrement) * 3),
+            amount: formatCurrency(minBid + Number(biddingLotDetails.minIncrement) * 3, eventCurrency),
           }),
           amount: String(minBid + Number(biddingLotDetails.minIncrement) * 3),
         },
@@ -528,7 +529,7 @@ export default function LiveEventRoomScreen() {
 
   const proxyMessage = activeProxyAmount
     ? t('auction.proxyActiveMessage', {
-        amount: formatAmount(activeProxyAmount),
+        amount: formatCurrency(activeProxyAmount, eventCurrency),
       })
     : null;
 
@@ -568,7 +569,7 @@ export default function LiveEventRoomScreen() {
       showModal({
         title: t('common.error'),
         message: t('auction.minBidError', {
-          amount: minBid.toFixed(2),
+          amount: formatCurrency(minBid, eventCurrency),
         }),
         type: 'error',
       });
@@ -583,7 +584,7 @@ export default function LiveEventRoomScreen() {
       showModal({
         title: t('common.error'),
         message: t('auction.bidIncrementError', {
-          increment: biddingLotDetails?.minIncrement,
+          increment: formatCurrency(Number(biddingLotDetails?.minIncrement ?? 0), eventCurrency),
         }),
         type: 'error',
       });
@@ -617,7 +618,7 @@ export default function LiveEventRoomScreen() {
         showModal({
           title: t('auction.proxyOutbidTitle'),
           message: t('auction.proxyOutbidMessage', {
-            amount: formatAmount(result.auction?.currentPrice ?? amount),
+            amount: formatCurrency(result.auction?.currentPrice ?? amount, eventCurrency),
           }),
           type: 'info',
         });
@@ -634,7 +635,7 @@ export default function LiveEventRoomScreen() {
       showModal({
         title: t('auction.bidAcceptedTitle'),
         message: t('auction.bidAcceptedMessage', {
-          amount: formatAmount(amount),
+          amount: formatCurrency(amount, eventCurrency),
         }),
         type: 'success',
       });
@@ -964,7 +965,7 @@ export default function LiveEventRoomScreen() {
                   )}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
-                  <Text style={styles.priceValue}>{formatCurrency(currentLotPrice)}</Text>
+                  <Text style={styles.priceValue}>{formatCurrency(currentLotPrice, eventCurrency)}</Text>
                   {bidState === 'leading' && (
                     <View style={styles.leaderBadge}>
                       <Ionicons name="checkmark-circle" size={12} color={Colors.white} />
@@ -1258,7 +1259,7 @@ export default function LiveEventRoomScreen() {
                         {lot.productTitle}
                       </Text>
                       <Text style={styles.lotPrice}>
-                        {formatCurrency(Number(lot.currentPrice))}
+                        {formatCurrency(Number(lot.currentPrice), eventCurrency)}
                       </Text>
                     </View>
                     <View style={styles.lotStatusRow}>
@@ -1447,7 +1448,7 @@ export default function LiveEventRoomScreen() {
                 placeholder={minBid.toString()}
                 maxPlaceholder={t('auction.maxBidPlaceholder')}
                 minBidText={t('auction.minBid', {
-                  amount: formatAmount(minBid),
+                  amount: formatCurrency(minBid, eventCurrency),
                 })}
                 disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
                 isPending={placeBid.isPending}
@@ -1511,14 +1512,14 @@ export default function LiveEventRoomScreen() {
                       <View style={styles.detailBadge}>
                         <Ionicons name="trophy-outline" size={14} color={Colors.secondary} />
                         <Text style={styles.detailBadgeText}>
-                          {t('auction.finalPrice')}: <Text style={[styles.detailBadgePriceText, { color: Colors.secondary }]}>{formatCurrency(Number(previewedLot.currentPrice))}</Text>
+                          {t('auction.finalPrice')}: <Text style={[styles.detailBadgePriceText, { color: Colors.secondary }]}>{formatCurrency(Number(previewedLot.currentPrice), eventCurrency)}</Text>
                         </Text>
                       </View>
                     ) : (
                       <View style={styles.detailBadge}>
                         <Ionicons name="cash-outline" size={14} color={Colors.auctionGreen} />
                         <Text style={styles.detailBadgeText}>
-                          {t('auction.openingPrice')}: <Text style={styles.detailBadgePriceText}>{formatCurrency(Number(previewedLot.startPrice))}</Text>
+                          {t('auction.openingPrice')}: <Text style={styles.detailBadgePriceText}>{formatCurrency(Number(previewedLot.startPrice), eventCurrency)}</Text>
                         </Text>
                       </View>
                     )}
@@ -1549,7 +1550,7 @@ export default function LiveEventRoomScreen() {
                                   {t('auction.finalPrice', { defaultValue: 'Son Fiyat' })}:
                                 </Text>
                                 <Text style={{ fontSize: FontSize.bodyXl, fontFamily: FontFamily.price, color: Colors.onSurface, fontWeight: '700' }}>
-                                  {formatCurrency(previewedResult.finalPrice)}
+                                  {formatCurrency(previewedResult.finalPrice, eventCurrency)}
                                 </Text>
                               </View>
                               

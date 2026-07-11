@@ -16,7 +16,11 @@ export interface RetrievedPaymentResult {
   providerPaymentId: string;
   checkoutToken?: string;
   status: 'success' | 'failure' | 'pending';
+  // Sağlayıcının GERÇEKTE tahsil ettiği tutar/kur (iyzico: paidPrice + currency).
+  // Gerçek entegrasyon bu alanları doldurmalı — webhook tarafı Payment kaydıyla
+  // karşılaştırır; uyuşmazlıkta ödeme ESCROW_HELD yapılmaz, ADMIN_REVIEW'a düşer.
   amount?: number;
+  currency?: string;
 }
 
 export interface RefundResult {

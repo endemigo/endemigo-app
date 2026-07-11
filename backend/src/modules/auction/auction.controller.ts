@@ -305,6 +305,7 @@ export class AuctionController {
       coverImageUrl?: string;
       categoryId?: string;
       auctionType?: AuctionType;
+      currency?: string;
       startTime: string;
       endTime: string;
       submissionDeadline?: string;

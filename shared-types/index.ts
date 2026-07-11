@@ -66,6 +66,9 @@ export {
   AuctionEventSystemType,
   JointManagementType,
   InvitationStatus,
+  Currency,
+  SUPPORTED_CURRENCIES,
+  CURRENCY_SYMBOLS,
 } from './enums';
 
 

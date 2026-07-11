@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../constants/theme';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Spacing } from '../constants/theme';
 import { useCartStore } from '../store/cartStore';
 import { useToastStore } from '../store/toastStore';
 import { formatCurrency } from '../utils/transactionFormatters';
@@ -22,10 +22,15 @@ export default function CartScreen() {
   const showToast = useToastStore((state) => state.showToast);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = subtotal > 1500 ? 0 : 89;
+  // Döviz sepeti (yalnız müzayede lotları): sabit TL kargo uygulanmaz —
+  // backend buildCartQuote ile aynı kural. Karma sepeti checkout reddeder.
+  const cartCurrency = items.length > 0 ? (items[0].currency ?? 'TRY') : 'TRY';
+  const hasMixedCurrency = items.some((item) => (item.currency ?? 'TRY') !== cartCurrency);
+  const shipping = cartCurrency !== 'TRY' ? 0 : subtotal > 1500 ? 0 : 89;
   const serviceFee = Math.round(subtotal * 0.02);
   const grandTotal = subtotal + shipping + serviceFee;
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const insets = useSafeAreaInsets();
 
   const handleRemoveItem = (itemId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -114,7 +119,7 @@ export default function CartScreen() {
               />
               <View style={styles.itemBody}>
                 <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.itemMeta}>{t('cart.unitPrice')}: {formatCurrency(item.price)}</Text>
+                <Text style={styles.itemMeta}>{t('cart.unitPrice')}: {formatCurrency(item.price, item.currency)}</Text>
                 <View style={styles.bottomRow}>
                   {item.auctionId ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.secondaryContainer, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
@@ -145,7 +150,7 @@ export default function CartScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                  <Text style={styles.itemPrice}>{formatCurrency(item.price * item.quantity)}</Text>
+                  <Text style={styles.itemPrice}>{formatCurrency(item.price * item.quantity, item.currency)}</Text>
                 </View>
               </View>
             </View>
@@ -153,22 +158,31 @@ export default function CartScreen() {
         )}
       />
 
-      <View style={styles.summaryCard}>
+      <View style={[styles.summaryCard, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
+        {hasMixedCurrency && (
+          <View style={styles.summaryLine}>
+            <Text style={[styles.summaryLabel, { color: Colors.error, flex: 1 }]}>
+              {t('cart.mixedCurrencyWarning', {
+                defaultValue: 'Sepetinizde farklı para birimlerinde ürünler var. Farklı para birimindeki ürünler ayrı ödenmelidir.',
+              })}
+            </Text>
+          </View>
+        )}
         <View style={styles.summaryLine}>
           <Text style={styles.summaryLabel}>{t('cart.subtotal')}</Text>
-          <Text style={styles.summaryLabel}>{formatCurrency(subtotal)}</Text>
+          <Text style={styles.summaryLabel}>{formatCurrency(subtotal, cartCurrency)}</Text>
         </View>
         <View style={styles.summaryLine}>
           <Text style={styles.summaryLabel}>{t('cart.shipping')}</Text>
-          <Text style={styles.summaryLabel}>{shipping === 0 ? t('cart.free') : formatCurrency(shipping)}</Text>
+          <Text style={styles.summaryLabel}>{shipping === 0 ? t('cart.free') : formatCurrency(shipping, cartCurrency)}</Text>
         </View>
         <View style={styles.summaryLine}>
           <Text style={styles.summaryLabel}>{t('cart.serviceFee')}</Text>
-          <Text style={styles.summaryLabel}>{formatCurrency(serviceFee)}</Text>
+          <Text style={styles.summaryLabel}>{formatCurrency(serviceFee, cartCurrency)}</Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryValueLabel}>{t('cart.total')}</Text>
-          <Text style={styles.summaryValue}>{formatCurrency(grandTotal)}</Text>
+          <Text style={styles.summaryValue}>{formatCurrency(grandTotal, cartCurrency)}</Text>
         </View>
 
         <View style={styles.summaryActions}>

@@ -370,6 +370,16 @@
                   </div>
                 </div>
                 <div class="wizard-field">
+                  <label>Para Birimi</label>
+                  <select class="input" v-model="wizardForm.currency">
+                    <option value="TRY">₺ Türk Lirası (TRY)</option>
+                    <option value="USD">$ Amerikan Doları (USD)</option>
+                    <option value="EUR">€ Euro (EUR)</option>
+                    <option value="GBP">£ İngiliz Sterlini (GBP)</option>
+                  </select>
+                  <p class="wizard-hint">Tüm lotlar bu para biriminden peylenir ve tahsil edilir. Pey verildikten sonra değiştirilemez.</p>
+                </div>
+                <div class="wizard-field">
                   <label>Otomatik Süre Uzatma (Anti-Sniping)</label>
                   <select class="input" v-model="wizardForm.antiSnipingEnabled">
                     <option value="true">Evet (Aktif)</option>
@@ -649,6 +659,15 @@ const auctionTypeOptions = [
   { label: 'Süreli', value: 'TIMED' },
 ];
 
+// Peyler ve kazanan tahsilatı bu para biriminden yürür; pey verildikten
+// sonra backend değişikliği reddeder.
+const currencyOptions = [
+  { label: '₺ Türk Lirası (TRY)', value: 'TRY' },
+  { label: '$ Amerikan Doları (USD)', value: 'USD' },
+  { label: '€ Euro (EUR)', value: 'EUR' },
+  { label: '£ İngiliz Sterlini (GBP)', value: 'GBP' },
+];
+
 function generateFormFields(row: any | null): DrawerField[] {
   const fields: DrawerField[] = [
     { key: 'title', label: 'Müzayede Başlığı', required: true, value: row?.title || '', fullWidth: true },
@@ -660,6 +679,13 @@ function generateFormFields(row: any | null): DrawerField[] {
       type: 'select',
       value: row?.status || 'DRAFT',
       options: auctionEventStatusOptions,
+    },
+    {
+      key: 'currency',
+      label: 'Para Birimi',
+      type: 'select',
+      value: row?.currency || 'TRY',
+      options: currencyOptions,
     },
   ];
 
@@ -748,6 +774,7 @@ const wizardForm = reactive({
   endTime: '',
   submissionDeadline: '',
   auctionType: 'REALTIME',
+  currency: 'TRY',
   antiSnipingEnabled: 'true',
   maxExtensions: '5',
   extensionSeconds: '60',
@@ -824,6 +851,7 @@ function handleNewEventClick() {
     endTime: '',
     submissionDeadline: '',
     auctionType: 'REALTIME',
+    currency: 'TRY',
     antiSnipingEnabled: 'true',
     maxExtensions: '5',
     extensionSeconds: '60',
@@ -861,6 +889,7 @@ async function submitWizard() {
     endTime: wizardForm.endTime,
     submissionDeadline: wizardForm.submissionDeadline || '',
     auctionType: wizardForm.auctionType,
+    currency: wizardForm.currency,
     antiSnipingEnabled: wizardForm.antiSnipingEnabled,
     maxExtensions: wizardForm.maxExtensions,
     extensionSeconds: wizardForm.extensionSeconds,

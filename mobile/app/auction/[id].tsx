@@ -82,7 +82,8 @@ export default function AuctionDetailScreen() {
     requiredLimit: number;
     requiredDeposit: number;
   } | null>(null);
-  const socket = useAuctionSocket(id);
+  const auctionCurrency = auction?.currency || 'TRY';
+  const socket = useAuctionSocket(id, auctionCurrency);
   const { data: product } = useProduct(auction?.productId ?? '');
   const { data: eventDetails } = useAuctionEventDetails(auction?.eventId ?? '');
   const toggleFavorite = useToggleFavorite();
@@ -241,15 +242,15 @@ export default function AuctionDetailScreen() {
     if (isBidEmpty || Number.isNaN(parsedBidAmount)) return null;
     if (isBidBelowMinimum) {
       return t('auction.bidBelowMinimumError', {
-        amount: formatAmount(minBid),
+        amount: formatCurrency(minBid, auctionCurrency),
       });
     }
     if (isBidNotIncrementMultiple) {
       return t('auction.bidIncrementMultipleError', {
-        minIncrement: formatAmount(minIncrement),
-        val1: formatAmount(minBid),
-        val2: formatAmount(minBid + minIncrement),
-        val3: formatAmount(minBid + 2 * minIncrement),
+        minIncrement: formatCurrency(minIncrement, auctionCurrency),
+        val1: formatCurrency(minBid, auctionCurrency),
+        val2: formatCurrency(minBid + minIncrement, auctionCurrency),
+        val3: formatCurrency(minBid + 2 * minIncrement, auctionCurrency),
       });
     }
     return null;
@@ -368,7 +369,7 @@ export default function AuctionDetailScreen() {
     {
       key: 'total',
       label: t('auction.estimatedTotalLabel'),
-      value: formatCurrency(bidEstimate.estimatedTotal),
+      value: formatCurrency(bidEstimate.estimatedTotal, auctionCurrency),
       tone: isWalletGateClosed ? 'error' as const : 'accent' as const,
     },
   ];
@@ -380,20 +381,20 @@ export default function AuctionDetailScreen() {
   const quickBidOptions = [
     {
       key: 'min',
-      label: t('auction.quickBidMin', { amount: formatAmount(minBid) }),
+      label: t('auction.quickBidMin', { amount: formatCurrency(minBid, auctionCurrency) }),
       amount: String(minBid),
     },
     {
       key: 'plusOne',
       label: t('auction.quickBidPlusOne', {
-        amount: formatAmount(minBid + Number(auction.minIncrement)),
+        amount: formatCurrency(minBid + Number(auction.minIncrement), auctionCurrency),
       }),
       amount: String(minBid + Number(auction.minIncrement)),
     },
     {
       key: 'plusThree',
       label: t('auction.quickBidPlusThree', {
-        amount: formatAmount(minBid + Number(auction.minIncrement) * 3),
+        amount: formatCurrency(minBid + Number(auction.minIncrement) * 3, auctionCurrency),
       }),
       amount: String(minBid + Number(auction.minIncrement) * 3),
     },
@@ -407,7 +408,7 @@ export default function AuctionDetailScreen() {
     : null;
   const proxyMessage = activeProxyAmount
     ? t('auction.proxyActiveMessage', {
-        amount: formatAmount(activeProxyAmount),
+        amount: formatCurrency(activeProxyAmount, auctionCurrency),
       })
     : null;
 
@@ -461,7 +462,7 @@ export default function AuctionDetailScreen() {
       showModal({
         title: t('common.error'),
         message: t('auction.minBidError', {
-          amount: minBid.toFixed(2),
+          amount: formatCurrency(minBid, auctionCurrency),
         }),
         type: 'error',
       });
@@ -494,7 +495,7 @@ export default function AuctionDetailScreen() {
         showModal({
           title: t('auction.absenteeAcceptedTitle'),
           message: t('auction.absenteeAcceptedMessage', {
-            amount: formatAmount(result.bid.maxAmount ?? amount),
+            amount: formatCurrency(result.bid.maxAmount ?? amount, auctionCurrency),
           }),
           type: 'success',
         });
@@ -507,7 +508,7 @@ export default function AuctionDetailScreen() {
         showModal({
           title: t('auction.proxyOutbidTitle'),
           message: t('auction.proxyOutbidMessage', {
-            amount: formatAmount(result.auction?.currentPrice ?? amount),
+            amount: formatCurrency(result.auction?.currentPrice ?? amount, auctionCurrency),
           }),
           type: 'info',
         });
@@ -523,7 +524,7 @@ export default function AuctionDetailScreen() {
       showModal({
         title: t('auction.bidAcceptedTitle'),
         message: t('auction.bidAcceptedMessage', {
-          amount: formatAmount(amount),
+          amount: formatCurrency(amount, auctionCurrency),
         }),
         type: 'success',
       });
@@ -768,6 +769,7 @@ export default function AuctionDetailScreen() {
 
         <View style={styles.content}>
           <AuctionSummaryPanel
+            currency={auctionCurrency}
             currentPrice={currentPrice}
             startPrice={Number(auction.startPrice)}
             minBid={minBid}
@@ -986,7 +988,7 @@ export default function AuctionDetailScreen() {
               placeholder={minBid.toString()}
               maxPlaceholder={t('auction.maxBidPlaceholder')}
               minBidText={t('auction.minBid', {
-                amount: formatAmount(minBid),
+                amount: formatCurrency(minBid, auctionCurrency),
               })}
               disabled={placeBid.isPending || isBidInvalid || isWalletGateClosed}
               isPending={placeBid.isPending}
