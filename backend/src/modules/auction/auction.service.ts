@@ -15,7 +15,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
-import { AuctionEvent } from './entities/auction-event.entity';
+import { AuctionEvent, UNTIMED_END_TIME } from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
 import { AuctionEventInvitation } from './entities/auction-event-invitation.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -161,6 +161,8 @@ export class AuctionService implements OnApplicationBootstrap {
     });
 
     for (const auction of activeAuctions) {
+      // Süresiz lot zamanla bitmez; restart'ta da görev kurulmaz.
+      if (auction.isUntimed) continue;
       const now = new Date();
       if (auction.endTime <= now) {
         this.logger.warn(`Sunucu kapalıyken süresi dolan lot sonlandırılıyor: ${auction.id}`);
@@ -437,6 +439,7 @@ export class AuctionService implements OnApplicationBootstrap {
         approvalStatus: AuctionApprovalStatus.PENDING, // Onay bekliyor
         startTime: event.startTime, // Etkinlik başlangıç zamanını miras alır
         endTime: event.endTime,
+        isUntimed: event.isUntimed,
         lotNumber,
         guaranteeAcceptedAt: dto.guaranteeAccepted ? new Date() : null,
       });
@@ -579,6 +582,7 @@ export class AuctionService implements OnApplicationBootstrap {
             approvalStatus: AuctionApprovalStatus.PENDING,
             startTime: event.startTime,
             endTime: event.endTime,
+            isUntimed: event.isUntimed,
             lotNumber,
             guaranteeAcceptedAt: new Date(),
           });
@@ -3063,6 +3067,7 @@ export class AuctionService implements OnApplicationBootstrap {
       currency: auction.event?.currency ?? 'TRY',
       status: auction.status,
       auctionType: auction.auctionType,
+      isUntimed: auction.isUntimed,
       startTime: auction.startTime,
       endTime: auction.endTime,
       timeLeftMs,
@@ -3264,6 +3269,12 @@ export class AuctionService implements OnApplicationBootstrap {
           activeLotId: null,
           status: AuctionEventStatus.ENDED,
         });
+        // Süresiz etkinlikte sentinel yerine gerçek kapanış anı kalsın.
+        await this.auctionRepo.manager.update(
+          AuctionEvent,
+          { id: auction.eventId, isUntimed: true },
+          { endTime: new Date() },
+        );
         this.auctionGateway.emitEventStatusChanged(auction.eventId, { status: AuctionEventStatus.ENDED });
       }
     }
@@ -3284,7 +3295,10 @@ export class AuctionService implements OnApplicationBootstrap {
 
     const now = new Date();
     lot.startTime = now;
-    lot.endTime = new Date(now.getTime() + 5 * 60 * 1000); // Varsayılan 5 dakika canlı ihale süresi
+    // Süresiz lotta geri sayım yok; kapanış yalnızca panelden (skip/"sattım").
+    lot.endTime = lot.isUntimed
+      ? UNTIMED_END_TIME
+      : new Date(now.getTime() + 5 * 60 * 1000); // Varsayılan 5 dakika canlı ihale süresi
     lot.status = AuctionStatus.ACTIVE;
     await this.auctionRepo.save(lot);
 
@@ -3319,12 +3333,15 @@ export class AuctionService implements OnApplicationBootstrap {
 
     this.auctionGateway.emitEventStatusChanged(eventId, { status: 'ACTIVE' });
 
-    const delay = lot.endTime.getTime() - Date.now();
-    await this.auctionQueue.add(
-      'end-auction',
-      { auctionId: lot.id },
-      { delay: Math.max(0, delay), jobId: `end-${lot.id}` }
-    );
+    // Süresiz lotta bitiş görevi kurulmaz; lot ancak panelden sonlanır.
+    if (!lot.isUntimed) {
+      const delay = lot.endTime.getTime() - Date.now();
+      await this.auctionQueue.add(
+        'end-auction',
+        { auctionId: lot.id },
+        { delay: Math.max(0, delay), jobId: `end-${lot.id}` }
+      );
+    }
   }
 
   async pauseAuction(eventId: string) {
@@ -3348,7 +3365,10 @@ export class AuctionService implements OnApplicationBootstrap {
 
     const remainingMs = lot.endTime.getTime() - Date.now();
     lot.status = AuctionStatus.PUBLISHED; // Bids can't be placed while paused
-    lot.pausedRemainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    // Süresiz lotta kalan süre anlamsız (sentinel'e kadar saniye int'e sığmaz).
+    lot.pausedRemainingSeconds = lot.isUntimed
+      ? null
+      : Math.max(0, Math.ceil(remainingMs / 1000));
     await this.auctionRepo.save(lot);
 
     // Bitiş BullMQ görevini kaldır
@@ -3381,17 +3401,21 @@ export class AuctionService implements OnApplicationBootstrap {
     lot.pausedRemainingSeconds = null;
     const now = new Date();
     lot.status = AuctionStatus.ACTIVE;
-    lot.endTime = new Date(now.getTime() + remainingSec * 1000);
+    lot.endTime = lot.isUntimed
+      ? UNTIMED_END_TIME
+      : new Date(now.getTime() + remainingSec * 1000);
     await this.auctionRepo.save(lot);
 
-    // BullMQ görevini yeniden programla. Aynı jobId tamamlanmış set'te
-    // bekliyorsa BullMQ eklemeyi sessizce yutar ve lot hiç bitmez — önce sil.
-    await this.removeQueueJob(`end-${lot.id}`);
-    await this.auctionQueue.add(
-      'end-auction',
-      { auctionId: lot.id },
-      { delay: remainingSec * 1000, jobId: `end-${lot.id}` }
-    );
+    if (!lot.isUntimed) {
+      // BullMQ görevini yeniden programla. Aynı jobId tamamlanmış set'te
+      // bekliyorsa BullMQ eklemeyi sessizce yutar ve lot hiç bitmez — önce sil.
+      await this.removeQueueJob(`end-${lot.id}`);
+      await this.auctionQueue.add(
+        'end-auction',
+        { auctionId: lot.id },
+        { delay: remainingSec * 1000, jobId: `end-${lot.id}` }
+      );
+    }
 
     const product = await this.auctionRepo.manager.findOne('Product', {
       where: { id: lot.productId },
@@ -3500,7 +3524,9 @@ export class AuctionService implements OnApplicationBootstrap {
       if (nextLot) {
         const now = new Date();
         nextLot.startTime = now;
-        nextLot.endTime = new Date(now.getTime() + 5 * 60 * 1000);
+        nextLot.endTime = nextLot.isUntimed
+          ? UNTIMED_END_TIME
+          : new Date(now.getTime() + 5 * 60 * 1000);
         nextLot.status = AuctionStatus.ACTIVE;
         await this.auctionRepo.save(nextLot);
 
@@ -3521,14 +3547,17 @@ export class AuctionService implements OnApplicationBootstrap {
           endTime: nextLot.endTime.toISOString(),
         });
 
-        const delay = nextLot.endTime.getTime() - Date.now();
-        // Tamamlanmış set'teki aynı jobId eklemeyi sessizce yutmasın.
-        await this.removeQueueJob(`end-${nextLot.id}`);
-        await this.auctionQueue.add(
-          'end-auction',
-          { auctionId: nextLot.id },
-          { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` }
-        );
+        // Süresiz lotta bitiş görevi kurulmaz; lot ancak panelden sonlanır.
+        if (!nextLot.isUntimed) {
+          const delay = nextLot.endTime.getTime() - Date.now();
+          // Tamamlanmış set'teki aynı jobId eklemeyi sessizce yutmasın.
+          await this.removeQueueJob(`end-${nextLot.id}`);
+          await this.auctionQueue.add(
+            'end-auction',
+            { auctionId: nextLot.id },
+            { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` }
+          );
+        }
 
         this.auctionGateway.emitEventStatusChanged(event.id, { status: AuctionEventStatus.ACTIVE });
         return { code: RC.SUCCESS, message: 'Sıradaki Lot başlatıldı' };

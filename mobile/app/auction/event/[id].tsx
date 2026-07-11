@@ -297,6 +297,12 @@ export default function LiveEventRoomScreen() {
 
   // Run countdown timer locally
   useEffect(() => {
+    // Süresiz etkinlikte geri sayım yok; lot ancak panelden kapanır.
+    if (eventDetails?.event?.isUntimed) {
+      setTimeLeftSeconds(0);
+      return;
+    }
+
     if (activeLotDetails?.status === 'PUBLISHED') {
       setTimeLeftSeconds(activeLotDetails.pausedRemainingSeconds || 0);
       return;
@@ -323,7 +329,7 @@ export default function LiveEventRoomScreen() {
     setTimeLeftSeconds(Math.max(0, Math.ceil((endMs - nowMs) / 1000)));
 
     return () => clearInterval(timer);
-  }, [endTime, activeLotDetails?.status, activeLotDetails?.pausedRemainingSeconds]);
+  }, [endTime, activeLotDetails?.status, activeLotDetails?.pausedRemainingSeconds, eventDetails?.event?.isUntimed]);
 
   useEffect(() => {
     if (!socket.isTransitioning || !socket.transitionEndTime) {
@@ -812,6 +818,21 @@ export default function LiveEventRoomScreen() {
 
   // Render Time Left for Active Lot
   const renderTimeLeft = () => {
+    // Süresiz mod: geri sayım yerine "Süresiz" — kapanışı panelden yönetici verir.
+    if (event?.isUntimed) {
+      return (
+        <View style={styles.timerContainer}>
+          <View style={styles.timerTextRow}>
+            <Ionicons name="infinite-outline" size={16} color={Colors.slate500} />
+            <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
+          </View>
+          <Text style={styles.countdownValue}>
+            {t('auctions.untimed', { defaultValue: 'Süresiz' })}
+          </Text>
+        </View>
+      );
+    }
+
     if (!endTime || timeLeftSeconds <= 0) {
       return (
         <View style={styles.timerContainer}>

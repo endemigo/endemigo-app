@@ -52,7 +52,7 @@ import { GeoIndication } from '../product/entities/geo-indication.entity';
 import { FeatureBadge } from '../product/entities/feature-badge.entity';
 import { Auction } from '../auction/entities/auction.entity';
 import { Bid } from '../auction/entities/bid.entity';
-import { AuctionEvent } from '../auction/entities/auction-event.entity';
+import { AuctionEvent, UNTIMED_END_TIME } from '../auction/entities/auction-event.entity';
 import { AdminUser } from '../admin-auth/entities/admin-user.entity';
 import { Order } from '../order/entities/order.entity';
 import { Payment } from '../payment/entities/payment.entity';
@@ -5436,6 +5436,7 @@ export class AdminOperationsService {
       auction.approvalStatus = AuctionApprovalStatus.APPROVED;
       auction.startTime = event.startTime;
       auction.endTime = event.endTime;
+      auction.isUntimed = event.isUntimed;
       auction.currentPrice = item.startingPrice;
       auction.antiSnipingEnabled = event.antiSnipingEnabled;
       auction.maxExtensions = event.maxExtensions;
@@ -5468,11 +5469,27 @@ export class AdminOperationsService {
 
   async createAuctionEvent(dto: AdminActionDto, actor: AdminActor) {
     const payload = this.actionPayload<Partial<AuctionEvent> & { systemType?: string; jointManagementType?: string; items?: any[] }>(dto);
-    if (!payload.title || !payload.startTime || !payload.endTime) {
+    // Süresiz mod: bitiş zamanı istenmez, etkinliği yalnızca panelden yönetici sonlandırır.
+    const isUntimed = this.toBooleanValue((payload as any).isUntimed);
+    if (!payload.title || !payload.startTime || (!payload.endTime && !isUntimed)) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Başlık, başlangıç ve bitiş zamanı zorunludur',
       });
+    }
+    if (isUntimed) {
+      if (this.isPureSeller(actor)) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Süresiz müzayedeyi yalnızca endemigo yöneticileri oluşturabilir.',
+        });
+      }
+      if (payload.auctionType && payload.auctionType !== AuctionType.REALTIME) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Süresiz mod yalnızca canlı (REALTIME) müzayedede kullanılabilir.',
+        });
+      }
     }
 
     const isSeller = actor?.roles?.includes('seller' as any) && !actor.roles.some((r) => ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS'].includes(r));
@@ -5507,10 +5524,13 @@ export class AdminOperationsService {
     event.currency = this.toCurrencyValue(payload.currency);
     event.eventType = (payload.systemType as any) || AuctionEventSystemType.ENDEMIGO_MANAGED;
     event.jointManagementType = (payload.jointManagementType as any) || null;
+    event.isUntimed = isUntimed;
     event.startTime = new Date(payload.startTime);
-    event.endTime = new Date(payload.endTime);
+    event.endTime = isUntimed ? UNTIMED_END_TIME : new Date(payload.endTime!);
     event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
     this.validateEventDates(event.startTime, event.endTime, event.submissionDeadline);
+    // Süresizde akışı yönetici sürer: lot geçişi otomatik ilerlemesin.
+    if (isUntimed) event.autoProgressEnabled = false;
     event.activeLotId = null;
     event.ownerId = this.isPureSeller(actor) ? actor.id : null;
     // Faz 6: Yayıncı varsayılanı = sahip; endemigo-yönetilende (ownerId yok) admin sonra atar.
@@ -5662,8 +5682,40 @@ export class AdminOperationsService {
         event.currency = nextCurrency;
       }
     }
+    // Süresiz mod aç/kapa — yalnızca yönetici. Açılırken endTime sentinel'e
+    // çekilir; kapatılırken gerçek bir bitiş zamanı verilmesi zorunlu.
+    if ((payload as any).isUntimed !== undefined) {
+      if (this.isPureSeller(actor)) {
+        throw new ForbiddenException({
+          code: RC.ADMIN_FORBIDDEN,
+          message: 'Süresiz modu yalnızca endemigo yöneticileri değiştirebilir.',
+        });
+      }
+      const nextUntimed = this.toBooleanValue((payload as any).isUntimed);
+      if (nextUntimed && (payload.auctionType ?? event.auctionType) !== AuctionType.REALTIME) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Süresiz mod yalnızca canlı (REALTIME) müzayedede kullanılabilir.',
+        });
+      }
+      if (!nextUntimed && event.isUntimed && payload.endTime === undefined) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Süresiz mod kapatılırken bitiş zamanı verilmelidir.',
+        });
+      }
+      event.isUntimed = nextUntimed;
+    }
     if (payload.startTime !== undefined) event.startTime = new Date(payload.startTime);
-    if (payload.endTime !== undefined) event.endTime = new Date(payload.endTime);
+    if (payload.endTime !== undefined && !event.isUntimed) event.endTime = new Date(payload.endTime);
+    if (event.isUntimed) {
+      // Süresizde bitiş, kapanışa dek sentinel'dir; panelden sonlandırılınca
+      // gerçek kapanış anı yazılır (geçmiş listeleri doğru tarih göstersin).
+      const closed = [AuctionEventStatus.ENDED, AuctionEventStatus.CANCELLED].includes(event.status);
+      event.endTime = closed
+        ? (before.status !== event.status ? new Date() : event.endTime)
+        : UNTIMED_END_TIME;
+    }
     if (payload.submissionDeadline !== undefined) {
       event.submissionDeadline = payload.submissionDeadline ? new Date(payload.submissionDeadline) : null;
     }
@@ -5712,6 +5764,14 @@ export class AdminOperationsService {
           ...(payload.startTime !== undefined ? { startTime: event.startTime } : {}),
           ...(payload.endTime !== undefined ? { endTime: event.endTime } : {}),
         }
+      );
+    }
+
+    // Süresiz bayrağı başlamamış lotlara da iner; aktif/bitmiş lotun akışı bozulmaz.
+    if ((payload as any).isUntimed !== undefined) {
+      await this.auctionRepo.update(
+        { eventId: id, status: In([AuctionStatus.DRAFT, AuctionStatus.PUBLISHED]) },
+        { isUntimed: event.isUntimed, endTime: event.endTime },
       );
     }
 

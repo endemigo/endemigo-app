@@ -3,6 +3,12 @@ import { BaseEntity } from '../../../common/entities/base.entity';
 import { AuctionEventStatus, AuctionType, AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
 import { Category } from '../../product/entities/category.entity';
 
+// Süresiz (untimed) etkinlik/lot için nominal bitiş. Kolonlar NOT NULL kaldığı
+// için null yerine bu uzak tarih yazılır; gerçek kapanış yalnızca panelden
+// (skip/"sattım" veya durum değişikliği) olur. Süre hesabına asla girmemeli —
+// isUntimed bayrağı tek doğruluk kaynağıdır.
+export const UNTIMED_END_TIME = new Date('2099-12-31T00:00:00.000Z');
+
 @Entity('auction_events')
 export class AuctionEvent extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
@@ -79,6 +85,11 @@ export class AuctionEvent extends BaseEntity {
   // Depozito/pey limiti risk sistemi TL bazlı kalır.
   @Column({ type: 'varchar', length: 3, default: 'TRY' })
   currency: string;
+
+  // Süresiz mod: bitiş zamanı yok, etkinliği yalnızca panelden yönetici
+  // sonlandırır. endTime UNTIMED_END_TIME sentineli taşır, zamanlayıcı kurulmaz.
+  @Column({ default: false })
+  isUntimed: boolean;
 
   @Column({ type: 'timestamp' })
   startTime: Date;

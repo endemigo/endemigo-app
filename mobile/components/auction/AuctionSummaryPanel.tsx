@@ -20,6 +20,8 @@ type AuctionSummaryPanelProps = {
   endTime: string;
   startTime?: string;
   serverTime: string;
+  // Süresiz lot: geri sayım yerine "Süresiz" rozeti (kapanış panelden).
+  isUntimed?: boolean;
   isActive: boolean;
   isUpcoming?: boolean;
   isEnded: boolean;
@@ -52,6 +54,7 @@ export function AuctionSummaryPanel({
   endTime,
   startTime,
   serverTime,
+  isUntimed,
   isActive,
   isUpcoming,
   isEnded,
@@ -104,7 +107,11 @@ export function AuctionSummaryPanel({
               {timerBadgeText}
             </Text>
           </View>
-          {timerActive ? (
+          {isUntimed && !isUpcomingAuction && !isEnded ? (
+            <Text style={styles.timerEndedText}>
+              {t('auctions.untimed', { defaultValue: 'Süresiz' })}
+            </Text>
+          ) : timerActive ? (
             <CountdownTimer
               endTime={timerTarget}
               serverTime={serverTime}

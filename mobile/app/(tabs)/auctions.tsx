@@ -124,7 +124,9 @@ const SingleAuctionCard = React.memo(({
           <Text style={styles.timer}>
             {isUpcoming
               ? t('auctions.startTime', { time: formatTimeLeft(startLeft, t) })
-              : t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
+              : item.isUntimed && !hasEndedByTime
+                ? t('auctions.untimed', { defaultValue: 'Süresiz' })
+                : t('auctions.endTime', { time: formatTimeLeft(timeLeft, t) })}
           </Text>
         ) : null}
         <View style={styles.priceRow}>

@@ -63,6 +63,9 @@ export class AuctionProcessor extends WorkerHost {
             }, (auction as any).eventId);
           }
 
+          // Süresiz lotta bitiş yok — "son X dakika" uyarısı anlamsız.
+          if ((auction as any).isUntimed) break;
+
           // Schedule warning events (5min, 1min before end)
           const warningEventId = (auction as any).eventId ?? null;
           const endMs = new Date(auction.endTime).getTime();

@@ -779,6 +779,7 @@ export default function AuctionDetailScreen() {
             endTime={endTime}
             startTime={auction.startTime}
             serverTime={serverTime}
+            isUntimed={auction.isUntimed === true}
             isActive={isActive}
             isUpcoming={isUpcoming}
             isEnded={isEnded}

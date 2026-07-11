@@ -46,6 +46,11 @@ export class Auction extends BaseEntity {
   @Column({ type: 'enum', enum: AuctionType, default: AuctionType.REALTIME })
   auctionType: AuctionType;
 
+  // Süresiz lot (event.isUntimed'den kopyalanır): geri sayım ve end-auction
+  // job'ı yok; lot yalnızca panelden skip/"sattım" ile kapanır.
+  @Column({ default: false })
+  isUntimed: boolean;
+
   @Column({ type: 'timestamp' })
   startTime: Date;
 

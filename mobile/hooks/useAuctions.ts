@@ -23,6 +23,8 @@ interface Auction {
   currency?: string;
   status: AuctionStatus;
   auctionType?: string;
+  // Süresiz lot: endTime nominal (sentinel), geri sayım gösterilmez.
+  isUntimed?: boolean;
   startTime: string;
   endTime: string;
   timeLeftMs: number;
@@ -254,6 +256,8 @@ interface AuctionEvent {
   coverImageUrl: string | null;
   status: string;
   auctionType: string;
+  // Süresiz etkinlik: yalnızca panelden yönetici sonlandırır; endTime nominal.
+  isUntimed?: boolean;
   currency?: string;
   startTime: string;
   endTime: string;

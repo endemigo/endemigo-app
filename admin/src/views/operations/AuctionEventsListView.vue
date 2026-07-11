@@ -120,8 +120,8 @@
           </div>
 
           <div class="type-pill-overlay" :class="event.auctionType?.toLowerCase()">
-            <i :class="event.auctionType === 'REALTIME' ? 'pi pi-bolt' : 'pi pi-clock'" />
-            {{ event.auctionType === 'REALTIME' ? 'Canlı' : 'Süreli' }}
+            <i :class="event.isUntimed ? 'pi pi-infinity' : (event.auctionType === 'REALTIME' ? 'pi pi-bolt' : 'pi pi-clock')" />
+            {{ event.isUntimed ? 'Süresiz' : (event.auctionType === 'REALTIME' ? 'Canlı' : 'Süreli') }}
           </div>
         </div>
 
@@ -129,8 +129,8 @@
           <h3 class="event-title">{{ event.title }}</h3>
           <p class="event-desc">{{ event.description || 'Açıklama belirtilmemiş.' }}</p>
 
-          <!-- Timeline Progress Bar for Ongoing Active Events -->
-          <div v-if="event.status === 'ACTIVE'" class="event-timeline-progress">
+          <!-- Timeline Progress Bar for Ongoing Active Events (süresizde ilerleme yüzdesi anlamsız) -->
+          <div v-if="event.status === 'ACTIVE' && !event.isUntimed" class="event-timeline-progress">
             <div class="progress-labels">
               <span>Etkinlik İlerlemesi</span>
               <span>{{ getElapsedTimePercentage(event) }}%</span>
@@ -341,7 +341,11 @@
                   <label>Başlangıç Tarihi *</label>
                   <input class="input" type="datetime-local" v-model="wizardForm.startTime" />
                 </div>
-                <div class="wizard-field">
+                <label v-if="!isSeller" class="wizard-field wizard-untimed-toggle">
+                  <input type="checkbox" v-model="wizardForm.isUntimed" />
+                  <span>Süresiz müzayede — bitiş zamanı yok, etkinliği yalnızca panelden yönetici sonlandırır</span>
+                </label>
+                <div v-if="!wizardForm.isUntimed" class="wizard-field">
                   <label>Bitiş Tarihi *</label>
                   <input class="input" type="datetime-local" v-model="wizardForm.endTime" />
                 </div>
@@ -363,7 +367,7 @@
                       <i class="pi pi-bolt model-toggle-icon" />
                       <span>Canlı</span>
                     </button>
-                    <button type="button" class="model-toggle-btn" :class="{ active: wizardForm.auctionType === 'TIMED' }" @click="wizardForm.auctionType = 'TIMED'">
+                    <button type="button" class="model-toggle-btn" :class="{ active: wizardForm.auctionType === 'TIMED' }" :disabled="wizardForm.isUntimed" :title="wizardForm.isUntimed ? 'Süresiz mod yalnızca canlı müzayedede kullanılabilir' : undefined" @click="wizardForm.auctionType = 'TIMED'">
                       <i class="pi pi-clock model-toggle-icon" />
                       <span>Süreli</span>
                     </button>
@@ -697,6 +701,18 @@ function generateFormFields(row: any | null): DrawerField[] {
       value: row.auctionType || 'REALTIME',
       options: auctionTypeOptions,
     });
+    if (!isSeller.value) {
+      fields.push({
+        key: 'isUntimed',
+        label: 'Süresiz Mod (bitiş zamanı yok, panelden sonlandırılır)',
+        type: 'select',
+        value: row.isUntimed === true ? 'true' : 'false',
+        options: [
+          { label: 'Hayır (bitiş zamanlı)', value: 'false' },
+          { label: 'Evet (süresiz)', value: 'true' },
+        ],
+      });
+    }
     // Faz 6: Canlı yayını yürütecek kişi (operatör/kreatör). Boş bırakılırsa sahibe düşer.
     const auctioneerOptions = [
       { label: '— Sahip / Varsayılan —', value: '' },
@@ -772,6 +788,7 @@ const wizardForm = reactive({
   coverImageUrl: '',
   startTime: '',
   endTime: '',
+  isUntimed: false,
   submissionDeadline: '',
   auctionType: 'REALTIME',
   currency: 'TRY',
@@ -820,7 +837,10 @@ async function handleCoverUpload(event: Event) {
   }
 }
 const scheduleValid = computed(() => {
-  if (!wizardForm.startTime || !wizardForm.endTime) return false;
+  if (!wizardForm.startTime) return false;
+  // Süresizde bitiş zamanı istenmez; yalnızca panelden sonlandırılır.
+  if (wizardForm.isUntimed) return true;
+  if (!wizardForm.endTime) return false;
   return new Date(wizardForm.endTime).getTime() > new Date(wizardForm.startTime).getTime();
 });
 const canProceedWizard = computed(() => {
@@ -849,6 +869,7 @@ function handleNewEventClick() {
     coverImageUrl: '',
     startTime: '',
     endTime: '',
+    isUntimed: false,
     submissionDeadline: '',
     auctionType: 'REALTIME',
     currency: 'TRY',
@@ -886,9 +907,10 @@ async function submitWizard() {
     coverImageUrl: wizardForm.coverImageUrl,
     status: 'DRAFT',
     startTime: wizardForm.startTime,
-    endTime: wizardForm.endTime,
+    endTime: wizardForm.isUntimed ? '' : wizardForm.endTime,
+    isUntimed: wizardForm.isUntimed ? 'true' : 'false',
     submissionDeadline: wizardForm.submissionDeadline || '',
-    auctionType: wizardForm.auctionType,
+    auctionType: wizardForm.isUntimed ? 'REALTIME' : wizardForm.auctionType,
     currency: wizardForm.currency,
     antiSnipingEnabled: wizardForm.antiSnipingEnabled,
     maxExtensions: wizardForm.maxExtensions,
@@ -1112,6 +1134,24 @@ onMounted(() => {
 .wizard-field .input {
   width: 100%;
   max-width: 100%;
+}
+.wizard-untimed-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.wizard-untimed-toggle input[type='checkbox'] {
+  margin-top: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
+.wizard-untimed-toggle span {
+  font-weight: 500;
+  color: #334155;
+  font-size: 0.88rem;
+  line-height: 1.35;
 }
 .wizard-grid {
   display: grid;

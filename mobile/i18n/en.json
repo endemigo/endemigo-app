@@ -139,6 +139,7 @@
     "bid": "Bid Now",
     "reserve": "Reserve",
     "ended": "Ended",
+    "untimed": "Open-ended",
     "waiting": "Upcoming",
     "bidCount": "{{count}} bids",
     "singleTab": "Timed / Single",

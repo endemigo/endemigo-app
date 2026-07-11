@@ -139,6 +139,7 @@
     "bid": "Teklif Ver",
     "reserve": "Reserve",
     "ended": "Bitti",
+    "untimed": "Süresiz",
     "waiting": "Bekliyor",
     "bidCount": "{{count}} teklif",
     "singleTab": "Tekli Müzayedeler",

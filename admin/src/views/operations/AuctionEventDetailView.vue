@@ -68,7 +68,14 @@
                     <strong class="kpi-value font-mono current-price-color">{{ formatMoney(activeLot.currentPrice) }}</strong>
                   </div>
 
-                  <div :class="['price-kpi-card countdown-kpi-card', { 'low-time-danger': timeLeftSeconds > 0 && timeLeftSeconds <= 15, 'ended': timeLeftSeconds <= 0, 'highlight-glow': timeLeftSeconds > 15 }]">
+                  <div v-if="isUntimedEvent" class="price-kpi-card countdown-kpi-card highlight-glow">
+                    <span class="kpi-label">Kalan Süre</span>
+                    <strong class="kpi-value countdown-time font-mono">
+                      <i class="pi pi-infinity" />
+                      Süresiz
+                    </strong>
+                  </div>
+                  <div v-else :class="['price-kpi-card countdown-kpi-card', { 'low-time-danger': timeLeftSeconds > 0 && timeLeftSeconds <= 15, 'ended': timeLeftSeconds <= 0, 'highlight-glow': timeLeftSeconds > 15 }]">
                     <span class="kpi-label">Kalan Süre</span>
                     <strong class="kpi-value countdown-time font-mono">
                       <i class="pi pi-clock clock-icon-spin" />
@@ -275,7 +282,7 @@
                 </div>
                 <div class="meta-row">
                   <span class="label">Bitiş:</span>
-                  <strong class="value">{{ formatDate(event?.endTime) }}</strong>
+                  <strong class="value">{{ event?.isUntimed ? 'Süresiz — panelden sonlandırılır' : formatDate(event?.endTime) }}</strong>
                 </div>
                 <div class="meta-row" v-if="event?.activeLotId">
                   <span class="label">Aktif Lot ID:</span>
@@ -910,6 +917,8 @@ function openImageZoom(url: string | null | undefined) {
 }
 
 const event = ref<any>(null);
+// Süresiz etkinlik: geri sayım yerine "Süresiz" gösterilir, lot ancak panelden kapanır.
+const isUntimedEvent = computed(() => event.value?.isUntimed === true);
 const approvedLots = ref<any[]>([]);
 const pendingSubmissions = ref<any[]>([]);
 const invitations = ref<any[]>([]);
@@ -1080,6 +1089,12 @@ let timerInterval: any = null;
 
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
+
+  // Süresiz lotta geri sayım yok; KPI kartı "Süresiz" gösterir.
+  if (isUntimedEvent.value) {
+    timeLeftSeconds.value = 0;
+    return;
+  }
 
   if (activeLot.value?.status === 'PUBLISHED') {
     timeLeftSeconds.value = activeLot.value.pausedRemainingSeconds || 0;
