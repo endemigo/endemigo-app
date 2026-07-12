@@ -8,7 +8,9 @@ module.exports = function (api) {
         {
           root: ['.'],
           alias: {
-            '@endemigo/shared': '../shared-types',
+            // '@endemigo/shared' Metro extraNodeModules ile çözülür
+            // (metro.config.js); babel'de göreli yola çevirmek expo-router
+            // require.context altında prod bundle'ı kırıyor.
             '@': '.',
           },
         },

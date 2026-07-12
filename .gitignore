@@ -99,3 +99,5 @@ backend/create-seller.ts
 backend/fix-users.ts
 backend/test-product-uuid.ts
 backend/update-owners.ts
+# CodeGraph local index (contains a unix socket that breaks EAS archive)
+.codegraph/

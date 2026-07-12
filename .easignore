@@ -1,0 +1,44 @@
+# NOT: .easignore varsa EAS bunu .gitignore YERİNE kullanabilir. Bu yüzden
+# standart ignore'lar da burada — hem "replace" hem "supplement" davranışında
+# doğru sonuç verir (superset).
+#
+# Kök dizinler leading-slash ile anchor'lanır; aksi halde alt dizinlerdeki
+# aynı isimli klasörler de (örn. mobile/scripts/) yanlışlıkla hariç kalır.
+
+# --- Bağımlılıklar ---
+**/node_modules/
+
+# --- Native klasörler (CNG: EAS build sırasında prebuild ile üretilir;
+#     OTA URL/channel eas.json profilinden gelir) ---
+/mobile/android/
+/mobile/ios/
+
+# --- Build / cache çıktıları ---
+**/dist/
+/mobile/.expo/
+# EAS shallow-clone'un .git'ini siler (HEAD'deki ağır logo-asset blob'ları
+# arşive girmesin). Trailing slash OLMAMALI — `ignore` paketi aksi halde
+# çıplak ".git" yolunu eşleştirmez ve .git silinmez.
+.git
+
+# --- EAS build'e gereksiz ağır kök dizinler (özellikle ~110MB logo-asset) ---
+/admin/
+/backend/
+/coverage/
+/docs/
+/scripts/
+/logo-asset/
+
+# --- CodeGraph yerel index (unix socket EAS arşivini kırıyor) ---
+/.codegraph/
+
+# --- Claude Code / proje araç dizinleri (özellikle .claude/worktrees ~93MB) ---
+/.claude/
+/.agents/
+/.planning/
+/.cursor/
+/.vscode/
+
+# --- Loglar / yerel env ---
+**/*.log
+/mobile/.env.local

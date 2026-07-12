@@ -12,7 +12,12 @@ config.watchFolders = [
   path.resolve(monorepoRoot, 'shared-types'),
 ];
 
-// Resolve @endemigo/shared to the shared-types directory
+// '@endemigo/shared' bir node_modules symlink'i ile çözülür
+// (node_modules/@endemigo/shared -> ../../../shared-types). Symlink
+// package.json'daki `link-shared` postinstall script'i tarafından kurulur;
+// böylece EAS'ta `npm ci` çalıştıktan sonra da mevcut olur. file:../
+// bağımlılığı npm ci'yi, babel alias ise production bundle'ı bozduğu için
+// symlink yöntemi tercih edildi.
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
   '@endemigo/shared': path.resolve(monorepoRoot, 'shared-types'),

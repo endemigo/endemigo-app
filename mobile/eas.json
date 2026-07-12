@@ -10,18 +10,26 @@
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://213-238-168-87.sslip.io",
+        "EXPO_PUBLIC_USE_MOCK": "false",
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID": "688037de-4fc0-4e89-a2ef-f6b63f3576a4"
+      }
+    },
+    "production-apk": {
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://213-238-168-87.sslip.io",
+        "EXPO_PUBLIC_USE_MOCK": "false",
+        "EXPO_PUBLIC_ONESIGNAL_APP_ID": "688037de-4fc0-4e89-a2ef-f6b63f3576a4"
+      }
     }
   },
   "submit": {
     "production": {}
-  },
-  "update": {
-    "staging": {
-      "channel": "staging"
-    },
-    "production": {
-      "channel": "production"
-    }
   }
 }
