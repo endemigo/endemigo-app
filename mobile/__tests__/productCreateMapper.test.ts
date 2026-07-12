@@ -143,6 +143,10 @@ test('buildAuctionCreatePayload maps auction wizard state to backend payload', (
   assert.equal(payload.reservePrice, 1250);
   assert.equal(payload.auctionType, PRODUCT_CREATE_AUCTION_TYPES.REALTIME);
   assert.equal(payload.extensionSeconds, 60);
+  // Lot start/end zamanı backend'de etkinlikten miras alınır; apply payload'ı
+  // startTime/endTime taşımaz (ApplyToEventDto bunları omit eder, whitelist reddeder).
+  assert.equal((payload as Record<string, unknown>).startTime, undefined);
+  assert.equal((payload as Record<string, unknown>).endTime, undefined);
 });
 
 test('buildProductCreatePayload maps direct-sale with askPriceEnabled and empty price', () => {

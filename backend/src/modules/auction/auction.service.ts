@@ -39,6 +39,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import {
   CreateAuctionDto,
+  ApplyToEventDto,
   UpdateAuctionDto,
   PlaceBidDto,
   RegisterToAuctionDto,
@@ -444,7 +445,7 @@ export class AuctionService implements OnApplicationBootstrap {
     return event;
   }
 
-  async applyToEvent(sellerId: string, eventId: string, dto: CreateAuctionDto) {
+  async applyToEvent(sellerId: string, eventId: string, dto: ApplyToEventDto) {
     const event = await this.assertEventApplicationAllowed(
       sellerId,
       eventId,

@@ -970,7 +970,12 @@ export class ProductService {
       .leftJoinAndSelect('p.category', 'category')
       .leftJoinAndSelect('p.seller', 'seller')
       .leftJoinAndSelect('p.images', 'images')
-      .where('p.status = :status', { status: ProductStatus.ACTIVE });
+      .where('p.status = :status', { status: ProductStatus.ACTIVE })
+      // Müzayede lot ürünleri pazaryeri feed'inde görünmez; müzayede UI'ından
+      // sunulur. (Cart guard'ı da listingType===AUCTION'ı engelliyor.)
+      .andWhere('p.listingType != :auctionType', {
+        auctionType: ListingType.AUCTION,
+      });
 
     const normalizedBrand = brand?.trim();
     if (normalizedBrand) {

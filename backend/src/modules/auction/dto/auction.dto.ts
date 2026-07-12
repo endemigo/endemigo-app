@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import {
   IsUUID,
   IsNumber,
@@ -99,6 +104,14 @@ export class CreateAuctionDto {
   @IsOptional()
   guaranteeAccepted?: boolean;
 }
+
+// Etkinliğe lot başvurusu: lot start/end zamanı etkinlikten miras alınır,
+// bu yüzden istemciden startTime/endTime beklenmez (standalone create'ten
+// farkı budur). Diğer tüm doğrulamalar CreateAuctionDto ile aynı kalır.
+export class ApplyToEventDto extends OmitType(CreateAuctionDto, [
+  'startTime',
+  'endTime',
+] as const) {}
 
 // updateDraft body'si: Partial<CreateAuctionDto> tip olarak class-validator
 // metadata'sını taşımaz ve ValidationPipe'ı devre dışı bırakır; PartialType

@@ -46,13 +46,15 @@ async function uploadProductImage(productId: string, image: ProductCreateImageDr
 }
 
 async function publishProduct(productId: string) {
+  // Satıcı ürünü kendi başına ACTIVE'e taşıyamaz (backend ADMIN_ONLY_STATUSES
+  // guard'ı). Yayınlama = içerik onay kuyruğuna gönderme; admin ACTIVE yapar.
   if (ENV.USE_MOCK) {
     const mockRes = await mockService.publishProduct(productId);
-    return { status: ProductStatus.ACTIVE, ...mockRes };
+    return { status: ProductStatus.PENDING_REVIEW, ...mockRes };
   }
 
   const { data } = await api.patch(`/products/${productId}`, {
-    status: ProductStatus.ACTIVE,
+    status: ProductStatus.PENDING_REVIEW,
   });
   return data;
 }
@@ -84,9 +86,14 @@ export async function submitProductCreateWizard(
     }
   }
 
-  const published = await publishProduct(product.id);
-  if (published && published.status) {
-    product = { ...product, status: published.status };
+  // Mevcut ürün seçildiyse durumu zaten satıcının yönetiminde — yeniden
+  // yayınlama status'ünü ezmesin (DRAFT ürünü zorla değiştirmek veya
+  // non-ACTIVE üründe 403 almamak için).
+  if (!existingProductId) {
+    const published = await publishProduct(product.id);
+    if (published && published.status) {
+      product = { ...product, status: published.status };
+    }
   }
 
   if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {

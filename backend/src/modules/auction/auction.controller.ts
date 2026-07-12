@@ -23,6 +23,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
 import {
   CreateAuctionDto,
+  ApplyToEventDto,
   UpdateAuctionDto,
   PlaceBidDto,
   RegisterToAuctionDto,
@@ -91,7 +92,7 @@ export class AuctionController {
   async applyToEvent(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
-    @Body() dto: CreateAuctionDto,
+    @Body() dto: ApplyToEventDto,
   ) {
     return this.auctionService.applyToEvent(userId, eventId, dto);
   }

@@ -55,10 +55,8 @@ interface AuctionCreatePayload {
   startPrice: number;
   minIncrement: number;
   reservePrice?: number;
-  // Lot zamanı/kuralları backend'de etkinlikten miras alınır; buradaki
-  // değerler yalnızca DTO doğrulaması için etkinlikten kopyalanır.
-  startTime: string;
-  endTime: string;
+  // Lot zamanı ve kuralları backend'de etkinlikten miras alınır; apply
+  // uç noktası (ApplyToEventDto) startTime/endTime kabul etmez.
   auctionType: ProductCreateWizardState['auctionType'];
   antiSnipingEnabled: boolean;
   extensionSeconds: number;
@@ -159,8 +157,6 @@ export function buildAuctionCreatePayload(
         ? normalizeMoneyScale(parsedReservePrice)
         : undefined;
     })(),
-    startTime: state.auctionStartTime,
-    endTime: state.auctionEndTime,
     auctionType: state.auctionType,
     antiSnipingEnabled: state.antiSnipingEnabled,
     extensionSeconds: Number(state.extensionSeconds || '60'),
