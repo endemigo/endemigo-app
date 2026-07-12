@@ -43,6 +43,7 @@
     "profile": "Profile",
     "wallet": "Wallet",
     "orders": "Orders",
+    "messages": "Messages",
     "notifications": "Notifications",
     "paketim": "My Package",
     "sellerDashboard": "Dashboard",
@@ -171,6 +172,7 @@
     "fastDelivery": "Fast Delivery",
     "originalProduct": "Original Product",
     "noDescription": "No description available.",
+    "favoriteCount": "Favorited {{count}} times",
     "loading": "Loading product...",
     "error": "Product not found",
     "notFound": "Product not found",
@@ -579,6 +581,7 @@
     "reservePriceHint": "Optional. The sale will not complete below this amount.",
     "minIncrementHelp": "Each new bid must increase by at least this amount.",
     "reservePriceHelp": "Optional. The sale will not complete below this amount.",
+    "reserveTooLow": "Reserve price cannot be lower than the start price.",
     "lotSettingsSummary": "Lot Settings",
     "reserveNone": "None",
     "eventDeadline": "Application Deadline",
@@ -1467,8 +1470,10 @@
       "operations": "Today summary",
       "products": "Product health",
       "finance": "Finance and inbox",
-      "quickActions": "Quick actions"
+      "quickActions": "Quick actions",
+      "actionNeeded": "Needs Action"
     },
+    "allClear": "You're all caught up 🎉",
     "cards": {
       "newOrders": "New orders",
       "preparing": "To prepare",
@@ -1487,6 +1492,10 @@
       "refundedOrders": "Refunded orders"
     },
     "quickActions": {
+      "myProducts": "My products",
+      "newListing": "New Listing",
+      "addToAuction": "Add to Auction",
+      "notifications": "Notifications",
       "orders": "Orders",
       "wallet": "Balance",
       "campaigns": "Campaigns",
@@ -1685,6 +1694,62 @@
     "CANCELLED": "Cancelled",
     "FAILED": "Failed",
     "ADMIN_REVIEW": "Under review"
+  },
+  "myProducts": {
+    "title": "My Products",
+    "empty": "You have no products yet.",
+    "auctionPending": "Auction • Pending approval",
+    "underAuction": "In auction",
+    "addToAuction": "Add to auction",
+    "selectForAuctionTitle": "Select a product for auction",
+    "selectForAuctionHint": "Pick a product to add to an auction.",
+    "accessDenied": "Only sellers can access this area."
+  },
+  "applyToEvent": {
+    "eyebrow": "Auction",
+    "title": "Add to auction",
+    "selectEvent": "Select an event",
+    "noEvents": "No auctions open for applications right now.",
+    "deadline": "Deadline: {{date}}",
+    "startPrice": "Start price",
+    "minIncrement": "Min. increment",
+    "reservePrice": "Reserve price",
+    "optional": "Optional",
+    "reserveTooLow": "Reserve price cannot be lower than the start price.",
+    "guarantee": "I guarantee the origin and supply of this product.",
+    "submit": "Submit to auction",
+    "submitting": "Submitting…",
+    "successTitle": "Application received",
+    "successMessage": "The lot is pending approval. It will go live in the auction once approved.",
+    "errorFallback": "Something went wrong while adding to the auction."
+  },
+  "editProduct": {
+    "title": "Edit Product",
+    "saved": "Changes saved.",
+    "productSection": "Product details",
+    "lotSection": "Auction lot price",
+    "lotHint": "This product is a pending auction lot — you can edit the start, reserve and minimum increment values.",
+    "lotLocked": "Price fields are locked because the lot is approved.",
+    "fieldTitle": "Title",
+    "fieldDescription": "Description",
+    "fieldPrice": "Price (₺)",
+    "fieldStartPrice": "Start price (₺)",
+    "fieldReservePrice": "Reserve price (₺)",
+    "fieldMinIncrement": "Minimum increment (₺)",
+    "reserveOptional": "Optional"
+  },
+  "sellerHome": {
+    "title": "Seller Panel",
+    "viewAll": "All",
+    "activeListings": "Active Listings",
+    "actions": {
+      "newOrders": "New Orders",
+      "preparingShipment": "To Ship",
+      "pendingLots": "Lots Pending Approval",
+      "lowStock": "Low Stock",
+      "returns": "Return Requests",
+      "negotiations": "Open Negotiations"
+    }
   },
   "productStatuses": {
     "DRAFT": "Draft",

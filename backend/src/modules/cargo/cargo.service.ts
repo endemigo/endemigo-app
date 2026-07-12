@@ -276,6 +276,38 @@ export class CargoService {
     };
   }
 
+  // Test/webhook simülasyonu: gerçek kargo entegrasyonunda taşıyıcı "delivered"
+  // webhook'u çağırınca olacak şeyi taklit eder. Gidiş kargosunu DELIVERED yapar;
+  // transitionShipment içindeki order senkronu order'ı IN_TRANSIT → DELIVERED
+  // ilerletir (+ autoConfirmAt/alıcı onayı akışını başlatır). Satıcı elle teslim
+  // işaretlemez.
+  async simulateForwardDelivery(orderId: string) {
+    const res = await this.getShipmentForOrder(orderId);
+    const shipment = res?.shipment ?? null;
+    if (!shipment) {
+      throw new NotFoundException({
+        code: RC.ORDER_NOT_FOUND,
+        message: 'Bu sipariş için gidiş kargosu bulunamadı',
+      });
+    }
+    if (shipment.status === CargoStatus.DELIVERED) {
+      return {
+        code: RC.CARGO_STATUS_TRANSITIONED,
+        message: 'Kargo zaten teslim edildi',
+        shipment,
+        idempotent: true,
+      };
+    }
+    if (shipment.status !== CargoStatus.IN_TRANSIT) {
+      throw new BadRequestException({
+        code: RC.CARGO_STATUS_TRANSITIONED,
+        message:
+          'Kargo teslim edilebilmesi için önce satıcı tarafından kargoya verilmelidir.',
+      });
+    }
+    return this.transitionShipment(shipment.id, CargoStatus.DELIVERED);
+  }
+
   private async createShipment(
     orderId: string,
     shipmentType: CargoShipmentType,

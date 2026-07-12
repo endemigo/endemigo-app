@@ -17,10 +17,12 @@ export function SellerOrderActions({
 }: SellerOrderActionsProps) {
   const { t } = useTranslation();
 
+  // Satıcı yalnız kargoya verme adımına kadar ilerletir (IN_TRANSIT).
+  // Teslim (DELIVERED) artık kargo tarafından gelir (webhook / test simülasyonu),
+  // satıcı elle işaretlemez.
   const nextStatus = useMemo(() => {
     if (status === OrderStatus.ESCROW_HELD) return OrderStatus.PREPARING_SHIPMENT;
     if (status === OrderStatus.PREPARING_SHIPMENT) return OrderStatus.IN_TRANSIT;
-    if (status === OrderStatus.IN_TRANSIT) return OrderStatus.DELIVERED;
     return null;
   }, [status]);
 

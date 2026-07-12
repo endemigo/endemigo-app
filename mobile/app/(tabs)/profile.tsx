@@ -157,56 +157,8 @@ export default function ProfileScreen() {
     },
   ], []);
 
-  const sellerItems = useMemo<ProfileMenuItemConfig[]>(() => [
-    {
-      key: 'seller-dashboard',
-      labelKey: 'profileMenu.sellerDashboard',
-      icon: 'speedometer-outline',
-      route: '/(tabs)/seller-dashboard',
-      order: 1,
-      tone: 'primary',
-    },
-    {
-      key: 'seller-orders',
-      labelKey: 'profileMenu.sellerOrders',
-      icon: 'receipt-outline',
-      route: '/(tabs)/orders',
-      order: 2,
-      tone: 'secondary',
-    },
-    {
-      key: 'seller-operations',
-      labelKey: 'profileMenu.sellerOperations',
-      icon: 'cube-outline',
-      route: '/(tabs)/orders',
-      order: 3,
-      tone: 'accent',
-    },
-    {
-      key: 'seller-ads',
-      labelKey: 'profileMenu.sellerAds',
-      icon: 'megaphone-outline',
-      route: '/(tabs)/seller-ads',
-      order: 4,
-      tone: 'accent',
-    },
-    {
-      key: 'seller-campaigns',
-      labelKey: 'profileMenu.sellerCampaigns',
-      icon: 'pricetags-outline',
-      route: '/(tabs)/seller-campaigns',
-      order: 5,
-      tone: 'secondary',
-    },
-    {
-      key: 'messages',
-      labelKey: 'profileMenu.messages',
-      icon: 'chatbubble-ellipses-outline',
-      route: '/(tabs)/messages',
-      order: 6,
-      tone: 'primary',
-    },
-  ], []);
+  // Satıcı nav menüsü (sellerItems) kaldırıldı — satıcı sekmeleri + Panelim
+  // hızlı erişim aynı yerlere gidiyordu; profilde tekrar oluşturuyordu.
 
   const commonItems = activeMode === 'seller' ? sellerCommonItems : buyerCommonItems;
 
@@ -297,21 +249,19 @@ export default function ProfileScreen() {
         onNavigate={(route) => router.push(route as never)}
       />
 
-      <Text style={styles.sectionTitle}>
-        {activeMode === 'seller'
-          ? t('profile.sellerSectionTitle')
-          : t('profile.buyerSectionTitle')}
-      </Text>
-      <Text style={styles.sectionSubtitle}>
-        {activeMode === 'seller'
-          ? t('profile.sellerSectionSubtitle')
-          : t('profile.buyerSectionSubtitle')}
-      </Text>
-      <ProfileMenuSection
-        activeMode={activeMode}
-        items={activeMode === 'seller' ? sellerItems : buyerItems}
-        onNavigate={(route) => router.push(route as never)}
-      />
+      {/* Satıcı nav menüsü kaldırıldı — satıcı sekmeleri + Panelim hızlı erişim
+          bunları zaten karşılıyor. Alıcı modunda alıcı menüsü gösterilir. */}
+      {activeMode !== 'seller' && (
+        <>
+          <Text style={styles.sectionTitle}>{t('profile.buyerSectionTitle')}</Text>
+          <Text style={styles.sectionSubtitle}>{t('profile.buyerSectionSubtitle')}</Text>
+          <ProfileMenuSection
+            activeMode={activeMode}
+            items={buyerItems}
+            onNavigate={(route) => router.push(route as never)}
+          />
+        </>
+      )}
 
       {/* Become Seller Button / Pending Application State */}
       {!user?.isSeller && (

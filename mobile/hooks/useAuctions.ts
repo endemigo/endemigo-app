@@ -22,6 +22,7 @@ interface Auction {
   buyerPremiumRate: number;
   currency?: string;
   status: AuctionStatus;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   auctionType?: string;
   // Süresiz lot: endTime nominal (sentinel), geri sayım gösterilmez.
   isUntimed?: boolean;
@@ -316,6 +317,58 @@ export function useRespondInvitation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auction-invitations'] });
+    },
+  });
+}
+
+// Ürün eklenebilir (başvuruya açık) müzayede etkinlikleri: seçici için.
+export function useOpenAuctionEvents(enabled = true) {
+  return useQuery<AuctionEvent[]>({
+    queryKey: ['auction-events', 'open'],
+    queryFn: async () => {
+      const { data } = await api.get('/auctions/events?status=APPLICATION');
+      return data.items ?? [];
+    },
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export interface ApplyToEventInput {
+  eventId: string;
+  productId: string;
+  startPrice: number;
+  minIncrement?: number;
+  reservePrice?: number;
+  guaranteeAccepted?: boolean;
+}
+
+// Mevcut ürünü bir müzayede etkinliğine lot olarak ekler (POST /auctions/events/:id/apply).
+// Süre/tür/anti-sniping etkinlikten miras alınır; buradan yalnızca fiyat + garanti gönderilir.
+export function useApplyToEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      eventId,
+      productId,
+      startPrice,
+      minIncrement,
+      reservePrice,
+      guaranteeAccepted,
+    }: ApplyToEventInput) => {
+      const { data } = await api.post(`/auctions/events/${eventId}/apply`, {
+        productId,
+        startPrice,
+        ...(minIncrement !== undefined ? { minIncrement } : {}),
+        ...(reservePrice !== undefined ? { reservePrice } : {}),
+        ...(guaranteeAccepted !== undefined ? { guaranteeAccepted } : {}),
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-pending-lots'] });
+      queryClient.invalidateQueries({ queryKey: ['products', 'my'] });
+      queryClient.invalidateQueries({ queryKey: ['auctions'] });
     },
   });
 }

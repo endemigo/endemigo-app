@@ -38,6 +38,7 @@ import {
 type MockAuctionRepository = {
   findOne: jest.Mock;
   find: jest.Mock;
+  findAndCount: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
   count: jest.Mock;
@@ -189,6 +190,7 @@ describe('AuctionService', () => {
     auctionRepo = {
       findOne: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
+      findAndCount: jest.fn().mockResolvedValue([[], 0]),
       create: jest.fn((data) => ({ id: 'auction-new', bidCount: 0, ...data })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       count: jest.fn().mockResolvedValue(0),
@@ -2448,6 +2450,43 @@ describe('AuctionService', () => {
         mockDto as any,
       );
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('findMyLots', () => {
+    it('satıcının kendi lotlarını approvalStatus filtresiyle döndürür', async () => {
+      const lot = createMockAuction({
+        approvalStatus: AuctionApprovalStatus.PENDING,
+        product: { title: 'Zeytinyağı', imageUrl: null },
+      });
+      auctionRepo.findAndCount.mockResolvedValueOnce([[lot], 1]);
+
+      const result = await service.findMyLots(
+        'seller-1',
+        AuctionApprovalStatus.PENDING,
+        1,
+        20,
+      );
+
+      expect(auctionRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { sellerId: 'seller-1', approvalStatus: AuctionApprovalStatus.PENDING },
+          relations: ['product', 'product.category', 'event'],
+          order: { createdAt: 'DESC' },
+        }),
+      );
+      expect(result.items).toHaveLength(1);
+      // toResponse artık approvalStatus'u yüzeye çıkarır (mobil rozet/guard için).
+      expect(result.items[0].approvalStatus).toBe(AuctionApprovalStatus.PENDING);
+      expect(result.total).toBe(1);
+    });
+
+    it('approvalStatus verilmezse sadece sellerId ile filtreler', async () => {
+      auctionRepo.findAndCount.mockResolvedValueOnce([[], 0]);
+      await service.findMyLots('seller-1', undefined, 1, 20);
+      expect(auctionRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sellerId: 'seller-1' } }),
+      );
     });
   });
 

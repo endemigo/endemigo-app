@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -46,6 +46,15 @@ export class CargoController {
     @Param('orderId') orderId: string,
   ) {
     return this.cargoService.getShipmentForOrderForUser(orderId, user);
+  }
+
+  @Patch('orders/:orderId/simulate-delivery')
+  @Roles('admin')
+  @ApiOperation({
+    summary: 'Test/webhook simülasyonu: gidiş kargosunu teslim et (order otomatik DELIVERED)',
+  })
+  simulateDelivery(@Param('orderId') orderId: string) {
+    return this.cargoService.simulateForwardDelivery(orderId);
   }
 
   @Get('shipments/:shipmentId/events')

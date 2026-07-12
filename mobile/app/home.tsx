@@ -8,7 +8,7 @@ import {
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, TextInput, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,6 +29,7 @@ import {
   resolveMobileAudience,
   sortBlocksByOrder,
 } from '../utils/mobileConfig';
+import { MobileAudience } from '@endemigo/shared';
 import { getProductImageUri } from '../utils/productImages';
 import { formatCurrency } from '../utils/transactionFormatters';
 import { formatProductPrice } from '../utils/productPriceFormatter';
@@ -335,6 +336,7 @@ export default function HomeScreen() {
   const mobileConfig = mobileConfigData ?? getDefaultMobileExperienceConfig();
   const mobileLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const audience = resolveMobileAudience(user, activeMode);
+  const isSellerMode = audience === MobileAudience.SELLER;
   const allProducts = React.useMemo(() => data?.items ?? [], [data?.items]);
   const recentProducts = React.useMemo(() => {
     const actualViews = recentlyViewedItems.slice(0, 3);
@@ -497,6 +499,12 @@ export default function HomeScreen() {
       return (MOBILE_HOME_SURFACE_SLOT_IDS as readonly string[]).includes(moduleId);
     }
     return slot.enabled && isAudienceVisible(slot.audiences, audience);
+  }
+
+  // Satıcı modunda ana sayfa pazaryeri değil; satıcı Panelim'e (dashboard) düşer.
+  // Alışveriş/kategoriler alıcı modunda (rol toggle) kalır.
+  if (isSellerMode) {
+    return <Redirect href="/(tabs)/seller-dashboard" />;
   }
 
   function renderHomeModule(moduleId: string): React.ReactNode {

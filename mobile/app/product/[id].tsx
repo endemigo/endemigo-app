@@ -797,6 +797,17 @@ export default function ProductDetailScreen() {
           <View style={styles.summaryBlock}>
             <Text style={styles.sellerKicker}>{product.sellerName}</Text>
             <Text style={styles.title}>{product.title}</Text>
+            {(product.favoriteCount ?? 0) > 0 ? (
+              <View style={styles.favoriteMeta}>
+                <Ionicons name="heart" size={13} color={Colors.accent} />
+                <Text style={styles.favoriteMetaText}>
+                  {t('product.favoriteCount', {
+                    count: product.favoriteCount ?? 0,
+                    defaultValue: '{{count}} kez favoriye eklendi',
+                  })}
+                </Text>
+              </View>
+            ) : null}
             <Text style={styles.summaryText}>
               {product.description?.trim() || t('product.noDescription')}
             </Text>

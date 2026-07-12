@@ -124,6 +124,17 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.bodyLg,
     lineHeight: 22,
   },
+  favoriteMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: Spacing.sm,
+  },
+  favoriteMetaText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.caption,
+  },
   summaryBadgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

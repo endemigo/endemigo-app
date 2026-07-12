@@ -43,6 +43,7 @@
     "profile": "Profil",
     "wallet": "Cüzdan",
     "orders": "Siparişler",
+    "messages": "Mesajlar",
     "notifications": "Bildirimler",
     "paketim": "Paketim",
     "sellerDashboard": "Panelim",
@@ -171,6 +172,7 @@
     "fastDelivery": "Hızlı Teslimat",
     "originalProduct": "Orijinal Ürün",
     "noDescription": "Açıklama bulunmuyor.",
+    "favoriteCount": "{{count}} kez favoriye eklendi",
     "loading": "Ürün yükleniyor...",
     "error": "Ürün bulunamadı",
     "notFound": "Ürün bulunamadı",
@@ -579,6 +581,7 @@
     "reservePriceHint": "İsteğe bağlı. Bu tutarın altında satış tamamlanmaz.",
     "minIncrementHelp": "Her yeni pey en az bu tutar kadar artmalıdır.",
     "reservePriceHelp": "İsteğe bağlı. Bu tutarın altında satış tamamlanmaz.",
+    "reserveTooLow": "Rezerv fiyat açılış fiyatından düşük olamaz.",
     "lotSettingsSummary": "Lot Ayarları",
     "reserveNone": "Yok",
     "eventDeadline": "Son Katılım",
@@ -1467,8 +1470,10 @@
       "operations": "Bugün özeti",
       "products": "Ürün sağlığı",
       "finance": "Finans ve iletişim",
-      "quickActions": "Hızlı aksiyonlar"
+      "quickActions": "Hızlı aksiyonlar",
+      "actionNeeded": "Aksiyon Gerekenler"
     },
+    "allClear": "Bekleyen işin yok 🎉",
     "cards": {
       "newOrders": "Yeni sipariş",
       "preparing": "Hazırlanacak",
@@ -1487,6 +1492,10 @@
       "refundedOrders": "Tamamlanan iade"
     },
     "quickActions": {
+      "myProducts": "Ürünlerim",
+      "newListing": "Yeni İlan",
+      "addToAuction": "Müzayedeye Ekle",
+      "notifications": "Bildirimler",
       "orders": "Siparişler",
       "wallet": "Bakiye",
       "campaigns": "Kampanyalar",
@@ -1685,6 +1694,62 @@
     "CANCELLED": "İptal edildi",
     "FAILED": "Başarısız",
     "ADMIN_REVIEW": "İncelemede"
+  },
+  "myProducts": {
+    "title": "Ürünlerim",
+    "empty": "Henüz ürününüz yok.",
+    "auctionPending": "Müzayede • Onay bekliyor",
+    "underAuction": "Müzayedede",
+    "addToAuction": "Müzayedeye ekle",
+    "selectForAuctionTitle": "Müzayedeye ürün seç",
+    "selectForAuctionHint": "Müzayedeye eklemek için bir ürün seçin.",
+    "accessDenied": "Bu alana yalnızca satıcılar erişebilir."
+  },
+  "applyToEvent": {
+    "eyebrow": "Müzayede",
+    "title": "Müzayedeye ekle",
+    "selectEvent": "Etkinlik seçin",
+    "noEvents": "Şu an başvuruya açık müzayede yok.",
+    "deadline": "Son başvuru: {{date}}",
+    "startPrice": "Açılış fiyatı",
+    "minIncrement": "Min. artış",
+    "reservePrice": "Rezerv fiyat",
+    "optional": "İsteğe bağlı",
+    "reserveTooLow": "Rezerv fiyat açılış fiyatından düşük olamaz.",
+    "guarantee": "Ürünün menşei ve tedarik garantisini veriyorum.",
+    "submit": "Müzayedeye gönder",
+    "submitting": "Gönderiliyor…",
+    "successTitle": "Başvurunuz alındı",
+    "successMessage": "Lot onay bekliyor. Onaylanınca müzayedede yayına alınacak.",
+    "errorFallback": "Müzayedeye eklenirken bir hata oluştu."
+  },
+  "editProduct": {
+    "title": "Ürünü Düzenle",
+    "saved": "Değişiklikler kaydedildi.",
+    "productSection": "Ürün bilgileri",
+    "lotSection": "Müzayede lot fiyatı",
+    "lotHint": "Bu ürün onay bekleyen bir müzayede lotu — açılış, rezerv ve minimum artış değerlerini düzenleyebilirsiniz.",
+    "lotLocked": "Lot onaylandığı için fiyat alanları düzenlenemez.",
+    "fieldTitle": "Başlık",
+    "fieldDescription": "Açıklama",
+    "fieldPrice": "Fiyat (₺)",
+    "fieldStartPrice": "Açılış fiyatı (₺)",
+    "fieldReservePrice": "Rezerv fiyat (₺)",
+    "fieldMinIncrement": "Minimum artış (₺)",
+    "reserveOptional": "Opsiyonel"
+  },
+  "sellerHome": {
+    "title": "Satıcı Paneli",
+    "viewAll": "Tümü",
+    "activeListings": "Aktif İlanlar",
+    "actions": {
+      "newOrders": "Yeni Sipariş",
+      "preparingShipment": "Kargo Bekleyen",
+      "pendingLots": "Onay Bekleyen Lot",
+      "lowStock": "Düşük Stok",
+      "returns": "İade Talebi",
+      "negotiations": "Bekleyen Pazarlık"
+    }
   },
   "productStatuses": {
     "DRAFT": "Taslak",

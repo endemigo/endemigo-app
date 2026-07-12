@@ -197,6 +197,8 @@ export default function TabLayout() {
         options={{
           title: t('tabs.home'),
           headerShown: false,
+          // Satıcı modunda pazaryeri ana sayfası gizli; satıcı Panelim'e düşer.
+          href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
@@ -338,7 +340,16 @@ export default function TabLayout() {
         name="orders"
         options={{
           ...getSubpageOptions(activeMode === 'seller' ? 'orders.sellerHeaderTitle' : 'orders.buyerHeaderTitle'),
-          tabBarStyle: { display: 'none' },
+          // Satıcı modunda kök sekme (geri butonsuz, tab-bar görünür); alıcıda tam ekran subpage.
+          title: t('tabs.orders'),
+          href: isSellerMode ? undefined : null,
+          tabBarStyle: isSellerMode ? undefined : { display: 'none' },
+          headerLeft: isSellerMode
+            ? () => null
+            : getSubpageOptions('orders.buyerHeaderTitle').headerLeft,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -357,11 +368,37 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen name="categories/[id]" options={getSubpageOptions('categories.title')} />
-      <Tabs.Screen name="messages" options={getSubpageOptions('negotiation.list.title')} />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          ...getSubpageOptions('negotiation.list.title'),
+          // Satıcı modunda kök sekme; alıcıda subpage.
+          title: t('tabs.messages'),
+          href: isSellerMode ? undefined : null,
+          headerLeft: isSellerMode
+            ? () => null
+            : getSubpageOptions('negotiation.list.title').headerLeft,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={24} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen name="membership" options={getSubpageOptions('paketim.title')} />
       <Tabs.Screen name="seller-campaigns" options={getSubpageOptions('sellerCampaigns.title')} />
       <Tabs.Screen name="addresses" options={getSubpageOptions('addresses.title')} />
-      <Tabs.Screen name="profile" options={getSubpageOptions('tabs.profile', '/(tabs)/explore')} />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          ...getSubpageOptions('tabs.profile', '/(tabs)/explore'),
+          // En sağda kök profil sekmesi (her iki modda).
+          title: t('tabs.profile'),
+          href: undefined,
+          headerLeft: () => null,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
+          ),
+        }}
+      />
     </Tabs>
  
     <Modal
