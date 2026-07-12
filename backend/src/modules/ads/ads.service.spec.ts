@@ -134,9 +134,13 @@ describe('AdsService', () => {
     };
     adPlacementRepo = {
       create: jest.fn((value) => ({ id: 'placement-1', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: 'placement-1', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: 'placement-1', ...value }),
+      ),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
-      createQueryBuilder: jest.fn().mockReturnValue(createPlacementQueryBuilder([])),
+      createQueryBuilder: jest
+        .fn()
+        .mockReturnValue(createPlacementQueryBuilder([])),
     };
     productRepo = {
       findOne: jest.fn().mockResolvedValue(product),
@@ -425,7 +429,9 @@ describe('AdsService', () => {
   });
 
   it('allows boundary end/start times without conflict', async () => {
-    adPlacementRepo.createQueryBuilder.mockReturnValue(createPlacementQueryBuilder([]));
+    adPlacementRepo.createQueryBuilder.mockReturnValue(
+      createPlacementQueryBuilder([]),
+    );
 
     await expect(
       service.assertSlotAvailable({
@@ -441,7 +447,11 @@ describe('AdsService', () => {
   it('returns slot calendar and conflict response codes', async () => {
     adPlacementRepo.createQueryBuilder.mockReturnValue(
       createPlacementQueryBuilder([
-        { adRequestId: 'ad-1', categoryId: 'category-1', slotKey: 'search-top' },
+        {
+          adRequestId: 'ad-1',
+          categoryId: 'category-1',
+          slotKey: 'search-top',
+        },
       ]),
     );
 

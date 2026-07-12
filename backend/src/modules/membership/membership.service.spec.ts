@@ -66,13 +66,17 @@ describe('MembershipService', () => {
       find: jest.fn().mockResolvedValue([freePackage, premiumPackage]),
       findOne: jest.fn().mockResolvedValue(premiumPackage),
       create: jest.fn((value) => ({ id: 'package-new', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: value.id ?? 'package-new', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: value.id ?? 'package-new', ...value }),
+      ),
     };
     subscriptionRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       find: jest.fn().mockResolvedValue([]),
       create: jest.fn((value) => ({ id: 'subscription-1', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: value.id ?? 'subscription-1', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: value.id ?? 'subscription-1', ...value }),
+      ),
     };
     paymentProvider = {
       startSubscription: jest.fn().mockResolvedValue({
@@ -80,7 +84,9 @@ describe('MembershipService', () => {
         status: 'active',
         checkoutUrl: 'https://sandbox.test/checkout',
       }),
-      cancelAtPeriodEnd: jest.fn().mockResolvedValue({ cancelledAtPeriodEnd: true }),
+      cancelAtPeriodEnd: jest
+        .fn()
+        .mockResolvedValue({ cancelledAtPeriodEnd: true }),
       handleRenewalWebhook: jest.fn().mockResolvedValue({
         providerSubscriptionId: 'provider-sub-1',
         status: 'success',
@@ -126,12 +132,17 @@ describe('MembershipService', () => {
       metadata: {},
     });
 
-    const result = await service.requestDowngradeOrCancel('seller-1', 'package-free');
+    const result = await service.requestDowngradeOrCancel(
+      'seller-1',
+      'package-free',
+    );
 
     expect(result.code).toBe(RC.MEMBERSHIP_CHANGED);
     expect(result.subscription.cancelAtPeriodEnd).toBe(true);
     expect(result.subscription.metadata.nextPackageId).toBe('package-free');
-    expect(paymentProvider.cancelAtPeriodEnd).toHaveBeenCalledWith('provider-sub-1');
+    expect(paymentProvider.cancelAtPeriodEnd).toHaveBeenCalledWith(
+      'provider-sub-1',
+    );
   });
 
   it('moves renewal failure into grace', async () => {

@@ -7,7 +7,10 @@ import { AdminAuditService } from './admin-audit.service';
 import { AdminAuditLog } from './entities/admin-audit-log.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AdminAuditLog, AdminUser]), AdminAuthModule],
+  imports: [
+    TypeOrmModule.forFeature([AdminAuditLog, AdminUser]),
+    AdminAuthModule,
+  ],
   controllers: [AdminAuditController],
   providers: [AdminAuditService],
   exports: [AdminAuditService],

@@ -43,7 +43,11 @@ function createDraft(): MobileExperienceConfig {
           type: MobileBlockType.ENTRY_TILE,
           enabled: true,
           order: 1,
-          audiences: [MobileAudience.GUEST, MobileAudience.BUYER, MobileAudience.SELLER],
+          audiences: [
+            MobileAudience.GUEST,
+            MobileAudience.BUYER,
+            MobileAudience.SELLER,
+          ],
           surface: MobileSurfaceKey.HOME,
           title: { tr: 'Hemen Al', en: 'Buy Now' },
           subtitle: { tr: 'Bugun kesfet', en: 'Explore today' },
@@ -213,13 +217,13 @@ describe('MobileConfigService', () => {
   it('publishes the validated draft snapshot', async () => {
     repo.find.mockResolvedValue([
       {
-      id: 'mobile-config-1',
-      draft: createDraft(),
-      published: null,
-      version: 2,
-      updatedByAdminId: 'admin-2',
-      publishedByAdminId: null,
-      publishedAt: null,
+        id: 'mobile-config-1',
+        draft: createDraft(),
+        published: null,
+        version: 2,
+        updatedByAdminId: 'admin-2',
+        publishedByAdminId: null,
+        publishedAt: null,
       },
     ]);
 
@@ -273,7 +277,9 @@ describe('MobileConfigService', () => {
   it('includes public image upload limits in mobile config payload', async () => {
     const result = await service.getPublicConfig();
 
-    expect(result.imageUploadLimits).toEqual(DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS);
+    expect(result.imageUploadLimits).toEqual(
+      DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS,
+    );
     expect(adminSettingsService.getProductImageUploadLimits).toHaveBeenCalled();
   });
 });

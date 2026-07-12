@@ -25,9 +25,15 @@ import {
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { BulkImportDto } from './dto/bulk-import.dto';
-import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
+import {
+  CreateListingDraftDto,
+  UpdateListingDraftDto,
+} from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { ProductResponseDto, PaginatedProductsDto } from './dto/product-response.dto';
+import {
+  ProductResponseDto,
+  PaginatedProductsDto,
+} from './dto/product-response.dto';
 import { GenerateListingContentDto } from './dto/generate-content.dto';
 import { AiGeneratorService } from './ai-generator.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -86,12 +92,18 @@ export class ProductController {
   @Post('generate-content')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'AI ile ürün açıklaması ve hikayesi otomatik doldur (sadece satıcılar)' })
+  @ApiOperation({
+    summary:
+      'AI ile ürün açıklaması ve hikayesi otomatik doldur (sadece satıcılar)',
+  })
   async generateContent(
     @CurrentUser('id') userId: string,
     @Body() dto: GenerateListingContentDto,
   ) {
-    const result = await this.aiGeneratorService.generateListingContent(dto.title, dto.categoryName);
+    const result = await this.aiGeneratorService.generateListingContent(
+      dto.title,
+      dto.categoryName,
+    );
     return {
       code: RC.SUCCESS,
       message: 'AI icerik basariyla uretildi',
@@ -117,7 +129,10 @@ export class ProductController {
   @Post('bulk-import')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Satıcı - Toplu ürün yükleme (Frontend Excel parserından gelen array)' })
+  @ApiOperation({
+    summary:
+      'Satıcı - Toplu ürün yükleme (Frontend Excel parserından gelen array)',
+  })
   async bulkImport(@CurrentUser() user: any, @Body() dto: BulkImportDto) {
     return this.productService.bulkImport(user.id, dto, user);
   }
@@ -218,24 +233,31 @@ export class ProductController {
   @Roles('seller')
   @ApiOperation({ summary: 'Ürüne görsel yükle (max 10)' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 5 * 1024 * 1024 },
-    // D6: Dosya tipi kontrolü — sadece resim formatları kabul edilir
-    fileFilter: (_req, file, callback) => {
-      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (allowedMimes.includes(file.mimetype)) {
-        callback(null, true);
-      } else {
-        callback(
-          new BadRequestException({
-            code: RC.VALIDATION_ERROR,
-            message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
-          }),
-          false,
-        );
-      }
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      // D6: Dosya tipi kontrolü — sadece resim formatları kabul edilir
+      fileFilter: (_req, file, callback) => {
+        const allowedMimes = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/gif',
+        ];
+        if (allowedMimes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(
+            new BadRequestException({
+              code: RC.VALIDATION_ERROR,
+              message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
+            }),
+            false,
+          );
+        }
+      },
+    }),
+  )
   async uploadImage(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) productId: string,
@@ -243,7 +265,10 @@ export class ProductController {
   ) {
     // WR-05: Guard against missing file in multipart request
     if (!file) {
-      throw new BadRequestException({ code: RC.FILE_REQUIRED, message: 'Görsel dosyası zorunludur' });
+      throw new BadRequestException({
+        code: RC.FILE_REQUIRED,
+        message: 'Görsel dosyası zorunludur',
+      });
     }
     return this.productService.uploadImage(userId, productId, file);
   }
@@ -287,7 +312,11 @@ export class ProductController {
   @ApiResponse({ status: 200, type: PaginatedProductsDto })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'sort', required: false, enum: ['newest', 'likes', 'popular'] })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['newest', 'likes', 'popular'],
+  })
   @ApiQuery({ name: 'brand', required: false, example: 'Endemigo' })
   @ApiQuery({
     name: 'categoryId',
@@ -359,7 +388,9 @@ export class ProductController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const token = authHeader.substring(7);
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        const payload = JSON.parse(
+          Buffer.from(token.split('.')[1], 'base64').toString(),
+        );
         userId = payload.sub || payload.id;
       } catch {}
     }
@@ -419,7 +450,9 @@ export class ProductController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const token = authHeader.substring(7);
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        const payload = JSON.parse(
+          Buffer.from(token.split('.')[1], 'base64').toString(),
+        );
         userId = payload.sub || payload.id;
       } catch {}
     }
@@ -444,7 +477,9 @@ export class CategoryController {
   @ApiBearerAuth()
   // CR-01: Category seeding is an admin-only operation
   @Roles('admin')
-  @ApiOperation({ summary: 'Kategori seed data oluştur (root + children) — sadece admin' })
+  @ApiOperation({
+    summary: 'Kategori seed data oluştur (root + children) — sadece admin',
+  })
   async seed(): Promise<any> {
     return this.productService.seedCategories();
   }

@@ -12,7 +12,9 @@ import { MembershipPeriod } from '@endemigo/shared';
 import { MembershipPaymentProvider } from '../../membership/providers/membership-payment.provider';
 
 @Injectable()
-export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentProvider {
+export class IyzicoProvider
+  implements PaymentProviderPort, MembershipPaymentProvider
+{
   private readonly apiKey?: string;
   private readonly secretKey?: string;
   private readonly baseUrl: string;
@@ -46,7 +48,10 @@ export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentPro
     };
   }
 
-  async refundPayment(providerPaymentId: string, _amount: number): Promise<RefundResult> {
+  async refundPayment(
+    providerPaymentId: string,
+    _amount: number,
+  ): Promise<RefundResult> {
     return { providerRefundId: `refund:${providerPaymentId}` };
   }
 
@@ -74,10 +79,15 @@ export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentPro
   }
 
   async handleRenewalWebhook(payload: unknown) {
-    const event = payload as { providerSubscriptionId?: string; status?: string };
+    const event = payload as {
+      providerSubscriptionId?: string;
+      status?: string;
+    };
     return {
-      providerSubscriptionId: event.providerSubscriptionId ?? 'iyzico-sub:unknown',
-      status: event.status === 'success' ? 'success' as const : 'failed' as const,
+      providerSubscriptionId:
+        event.providerSubscriptionId ?? 'iyzico-sub:unknown',
+      status:
+        event.status === 'success' ? ('success' as const) : ('failed' as const),
     };
   }
 
@@ -107,6 +117,9 @@ export class IyzicoProvider implements PaymentProviderPort, MembershipPaymentPro
       return String(payload);
     }
 
-    return JSON.stringify(payload, Object.keys(payload as Record<string, unknown>).sort());
+    return JSON.stringify(
+      payload,
+      Object.keys(payload as Record<string, unknown>).sort(),
+    );
   }
 }

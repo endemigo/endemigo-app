@@ -1,4 +1,14 @@
-import { IsInt, IsObject, IsOptional, IsString, IsUUID, Max, Min, MinLength, IsEnum } from 'class-validator';
+import {
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+  MinLength,
+  IsEnum,
+} from 'class-validator';
 import { TrustFlagType } from '../entities/trust-flag.entity';
 
 export class CreateTrustFlagDto {

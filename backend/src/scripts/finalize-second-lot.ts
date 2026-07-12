@@ -22,12 +22,12 @@ async function run() {
       to: () => mockTo,
       emit: (event: string, data: any) => {
         console.log(`[Mock Socket Broadcast] Event: ${event}`, data);
-      }
+      },
     } as any;
 
     const secondLotId = '29c156e0-8138-4c5f-9d70-30018bf82445';
     console.log(`Resetting second lot (${secondLotId}) to ACTIVE...`);
-    
+
     const secondLot = await em.findOne(Auction, { where: { id: secondLotId } });
     if (secondLot) {
       secondLot.status = AuctionStatus.ACTIVE;

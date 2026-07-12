@@ -7,8 +7,16 @@ import { ProductVariantSku } from '../../product/entities/product-variant-sku.en
 import { Auction } from '../../auction/entities/auction.entity';
 
 @Entity('cart_items')
-@Index('UQ_cart_items_user_product_variant', ['userId', 'productId', 'variantNumberId'], { unique: true })
-@Index('UQ_cart_items_user_product_sku', ['userId', 'productId', 'productVariantSkuId'], { unique: true })
+@Index(
+  'UQ_cart_items_user_product_variant',
+  ['userId', 'productId', 'variantNumberId'],
+  { unique: true },
+)
+@Index(
+  'UQ_cart_items_user_product_sku',
+  ['userId', 'productId', 'productVariantSkuId'],
+  { unique: true },
+)
 @Index('IDX_cart_items_user_created', ['userId', 'createdAt'])
 export class CartItem extends BaseEntity {
   @Column()

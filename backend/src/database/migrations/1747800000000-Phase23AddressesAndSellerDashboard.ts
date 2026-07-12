@@ -43,8 +43,12 @@ export class Phase23AddressesAndSellerDashboard1747800000000 implements Migratio
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_addresses_user_created"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_addresses_user_type_default"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_addresses_user_created"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_addresses_user_type_default"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "addresses"`);
   }
 }

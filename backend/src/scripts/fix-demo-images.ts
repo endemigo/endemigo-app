@@ -115,7 +115,8 @@ const PRODUCT_FIXES: ProductFix[] = [
   },
   {
     title: '[SEED] Kars Kafkas Camasi Koleksiyon',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Bijo_rug-XIX_century.jpg',
+    imageUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/1/1c/Bijo_rug-XIX_century.jpg',
   },
   // --- Eski lot ürünleri ---
   {
@@ -173,37 +174,43 @@ const BANNER_SLIDE_FIXES: Record<string, string> = {
 const FALLBACK_IDENTITIES = [
   {
     title: 'El Dokuması Peştemal',
-    description: 'Pamuklu el dokuması peştemal. Hamam ve plaj kullanımına uygun, püsküllü.',
+    description:
+      'Pamuklu el dokuması peştemal. Hamam ve plaj kullanımına uygun, püsküllü.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Fouta_bohemeria.JPG/960px-Fouta_bohemeria.JPG',
   },
   {
     title: 'Ahşap Satranç Takımı',
-    description: 'El işçiliği ahşap satranç takımı. Taşları eksiksiz, oyma detaylı.',
+    description:
+      'El işçiliği ahşap satranç takımı. Taşları eksiksiz, oyma detaylı.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Ancient_Wooden_Chess.jpg/960px-Ancient_Wooden_Chess.jpg',
   },
   {
     title: 'El Yapımı Deri Cüzdan',
-    description: 'Gerçek deri, el dikişi cüzdan. Doğal kösele, dayanıklı işçilik.',
+    description:
+      'Gerçek deri, el dikişi cüzdan. Doğal kösele, dayanıklı işçilik.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Aarong_leather_wallet.jpg/960px-Aarong_leather_wallet.jpg',
   },
   {
     title: 'Porselen Türk Kahvesi Fincan Seti',
-    description: 'İnce porselen Türk kahvesi fincan takımı. Geleneksel desenli, pirinç detaylı.',
+    description:
+      'İnce porselen Türk kahvesi fincan takımı. Geleneksel desenli, pirinç detaylı.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Little_world%2C_Aichi_prefecture_-_Turkish_culture_exhibition_-_Coffee_set.jpg/960px-Little_world%2C_Aichi_prefecture_-_Turkish_culture_exhibition_-_Coffee_set.jpg',
   },
   {
     title: 'El Örmesi Hasır Sepet',
-    description: 'El örmesi doğal hasır sepet. Dayanıklı, günlük kullanıma uygun.',
+    description:
+      'El örmesi doğal hasır sepet. Dayanıklı, günlük kullanıma uygun.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Craftmen_at_work%2C_bamboo_basket_weaving_and_textile_mobile_sculptures%2C_in_Heuan_Chan_heritage_house%2C_Luang_Prabang%2C_Laos.jpg/960px-Craftmen_at_work%2C_bamboo_basket_weaving_and_textile_mobile_sculptures%2C_in_Heuan_Chan_heritage_house%2C_Luang_Prabang%2C_Laos.jpg',
   },
   {
     title: 'El Boyaması Çini Tabak',
-    description: 'İznik üslubunda el boyaması çini tabak. Klasik desenli, koleksiyonluk.',
+    description:
+      'İznik üslubunda el boyaması çini tabak. Klasik desenli, koleksiyonluk.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Iznik_pottery%2C_British_Museum%2C_London_-_53477734066.jpg/960px-Iznik_pottery%2C_British_Museum%2C_London_-_53477734066.jpg',
   },
@@ -215,31 +222,36 @@ const FALLBACK_IDENTITIES = [
   },
   {
     title: 'Antika İşlemeli Ayna',
-    description: 'Yaldız işlemeli antika ayna. Dönem karakterinde çerçeve, koleksiyonluk parça.',
+    description:
+      'Yaldız işlemeli antika ayna. Dönem karakterinde çerçeve, koleksiyonluk parça.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Antique_mirrors_18.jpg/960px-Antique_mirrors_18.jpg',
   },
   {
     title: 'Antika Pırlanta Yüzük',
-    description: 'Dönem işçiliği antika pırlanta yüzük. Zarif montür, koleksiyonluk.',
+    description:
+      'Dönem işçiliği antika pırlanta yüzük. Zarif montür, koleksiyonluk.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Antique_Engagement_Ring.jpg/960px-Antique_Engagement_Ring.jpg',
   },
   {
     title: 'Ahşap El Oyması Kaşık Seti',
-    description: 'El oyması masif ahşap servis kaşığı seti. Doğal, cilasız ahşap işçiliği.',
+    description:
+      'El oyması masif ahşap servis kaşığı seti. Doğal, cilasız ahşap işçiliği.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/%28%28_street_sales_in_Quito%2C_hand_carved_wooden_products%2C_wooden_spoons_cutting_boards_made_of_solid_wood_hand_made%29%29.jpg/960px-%28%28_street_sales_in_Quito%2C_hand_carved_wooden_products%2C_wooden_spoons_cutting_boards_made_of_solid_wood_hand_made%29%29.jpg',
   },
   {
     title: 'El Örgüsü Yün Atkı',
-    description: 'Yumuşak dokulu el örgüsü yün atkı. Doğal iplikten, zarif ajur desenli.',
+    description:
+      'Yumuşak dokulu el örgüsü yün atkı. Doğal iplikten, zarif ajur desenli.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/CashScarf.JPG/960px-CashScarf.JPG',
   },
   {
     title: 'Antika Porselen Duvar Tabağı',
-    description: 'El boyaması antika porselen tabak. Altın yaldız detaylı, sergilemeye uygun.',
+    description:
+      'El boyaması antika porselen tabak. Altın yaldız detaylı, sergilemeye uygun.',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/2021.03.30_LIMOGES_HAVILAND_Porcelain_Plate_1888_%E2%80%93_1896_Hand_Painted_with_Berries_01.jpg/960px-2021.03.30_LIMOGES_HAVILAND_Porcelain_Plate_1888_%E2%80%93_1896_Hand_Painted_with_Berries_01.jpg',
   },
@@ -255,7 +267,9 @@ const KNOWN_IMAGELESS_FIXES: Record<string, string> = {
 };
 
 async function run() {
-  const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
+  const app = await NestFactory.createApplicationContext(AppModule, {
+    logger: ['error', 'warn'],
+  });
   try {
     const em = app.get(EntityManager);
 
@@ -316,7 +330,8 @@ async function run() {
 
       if (junkTitle) {
         // Ad da anlamsız: sıradaki hazır kimliği ver (ad + açıklama + görsel)
-        const identity = FALLBACK_IDENTITIES[identityIdx % FALLBACK_IDENTITIES.length];
+        const identity =
+          FALLBACK_IDENTITIES[identityIdx % FALLBACK_IDENTITIES.length];
         identityIdx++;
         await em.query(
           `UPDATE products SET title = $1, description = $2, "imageUrl" = $3 WHERE id = $4`,

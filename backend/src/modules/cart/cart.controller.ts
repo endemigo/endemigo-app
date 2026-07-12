@@ -96,7 +96,9 @@ export class CartController {
   @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.SUPPORT)
   @ApiBearerAuth()
   @Get('admin/carts/items')
-  @ApiOperation({ summary: 'Admin: sepet kalemlerini tarih ve kullanıcıya göre getir' })
+  @ApiOperation({
+    summary: 'Admin: sepet kalemlerini tarih ve kullanıcıya göre getir',
+  })
   async listAdminCartItems(
     @Query() query: AdminCartQueryDto,
     @Request() req: AdminCartRequest,

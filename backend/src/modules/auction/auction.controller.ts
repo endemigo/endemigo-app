@@ -21,13 +21,24 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuctionService } from './auction.service';
-import { CreateAuctionDto, UpdateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
+import {
+  CreateAuctionDto,
+  UpdateAuctionDto,
+  PlaceBidDto,
+  RegisterToAuctionDto,
+} from './dto/auction.dto';
 import { AuctionType } from '../../shared/types/auction-type.enum';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { RC, AuctionEventStatus, AuctionRegistrationStatus, AuctionEventSystemType, JointManagementType, AuctionApprovalStatus } from '@endemigo/shared';
-
+import {
+  RC,
+  AuctionEventStatus,
+  AuctionRegistrationStatus,
+  AuctionEventSystemType,
+  JointManagementType,
+  AuctionApprovalStatus,
+} from '@endemigo/shared';
 
 function parsePositiveIntQuery(
   value: unknown,
@@ -70,8 +81,13 @@ export class AuctionController {
   @Post('events/:eventId/apply')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Müzayede etkinliğine ürün başvurusu yap (sadece satıcılar)' })
-  @ApiResponse({ status: 201, description: 'Müzayede etkinliği başvurusu alındı' })
+  @ApiOperation({
+    summary: 'Müzayede etkinliğine ürün başvurusu yap (sadece satıcılar)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Müzayede etkinliği başvurusu alındı',
+  })
   async applyToEvent(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
@@ -150,7 +166,11 @@ export class AuctionController {
   @ApiOperation({ summary: 'Müzayede listesi' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'auctionType', required: false, enum: ['REALTIME', 'TIMED'] })
+  @ApiQuery({
+    name: 'auctionType',
+    required: false,
+    enum: ['REALTIME', 'TIMED'],
+  })
   @ApiQuery({ name: 'productId', required: false })
   async findAll(
     @Query('page') page?: string,
@@ -170,7 +190,12 @@ export class AuctionController {
       });
     }
     const validType = auctionType as AuctionType | undefined;
-    return this.auctionService.findAll(safePage, safeLimit, validType, productId);
+    return this.auctionService.findAll(
+      safePage,
+      safeLimit,
+      validType,
+      productId,
+    );
   }
 
   // Statik path'ler ':id'den ÖNCE tanımlanmalı; aksi halde ParseUUIDPipe
@@ -187,8 +212,14 @@ export class AuctionController {
   @Get('my')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Satıcının kendi lotları/başvuruları (DRAFT/PENDING dahil)' })
-  @ApiQuery({ name: 'approvalStatus', required: false, enum: AuctionApprovalStatus })
+  @ApiOperation({
+    summary: 'Satıcının kendi lotları/başvuruları (DRAFT/PENDING dahil)',
+  })
+  @ApiQuery({
+    name: 'approvalStatus',
+    required: false,
+    enum: AuctionApprovalStatus,
+  })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   async findMyLots(
@@ -208,7 +239,12 @@ export class AuctionController {
     }
     const safePage = parsePositiveIntQuery(page, 'page', 1);
     const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 100);
-    return this.auctionService.findMyLots(userId, approvalStatus, safePage, safeLimit);
+    return this.auctionService.findMyLots(
+      userId,
+      approvalStatus,
+      safePage,
+      safeLimit,
+    );
   }
 
   @Public()
@@ -294,13 +330,13 @@ export class AuctionController {
   @Public()
   @Get(':id/ics')
   @ApiOperation({ summary: 'Müzayede takvim dosyası (.ics) indir' })
-  async getIcs(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ) {
+  async getIcs(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
     const icsContent = await this.auctionService.getIcsContent(id);
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="auction-${id}.ics"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="auction-${id}.ics"`,
+    );
     return res.send(icsContent);
   }
 
@@ -324,10 +360,13 @@ export class AuctionController {
   @Post('events')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Müzayede etkinliği oluştur (Model 1 veya Model 2)' })
+  @ApiOperation({
+    summary: 'Müzayede etkinliği oluştur (Model 1 veya Model 2)',
+  })
   async createEvent(
     @CurrentUser('id') userId: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       title: string;
       description?: string;
       coverImageUrl?: string;
@@ -360,11 +399,15 @@ export class AuctionController {
   @Post('events/:eventId/lots/bulk')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Excel toplu lot yükleme — ürün + lot tek adımda (satır bazlı hata raporu)' })
+  @ApiOperation({
+    summary:
+      'Excel toplu lot yükleme — ürün + lot tek adımda (satır bazlı hata raporu)',
+  })
   async bulkImportLots(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
-    @Body() dto: { guaranteeAccepted?: boolean; lots: Record<string, unknown>[] },
+    @Body()
+    dto: { guaranteeAccepted?: boolean; lots: Record<string, unknown>[] },
   ) {
     return this.auctionService.bulkImportLots(userId, eventId, dto);
   }
@@ -372,7 +415,10 @@ export class AuctionController {
   @Patch('events/:eventId/open-call')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Ortak müzayedede açık ürün çağrısını aç/kapat (sadece organizatör)' })
+  @ApiOperation({
+    summary:
+      'Ortak müzayedede açık ürün çağrısını aç/kapat (sadece organizatör)',
+  })
   async setOpenCall(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
@@ -384,7 +430,9 @@ export class AuctionController {
   @Patch('events/:eventId/lots/:lotId/approve')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Ortak müzayede lotunu onayla/reddet (sadece organizatör)' })
+  @ApiOperation({
+    summary: 'Ortak müzayede lotunu onayla/reddet (sadece organizatör)',
+  })
   async organizerApproveLot(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('lotId', ParseUUIDPipe) lotId: string,
@@ -403,19 +451,28 @@ export class AuctionController {
   @Post('events/:eventId/invite')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Ortak müzayedeye tedarikçi davet et (ID veya e-posta ile)' })
+  @ApiOperation({
+    summary: 'Ortak müzayedeye tedarikçi davet et (ID veya e-posta ile)',
+  })
   async inviteToEvent(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @CurrentUser('id') userId: string,
     @Body() dto: { inviteeId?: string; email?: string },
   ) {
-    return this.auctionService.sendInvitation(eventId, userId, dto.inviteeId, dto.email);
+    return this.auctionService.sendInvitation(
+      eventId,
+      userId,
+      dto.inviteeId,
+      dto.email,
+    );
   }
 
   @Post('invitations/:invitationId/cancel')
   @ApiBearerAuth()
   @Roles('seller')
-  @ApiOperation({ summary: 'Bekleyen daveti geri çek (sadece etkinlik sahibi)' })
+  @ApiOperation({
+    summary: 'Bekleyen daveti geri çek (sadece etkinlik sahibi)',
+  })
   async cancelInvitation(
     @Param('invitationId', ParseUUIDPipe) invitationId: string,
     @CurrentUser('id') userId: string,
@@ -445,4 +502,3 @@ export class AuctionController {
     return this.auctionService.rejectInvitation(invitationId, userId);
   }
 }
-

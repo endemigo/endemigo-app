@@ -6,7 +6,11 @@ import { Payment } from './payment.entity';
 @Entity('payment_provider_events')
 @Index(['eventKey'], { unique: true })
 export class PaymentProviderEvent extends BaseEntity {
-  @Column({ type: 'enum', enum: PaymentProvider, default: PaymentProvider.IYZICO })
+  @Column({
+    type: 'enum',
+    enum: PaymentProvider,
+    default: PaymentProvider.IYZICO,
+  })
   provider: PaymentProvider;
 
   @Column({ unique: true })

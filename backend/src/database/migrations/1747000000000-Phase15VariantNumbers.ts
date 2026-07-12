@@ -31,7 +31,9 @@ export class Phase15VariantNumbers1747000000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS idx_variant_numbers_sort_order`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS idx_variant_numbers_sort_order`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS variant_numbers`);
     await queryRunner.query(`DROP TYPE IF EXISTS variant_number_status`);
   }

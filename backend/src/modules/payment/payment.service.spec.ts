@@ -41,15 +41,22 @@ const createPayment = (overrides: Partial<Payment> = {}): Payment =>
     ...overrides,
   }) as Payment;
 
-const createPaymentRepository = (payment?: Payment, managerOverrides: any = {}) =>
+const createPaymentRepository = (
+  payment?: Payment,
+  managerOverrides: any = {},
+) =>
   ({
     findOne: jest.fn(() => Promise.resolve(payment ?? null)),
     save: jest.fn((input: Payment) => Promise.resolve(input)),
-    create: jest.fn((input: Partial<Payment>) => ({ id: 'payment-1', ...input } as Payment)),
+    create: jest.fn(
+      (input: Partial<Payment>) => ({ id: 'payment-1', ...input }) as Payment,
+    ),
     manager: {
       transaction: jest.fn(async (cb) => {
         const mockManager = {
-          findOne: jest.fn(() => Promise.resolve(managerOverrides.user ?? null)),
+          findOne: jest.fn(() =>
+            Promise.resolve(managerOverrides.user ?? null),
+          ),
           save: jest.fn((input: any) => Promise.resolve(input)),
         };
         return cb(mockManager);
@@ -62,7 +69,9 @@ const createSavedCardRepository = (savedCards: any[] = []) =>
   ({
     find: jest.fn(() => Promise.resolve(savedCards)),
     create: jest.fn((input: any) => input),
-    save: jest.fn((input: any) => Promise.resolve({ id: 'saved-card-1', ...input, createdAt: new Date() })),
+    save: jest.fn((input: any) =>
+      Promise.resolve({ id: 'saved-card-1', ...input, createdAt: new Date() }),
+    ),
   }) as any;
 
 const createOrder = (overrides: Partial<Order> = {}): Order =>
@@ -127,7 +136,9 @@ describe('PaymentService', () => {
 
   it('rejects payment initiation for another buyer order', async () => {
     const orderService = {
-      findPaymentOrder: jest.fn(() => Promise.resolve(createOrder({ buyerId: 'buyer-2' }))),
+      findPaymentOrder: jest.fn(() =>
+        Promise.resolve(createOrder({ buyerId: 'buyer-2' })),
+      ),
     } as unknown as OrderService;
     const service = new PaymentService(
       createPaymentRepository(),
@@ -160,12 +171,18 @@ describe('PaymentService', () => {
       iyzicoProvider,
     );
 
-    const firstResult = await service.handleIyzicoWebhook({
-      eventKey: 'iyzico-event-1',
-    }, 'valid-signature');
-    const secondResult = await service.handleIyzicoWebhook({
-      eventKey: 'iyzico-event-1',
-    }, 'valid-signature');
+    const firstResult = await service.handleIyzicoWebhook(
+      {
+        eventKey: 'iyzico-event-1',
+      },
+      'valid-signature',
+    );
+    const secondResult = await service.handleIyzicoWebhook(
+      {
+        eventKey: 'iyzico-event-1',
+      },
+      'valid-signature',
+    );
 
     expect(firstResult.code).toBe(RC.PAYMENT_WEBHOOK_PROCESSED);
     expect(secondResult.code).toBe(RC.PAYMENT_WEBHOOK_DUPLICATE);
@@ -174,9 +191,12 @@ describe('PaymentService', () => {
   it('returns signature invalid when verifier provider is unavailable', async () => {
     const service = new PaymentService();
 
-    const result = await service.handleIyzicoWebhook({
-      eventKey: 'iyzico-event-2',
-    }, 'signature');
+    const result = await service.handleIyzicoWebhook(
+      {
+        eventKey: 'iyzico-event-2',
+      },
+      'signature',
+    );
 
     expect(result.code).toBe(RC.PAYMENT_WEBHOOK_SIGNATURE_INVALID);
   });
@@ -299,14 +319,24 @@ describe('PaymentService', () => {
       clearCart: jest.fn(() => Promise.resolve()),
     } as unknown as CartService;
 
-    const mockOrder = createOrder({ id: 'order-1', productId: 'product-1', amount: 100 });
+    const mockOrder = createOrder({
+      id: 'order-1',
+      productId: 'product-1',
+      amount: 100,
+    });
     const orderService = {
-      createFromDirectSale: jest.fn(() => Promise.resolve({ order: mockOrder })),
+      createFromDirectSale: jest.fn(() =>
+        Promise.resolve({ order: mockOrder }),
+      ),
       previewDirectSaleDiscount: jest.fn(() =>
         Promise.resolve({
           product: { id: 'product-1' },
           unitAmount: 100,
-          discount: { finalAmount: 100, discountAmount: 0, appliedDiscount: null },
+          discount: {
+            finalAmount: 100,
+            discountAmount: 0,
+            appliedDiscount: null,
+          },
         }),
       ),
     } as unknown as OrderService;
@@ -314,10 +344,12 @@ describe('PaymentService', () => {
     const paymentRepository = createPaymentRepository();
     paymentRepository.findOne = jest.fn(() => Promise.resolve(null));
     (paymentRepository as any).manager = {
-      transaction: jest.fn(async (cb) => cb({
-        create: jest.fn((entity, data) => data),
-        save: jest.fn((entity, data) => Promise.resolve(data)),
-      })),
+      transaction: jest.fn(async (cb) =>
+        cb({
+          create: jest.fn((entity, data) => data),
+          save: jest.fn((entity, data) => Promise.resolve(data)),
+        }),
+      ),
     } as any;
 
     const orderRepository = {
@@ -358,7 +390,6 @@ describe('PaymentService', () => {
     expect(orderService.createFromDirectSale).toHaveBeenCalled();
   });
 
-
   it('charges a foreign-currency auction lot in the event currency end-to-end', async () => {
     const cartService = {
       getMyCart: jest.fn(() =>
@@ -381,8 +412,14 @@ describe('PaymentService', () => {
       clearCart: jest.fn(() => Promise.resolve()),
     } as unknown as CartService;
 
-    const mockOrder = createOrder({ id: 'order-1', productId: 'product-1', amount: 100 });
-    const createFromAuction = jest.fn(() => Promise.resolve({ order: mockOrder }));
+    const mockOrder = createOrder({
+      id: 'order-1',
+      productId: 'product-1',
+      amount: 100,
+    });
+    const createFromAuction = jest.fn(() =>
+      Promise.resolve({ order: mockOrder }),
+    );
     const orderService = { createFromAuction } as unknown as OrderService;
 
     const usdAuction = {
@@ -409,7 +446,9 @@ describe('PaymentService', () => {
           create: paymentCreate,
           save: jest.fn((entity: any, data: any) => Promise.resolve(data)),
           findOne: jest.fn((entity: any) =>
-            entity === Auction ? Promise.resolve(usdAuction) : Promise.resolve(null),
+            entity === Auction
+              ? Promise.resolve(usdAuction)
+              : Promise.resolve(null),
           ),
         }),
       ),
@@ -496,7 +535,11 @@ describe('PaymentService', () => {
     const orderService = {
       previewDirectSaleDiscount: jest.fn(() =>
         Promise.resolve({
-          discount: { finalAmount: 50, discountAmount: 0, appliedDiscount: null },
+          discount: {
+            finalAmount: 50,
+            discountAmount: 0,
+            appliedDiscount: null,
+          },
         }),
       ),
     } as unknown as OrderService;
@@ -619,8 +662,14 @@ describe('PaymentService', () => {
 
   describe('saved cards', () => {
     it('lists saved cards successfully', async () => {
-      const savedCardRepository = createSavedCardRepository([{ id: 'card-1', maskedPan: '411111******1111' }]);
-      const service = new PaymentService(undefined, undefined, savedCardRepository);
+      const savedCardRepository = createSavedCardRepository([
+        { id: 'card-1', maskedPan: '411111******1111' },
+      ]);
+      const service = new PaymentService(
+        undefined,
+        undefined,
+        savedCardRepository,
+      );
 
       const result = await service.listSavedCards('buyer-1');
       expect(result.code).toBe(RC.SUCCESS);
@@ -632,7 +681,7 @@ describe('PaymentService', () => {
       const savedCardRepository = createSavedCardRepository([]);
       const mockPayment = createPayment({ id: 'payment-1' });
       const paymentRepository = createPaymentRepository(mockPayment);
-      
+
       const service = new PaymentService(
         paymentRepository,
         undefined,
@@ -678,13 +727,32 @@ describe('PaymentService', () => {
 
     describe('checkAndUpdateLoyaltyLimit', () => {
       it('upgrades user limit to 100,000 when successful payments reach 30k', async () => {
-        const mockUser = { id: 'buyer-1', totalDeposit: 0, biddingLimit: 50000 };
-        
+        const mockUser = {
+          id: 'buyer-1',
+          totalDeposit: 0,
+          biddingLimit: 50000,
+        };
+
         // Mock successful payments totaling 35k (direct/retail payments, orderId is not null)
         const mockPayments = [
-          { amount: 15000, orderId: 'order-1', status: PaymentStatus.ESCROW_HELD, buyerId: 'buyer-1' },
-          { amount: 20000, orderId: 'order-2', status: PaymentStatus.ESCROW_HELD, buyerId: 'buyer-1' },
-          { amount: 5000, orderId: null, status: PaymentStatus.ESCROW_HELD, buyerId: 'buyer-1' }, // deposit should be excluded (orderId is null)
+          {
+            amount: 15000,
+            orderId: 'order-1',
+            status: PaymentStatus.ESCROW_HELD,
+            buyerId: 'buyer-1',
+          },
+          {
+            amount: 20000,
+            orderId: 'order-2',
+            status: PaymentStatus.ESCROW_HELD,
+            buyerId: 'buyer-1',
+          },
+          {
+            amount: 5000,
+            orderId: null,
+            status: PaymentStatus.ESCROW_HELD,
+            buyerId: 'buyer-1',
+          }, // deposit should be excluded (orderId is null)
         ] as Payment[];
 
         const paymentRepository = createPaymentRepository(undefined, {
@@ -716,10 +784,24 @@ describe('PaymentService', () => {
       });
 
       it('upgrades user limit to 250,000 when successful payments reach 100k', async () => {
-        const mockUser = { id: 'buyer-1', totalDeposit: 0, biddingLimit: 50000 };
+        const mockUser = {
+          id: 'buyer-1',
+          totalDeposit: 0,
+          biddingLimit: 50000,
+        };
         const mockPayments = [
-          { amount: 60000, orderId: 'order-1', status: PaymentStatus.ESCROW_HELD, buyerId: 'buyer-1' },
-          { amount: 45000, orderId: 'order-2', status: PaymentStatus.ESCROW_HELD, buyerId: 'buyer-1' },
+          {
+            amount: 60000,
+            orderId: 'order-1',
+            status: PaymentStatus.ESCROW_HELD,
+            buyerId: 'buyer-1',
+          },
+          {
+            amount: 45000,
+            orderId: 'order-2',
+            status: PaymentStatus.ESCROW_HELD,
+            buyerId: 'buyer-1',
+          },
         ] as Payment[];
 
         const paymentRepository = createPaymentRepository(undefined, {

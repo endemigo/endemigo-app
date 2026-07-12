@@ -21,7 +21,9 @@ export class UpdateNotificationPreferencesDto {
   @IsObject()
   @ValidateNested({ each: true })
   @Type(() => NotificationChannelPreferenceDto)
-  channels?: Partial<Record<NotificationEventType, NotificationChannelPreferenceDto>>;
+  channels?: Partial<
+    Record<NotificationEventType, NotificationChannelPreferenceDto>
+  >;
 
   @IsOptional()
   @IsEnum(NotificationEventType, { each: true })

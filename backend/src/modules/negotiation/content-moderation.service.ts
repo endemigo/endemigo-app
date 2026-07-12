@@ -38,9 +38,7 @@ export class ContentModerationService {
   checkContent(text: string): ModerationResult {
     const normalizedText = this.normalizeText(text);
     const compact = normalizedText.replace(/[\s()._\-+]+/g, '');
-    const detectedPatterns = [
-      ...this.detect(normalizedText, compact),
-    ];
+    const detectedPatterns = [...this.detect(normalizedText, compact)];
 
     return {
       isClean: detectedPatterns.length === 0,
@@ -82,7 +80,9 @@ export class ContentModerationService {
   private detect(text: string, compact: string): ViolationType[] {
     const patterns = new Set<ViolationType>();
 
-    if (/(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|tr)\b)\S*/i.test(text)) {
+    if (
+      /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|net|org|io|tr)\b)\S*/i.test(text)
+    ) {
       patterns.add(ViolationType.URL);
     }
     if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text)) {
@@ -95,7 +95,11 @@ export class ContentModerationService {
     if (/(^|\s)@[a-z0-9_.]{3,}/i.test(text)) {
       patterns.add(ViolationType.SOCIAL_HANDLE);
     }
-    if (/(whats?app|telegram|instagram|facebook|signal|(^|\s)wp(\s|$)|watsap)/i.test(text)) {
+    if (
+      /(whats?app|telegram|instagram|facebook|signal|(^|\s)wp(\s|$)|watsap)/i.test(
+        text,
+      )
+    ) {
       patterns.add(ViolationType.PLATFORM_NAME);
     }
 

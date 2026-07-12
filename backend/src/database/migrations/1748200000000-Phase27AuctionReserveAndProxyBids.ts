@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Phase27AuctionReserveAndProxyBids1748200000000
-  implements MigrationInterface
-{
+export class Phase27AuctionReserveAndProxyBids1748200000000 implements MigrationInterface {
   name = 'Phase27AuctionReserveAndProxyBids1748200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

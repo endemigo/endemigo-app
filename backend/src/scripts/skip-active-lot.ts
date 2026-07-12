@@ -21,7 +21,7 @@ async function run() {
     gateway.server = {
       to: () => mockTo,
     } as any;
-    
+
     // Find active event that has an active lot
     const event = await em.findOne(AuctionEvent, {
       where: {
@@ -29,18 +29,19 @@ async function run() {
         activeLotId: Not(IsNull()),
       },
     });
-    
+
     if (!event) {
       console.error('No active event with an active lot found!');
       return;
     }
 
-    console.log(`Using event: ${event.title} (${event.id}), activeLotId: ${event.activeLotId}`);
+    console.log(
+      `Using event: ${event.title} (${event.id}), activeLotId: ${event.activeLotId}`,
+    );
     console.log(`Skipping active lot: ${event.activeLotId}`);
-    
+
     const res = await auctionService.skipLot(event.id);
     console.log('Skip result:', res);
-
   } catch (err) {
     console.error('Error running script:', err);
   } finally {

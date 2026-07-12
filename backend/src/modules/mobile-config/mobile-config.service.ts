@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   AdminAuditAction,
@@ -33,6 +38,7 @@ interface PublishActorInput {
 
 @Injectable()
 export class MobileConfigService {
+  private readonly logger = new Logger(MobileConfigService.name);
   private versionColumnEnsured = false;
 
   constructor(
@@ -57,8 +63,8 @@ export class MobileConfigService {
     const previousDraft = existing?.draft ?? getDefaultMobileExperienceConfig();
 
     const entity =
-      existing
-      ?? this.mobileConfigRepo.create({
+      existing ??
+      this.mobileConfigRepo.create({
         draft: previousDraft,
         published: null,
         version: 1,
@@ -96,8 +102,8 @@ export class MobileConfigService {
   async publish(input: PublishActorInput) {
     const existing = await this.findLatestDocument();
     const entity =
-      existing
-      ?? this.mobileConfigRepo.create({
+      existing ??
+      this.mobileConfigRepo.create({
         draft: getDefaultMobileExperienceConfig(),
         published: null,
         version: 1,
@@ -193,10 +199,14 @@ export class MobileConfigService {
     }
   }
 
-  private assertValidDraft(draft: unknown): asserts draft is MobileExperienceConfig {
+  private assertValidDraft(
+    draft: unknown,
+  ): asserts draft is MobileExperienceConfig {
     const errors = validateMobileExperienceConfig(draft);
     if (errors.length > 0) {
-      console.warn('MOBILE_CONFIG_VALIDATION_ERRORS:', JSON.stringify(errors, null, 2));
+      this.logger.warn(
+        `MOBILE_CONFIG_VALIDATION_ERRORS: ${JSON.stringify(errors, null, 2)}`,
+      );
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Mobil uygulama konfigurasyonu gecersiz',
@@ -213,7 +223,9 @@ export class MobileConfigService {
       status,
       version: document.version ?? 1,
       draft: sanitizeMobileExperienceConfig(document.draft),
-      published: document.published ? sanitizeMobileExperienceConfig(document.published) : null,
+      published: document.published
+        ? sanitizeMobileExperienceConfig(document.published)
+        : null,
       publishedAt: document.publishedAt?.toISOString() ?? null,
       updatedAt: document.updatedAt?.toISOString() ?? null,
       updatedByAdminId: document.updatedByAdminId ?? null,
@@ -234,7 +246,11 @@ export class MobileConfigService {
   private isMissingVersionColumnError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     const message = error.message.toLowerCase();
-    return message.includes('column') && message.includes('version') && message.includes('does not exist');
+    return (
+      message.includes('column') &&
+      message.includes('version') &&
+      message.includes('does not exist')
+    );
   }
 
   private async ensureVersionColumn() {

@@ -4,7 +4,11 @@ import { Product } from './product.entity';
 import { VariantNumber } from './variant-number.entity';
 
 @Entity('product_variant_skus')
-@Unique('UQ_product_variant_skus_product_color_size', ['productId', 'colorVariantNumberId', 'sizeVariantNumberId'])
+@Unique('UQ_product_variant_skus_product_color_size', [
+  'productId',
+  'colorVariantNumberId',
+  'sizeVariantNumberId',
+])
 export class ProductVariantSku extends BaseEntity {
   @Column()
   productId: string;

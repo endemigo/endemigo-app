@@ -1,4 +1,11 @@
-import { Entity, Column, Index, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  Index,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../user/entities/user.entity';
 import { Category } from './category.entity';
@@ -139,7 +146,11 @@ export class Product extends BaseEntity {
   salesMonths: number[];
 
   // ─── Condition (PROD-09) ──────────────────────────────────
-  @Column({ type: 'enum', enum: ProductCondition, default: ProductCondition.NEW })
+  @Column({
+    type: 'enum',
+    enum: ProductCondition,
+    default: ProductCondition.NEW,
+  })
   condition: ProductCondition;
 
   // ─── Listing Type (PROD-10) ───────────────────────────────

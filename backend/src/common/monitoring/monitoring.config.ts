@@ -8,7 +8,9 @@ export interface BackendMonitoringConfig {
   alertsConfigured: boolean;
 }
 
-export function getBackendMonitoringConfig(env: NodeJS.ProcessEnv = process.env): BackendMonitoringConfig {
+export function getBackendMonitoringConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): BackendMonitoringConfig {
   const dsn = env.SENTRY_DSN;
   const alertWebhookUrl = env.SENTRY_ALERT_WEBHOOK_URL;
 

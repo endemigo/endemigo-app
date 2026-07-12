@@ -16,10 +16,16 @@ export class CargoProcessor extends WorkerHost {
     try {
       switch (job.name) {
         case 'mark-in-transit':
-          await this.cargoService?.transitionShipment(job.data.shipmentId, CargoStatus.IN_TRANSIT);
+          await this.cargoService?.transitionShipment(
+            job.data.shipmentId,
+            CargoStatus.IN_TRANSIT,
+          );
           break;
         case 'mark-delivered':
-          await this.cargoService?.transitionShipment(job.data.shipmentId, CargoStatus.DELIVERED);
+          await this.cargoService?.transitionShipment(
+            job.data.shipmentId,
+            CargoStatus.DELIVERED,
+          );
           break;
         default:
           this.logger.warn(`Unknown cargo job: ${job.name}`);

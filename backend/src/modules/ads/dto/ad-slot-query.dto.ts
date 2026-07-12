@@ -1,4 +1,10 @@
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { AdPlacementType } from '@endemigo/shared';
 
 export class AdSlotQueryDto {

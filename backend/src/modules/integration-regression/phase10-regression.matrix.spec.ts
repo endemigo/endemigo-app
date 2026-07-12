@@ -6,7 +6,11 @@ import {
 } from './phase10-regression.matrix';
 
 describe('PHASE10_REGRESSION_MATRIX', () => {
-  const scenarioTypes: Phase10ScenarioType[] = ['happy_path', 'error_validation', 'role_permission'];
+  const scenarioTypes: Phase10ScenarioType[] = [
+    'happy_path',
+    'error_validation',
+    'role_permission',
+  ];
 
   it('covers every Phase 10 module with happy, validation, and permission scenarios', () => {
     for (const moduleName of PHASE10_REQUIRED_MODULES) {
@@ -27,7 +31,9 @@ describe('PHASE10_REGRESSION_MATRIX', () => {
   it('keeps every scenario traceable to requirements and commands', () => {
     for (const entry of PHASE10_REGRESSION_MATRIX) {
       expect(entry.requirementIds.length).toBeGreaterThan(0);
-      expect(entry.requirementIds).toEqual(expect.arrayContaining(['contract/API compatibility']));
+      expect(entry.requirementIds).toEqual(
+        expect.arrayContaining(['contract/API compatibility']),
+      );
       expect(entry.commands.length).toBeGreaterThan(0);
       expect(entry.evidenceKey).not.toMatch(/placeholder|future|TODO/i);
     }

@@ -11,7 +11,11 @@ export enum JournalEntryStatus {
 @Index(['referenceType', 'referenceId'])
 @Index(['idempotencyKey'], { unique: true })
 export class JournalEntry extends BaseEntity {
-  @Column({ type: 'enum', enum: JournalEntryType, enumName: 'journal_entry_type' })
+  @Column({
+    type: 'enum',
+    enum: JournalEntryType,
+    enumName: 'journal_entry_type',
+  })
   type: JournalEntryType;
 
   @Column({

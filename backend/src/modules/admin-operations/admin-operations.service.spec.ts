@@ -1,5 +1,18 @@
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { AdminAuditAction, AdminRole, AuctionApprovalStatus, AuctionEventStatus, AuctionEventSystemType, PayoutRequestStatus, ProductStatus, RC } from '@endemigo/shared';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  AdminAuditAction,
+  AdminRole,
+  AuctionApprovalStatus,
+  AuctionEventStatus,
+  AuctionEventSystemType,
+  PayoutRequestStatus,
+  ProductStatus,
+  RC,
+} from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AuctionService } from '../auction/auction.service';
 import { SellerStatus } from '../user/entities/seller-profile.entity';
@@ -26,7 +39,9 @@ type MockRepo = {
 function createRepo(): MockRepo {
   // createUser gibi akışlar repo.manager.transaction içinde manager.create/save kullanır
   const manager: MockRepo['manager'] = {
-    transaction: jest.fn(async (cb: (m: unknown) => Promise<unknown>) => cb(manager)),
+    transaction: jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+      cb(manager),
+    ),
     create: jest.fn((_entity: unknown, value: unknown) => value),
     save: jest.fn(async (_entity: unknown, value: unknown) => value),
     getRepository: jest.fn(() => createRepo()),
@@ -129,7 +144,10 @@ describe('AdminOperationsService', () => {
       { id: 'admin-1', roles: [AdminRole.SUPER_ADMIN] },
     );
 
-    expect(auctionService.adminCancelAuction).toHaveBeenCalledWith('auction-1', 'Şüpheli işlem');
+    expect(auctionService.adminCancelAuction).toHaveBeenCalledWith(
+      'auction-1',
+      'Şüpheli işlem',
+    );
     expect(adminAuditService.recordAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: AdminAuditAction.AUCTION_CANCELLED,
@@ -149,7 +167,9 @@ describe('AdminOperationsService', () => {
       { id: 'admin-1', roles: [AdminRole.SUPER_ADMIN] },
     );
 
-    expect(auctionService.adminFinalizeAuction).toHaveBeenCalledWith('auction-1');
+    expect(auctionService.adminFinalizeAuction).toHaveBeenCalledWith(
+      'auction-1',
+    );
     expect(adminAuditService.recordAction).toHaveBeenCalledWith(
       expect.objectContaining({
         action: AdminAuditAction.AUCTION_FINALIZED,
@@ -172,7 +192,9 @@ describe('AdminOperationsService', () => {
       expect.objectContaining({ where: { status: SellerStatus.PENDING } }),
     );
     expect(repos[16].findAndCount).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: PayoutRequestStatus.ADMIN_REVIEW } }),
+      expect.objectContaining({
+        where: { status: PayoutRequestStatus.ADMIN_REVIEW },
+      }),
     );
   });
 
@@ -183,7 +205,12 @@ describe('AdminOperationsService', () => {
         title: 'Pekmez',
         sellerId: 'seller-1',
         createdAt: new Date('2026-06-01T00:00:00.000Z'),
-        seller: { id: 'seller-1', firstName: 'Ali', lastName: 'Kaya', email: 'seller@endemigo.test' },
+        seller: {
+          id: 'seller-1',
+          firstName: 'Ali',
+          lastName: 'Kaya',
+          email: 'seller@endemigo.test',
+        },
       },
     ]);
     repos[2].count.mockResolvedValueOnce(1);
@@ -191,7 +218,9 @@ describe('AdminOperationsService', () => {
     const result = await service.getQueues();
 
     expect(repos[2].find).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: ProductStatus.PENDING_REVIEW } }),
+      expect.objectContaining({
+        where: { status: ProductStatus.PENDING_REVIEW },
+      }),
     );
     expect(result.productReviews.count).toBe(1);
     expect(result.productReviews.latest[0]).toEqual({
@@ -214,12 +243,19 @@ describe('AdminOperationsService', () => {
         createdAt: new Date(),
       });
 
-      const result = await service.reviewProduct('product-1', { approve: true }, mockActor);
+      const result = await service.reviewProduct(
+        'product-1',
+        { approve: true },
+        mockActor,
+      );
 
       expect(result.code).toBe(RC.PRODUCT_UPDATED);
       expect(result.product.status).toBe(ProductStatus.ACTIVE);
       expect(repos[2].save).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'product-1', status: ProductStatus.ACTIVE }),
+        expect.objectContaining({
+          id: 'product-1',
+          status: ProductStatus.ACTIVE,
+        }),
       );
     });
 
@@ -264,16 +300,24 @@ describe('AdminOperationsService', () => {
   });
 
   it('lists admin resources with pagination metadata', async () => {
-    repos[0].findAndCount.mockResolvedValueOnce([[{ id: 'user-1', createdAt: new Date() }], 1]);
+    repos[0].findAndCount.mockResolvedValueOnce([
+      [{ id: 'user-1', createdAt: new Date() }],
+      1,
+    ]);
 
-    const result: any = await service.list('users', { page: 1, limit: 10 } as any);
+    const result: any = await service.list('users', {
+      page: 1,
+      limit: 10,
+    } as any);
 
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.pagination.total).toBe(1);
   });
 
   it('throws when detail resource is missing', async () => {
-    await expect(service.detail('users', 'missing-user')).rejects.toThrow(NotFoundException);
+    await expect(service.detail('users', 'missing-user')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('returns seller detail when route id is seller userId', async () => {
@@ -312,7 +356,9 @@ describe('AdminOperationsService', () => {
     );
 
     expect(result.code).toBe(RC.SUCCESS);
-    expect(repos[0].update).toHaveBeenCalledWith('seller-1', { isSeller: true });
+    expect(repos[0].update).toHaveBeenCalledWith('seller-1', {
+      isSeller: true,
+    });
     expect(adminAuditService.recordAction).toHaveBeenCalledWith(
       expect.objectContaining({ action: AdminAuditAction.SELLER_APPROVED }),
     );
@@ -355,7 +401,10 @@ describe('AdminOperationsService', () => {
     });
 
     const result = await service.createBrand(
-      { reason: 'catalog expansion', metadata: { name: 'Cibus', slug: 'cibus', isActive: 'true' } },
+      {
+        reason: 'catalog expansion',
+        metadata: { name: 'Cibus', slug: 'cibus', isActive: 'true' },
+      },
       { id: 'admin-1', roles: [AdminRole.OPERATIONS] },
     );
 
@@ -394,7 +443,6 @@ describe('AdminOperationsService', () => {
     expect(result.code).toBe(RC.SUCCESS);
     expect(result.category.name).toBe('Gıda');
   });
-
 
   it('creates member account with admin endpoint contract', async () => {
     repos[0].save.mockResolvedValueOnce({
@@ -461,7 +509,10 @@ describe('AdminOperationsService', () => {
     await expect(
       service.updateAuctionEvent(
         'event-1',
-        { reason: 'yayına al', metadata: { status: AuctionEventStatus.ACTIVE } },
+        {
+          reason: 'yayına al',
+          metadata: { status: AuctionEventStatus.ACTIVE },
+        },
         { id: 'seller-9', roles: ['seller' as AdminRole] },
       ),
     ).rejects.toThrow(ForbiddenException);
@@ -481,7 +532,10 @@ describe('AdminOperationsService', () => {
 
     const result = await service.updateAuctionEvent(
       'event-1',
-      { reason: 'onaya sun', metadata: { status: AuctionEventStatus.APPLICATION } },
+      {
+        reason: 'onaya sun',
+        metadata: { status: AuctionEventStatus.APPLICATION },
+      },
       { id: 'seller-9', roles: ['seller' as AdminRole] },
     );
     expect(result.code).toBe(RC.SUCCESS);
@@ -521,10 +575,15 @@ describe('AdminOperationsService', () => {
       getRawOne: jest.fn().mockResolvedValue({ max: 0 }),
     });
 
-    const result = await service.approveLot('auc-1', AuctionApprovalStatus.APPROVED, 'ok', {
-      id: 'admin-1',
-      roles: [AdminRole.OPERATIONS],
-    });
+    const result = await service.approveLot(
+      'auc-1',
+      AuctionApprovalStatus.APPROVED,
+      'ok',
+      {
+        id: 'admin-1',
+        roles: [AdminRole.OPERATIONS],
+      },
+    );
     expect(result.code).toBe(RC.SUCCESS);
   });
 
@@ -633,7 +692,9 @@ describe('AdminOperationsService', () => {
     expect(result.relatedRecords.pagination.sales.hasMore).toBe(true);
     expect(result.relatedRecords.pagination.favorites.hasMore).toBe(true);
     expect(result.relatedRecords.pagination.cart.hasMore).toBe(true);
-    expect(result.relatedRecords.pagination.couponDefinitions.hasMore).toBe(true);
+    expect(result.relatedRecords.pagination.couponDefinitions.hasMore).toBe(
+      true,
+    );
     expect(result.relatedRecords.pagination.couponUsage.hasMore).toBe(true);
   });
 
@@ -645,15 +706,27 @@ describe('AdminOperationsService', () => {
       repos[8].findOne.mockResolvedValueOnce(mockEvent); // findOneOrFail resolves mockEvent
 
       const mockLots = [
-        { id: 'lot-1', eventId: 'event-1', status: 'PUBLISHED', sequenceNumber: 1, lotNumber: '1' },
-        { id: 'lot-2', eventId: 'event-1', status: 'ACTIVE', sequenceNumber: 2, lotNumber: '2' },
+        {
+          id: 'lot-1',
+          eventId: 'event-1',
+          status: 'PUBLISHED',
+          sequenceNumber: 1,
+          lotNumber: '1',
+        },
+        {
+          id: 'lot-2',
+          eventId: 'event-1',
+          status: 'ACTIVE',
+          sequenceNumber: 2,
+          lotNumber: '2',
+        },
       ];
       repos[7].find.mockResolvedValueOnce(mockLots);
 
       const result = await service.reorderLots(
         'event-1',
         { 'lot-1': 2, 'lot-2': 1 },
-        mockActor
+        mockActor,
       );
 
       expect(result.code).toBe(RC.SUCCESS);
@@ -667,17 +740,25 @@ describe('AdminOperationsService', () => {
       repos[8].findOne.mockResolvedValueOnce(mockEvent);
 
       const mockLots = [
-        { id: 'lot-1', eventId: 'event-1', status: 'ENDED', sequenceNumber: 1, lotNumber: '1' },
-        { id: 'lot-2', eventId: 'event-1', status: 'PUBLISHED', sequenceNumber: 2, lotNumber: '2' },
+        {
+          id: 'lot-1',
+          eventId: 'event-1',
+          status: 'ENDED',
+          sequenceNumber: 1,
+          lotNumber: '1',
+        },
+        {
+          id: 'lot-2',
+          eventId: 'event-1',
+          status: 'PUBLISHED',
+          sequenceNumber: 2,
+          lotNumber: '2',
+        },
       ];
       repos[7].find.mockResolvedValueOnce(mockLots);
 
       await expect(
-        service.reorderLots(
-          'event-1',
-          { 'lot-1': 2, 'lot-2': 1 },
-          mockActor
-        )
+        service.reorderLots('event-1', { 'lot-1': 2, 'lot-2': 1 }, mockActor),
       ).rejects.toThrow(BadRequestException);
     });
   });

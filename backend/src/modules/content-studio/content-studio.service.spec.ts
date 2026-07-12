@@ -71,11 +71,11 @@ describe('ContentStudioService', () => {
   it('throws conflict when the incoming version is stale', async () => {
     repo.find.mockResolvedValue([
       {
-      id: 'content-doc-1',
-      document: {
-        ...getDefaultContentStudioDocument(),
-        version: 3,
-      },
+        id: 'content-doc-1',
+        document: {
+          ...getDefaultContentStudioDocument(),
+          version: 3,
+        },
       },
     ]);
 

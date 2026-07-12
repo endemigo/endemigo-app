@@ -8,7 +8,9 @@ export class RegisterCardDto {
 
   @ApiProperty({ example: '4111111111111111' })
   @IsString()
-  @Matches(/^\d{15,16}$/, { message: 'Kart numarası 15 veya 16 haneli rakam olmalıdır' })
+  @Matches(/^\d{15,16}$/, {
+    message: 'Kart numarası 15 veya 16 haneli rakam olmalıdır',
+  })
   cardNumber: string;
 
   @ApiProperty({ example: '12' })

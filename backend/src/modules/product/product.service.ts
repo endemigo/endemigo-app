@@ -22,9 +22,15 @@ import { Favorite } from '../search/entities/favorite.entity';
 import { ListingTemplate as ListingTemplateEntity } from './entities/listing-template.entity';
 import { GeoIndication } from './entities/geo-indication.entity';
 import { FeatureBadge } from './entities/feature-badge.entity';
-import { CreateProductDto, ProductVariantSkuInputDto } from './dto/create-product.dto';
+import {
+  CreateProductDto,
+  ProductVariantSkuInputDto,
+} from './dto/create-product.dto';
 import { BulkImportDto } from './dto/bulk-import.dto';
-import { CreateListingDraftDto, UpdateListingDraftDto } from './dto/listing-draft.dto';
+import {
+  CreateListingDraftDto,
+  UpdateListingDraftDto,
+} from './dto/listing-draft.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UserService } from '../user/user.service';
 import { ProductStatus } from '../../shared/types/product-status.enum';
@@ -63,7 +69,16 @@ type SeedCategoryDefinition = {
 
 interface ListingTemplateField {
   key: string;
-  type: 'text' | 'number' | 'price' | 'select' | 'multiSelect' | 'boolean' | 'date' | 'dimension' | 'image';
+  type:
+    | 'text'
+    | 'number'
+    | 'price'
+    | 'select'
+    | 'multiSelect'
+    | 'boolean'
+    | 'date'
+    | 'dimension'
+    | 'image';
   required: boolean;
   optionSource?: string;
 }
@@ -490,7 +505,8 @@ export class ProductService {
     const product = this.productRepo.create({
       ...createData,
       geoIndicationTypes: normalizedGeoTypes,
-      geoIndicationType: normalizedGeoTypes[0] ?? createData.geoIndicationType ?? null,
+      geoIndicationType:
+        normalizedGeoTypes[0] ?? createData.geoIndicationType ?? null,
       sellerId,
       // Durum belirtilmemişse mevcut davranış korunur: DRAFT ile başlar.
       status: requestedStatus ?? ProductStatus.DRAFT,
@@ -741,7 +757,9 @@ export class ProductService {
         askQuestionEnabled,
       }).filter(([, v]) => v !== undefined),
     );
-    const nextGeoTypes = geoIndicationTypes ?? (geoIndicationType ? [geoIndicationType] : undefined);
+    const nextGeoTypes =
+      geoIndicationTypes ??
+      (geoIndicationType ? [geoIndicationType] : undefined);
     if (nextGeoTypes !== undefined) {
       safeUpdate.geoIndicationTypes = nextGeoTypes;
       safeUpdate.geoIndicationType = nextGeoTypes[0] ?? null;
@@ -757,7 +775,10 @@ export class ProductService {
         errors.push(`En az ${imageUploadLimits.min} ürün görseli gereklidir`);
       }
       if (!product.categoryId) errors.push('Kategori seçimi zorunludur');
-      if (!product.askPriceEnabled && (!product.price || Number(product.price) < 1)) {
+      if (
+        !product.askPriceEnabled &&
+        (!product.price || Number(product.price) < 1)
+      ) {
         errors.push('Fiyat en az 1₺ olmalıdır');
       }
       if (errors.length > 0) {
@@ -772,7 +793,8 @@ export class ProductService {
       // Admin (canManageStatus) geçişleri açıkça onay anlamına geldiği için
       // güven rozetine göre PENDING_REVIEW'a düşürülmez.
       if (this.trustService && !canManageStatus) {
-        const trustBadge = await this.trustService.getSellerTrustBadge(sellerId);
+        const trustBadge =
+          await this.trustService.getSellerTrustBadge(sellerId);
         const isTrusted =
           trustBadge.level === TrustBadgeLevel.TRUSTED ||
           trustBadge.level === TrustBadgeLevel.HIGHLY_TRUSTED;
@@ -974,7 +996,9 @@ export class ProductService {
     const responseItems = await this.applyMembershipVisibilityBoost(
       await this.annotateSponsoredProducts(
         await this.attachTrustBadges(
-          await Promise.all(items.map((p) => this.toResponse(p, undefined, false))),
+          await Promise.all(
+            items.map((p) => this.toResponse(p, undefined, false)),
+          ),
         ),
         AdPlacementType.CATEGORY_SHOWCASE,
       ),
@@ -1007,7 +1031,9 @@ export class ProductService {
       code: RC.PRODUCT_LIST,
       message: 'Satıcı ürünleri listelendi',
       items: await this.attachTrustBadges(
-        await Promise.all(items.map((p) => this.toResponse(p, undefined, true))),
+        await Promise.all(
+          items.map((p) => this.toResponse(p, undefined, true)),
+        ),
       ),
       total,
       page,
@@ -1095,7 +1121,11 @@ export class ProductService {
     const [response] = await this.applyMembershipVisibilityBoost(
       await this.annotateSponsoredProducts(
         await this.attachTrustBadges([
-          await this.toResponse(product, isFavorited, userId === product.sellerId),
+          await this.toResponse(
+            product,
+            isFavorited,
+            userId === product.sellerId,
+          ),
         ]),
         AdPlacementType.CATEGORY_SHOWCASE,
         product.categoryId ?? undefined,
@@ -1127,7 +1157,9 @@ export class ProductService {
     return {
       code: RC.CATEGORY_LIST,
       message: 'Categories fetched',
-      categories: roots.map((root) => this.serializeCategory(root, templateMap)),
+      categories: roots.map((root) =>
+        this.serializeCategory(root, templateMap),
+      ),
     };
   }
 
@@ -1195,7 +1227,9 @@ export class ProductService {
         sortOrder: definition.sortOrder,
         isActive: true,
         isCulturalAsset: definition.isCulturalAsset ?? false,
-        metadata: definition.metadata ?? this.buildListingTemplateMetadata(definition.slug),
+        metadata:
+          definition.metadata ??
+          this.buildListingTemplateMetadata(definition.slug),
       }),
     );
   }
@@ -1204,7 +1238,10 @@ export class ProductService {
     return `${COMMONS_FILE_PATH_BASE_URL}${encodeURIComponent(fileName)}`;
   }
 
-  private serializeCategory(category: Category, templateMap?: Map<string, ListingTemplateEntity>): SerializedCategory {
+  private serializeCategory(
+    category: Category,
+    templateMap?: Map<string, ListingTemplateEntity>,
+  ): SerializedCategory {
     const metadata = category.metadata ?? {};
     let listingTemplate = this.extractListingTemplate(metadata);
 
@@ -1213,7 +1250,12 @@ export class ProductService {
       if (template) {
         listingTemplate = {
           fields: template.fields ?? [],
-          variant: template.variant ?? { enabled: false, allowedKinds: [], requiredKinds: [], maxGroups: 0 }
+          variant: template.variant ?? {
+            enabled: false,
+            allowedKinds: [],
+            requiredKinds: [],
+            maxGroups: 0,
+          },
         } as any;
       }
     }
@@ -1239,7 +1281,9 @@ export class ProductService {
     };
   }
 
-  private extractListingTemplate(metadata: Record<string, unknown>): ListingTemplate | null {
+  private extractListingTemplate(
+    metadata: Record<string, unknown>,
+  ): ListingTemplate | null {
     const template = metadata.listingTemplate;
     if (!template || typeof template !== 'object' || Array.isArray(template)) {
       return null;
@@ -1252,7 +1296,12 @@ export class ProductService {
       return {
         fields: [
           { key: 'productContent', type: 'text', required: true },
-          { key: 'productionProvince', type: 'select', required: true, optionSource: 'turkishProvinces' },
+          {
+            key: 'productionProvince',
+            type: 'select',
+            required: true,
+            optionSource: 'turkishProvinces',
+          },
           { key: 'weight', type: 'number', required: false },
           { key: 'additionalCertificates', type: 'text', required: false },
           { key: 'images', type: 'image', required: true },
@@ -1266,7 +1315,11 @@ export class ProductService {
       };
     }
 
-    if (slug.includes('hali') || slug.includes('kilim') || slug.includes('mobilya')) {
+    if (
+      slug.includes('hali') ||
+      slug.includes('kilim') ||
+      slug.includes('mobilya')
+    ) {
       return {
         fields: [
           { key: 'material', type: 'text', required: false },
@@ -1293,8 +1346,14 @@ export class ProductService {
         ],
         variant: {
           enabled: true,
-          allowedKinds: [VariantOptionKind.COLOR, VariantOptionKind.SIZE, VariantOptionKind.NUMBER],
-          requiredKinds: slug.includes('ayakkabi') ? [VariantOptionKind.NUMBER] : [VariantOptionKind.SIZE],
+          allowedKinds: [
+            VariantOptionKind.COLOR,
+            VariantOptionKind.SIZE,
+            VariantOptionKind.NUMBER,
+          ],
+          requiredKinds: slug.includes('ayakkabi')
+            ? [VariantOptionKind.NUMBER]
+            : [VariantOptionKind.SIZE],
           maxGroups: 2,
         },
       };
@@ -1393,7 +1452,9 @@ export class ProductService {
       askPriceMinAmount: product.askPriceMinAmount
         ? Number(product.askPriceMinAmount)
         : null,
-      wholesalePrice: product.wholesalePrice ? Number(product.wholesalePrice) : null,
+      wholesalePrice: product.wholesalePrice
+        ? Number(product.wholesalePrice)
+        : null,
       retailPrice: product.retailPrice ? Number(product.retailPrice) : null,
       shippingProvince: product.shippingProvince,
       shippingDistrict: product.shippingDistrict,
@@ -1538,8 +1599,10 @@ export class ProductService {
       reviewCount > 0
         ? Number(
             (
-              mappedReviews.reduce((total, review) => total + review.rating, 0) /
-              reviewCount
+              mappedReviews.reduce(
+                (total, review) => total + review.rating,
+                0,
+              ) / reviewCount
             ).toFixed(1),
           )
         : 0;
@@ -1569,8 +1632,14 @@ export class ProductService {
     skus.forEach((sku) => {
       const stock = Number(sku.stockQuantity ?? 0);
       const variants = [
-        { variant: sku.colorVariantNumber, fallbackKind: VariantOptionKind.COLOR as VariantOptionKind },
-        { variant: sku.sizeVariantNumber, fallbackKind: VariantOptionKind.SIZE as VariantOptionKind },
+        {
+          variant: sku.colorVariantNumber,
+          fallbackKind: VariantOptionKind.COLOR as VariantOptionKind,
+        },
+        {
+          variant: sku.sizeVariantNumber,
+          fallbackKind: VariantOptionKind.SIZE as VariantOptionKind,
+        },
       ];
       variants.forEach(({ variant, fallbackKind }) => {
         if (!variant?.id) return;
@@ -1589,7 +1658,8 @@ export class ProductService {
     });
 
     return [...optionMap.values()].sort((left, right) => {
-      if (left.kind === right.kind) return left.label.localeCompare(right.label, 'tr');
+      if (left.kind === right.kind)
+        return left.label.localeCompare(right.label, 'tr');
       if (left.kind === VariantOptionKind.COLOR) return -1;
       if (right.kind === VariantOptionKind.COLOR) return 1;
       return left.label.localeCompare(right.label, 'tr');
@@ -1607,15 +1677,19 @@ export class ProductService {
       return;
     }
 
-    const variantIds = [...new Set(
-      variantSkus.flatMap((item) => [
-        item.colorVariantNumberId,
-        item.sizeVariantNumberId,
-      ].filter((id): id is string => Boolean(id))),
-    )];
-    const variants = variantIds.length > 0
-      ? await this.variantNumberRepo.find({ where: { id: In(variantIds) } })
-      : [];
+    const variantIds = [
+      ...new Set(
+        variantSkus.flatMap((item) =>
+          [item.colorVariantNumberId, item.sizeVariantNumberId].filter(
+            (id): id is string => Boolean(id),
+          ),
+        ),
+      ),
+    ];
+    const variants =
+      variantIds.length > 0
+        ? await this.variantNumberRepo.find({ where: { id: In(variantIds) } })
+        : [];
     const variantMap = new Map(variants.map((item) => [item.id, item]));
 
     const normalized = variantSkus.map((item, index) => {
@@ -1727,7 +1801,9 @@ export class ProductService {
   private resolveDraftProductPayload(draft: ProductDraft): CreateProductDto {
     const nestedProduct = draft.payload.product;
     const payload =
-      nestedProduct && typeof nestedProduct === 'object' && !Array.isArray(nestedProduct)
+      nestedProduct &&
+      typeof nestedProduct === 'object' &&
+      !Array.isArray(nestedProduct)
         ? (nestedProduct as Record<string, unknown>)
         : draft.payload;
     const title = typeof payload.title === 'string' ? payload.title : '';
@@ -1755,7 +1831,7 @@ export class ProductService {
       categoryId:
         typeof payload.categoryId === 'string'
           ? payload.categoryId
-          : draft.categoryId ?? undefined,
+          : (draft.categoryId ?? undefined),
       listingType: draft.listingType,
       status: payloadStatus,
     } as CreateProductDto;
@@ -1814,7 +1890,9 @@ export class ProductService {
     userId?: string,
     metadata?: { deviceToken?: string; referrer?: string; platform?: string },
   ) {
-    const product = await this.productRepo.findOne({ where: { id: productId } });
+    const product = await this.productRepo.findOne({
+      where: { id: productId },
+    });
     if (!product) {
       throw new NotFoundException({
         code: RC.PRODUCT_NOT_FOUND,
@@ -1907,12 +1985,13 @@ export class ProductService {
         description: p.description,
         price: Number(p.price),
         imageUrl: p.imageUrl,
-        images: p.images?.map((img) => ({
-          id: img.id,
-          url: img.url,
-          sortOrder: img.sortOrder,
-          isPrimary: img.isPrimary,
-        })) || [],
+        images:
+          p.images?.map((img) => ({
+            id: img.id,
+            url: img.url,
+            sortOrder: img.sortOrder,
+            isPrimary: img.isPrimary,
+          })) || [],
         status: p.status,
         sellerId: p.sellerId,
         categoryId: p.categoryId,

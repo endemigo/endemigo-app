@@ -21,7 +21,7 @@ async function run() {
       to: () => mockTo,
       emit: (event: string, data: any) => {
         console.log(`[Mock Socket Broadcast] Event: ${event}`, data);
-      }
+      },
     } as any;
 
     const secondLotId = '29c156e0-8138-4c5f-9d70-30018bf82445';
@@ -31,7 +31,9 @@ async function run() {
       return;
     }
 
-    console.log(`Executing handleSequentialLotProgression for lot #${secondLot.lotNumber}...`);
+    console.log(
+      `Executing handleSequentialLotProgression for lot #${secondLot.lotNumber}...`,
+    );
     await service.handleSequentialLotProgression(secondLot);
     console.log('Transition to Lot 3 completed and scheduled successfully!');
   } catch (err) {

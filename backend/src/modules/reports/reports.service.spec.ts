@@ -11,7 +11,10 @@ type QueryBuilderMock = {
   getManyAndCount: jest.Mock;
 };
 
-function createQueryBuilder(rows: Record<string, unknown>[], total = rows.length): QueryBuilderMock {
+function createQueryBuilder(
+  rows: Record<string, unknown>[],
+  total = rows.length,
+): QueryBuilderMock {
   const qb = {
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),

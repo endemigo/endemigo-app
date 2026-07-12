@@ -159,7 +159,10 @@ export class NegotiationService {
       });
     }
 
-    const hydrated = await this.findConversationForParticipant(userId, conversation.id);
+    const hydrated = await this.findConversationForParticipant(
+      userId,
+      conversation.id,
+    );
     return {
       code: RC.NEGOTIATION_CREATED,
       message: 'Fiyat görüşmesi oluşturuldu',
@@ -206,7 +209,9 @@ export class NegotiationService {
       code: RC.NEGOTIATION_FETCHED,
       message: 'Görüşme mesajları getirildi',
       messages: [...(conversation.messages ?? [])]
-        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+        .sort(
+          (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+        )
         .map((message) => this.serializeMessage(message, conversation.offers)),
     };
   }
@@ -277,14 +282,19 @@ export class NegotiationService {
     };
   }
 
-  async createOffer(userId: string, conversationId: string, dto: CreateOfferDto) {
+  async createOffer(
+    userId: string,
+    conversationId: string,
+    dto: CreateOfferDto,
+  ) {
     const conversation = await this.findConversationForParticipant(
       userId,
       conversationId,
     );
     this.assertConversationOpen(conversation);
 
-    const expiryHours = dto.expiryHours ?? dto.expiresInHours ?? DEFAULT_OFFER_EXPIRY_HOURS;
+    const expiryHours =
+      dto.expiryHours ?? dto.expiresInHours ?? DEFAULT_OFFER_EXPIRY_HOURS;
     const amount = Number(dto.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException({
@@ -326,9 +336,10 @@ export class NegotiationService {
       }
     }
 
-    const pendingOffers = conversation.offers?.filter(
-      (offer) => offer.status === OfferStatus.PENDING,
-    ) ?? [];
+    const pendingOffers =
+      conversation.offers?.filter(
+        (offer) => offer.status === OfferStatus.PENDING,
+      ) ?? [];
     for (const pendingOffer of pendingOffers) {
       pendingOffer.status = OfferStatus.COUNTER_OFFERED;
       pendingOffer.resolvedAt = new Date();
@@ -439,7 +450,10 @@ export class NegotiationService {
       acceptedOfferId: offer.id,
     });
 
-    const hydrated = await this.findConversationForParticipant(userId, conversation.id);
+    const hydrated = await this.findConversationForParticipant(
+      userId,
+      conversation.id,
+    );
     const serializedOffer = this.serializeOffer(offer);
     this.negotiationGateway.emitConversationEvent(
       conversation.id,
@@ -469,8 +483,15 @@ export class NegotiationService {
     offer.status = OfferStatus.REJECTED;
     offer.resolvedAt = new Date();
     await this.offerRepository.save(offer);
-    await this.touchConversation(offer.conversation, NegotiationStatus.NEGOTIATING);
-    await this.createSystemMessage(offer.conversationId, 'Teklif reddedildi.', offer.id);
+    await this.touchConversation(
+      offer.conversation,
+      NegotiationStatus.NEGOTIATING,
+    );
+    await this.createSystemMessage(
+      offer.conversationId,
+      'Teklif reddedildi.',
+      offer.id,
+    );
 
     const serializedOffer = this.serializeOffer(offer);
     this.negotiationGateway.emitConversationEvent(
@@ -486,12 +507,20 @@ export class NegotiationService {
     };
   }
 
-  async closeConversation(userId: string, conversationId: string, reason?: string) {
+  async closeConversation(
+    userId: string,
+    conversationId: string,
+    reason?: string,
+  ) {
     const conversation = await this.findConversationForParticipant(
       userId,
       conversationId,
     );
-    if ([NegotiationStatus.COMPLETED, NegotiationStatus.ARCHIVED].includes(conversation.status)) {
+    if (
+      [NegotiationStatus.COMPLETED, NegotiationStatus.ARCHIVED].includes(
+        conversation.status,
+      )
+    ) {
       return {
         code: RC.NEGOTIATION_CLOSED,
         message: 'Fiyat görüşmesi zaten kapalı',
@@ -508,10 +537,16 @@ export class NegotiationService {
       closedBy: userId,
     };
     await this.conversationRepository.save(conversation);
-    await this.createSystemMessage(conversation.id, 'Fiyat görüşmesi kapatıldı.');
+    await this.createSystemMessage(
+      conversation.id,
+      'Fiyat görüşmesi kapatıldı.',
+    );
     await this.scheduleArchiveAfterClose(conversation.id);
 
-    const hydrated = await this.findConversationForParticipant(userId, conversation.id);
+    const hydrated = await this.findConversationForParticipant(
+      userId,
+      conversation.id,
+    );
     const serialized = this.serializeConversation(hydrated);
     this.negotiationGateway.emitConversationEvent(
       conversation.id,
@@ -538,7 +573,9 @@ export class NegotiationService {
     conversation.metadata = {
       ...(conversation.metadata ?? {}),
       reports: [
-        ...((conversation.metadata?.reports as Record<string, unknown>[] | undefined) ?? []),
+        ...((conversation.metadata?.reports as
+          | Record<string, unknown>[]
+          | undefined) ?? []),
         { userId, reason: dto.reason, createdAt: new Date().toISOString() },
       ],
     };
@@ -577,9 +614,10 @@ export class NegotiationService {
       code: RC.NEGOTIATION_ADMIN_VIEWED,
       message: 'Fiyat görüşmesi admin tarafından görüntülendi',
       negotiation: this.serializeConversation(conversation),
-      messages: conversation.messages?.map((message) =>
-        this.serializeMessage(message, conversation.offers),
-      ) ?? [],
+      messages:
+        conversation.messages?.map((message) =>
+          this.serializeMessage(message, conversation.offers),
+        ) ?? [],
     };
   }
 
@@ -594,11 +632,18 @@ export class NegotiationService {
     offer.status = OfferStatus.EXPIRED;
     offer.resolvedAt = new Date();
     await this.offerRepository.save(offer);
-    await this.createSystemMessage(offer.conversationId, 'Teklif süresi doldu.', offer.id);
+    await this.createSystemMessage(
+      offer.conversationId,
+      'Teklif süresi doldu.',
+      offer.id,
+    );
 
     const conversation = offer.conversation;
     const hasOtherPending = await this.offerRepository.exists({
-      where: { conversationId: offer.conversationId, status: OfferStatus.PENDING },
+      where: {
+        conversationId: offer.conversationId,
+        status: OfferStatus.PENDING,
+      },
     });
     if (!hasOtherPending && conversation) {
       conversation.status = NegotiationStatus.EXPIRED;
@@ -617,7 +662,8 @@ export class NegotiationService {
     const conversation = await this.conversationRepository.findOne({
       where: { id: conversationId },
     });
-    if (!conversation || conversation.status !== NegotiationStatus.CANCELLED) return;
+    if (!conversation || conversation.status !== NegotiationStatus.CANCELLED)
+      return;
     conversation.status = NegotiationStatus.ARCHIVED;
     await this.conversationRepository.save(conversation);
   }
@@ -648,7 +694,10 @@ export class NegotiationService {
     return product;
   }
 
-  private async findConversationForParticipant(userId: string, conversationId: string) {
+  private async findConversationForParticipant(
+    userId: string,
+    conversationId: string,
+  ) {
     const conversation = await this.conversationRepository.findOne({
       where: [
         { id: conversationId, buyerId: userId },
@@ -758,7 +807,10 @@ export class NegotiationService {
   }
 
   private assertOfferPending(offer: Offer) {
-    if (offer.status !== OfferStatus.PENDING || offer.expiresAt.getTime() <= Date.now()) {
+    if (
+      offer.status !== OfferStatus.PENDING ||
+      offer.expiresAt.getTime() <= Date.now()
+    ) {
       throw new BadRequestException({
         code: RC.OFFER_INVALID_STATUS,
         message: 'Teklif artık geçerli değil',
@@ -794,9 +846,10 @@ export class NegotiationService {
       });
     }
 
-    const riskScore = ruleViolations.length > 0
-      ? Math.min(1, 0.72 + ruleViolations.length * 0.07)
-      : 0.08;
+    const riskScore =
+      ruleViolations.length > 0
+        ? Math.min(1, 0.72 + ruleViolations.length * 0.07)
+        : 0.08;
     return {
       riskScore: Number(riskScore.toFixed(2)),
       reason:
@@ -873,7 +926,8 @@ export class NegotiationService {
 
     throw new BadRequestException({
       code: RC.MESSAGE_BLOCKED,
-      message: input.message ?? 'Mesaj güvenlik politikası nedeniyle engellendi',
+      message:
+        input.message ?? 'Mesaj güvenlik politikası nedeniyle engellendi',
     });
   }
 
@@ -972,7 +1026,9 @@ export class NegotiationService {
     input: { eventId: string; title: string; body: string },
   ) {
     const userId =
-      conversation.buyerId === senderId ? conversation.sellerId : conversation.buyerId;
+      conversation.buyerId === senderId
+        ? conversation.sellerId
+        : conversation.buyerId;
     await this.notificationService?.createFromEvent({
       eventId: input.eventId,
       userId,
@@ -1001,7 +1057,10 @@ export class NegotiationService {
       product: {
         id: conversation.productId,
         title: conversation.product?.title ?? '',
-        imageUrl: conversation.product?.imageUrl ?? conversation.product?.images?.[0]?.url ?? null,
+        imageUrl:
+          conversation.product?.imageUrl ??
+          conversation.product?.images?.[0]?.url ??
+          null,
         sellerId: conversation.sellerId,
         sellerName: this.displayName(conversation.seller),
         askPriceMinAmount: conversation.product?.askPriceMinAmount
@@ -1022,7 +1081,9 @@ export class NegotiationService {
       latestOffer,
       unreadCount: 0,
       createdAt: conversation.createdAt.toISOString(),
-      updatedAt: (conversation.lastActivityAt ?? conversation.updatedAt).toISOString(),
+      updatedAt: (
+        conversation.lastActivityAt ?? conversation.updatedAt
+      ).toISOString(),
     };
   }
 
@@ -1036,7 +1097,9 @@ export class NegotiationService {
     };
   }
 
-  private getPolicyMetadata(conversation: Conversation): NegotiationPolicyMetadata {
+  private getPolicyMetadata(
+    conversation: Conversation,
+  ): NegotiationPolicyMetadata {
     const metadata = conversation.metadata ?? {};
     const policy = metadata.policy;
     if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
@@ -1084,7 +1147,9 @@ export class NegotiationService {
   }
 
   private displayName(user?: User | null) {
-    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+    const fullName = [user?.firstName, user?.lastName]
+      .filter(Boolean)
+      .join(' ');
     return fullName || user?.email || 'Kullanıcı';
   }
 }

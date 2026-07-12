@@ -22,7 +22,7 @@ import { OrderReview } from '../order/entities/order-review.entity';
 import { ListingTemplate } from './entities/listing-template.entity';
 import { GeoIndication } from './entities/geo-indication.entity';
 import { FeatureBadge } from './entities/feature-badge.entity';
- 
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([

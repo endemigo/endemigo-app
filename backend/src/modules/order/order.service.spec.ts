@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CargoShipmentType,
   CargoStatus,
@@ -268,7 +272,11 @@ describe('OrderService', () => {
     const auditRepository = createAuditRepository();
     const service = new OrderService(orderRepository, auditRepository);
 
-    const result = await service.markPaymentEscrowHeld('order-1', 'payment-1', 'buyer-1');
+    const result = await service.markPaymentEscrowHeld(
+      'order-1',
+      'payment-1',
+      'buyer-1',
+    );
 
     expect(result.code).toBe(RC.ORDER_TRANSITIONED);
     expect(result.order?.status).toBe(OrderStatus.ESCROW_HELD);
@@ -1023,7 +1031,10 @@ describe('OrderService commission split (Faz 1)', () => {
       undefined,
       ledger,
     );
-    const order = createOrder({ escrowStatus: EscrowStatus.HELD, amount: 1000 });
+    const order = createOrder({
+      escrowStatus: EscrowStatus.HELD,
+      amount: 1000,
+    });
 
     await service.releaseEscrowToSeller(order);
 

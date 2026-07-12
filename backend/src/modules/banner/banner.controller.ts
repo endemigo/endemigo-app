@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminRole } from '@endemigo/shared';
 import { Public } from '../../common/decorators/public.decorator';
@@ -23,10 +34,7 @@ export class BannerController {
 
   @Public()
   @UseGuards(AdminJwtGuard)
-  @AdminRoles(
-    AdminRole.SUPER_ADMIN,
-    AdminRole.OPERATIONS,
-  )
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   @ApiBearerAuth()
   @Get('admin/banners')
   @ApiOperation({ summary: 'Tüm banner listesini getir' })
@@ -36,10 +44,7 @@ export class BannerController {
 
   @Public()
   @UseGuards(AdminJwtGuard)
-  @AdminRoles(
-    AdminRole.SUPER_ADMIN,
-    AdminRole.OPERATIONS,
-  )
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   @ApiBearerAuth()
   @Get('admin/banners/:id')
   @ApiOperation({ summary: 'Belirli bir banner detayını getir' })
@@ -49,10 +54,7 @@ export class BannerController {
 
   @Public()
   @UseGuards(AdminJwtGuard)
-  @AdminRoles(
-    AdminRole.SUPER_ADMIN,
-    AdminRole.OPERATIONS,
-  )
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   @ApiBearerAuth()
   @Post('admin/banners')
   @ApiOperation({ summary: 'Yeni bir banner oluştur' })
@@ -70,10 +72,7 @@ export class BannerController {
 
   @Public()
   @UseGuards(AdminJwtGuard)
-  @AdminRoles(
-    AdminRole.SUPER_ADMIN,
-    AdminRole.OPERATIONS,
-  )
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   @ApiBearerAuth()
   @Patch('admin/banners/:id')
   @ApiOperation({ summary: 'Bir bannerı güncelle' })
@@ -92,10 +91,7 @@ export class BannerController {
 
   @Public()
   @UseGuards(AdminJwtGuard)
-  @AdminRoles(
-    AdminRole.SUPER_ADMIN,
-    AdminRole.OPERATIONS,
-  )
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   @ApiBearerAuth()
   @Delete('admin/banners/:id')
   @ApiOperation({ summary: 'Bir bannerı sil (soft remove)' })

@@ -1,5 +1,10 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { AdminAuditAction, AdminRole, BannerActionType, RC } from '@endemigo/shared';
+import {
+  AdminAuditAction,
+  AdminRole,
+  BannerActionType,
+  RC,
+} from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { BannerService } from './banner.service';
 
@@ -69,7 +74,10 @@ describe('BannerService', () => {
     });
 
     it('throws ConflictException if slug already exists', async () => {
-      repo.findOne.mockResolvedValue({ id: 'existing-id', slug: 'home-banner' });
+      repo.findOne.mockResolvedValue({
+        id: 'existing-id',
+        slug: 'home-banner',
+      });
 
       const dto = {
         name: 'Yeni Banner',
@@ -77,7 +85,9 @@ describe('BannerService', () => {
         items: [],
       };
 
-      await expect(service.createBanner(dto, actor)).rejects.toThrow(ConflictException);
+      await expect(service.createBanner(dto, actor)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -107,7 +117,9 @@ describe('BannerService', () => {
     });
 
     it('throws NotFoundException if banner does not exist', async () => {
-      await expect(service.updateBanner('missing-id', { name: 'New' }, actor)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.updateBanner('missing-id', { name: 'New' }, actor),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

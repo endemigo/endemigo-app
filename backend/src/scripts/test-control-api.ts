@@ -7,7 +7,7 @@ async function run() {
   try {
     const controller = app.get(AdminOperationsController);
     const eventId = '1a619b5c-8fdf-4fa5-a334-b338184dea69';
-    
+
     // Mock socket gateway to prevent crash
     const { AuctionGateway } = require('../modules/auction/auction.gateway');
     const gateway = app.get(AuctionGateway);
@@ -19,7 +19,7 @@ async function run() {
       to: () => mockTo,
       emit: (event: string, data: any) => {
         console.log(`[Mock Socket Broadcast] Event: ${event}`, data);
-      }
+      },
     } as any;
 
     console.log('--- TESTING PAUSE AND RESUME CONTROL BUTTONS ---');

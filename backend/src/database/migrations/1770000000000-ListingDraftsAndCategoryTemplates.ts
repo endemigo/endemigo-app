@@ -52,11 +52,15 @@ export class ListingDraftsAndCategoryTemplates1770000000000 implements Migration
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IF EXISTS idx_product_listing_drafts_seller_status');
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS idx_product_listing_drafts_seller_status',
+    );
     await queryRunner.query('DROP TABLE IF EXISTS product_listing_drafts');
     await queryRunner.query('DROP TYPE IF EXISTS listing_draft_status');
     await queryRunner.query('DROP TYPE IF EXISTS listing_draft_entry_mode');
     await queryRunner.query('DROP TYPE IF EXISTS listing_type');
-    await queryRunner.query('ALTER TABLE categories DROP COLUMN IF EXISTS metadata');
+    await queryRunner.query(
+      'ALTER TABLE categories DROP COLUMN IF EXISTS metadata',
+    );
   }
 }

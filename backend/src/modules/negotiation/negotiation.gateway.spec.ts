@@ -13,7 +13,9 @@ describe('NegotiationGateway', () => {
     const gateway = createGateway();
 
     expect(() => {
-      gateway.emitConversationEvent('conversation-1', 'message:new', { id: 'message-1' });
+      gateway.emitConversationEvent('conversation-1', 'message:new', {
+        id: 'message-1',
+      });
     }).not.toThrow();
   });
 
@@ -23,7 +25,9 @@ describe('NegotiationGateway', () => {
     const gateway = createGateway();
 
     gateway.server = { to } as never;
-    gateway.emitConversationEvent('conversation-1', 'message:new', { id: 'message-1' });
+    gateway.emitConversationEvent('conversation-1', 'message:new', {
+      id: 'message-1',
+    });
 
     expect(to).toHaveBeenCalledWith('conversation:conversation-1');
     expect(emit).toHaveBeenCalledWith('message:new', { id: 'message-1' });

@@ -7,7 +7,9 @@ import { LedgerController } from './ledger.controller';
 import { LedgerService } from './ledger.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LedgerAccount, JournalEntry, JournalLine])],
+  imports: [
+    TypeOrmModule.forFeature([LedgerAccount, JournalEntry, JournalLine]),
+  ],
   controllers: [LedgerController],
   providers: [LedgerService],
   exports: [LedgerService],

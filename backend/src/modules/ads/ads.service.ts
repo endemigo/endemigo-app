@@ -193,7 +193,8 @@ export class AdsService {
       ? new Date(dto.endsAt)
       : this.addDays(startsAt, adRequest.adPackage.durationDays);
     const before = this.toRecord(adRequest);
-    const categoryId = dto.categoryId ?? this.getMetadataString(adRequest, 'categoryId');
+    const categoryId =
+      dto.categoryId ?? this.getMetadataString(adRequest, 'categoryId');
     const slotKey = dto.slotKey ?? this.getMetadataString(adRequest, 'slotKey');
 
     await this.assertSlotAvailable({
@@ -277,7 +278,8 @@ export class AdsService {
 
     const startsAt = adRequest.startsAt ?? new Date();
     const endsAt =
-      adRequest.endsAt ?? this.addDays(startsAt, adRequest.adPackage.durationDays);
+      adRequest.endsAt ??
+      this.addDays(startsAt, adRequest.adPackage.durationDays);
     adRequest.status = AdRequestStatus.ACTIVE;
     adRequest.publishedAt = new Date();
     adRequest.startsAt = startsAt;
@@ -399,10 +401,10 @@ export class AdsService {
 
     const annotated: Array<T & SponsoredMetadata & { __index: number }> =
       products.map((product, index) => ({
-      ...product,
-      __index: index,
-      ...(metadataByProductId.get(product.id) ?? { isSponsored: false }),
-    }));
+        ...product,
+        __index: index,
+        ...(metadataByProductId.get(product.id) ?? { isSponsored: false }),
+      }));
     return annotated
       .sort((left, right) => {
         const leftScore =
@@ -411,7 +413,9 @@ export class AdsService {
           (right.isSponsored ? 1000 : 0) + (right.visibilityBoost ?? 0);
         return rightScore - leftScore || left.__index - right.__index;
       })
-      .map(({ __index: _index, ...product }) => product as T & SponsoredMetadata);
+      .map(
+        ({ __index: _index, ...product }) => product as T & SponsoredMetadata,
+      );
   }
 
   async pauseActivePlacementsForSeller(sellerId: string, reason: string) {
@@ -420,7 +424,9 @@ export class AdsService {
       .leftJoinAndSelect('placement.adRequest', 'adRequest')
       .where('adRequest.sellerId = :sellerId', { sellerId })
       .andWhere('placement.isActive = true')
-      .andWhere('adRequest.status = :status', { status: AdRequestStatus.ACTIVE })
+      .andWhere('adRequest.status = :status', {
+        status: AdRequestStatus.ACTIVE,
+      })
       .getMany();
     const pausedAt = new Date().toISOString();
 
@@ -437,7 +443,8 @@ export class AdsService {
 
     return {
       code: RC.SUCCESS,
-      message: 'Aktif reklam yerleşimleri güven kısıtlaması nedeniyle durduruldu',
+      message:
+        'Aktif reklam yerleşimleri güven kısıtlaması nedeniyle durduruldu',
       pausedCount: placements.length,
     };
   }
@@ -460,14 +467,19 @@ export class AdsService {
       .andWhere('placement.isActive = true')
       .andWhere('placement.startsAt <= :now', { now })
       .andWhere('placement.endsAt >= :now', { now })
-      .andWhere('adRequest.status = :status', { status: AdRequestStatus.ACTIVE })
+      .andWhere('adRequest.status = :status', {
+        status: AdRequestStatus.ACTIVE,
+      })
       .orderBy('placement.startsAt', 'ASC')
       .take(limit);
 
     if (options.categoryId) {
-      qb.andWhere('(placement.categoryId = :categoryId OR product.categoryId = :categoryId)', {
-        categoryId: options.categoryId,
-      });
+      qb.andWhere(
+        '(placement.categoryId = :categoryId OR product.categoryId = :categoryId)',
+        {
+          categoryId: options.categoryId,
+        },
+      );
     }
 
     return qb.getMany();
@@ -505,7 +517,9 @@ export class AdsService {
         maxSponsoredPerPage: density,
         occupiedCount: conflicts.length,
       },
-      conflictingAdRequestIds: conflicts.map((placement) => placement.adRequestId),
+      conflictingAdRequestIds: conflicts.map(
+        (placement) => placement.adRequestId,
+      ),
     };
   }
 
@@ -525,7 +539,9 @@ export class AdsService {
       code: RC.AD_SLOT_CONFLICTS_FETCHED,
       message: 'Reklam slot çakışmaları getirildi',
       conflicts,
-      conflictingAdRequestIds: conflicts.map((placement) => placement.adRequestId),
+      conflictingAdRequestIds: conflicts.map(
+        (placement) => placement.adRequestId,
+      ),
     };
   }
 
@@ -730,10 +746,7 @@ export class AdsService {
     }
   }
 
-  private calculateAdCharge(
-    baseAmount: number,
-    benefits?: MembershipBenefits,
-  ) {
+  private calculateAdCharge(baseAmount: number, benefits?: MembershipBenefits) {
     const adCreditsApplied = Math.min(
       Math.max(Number(benefits?.adCredits ?? 0), 0),
       baseAmount,

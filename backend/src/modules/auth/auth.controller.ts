@@ -39,7 +39,11 @@ export class AuthController {
   // K2: Auth rate limiting — 5 istek/dk (brute force koruması)
   @Throttle({ short: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Yeni kullanıcı kaydı' })
-  @ApiResponse({ status: 201, type: AuthResponseDto, description: 'Kayıt başarılı' })
+  @ApiResponse({
+    status: 201,
+    type: AuthResponseDto,
+    description: 'Kayıt başarılı',
+  })
   @ApiResponse({ status: 409, description: 'E-posta zaten kayıtlı' })
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     const ip = req.ip || req.socket.remoteAddress;
@@ -53,7 +57,11 @@ export class AuthController {
   // K2: Auth rate limiting — 5 istek/dk
   @Throttle({ short: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Kullanıcı girişi' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: 'Giriş başarılı' })
+  @ApiResponse({
+    status: 200,
+    type: AuthResponseDto,
+    description: 'Giriş başarılı',
+  })
   @ApiResponse({ status: 401, description: 'Geçersiz e-posta veya şifre' })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -65,8 +73,15 @@ export class AuthController {
   // WR-07: Rate limit refresh endpoint — defense-in-depth against token probing
   @Throttle({ short: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Access token yenileme (refresh token rotation)' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: 'Token yenilendi' })
-  @ApiResponse({ status: 401, description: 'Geçersiz veya süresi dolmuş refresh token' })
+  @ApiResponse({
+    status: 200,
+    type: AuthResponseDto,
+    description: 'Token yenilendi',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Geçersiz veya süresi dolmuş refresh token',
+  })
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
   }
@@ -83,7 +98,11 @@ export class AuthController {
   @Get('profile')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Kullanıcı profili' })
-  @ApiResponse({ status: 200, type: UserResponseDto, description: 'Profil bilgileri' })
+  @ApiResponse({
+    status: 200,
+    type: UserResponseDto,
+    description: 'Profil bilgileri',
+  })
   @ApiResponse({ status: 401, description: 'Token geçersiz' })
   async getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
@@ -108,7 +127,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ short: { ttl: 60000, limit: 3 } })
   @ApiOperation({ summary: 'Doğrulama e-postasını yeniden gönder' })
-  @ApiResponse({ status: 200, description: 'E-posta kayıtlıysa doğrulama bağlantısı gönderildi' })
+  @ApiResponse({
+    status: 200,
+    description: 'E-posta kayıtlıysa doğrulama bağlantısı gönderildi',
+  })
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerificationEmail(dto.email);
   }

@@ -1,4 +1,12 @@
-import { IsDateString, IsEnum, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 import { RestrictionType } from '@endemigo/shared';
 
 export enum TrustFlagReviewDecision {

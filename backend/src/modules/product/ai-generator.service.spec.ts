@@ -15,7 +15,10 @@ describe('AiGeneratorService', () => {
   });
 
   it('generates high quality local content when OpenAI API Key is missing', async () => {
-    const result = await service.generateListingContent('Sızma Zeytinyağı 1L', 'Zeytinyağı');
+    const result = await service.generateListingContent(
+      'Sızma Zeytinyağı 1L',
+      'Zeytinyağı',
+    );
 
     expect(result.description).toContain('Zeytinyağı');
     expect(result.story).toContain('Zeytinyağı');
@@ -24,7 +27,10 @@ describe('AiGeneratorService', () => {
   });
 
   it('correctly maps handcrafted products to el sanatları templates', async () => {
-    const result = await service.generateListingContent('El Dokuma Yün Kilim', 'Halı & Kilim');
+    const result = await service.generateListingContent(
+      'El Dokuma Yün Kilim',
+      'Halı & Kilim',
+    );
 
     expect(result.description).toContain('zanaatkar');
     expect(result.story).toContain('el emeği');
@@ -32,7 +38,10 @@ describe('AiGeneratorService', () => {
   });
 
   it('correctly maps natural cosmetics to kozmetik templates', async () => {
-    const result = await service.generateListingContent('Doğal Zeytinyağlı Sabun', 'Kozmetik');
+    const result = await service.generateListingContent(
+      'Doğal Zeytinyağlı Sabun',
+      'Kozmetik',
+    );
 
     expect(result.description).toContain('cildinize');
     expect(result.story).toContain('şifalı');
@@ -40,7 +49,10 @@ describe('AiGeneratorService', () => {
   });
 
   it('uses default fallback templates for unmapped titles', async () => {
-    const result = await service.generateListingContent('Ultra Modern Akıllı Saat', 'Elektronik');
+    const result = await service.generateListingContent(
+      'Ultra Modern Akıllı Saat',
+      'Elektronik',
+    );
 
     expect(result.description).toContain('Akıllı Saat');
     expect(result.story).toContain('Akıllı Saat');
@@ -58,7 +70,10 @@ describe('AiGeneratorService', () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
 
     try {
-      const result = await service.generateListingContent('Taş Baskı Bal', 'Bal');
+      const result = await service.generateListingContent(
+        'Taş Baskı Bal',
+        'Bal',
+      );
       expect(result.description).toContain('Bal');
       expect(result.story).toContain('Bal');
       expect(result.productContent).toContain('üretim');

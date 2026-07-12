@@ -36,10 +36,7 @@ export class RedisIoAdapter extends IoAdapter {
         this.logger.error(`Socket.IO Redis sub client error: ${error.message}`),
       );
 
-      await Promise.all([
-        this.pubClient.connect(),
-        this.subClient.connect(),
-      ]);
+      await Promise.all([this.pubClient.connect(), this.subClient.connect()]);
 
       this.adapterConstructor = createAdapter(this.pubClient, this.subClient);
       this.logger.log(`Socket.IO Redis adapter initialized (${redisUrl})`);
@@ -69,10 +66,7 @@ export class RedisIoAdapter extends IoAdapter {
   }
 
   private async disconnectRedisClients() {
-    await Promise.allSettled([
-      this.pubClient?.quit(),
-      this.subClient?.quit(),
-    ]);
+    await Promise.allSettled([this.pubClient?.quit(), this.subClient?.quit()]);
     this.pubClient = undefined;
     this.subClient = undefined;
   }

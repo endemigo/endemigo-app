@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminRole } from '@endemigo/shared';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -10,7 +20,10 @@ import { CampaignService } from './campaign.service';
 import { AdminCouponListQueryDto } from './dto/admin-coupon-list-query.dto';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { CreateCouponDto } from './dto/create-coupon.dto';
-import { UpdateCouponDto, UpdateCouponStatusDto } from './dto/update-coupon.dto';
+import {
+  UpdateCouponDto,
+  UpdateCouponStatusDto,
+} from './dto/update-coupon.dto';
 
 interface AdminCampaignRequest {
   adminUser: {
@@ -51,10 +64,7 @@ export class CampaignController {
   @Roles('seller')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Platform kampanyasına opt-in' })
-  async optIn(
-    @CurrentUser('id') sellerId: string,
-    @Param('id') id: string,
-  ) {
+  async optIn(@CurrentUser('id') sellerId: string, @Param('id') id: string) {
     return this.campaignService.optInPlatformCampaign(sellerId, id);
   }
 
@@ -87,10 +97,14 @@ export class CampaignController {
     @Body() dto: CreateCampaignDto,
     @Request() _request: AdminCampaignRequest,
   ) {
-    return this.campaignService.createCampaign(null, {
-      ...dto,
-      isPlatform: true,
-    }, { adminPlatform: true });
+    return this.campaignService.createCampaign(
+      null,
+      {
+        ...dto,
+        isPlatform: true,
+      },
+      { adminPlatform: true },
+    );
   }
 
   @Public()

@@ -8,10 +8,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import {
-  CampaignDiscountType,
-  CampaignScopeType,
-} from '@endemigo/shared';
+import { CampaignDiscountType, CampaignScopeType } from '@endemigo/shared';
 
 export class CreateCouponDto {
   @IsString()

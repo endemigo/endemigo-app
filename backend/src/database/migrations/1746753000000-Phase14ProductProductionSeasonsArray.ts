@@ -11,6 +11,8 @@ export class Phase14ProductProductionSeasonsArray1746753000000 implements Migrat
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE products DROP COLUMN IF EXISTS "productionSeasons"`);
+    await queryRunner.query(
+      `ALTER TABLE products DROP COLUMN IF EXISTS "productionSeasons"`,
+    );
   }
 }

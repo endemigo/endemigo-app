@@ -75,6 +75,10 @@ export class TrustController {
     @Body() dto: ResolveRestrictionDto,
     @Request() request: AdminRequest,
   ) {
-    return this.trustService.resolveRestriction(id, dto.reason, request.adminUser);
+    return this.trustService.resolveRestriction(
+      id,
+      dto.reason,
+      request.adminUser,
+    );
   }
 }

@@ -15,13 +15,22 @@ async function run() {
     console.log(`Event: ${event?.title} (Status: ${event?.status})`);
     console.log(`Active Lot ID: ${event?.activeLotId}`);
 
-    const lots = await em.find(Auction, { where: { eventId }, order: { sequenceNumber: 'ASC' } });
+    const lots = await em.find(Auction, {
+      where: { eventId },
+      order: { sequenceNumber: 'ASC' },
+    });
     console.log('\n--- Lots ---');
     for (const lot of lots) {
-      console.log(`Lot #${lot.lotNumber} (Seq: ${lot.sequenceNumber}, Status: ${lot.status})`);
-      console.log(`  Current Price: ${lot.currentPrice} | Bids: ${lot.bidCount}`);
+      console.log(
+        `Lot #${lot.lotNumber} (Seq: ${lot.sequenceNumber}, Status: ${lot.status})`,
+      );
+      console.log(
+        `  Current Price: ${lot.currentPrice} | Bids: ${lot.bidCount}`,
+      );
       console.log(`  End Time: ${lot.endTime?.toISOString()}`);
-      console.log(`  Time left (sec): ${lot.endTime ? Math.round((new Date(lot.endTime).getTime() - Date.now()) / 1000) : 'N/A'}`);
+      console.log(
+        `  Time left (sec): ${lot.endTime ? Math.round((new Date(lot.endTime).getTime() - Date.now()) / 1000) : 'N/A'}`,
+      );
     }
     console.log('\n');
   } catch (err) {

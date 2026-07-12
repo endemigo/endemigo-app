@@ -200,7 +200,10 @@ export class TrustService {
     };
   }
 
-  async applyRestriction(dto: ApplyAccountRestrictionDto, actor: TrustAdminActor) {
+  async applyRestriction(
+    dto: ApplyAccountRestrictionDto,
+    actor: TrustAdminActor,
+  ) {
     const restriction = await this.applyRestrictionInternal(dto, actor);
     return {
       code: RC.RESTRICTION_APPLIED,

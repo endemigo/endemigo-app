@@ -32,7 +32,10 @@ import { NotificationService } from '../notification/notification.service';
 import { OrderService } from '../order/order.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { IyzicoWebhookDto } from './dto/iyzico-webhook.dto';
-import { CheckoutInitiateDto, CheckoutQuoteDto } from './dto/checkout-initiate.dto';
+import {
+  CheckoutInitiateDto,
+  CheckoutQuoteDto,
+} from './dto/checkout-initiate.dto';
 import { RegisterCardDto } from './dto/register-card.dto';
 import { PaymentProviderEvent } from './entities/payment-provider-event.entity';
 import { Payment } from './entities/payment.entity';
@@ -106,7 +109,6 @@ export class PaymentService {
     @Optional()
     private readonly configService?: ConfigService,
   ) {}
-
 
   async initiatePayment(userId: string, dto: InitiatePaymentDto) {
     const existing = await this.paymentRepository?.findOne({
@@ -187,7 +189,12 @@ export class PaymentService {
   }
 
   async checkoutCart(userId: string, dto: CheckoutInitiateDto) {
-    if (!this.cartService || !this.orderService || !this.paymentRepository || !this.orderRepository) {
+    if (
+      !this.cartService ||
+      !this.orderService ||
+      !this.paymentRepository ||
+      !this.orderRepository
+    ) {
       throw new BadRequestException({
         code: RC.INTERNAL_ERROR,
         message: 'Required services or repositories are unavailable',
@@ -229,154 +236,167 @@ export class PaymentService {
     const groupId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // 4. Create database transaction to save Payment and Orders
-    const payment = await this.paymentRepository.manager.transaction(async (manager) => {
-      // Create and save Payment record
-      const draft = manager.create(Payment, {
-        buyerId: userId,
-        orderId: null, // Multiple orders in a cart checkout
-        amount: grandTotal,
-        currency: checkoutCurrency,
-        provider: PaymentProvider.IYZICO,
-        status: PaymentStatus.PENDING,
-        idempotencyKey: dto.idempotencyKey,
-        checkoutToken: null,
-        checkoutUrl: null,
-        providerPaymentId: null,
-        refundProviderId: null,
-        metadata: {
-          groupId,
-          couponCode: quote.coupon?.code ?? null,
-          shippingAddressId: address?.id ?? null,
-        },
-        paidAt: null,
-        refundedAt: null,
-        adminReviewAt: null,
-      });
-      const savedPayment = await manager.save(Payment, draft);
+    const payment = await this.paymentRepository.manager.transaction(
+      async (manager) => {
+        // Create and save Payment record
+        const draft = manager.create(Payment, {
+          buyerId: userId,
+          orderId: null, // Multiple orders in a cart checkout
+          amount: grandTotal,
+          currency: checkoutCurrency,
+          provider: PaymentProvider.IYZICO,
+          status: PaymentStatus.PENDING,
+          idempotencyKey: dto.idempotencyKey,
+          checkoutToken: null,
+          checkoutUrl: null,
+          providerPaymentId: null,
+          refundProviderId: null,
+          metadata: {
+            groupId,
+            couponCode: quote.coupon?.code ?? null,
+            shippingAddressId: address?.id ?? null,
+          },
+          paidAt: null,
+          refundedAt: null,
+          adminReviewAt: null,
+        });
+        const savedPayment = await manager.save(Payment, draft);
 
-      // Her birim (adet) için ayrı sipariş — tutarlar quote'tan gelir.
-      for (const unit of quote.units) {
-        const item = unit.item;
-        const product = item.product!;
-        const idempotencyKey = `checkout-${savedPayment.id}-${item.id}-${unit.unitIndex}`;
+        // Her birim (adet) için ayrı sipariş — tutarlar quote'tan gelir.
+        for (const unit of quote.units) {
+          const item = unit.item;
+          const product = item.product!;
+          const idempotencyKey = `checkout-${savedPayment.id}-${item.id}-${unit.unitIndex}`;
 
-        let orderRes;
-        if (item.auctionId) {
-          // Komisyon split'i için müzayede etkinliğini taşı (Faz 1).
-          const auctionRow = await manager.findOne(Auction, { where: { id: item.auctionId } });
-          if (auctionRow) {
-            if (auctionRow.winnerId !== userId) {
+          let orderRes;
+          if (item.auctionId) {
+            // Komisyon split'i için müzayede etkinliğini taşı (Faz 1).
+            const auctionRow = await manager.findOne(Auction, {
+              where: { id: item.auctionId },
+            });
+            if (auctionRow) {
+              if (auctionRow.winnerId !== userId) {
+                throw new BadRequestException({
+                  code: RC.FORBIDDEN,
+                  message: 'Bu müzayede ödemesi size ait değil',
+                });
+              }
+              if (!auctionRow.saleApprovedAt) {
+                throw new BadRequestException({
+                  code: RC.VALIDATION_ERROR,
+                  message:
+                    'Müzayede satışı henüz onaylanmadı, ödeme onay sonrası açılır',
+                });
+              }
+              if (
+                auctionRow.winnerPaymentDeadlineAt &&
+                auctionRow.winnerPaymentDeadlineAt.getTime() <= Date.now()
+              ) {
+                throw new BadRequestException({
+                  code: RC.VALIDATION_ERROR,
+                  message: 'Müzayede ödeme süresi dolmuş',
+                });
+              }
+            }
+            orderRes = await this.orderService!.createFromAuction(
+              {
+                auctionId: item.auctionId,
+                buyerId: userId,
+                sellerId: product.sellerId,
+                productId: item.productId,
+                amount: unit.finalAmount,
+                currency: checkoutCurrency,
+                paymentId: savedPayment.id,
+                isPending: true,
+                eventId: auctionRow?.eventId ?? null,
+                shippingAddressId: address?.id ?? null,
+                shippingAddressSnapshot: addressSnapshot,
+              },
+              manager,
+            );
+          } else if (item.offerId) {
+            // Fiyat-sor: kabul edilmiş teklif sepetten ödenir. Tutar sepetteki
+            // customPrice'tan (teklif tutarı) gelir; teklif sunucuda doğrulanır.
+            const offerRow = await manager.findOne(Offer, {
+              where: { id: item.offerId },
+            });
+            if (!offerRow || offerRow.status !== OfferStatus.ACCEPTED) {
+              throw new BadRequestException({
+                code: RC.VALIDATION_ERROR,
+                message: 'Sepetteki teklif artık geçerli değil',
+              });
+            }
+            const conversationRow = await manager.findOne(Conversation, {
+              where: { id: offerRow.conversationId },
+            });
+            if (!conversationRow || conversationRow.buyerId !== userId) {
               throw new BadRequestException({
                 code: RC.FORBIDDEN,
-                message: 'Bu müzayede ödemesi size ait değil',
+                message: 'Bu teklif ödemesi size ait değil',
               });
             }
-            if (!auctionRow.saleApprovedAt) {
-              throw new BadRequestException({
-                code: RC.VALIDATION_ERROR,
-                message: 'Müzayede satışı henüz onaylanmadı, ödeme onay sonrası açılır',
-              });
+            orderRes = await this.orderService!.createFromAskPriceHook(
+              {
+                acceptedOfferId: item.offerId,
+                buyerId: userId,
+                sellerId: product.sellerId,
+                productId: item.productId,
+                amount: unit.finalAmount,
+                currency: 'TRY',
+              },
+              manager,
+              {
+                shippingAddressId: address?.id ?? null,
+                shippingAddressSnapshot: addressSnapshot,
+                paymentId: savedPayment.id,
+              },
+            );
+            const askPriceOrder = orderRes.order;
+            if (askPriceOrder) {
+              offerRow.orderId = askPriceOrder.id;
+              await manager.save(Offer, offerRow);
+              conversationRow.orderId = askPriceOrder.id;
+              conversationRow.status = NegotiationStatus.PAYMENT_PENDING;
+              conversationRow.lastActivityAt = new Date();
+              await manager.save(Conversation, conversationRow);
             }
-            if (
-              auctionRow.winnerPaymentDeadlineAt &&
-              auctionRow.winnerPaymentDeadlineAt.getTime() <= Date.now()
-            ) {
-              throw new BadRequestException({
-                code: RC.VALIDATION_ERROR,
-                message: 'Müzayede ödeme süresi dolmuş',
-              });
-            }
+          } else {
+            orderRes = await this.orderService!.createFromDirectSale(
+              userId,
+              {
+                productId: item.productId,
+                sellerId: product.sellerId,
+                productVariantSkuId: item.productVariantSkuId ?? undefined,
+                amount: unit.finalAmount,
+                currency: 'TRY',
+                idempotencyKey,
+                couponCode: unit.couponApplied ? dto.couponCode : undefined,
+              },
+              manager,
+              {
+                shippingAddressId: address?.id ?? null,
+                shippingAddressSnapshot: addressSnapshot,
+              },
+            );
           }
-          orderRes = await this.orderService!.createFromAuction({
-            auctionId: item.auctionId,
-            buyerId: userId,
-            sellerId: product.sellerId,
-            productId: item.productId,
-            amount: unit.finalAmount,
-            currency: checkoutCurrency,
-            paymentId: savedPayment.id,
-            isPending: true,
-            eventId: auctionRow?.eventId ?? null,
-            shippingAddressId: address?.id ?? null,
-            shippingAddressSnapshot: addressSnapshot,
-          }, manager);
-        } else if (item.offerId) {
-          // Fiyat-sor: kabul edilmiş teklif sepetten ödenir. Tutar sepetteki
-          // customPrice'tan (teklif tutarı) gelir; teklif sunucuda doğrulanır.
-          const offerRow = await manager.findOne(Offer, {
-            where: { id: item.offerId },
-          });
-          if (!offerRow || offerRow.status !== OfferStatus.ACCEPTED) {
+
+          const createdOrder = orderRes.order;
+          if (!createdOrder) {
             throw new BadRequestException({
-              code: RC.VALIDATION_ERROR,
-              message: 'Sepetteki teklif artık geçerli değil',
+              code: RC.ORDER_CREATED,
+              message: 'Sipariş oluşturulamadı',
             });
           }
-          const conversationRow = await manager.findOne(Conversation, {
-            where: { id: offerRow.conversationId },
-          });
-          if (!conversationRow || conversationRow.buyerId !== userId) {
-            throw new BadRequestException({
-              code: RC.FORBIDDEN,
-              message: 'Bu teklif ödemesi size ait değil',
-            });
-          }
-          orderRes = await this.orderService!.createFromAskPriceHook(
-            {
-              acceptedOfferId: item.offerId,
-              buyerId: userId,
-              sellerId: product.sellerId,
-              productId: item.productId,
-              amount: unit.finalAmount,
-              currency: 'TRY',
-            },
-            manager,
-            {
-              shippingAddressId: address?.id ?? null,
-              shippingAddressSnapshot: addressSnapshot,
-              paymentId: savedPayment.id,
-            },
-          );
-          const askPriceOrder = orderRes.order;
-          if (askPriceOrder) {
-            offerRow.orderId = askPriceOrder.id;
-            await manager.save(Offer, offerRow);
-            conversationRow.orderId = askPriceOrder.id;
-            conversationRow.status = NegotiationStatus.PAYMENT_PENDING;
-            conversationRow.lastActivityAt = new Date();
-            await manager.save(Conversation, conversationRow);
-          }
-        } else {
-          orderRes = await this.orderService!.createFromDirectSale(userId, {
-            productId: item.productId,
-            sellerId: product.sellerId,
-            productVariantSkuId: item.productVariantSkuId ?? undefined,
-            amount: unit.finalAmount,
-            currency: 'TRY',
-            idempotencyKey,
-            couponCode: unit.couponApplied ? dto.couponCode : undefined,
-          }, manager, {
-            shippingAddressId: address?.id ?? null,
-            shippingAddressSnapshot: addressSnapshot,
-          });
+
+          // Link to the Payment and set groupId
+          createdOrder.paymentId = savedPayment.id;
+          createdOrder.groupId = groupId;
+          await manager.save(Order, createdOrder);
         }
 
-        const createdOrder = orderRes.order;
-        if (!createdOrder) {
-          throw new BadRequestException({
-            code: RC.ORDER_CREATED,
-            message: 'Sipariş oluşturulamadı',
-          });
-        }
-
-        // Link to the Payment and set groupId
-        createdOrder.paymentId = savedPayment.id;
-        createdOrder.groupId = groupId;
-        await manager.save(Order, createdOrder);
-      }
-
-      return savedPayment;
-    });
+        return savedPayment;
+      },
+    );
 
     // 5. Initialize Iyzico Checkout
     const checkout = await this.iyzicoProvider?.initializeCheckout({
@@ -523,12 +543,19 @@ export class PaymentService {
       couponCode &&
       typeof this.orderService?.previewDirectSaleDiscount === 'function'
     ) {
-      let best:
-        | { productId: string; finalAmount: number; discountAmount: number }
-        | null = null;
+      let best: {
+        productId: string;
+        finalAmount: number;
+        discountAmount: number;
+      } | null = null;
       const seenProducts = new Set<string>();
       for (const item of cart.items) {
-        if (item.auctionId || item.offerId || !item.product || seenProducts.has(item.productId)) {
+        if (
+          item.auctionId ||
+          item.offerId ||
+          !item.product ||
+          seenProducts.has(item.productId)
+        ) {
           continue;
         }
         seenProducts.add(item.productId);
@@ -558,7 +585,7 @@ export class PaymentService {
         (unit) =>
           !unit.item.auctionId &&
           !unit.item.offerId &&
-          unit.item.productId === best!.productId,
+          unit.item.productId === best.productId,
       );
       if (target) {
         coupon = {
@@ -622,9 +649,7 @@ export class PaymentService {
   ): Promise<string> {
     const auctionIds = [
       ...new Set(
-        items
-          .map((item) => item.auctionId)
-          .filter((id): id is string => !!id),
+        items.map((item) => item.auctionId).filter((id): id is string => !!id),
       ),
     ];
 
@@ -657,7 +682,7 @@ export class PaymentService {
         for (const auction of auctions) {
           currencies.add(
             auction.eventId
-              ? eventCurrency.get(auction.eventId) ?? 'TRY'
+              ? (eventCurrency.get(auction.eventId) ?? 'TRY')
               : 'TRY',
           );
         }
@@ -823,7 +848,7 @@ export class PaymentService {
     } else if ((retrieved?.status ?? payload.status) === 'success') {
       payment.status = PaymentStatus.ESCROW_HELD;
       payment.providerPaymentId =
-          retrieved?.providerPaymentId ?? payment.providerPaymentId;
+        retrieved?.providerPaymentId ?? payment.providerPaymentId;
       payment.paidAt = new Date();
       await this.postPaymentLedgerEntry(payment);
       await this.notificationService?.createFromEvent({
@@ -854,9 +879,9 @@ export class PaymentService {
     const saved = await this.paymentRepository.save(payment);
     if (saved.orderId && saved.status === PaymentStatus.ESCROW_HELD) {
       await this.orderService?.markPaymentEscrowHeld(
-          saved.orderId,
-          saved.id,
-          saved.buyerId,
+        saved.orderId,
+        saved.id,
+        saved.buyerId,
       );
     }
     if (saved.orderId && saved.status === PaymentStatus.FAILED) {
@@ -866,8 +891,8 @@ export class PaymentService {
     // Transition all orders grouped under this payment (useful for multi-item checkouts)
     if (saved.status === PaymentStatus.ESCROW_HELD) {
       await this.orderService?.markPaymentEscrowHeldForPayment(
-          saved.id,
-          saved.buyerId,
+        saved.id,
+        saved.buyerId,
       );
       if (this.cartService) {
         await this.cartService.clearCart(saved.buyerId, true);
@@ -991,7 +1016,9 @@ export class PaymentService {
     }
 
     if (
-      ![OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING].includes(order.status) ||
+      ![OrderStatus.CREATED, OrderStatus.PAYMENT_PENDING].includes(
+        order.status,
+      ) ||
       order.escrowStatus !== EscrowStatus.NOT_FUNDED
     ) {
       throw new BadRequestException({
@@ -1142,8 +1169,12 @@ export class PaymentService {
 
     if (cards.length === 0) {
       try {
-        const user = await this.savedCardRepository.manager.findOne(User, { where: { id: userId } });
-        const fullName = user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase() : 'TEST USER';
+        const user = await this.savedCardRepository.manager.findOne(User, {
+          where: { id: userId },
+        });
+        const fullName = user
+          ? `${user.firstName} ${user.lastName}`.trim().toUpperCase()
+          : 'TEST USER';
         await this.registerCard(userId, {
           cardHolderName: fullName || 'TEST USER',
           cardNumber: '4111111111111111',
@@ -1156,7 +1187,7 @@ export class PaymentService {
           order: { createdAt: 'DESC' },
         });
       } catch (err) {
-        console.warn('Auto-registering card failed:', err.message);
+        this.logger.warn(`Auto-registering card failed: ${err.message}`);
       }
     }
 
@@ -1180,7 +1211,7 @@ export class PaymentService {
     const payment = this.paymentRepository.create({
       buyerId: userId,
       orderId: null,
-      amount: 1.00,
+      amount: 1.0,
       currency: 'TRY',
       provider: PaymentProvider.IYZICO,
       status: PaymentStatus.ESCROW_HELD, // Success immediately for card validation
@@ -1211,12 +1242,16 @@ export class PaymentService {
 
     return {
       code: RC.SUCCESS,
-      message: 'Kredi kartınız başarıyla doğrulandı ve kaydedildi. 1 TL doğrulama tutarı anında iade edildi.',
+      message:
+        'Kredi kartınız başarıyla doğrulandı ve kaydedildi. 1 TL doğrulama tutarı anında iade edildi.',
       card: savedCard,
     };
   }
 
-  async payDeposit(userId: string, dto: { amount: number; cardDetails?: RegisterCardDto }) {
+  async payDeposit(
+    userId: string,
+    dto: { amount: number; cardDetails?: RegisterCardDto },
+  ) {
     if (!this.paymentRepository) {
       throw new BadRequestException({
         code: RC.INTERNAL_ERROR,
@@ -1310,8 +1345,15 @@ export class PaymentService {
         lock: { mode: 'pessimistic_write' },
       });
       if (user) {
-        const depositLimit = Math.max(50000, Number(user.totalDeposit ?? 0) * 5);
-        const newLimit = Math.max(Number(user.biddingLimit), depositLimit, loyaltyLimit);
+        const depositLimit = Math.max(
+          50000,
+          Number(user.totalDeposit ?? 0) * 5,
+        );
+        const newLimit = Math.max(
+          Number(user.biddingLimit),
+          depositLimit,
+          loyaltyLimit,
+        );
         if (newLimit !== Number(user.biddingLimit)) {
           user.biddingLimit = newLimit;
           await manager.save(User, user);

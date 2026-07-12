@@ -31,7 +31,6 @@ export class Bid extends BaseEntity {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   maxAmount: number | null;
 
-
   // ─── Phase 5 Fields ────────────────────────────────────
   @Column({ type: 'enum', enum: BidStatus, default: BidStatus.ACTIVE })
   status: BidStatus;

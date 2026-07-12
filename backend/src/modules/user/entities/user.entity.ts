@@ -28,8 +28,8 @@ export class User extends BaseEntity {
   @Column({
     nullable: true,
     transformer: {
-      to: (value: string | null) => value ? encrypt(value) : null,
-      from: (value: string | null) => value ? decrypt(value) : null,
+      to: (value: string | null) => (value ? encrypt(value) : null),
+      from: (value: string | null) => (value ? decrypt(value) : null),
     },
   })
   tcKimlikNo: string;
@@ -49,10 +49,10 @@ export class User extends BaseEntity {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 50000.00 })
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 50000.0 })
   biddingLimit: number;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.00 })
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.0 })
   totalDeposit: number;
 
   @Column({ nullable: true })

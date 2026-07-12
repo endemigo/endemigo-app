@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from 'crypto';
 
 /**
  * WR-02: AES-256-GCM encryption utility for PII fields (KVKK compliance).
@@ -16,7 +21,9 @@ const AUTH_TAG_LENGTH = 16;
 function getKey(): Buffer {
   const secret = process.env.ENCRYPTION_KEY;
   if (!secret) {
-    throw new Error('ENCRYPTION_KEY environment variable is required for PII encryption');
+    throw new Error(
+      'ENCRYPTION_KEY environment variable is required for PII encryption',
+    );
   }
   // Derive 32-byte key from secret using scrypt
   return scryptSync(secret, 'endemigo-pii-salt', 32);
@@ -25,7 +32,9 @@ function getKey(): Buffer {
 export function encrypt(plaintext: string): string {
   const key = getKey();
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const cipher = createCipheriv(ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
 
   let encrypted = cipher.update(plaintext, 'utf-8', 'hex');
   encrypted += cipher.final('hex');
@@ -47,7 +56,9 @@ export function decrypt(ciphertext: string): string {
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const decipher = createDecipheriv(ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
   decipher.setAuthTag(authTag);
 
   let decrypted = decipher.update(encrypted, 'hex', 'utf-8');

@@ -100,7 +100,6 @@ export class CreateAuctionDto {
   guaranteeAccepted?: boolean;
 }
 
-
 // updateDraft body'si: Partial<CreateAuctionDto> tip olarak class-validator
 // metadata'sını taşımaz ve ValidationPipe'ı devre dışı bırakır; PartialType
 // alanları opsiyonel yaparken doğrulamayı korur.
@@ -128,7 +127,9 @@ export class RegisterToAuctionDto {
   @ApiPropertyOptional({ example: '4111111111111111' })
   @IsString()
   @IsOptional()
-  @Matches(/^\d{15,16}$/, { message: 'Kart numarası 15 veya 16 haneli rakam olmalıdır' })
+  @Matches(/^\d{15,16}$/, {
+    message: 'Kart numarası 15 veya 16 haneli rakam olmalıdır',
+  })
   cardNumber?: string;
 
   @ApiPropertyOptional({ example: '12' })
@@ -149,4 +150,3 @@ export class RegisterToAuctionDto {
   @Matches(/^\d{3,4}$/, { message: 'CVC 3 veya 4 haneli rakam olmalıdır' })
   cvc?: string;
 }
-

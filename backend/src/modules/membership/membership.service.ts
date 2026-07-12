@@ -10,11 +10,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
-import {
-  MembershipPeriod,
-  MembershipStatus,
-  RC,
-} from '@endemigo/shared';
+import { MembershipPeriod, MembershipStatus, RC } from '@endemigo/shared';
 import { In, LessThanOrEqual, Repository } from 'typeorm';
 import { CreateMembershipPackageDto } from './dto/create-membership-package.dto';
 import { MembershipPackage } from './entities/membership-package.entity';
@@ -154,7 +150,9 @@ export class MembershipService implements OnApplicationBootstrap {
       amount,
       currency: membershipPackage.currency,
     });
-    const existing = await this.subscriptionRepo.findOne({ where: { sellerId } });
+    const existing = await this.subscriptionRepo.findOne({
+      where: { sellerId },
+    });
     const startsAt = new Date();
     const subscription =
       existing ??
@@ -228,7 +226,8 @@ export class MembershipService implements OnApplicationBootstrap {
       where: { sellerId },
       relations: ['package'],
     });
-    if (!subscription || subscription.status !== MembershipStatus.ACTIVE) return;
+    if (!subscription || subscription.status !== MembershipStatus.ACTIVE)
+      return;
     if (
       !subscription.currentPeriodEndsAt ||
       new Date(subscription.currentPeriodEndsAt).getTime() > Date.now()
@@ -263,7 +262,9 @@ export class MembershipService implements OnApplicationBootstrap {
       nextPackageId: nextPackageId ?? 'FREE',
     };
     if (subscription.providerSubscriptionId) {
-      await this.paymentProvider.cancelAtPeriodEnd(subscription.providerSubscriptionId);
+      await this.paymentProvider.cancelAtPeriodEnd(
+        subscription.providerSubscriptionId,
+      );
     }
     const saved = await this.subscriptionRepo.save(subscription);
     return {
@@ -327,7 +328,9 @@ export class MembershipService implements OnApplicationBootstrap {
     });
     if (
       subscription?.package &&
-      [MembershipStatus.ACTIVE, MembershipStatus.GRACE].includes(subscription.status)
+      [MembershipStatus.ACTIVE, MembershipStatus.GRACE].includes(
+        subscription.status,
+      )
     ) {
       return this.resolveBenefits(subscription.package);
     }
@@ -442,7 +445,9 @@ export class MembershipService implements OnApplicationBootstrap {
     return subscription;
   }
 
-  private resolveBenefits(membershipPackage: MembershipPackage): MembershipBenefits {
+  private resolveBenefits(
+    membershipPackage: MembershipPackage,
+  ): MembershipBenefits {
     return {
       ...this.defaultBenefits(),
       ...membershipPackage.benefits,

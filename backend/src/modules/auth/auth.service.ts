@@ -426,13 +426,18 @@ export class AuthService {
       record.isUsed = true;
       await manager.save(VerificationToken, record);
 
-      const user = await manager.findOne(User, { where: { id: record.userId } });
+      const user = await manager.findOne(User, {
+        where: { id: record.userId },
+      });
       if (user) {
         user.isVerified = true;
         await manager.save(User, user);
       }
 
-      return { code: RC.EMAIL_VERIFIED, message: 'E-posta adresiniz doğrulandı' };
+      return {
+        code: RC.EMAIL_VERIFIED,
+        message: 'E-posta adresiniz doğrulandı',
+      };
     });
   }
 
@@ -524,7 +529,9 @@ export class AuthService {
       record.isUsed = true;
       await manager.save(VerificationToken, record);
 
-      const user = await manager.findOne(User, { where: { id: record.userId } });
+      const user = await manager.findOne(User, {
+        where: { id: record.userId },
+      });
       if (!user) {
         throw new BadRequestException({
           code: RC.USER_NOT_FOUND,
@@ -540,7 +547,10 @@ export class AuthService {
         { isRevoked: true },
       );
 
-      return { code: RC.PASSWORD_RESET, message: 'Şifreniz başarıyla sıfırlandı' };
+      return {
+        code: RC.PASSWORD_RESET,
+        message: 'Şifreniz başarıyla sıfırlandı',
+      };
     });
   }
 

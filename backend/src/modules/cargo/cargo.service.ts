@@ -107,7 +107,9 @@ export class CargoService {
   ) {
     await this.assertOrderAccess(orderId, actor);
 
-    const order = await this.orderRepository?.findOne({ where: { id: orderId } });
+    const order = await this.orderRepository?.findOne({
+      where: { id: orderId },
+    });
     let shipments: CargoShipment[] = [];
     if (this.cargoShipmentRepository) {
       if (order && order.groupId && order.sellerId) {
@@ -192,17 +194,25 @@ export class CargoService {
   }
 
   async getShipmentForOrder(orderId: string) {
-    const order = await this.orderRepository?.findOne({ where: { id: orderId } });
+    const order = await this.orderRepository?.findOne({
+      where: { id: orderId },
+    });
     let shipment: CargoShipment | null = null;
     if (order && order.groupId && order.sellerId) {
-      shipment = await this.cargoShipmentRepository?.findOne({
-        where: { groupId: order.groupId, sellerId: order.sellerId, shipmentType: CargoShipmentType.FORWARD },
-      }) ?? null;
+      shipment =
+        (await this.cargoShipmentRepository?.findOne({
+          where: {
+            groupId: order.groupId,
+            sellerId: order.sellerId,
+            shipmentType: CargoShipmentType.FORWARD,
+          },
+        })) ?? null;
     }
     if (!shipment) {
-      shipment = await this.cargoShipmentRepository?.findOne({
-        where: { orderId, shipmentType: CargoShipmentType.FORWARD },
-      }) ?? null;
+      shipment =
+        (await this.cargoShipmentRepository?.findOne({
+          where: { orderId, shipmentType: CargoShipmentType.FORWARD },
+        })) ?? null;
     }
 
     return {
@@ -281,14 +291,24 @@ export class CargoService {
     }
 
     let existing: CargoShipment | null = null;
-    if (shipmentType === CargoShipmentType.FORWARD && order.groupId && order.sellerId) {
-      existing = await this.cargoShipmentRepository?.findOne({
-        where: { groupId: order.groupId, sellerId: order.sellerId, shipmentType },
-      }) ?? null;
+    if (
+      shipmentType === CargoShipmentType.FORWARD &&
+      order.groupId &&
+      order.sellerId
+    ) {
+      existing =
+        (await this.cargoShipmentRepository?.findOne({
+          where: {
+            groupId: order.groupId,
+            sellerId: order.sellerId,
+            shipmentType,
+          },
+        })) ?? null;
     } else {
-      existing = await this.cargoShipmentRepository?.findOne({
-        where: { orderId, shipmentType },
-      }) ?? null;
+      existing =
+        (await this.cargoShipmentRepository?.findOne({
+          where: { orderId, shipmentType },
+        })) ?? null;
     }
 
     if (existing) {
@@ -327,7 +347,8 @@ export class CargoService {
       trackingNumber,
     });
 
-    const isGroupedForward = shipmentType === CargoShipmentType.FORWARD && !!order.groupId;
+    const isGroupedForward =
+      shipmentType === CargoShipmentType.FORWARD && !!order.groupId;
 
     const shipment = this.cargoShipmentRepository?.create({
       orderId: isGroupedForward ? null : orderId,
@@ -400,9 +421,8 @@ export class CargoService {
 
     const now = new Date();
     const prefix = `${shipmentType === CargoShipmentType.RETURN ? 'RMA' : 'MOCK'}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const queryBuilder = this.cargoShipmentRepository?.createQueryBuilder?.(
-      'shipment',
-    );
+    const queryBuilder =
+      this.cargoShipmentRepository?.createQueryBuilder?.('shipment');
     const count = queryBuilder
       ? ((await queryBuilder
           .where('shipment.trackingNumber LIKE :prefix', {
@@ -440,7 +460,9 @@ export class CargoService {
 
   private getEventTitle(status: CargoStatus, shipmentType: CargoShipmentType) {
     const shipmentLabel =
-      shipmentType === CargoShipmentType.RETURN ? 'Return shipment' : 'Shipment';
+      shipmentType === CargoShipmentType.RETURN
+        ? 'Return shipment'
+        : 'Shipment';
 
     switch (status) {
       case CargoStatus.PREPARING:
@@ -478,7 +500,9 @@ export class CargoService {
     }
   }
 
-  private async getOrdersForShipment(shipment: CargoShipment): Promise<Order[]> {
+  private async getOrdersForShipment(
+    shipment: CargoShipment,
+  ): Promise<Order[]> {
     if (!this.orderRepository) {
       return [];
     }
@@ -578,7 +602,9 @@ export class CargoService {
         order.status = OrderStatus.DELIVERED;
         order.deliveryConfirmedAt = new Date();
         const autoConfirmHours = this.getAutoConfirmHours();
-        order.autoConfirmAt = new Date(Date.now() + autoConfirmHours * 60 * 60 * 1000);
+        order.autoConfirmAt = new Date(
+          Date.now() + autoConfirmHours * 60 * 60 * 1000,
+        );
         await this.orderRepository.save(order);
       }
     }
@@ -714,7 +740,9 @@ export class CargoService {
     shipmentType: CargoShipmentType,
   ) {
     const flow =
-      shipmentType === CargoShipmentType.RETURN ? 'return shipment' : 'shipment';
+      shipmentType === CargoShipmentType.RETURN
+        ? 'return shipment'
+        : 'shipment';
     switch (status) {
       case CargoStatus.PREPARING:
         return `The ${flow} record has been created.`;

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Phase25ContentStudioStorageSeparation1748000000000
-  implements MigrationInterface
-{
+export class Phase25ContentStudioStorageSeparation1748000000000 implements MigrationInterface {
   name = 'Phase25ContentStudioStorageSeparation1748000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

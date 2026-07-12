@@ -13,7 +13,12 @@ export interface CargoProviderShipment {
 }
 
 export interface CargoProvider {
-  createShipment(input: CargoProviderCreateInput): Promise<CargoProviderShipment>;
+  createShipment(
+    input: CargoProviderCreateInput,
+  ): Promise<CargoProviderShipment>;
   getStatus(trackingNumber: string): Promise<CargoStatus>;
-  transitionShipment(trackingNumber: string, status: CargoStatus): Promise<CargoStatus>;
+  transitionShipment(
+    trackingNumber: string,
+    status: CargoStatus,
+  ): Promise<CargoStatus>;
 }

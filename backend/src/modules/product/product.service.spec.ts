@@ -198,7 +198,12 @@ describe('ProductService', () => {
     };
 
     draftRepo = {
-      create: jest.fn((data) => ({ id: 'draft-1', createdAt: new Date(), updatedAt: new Date(), ...data })),
+      create: jest.fn((data) => ({
+        id: 'draft-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...data,
+      })),
       save: jest.fn(async (entity) => ({ ...entity, updatedAt: new Date() })),
       findOne: jest.fn(),
       find: jest.fn(),
@@ -258,7 +263,9 @@ describe('ProductService', () => {
       findOne: jest.fn(),
       exist: jest.fn().mockResolvedValue(false),
       create: jest.fn((data) => data),
-      save: jest.fn((entity) => Promise.resolve({ id: 'template-1', ...entity })),
+      save: jest.fn((entity) =>
+        Promise.resolve({ id: 'template-1', ...entity }),
+      ),
     };
 
     geoIndicationRepo = {
@@ -297,13 +304,28 @@ describe('ProductService', () => {
         { provide: getRepositoryToken(ProductDraft), useValue: draftRepo },
         { provide: getRepositoryToken(ProductImage), useValue: imageRepo },
         { provide: getRepositoryToken(Category), useValue: categoryRepo },
-        { provide: getRepositoryToken(VariantNumber), useValue: variantNumberRepo },
-        { provide: getRepositoryToken(ProductVariantSku), useValue: productVariantSkuRepo },
+        {
+          provide: getRepositoryToken(VariantNumber),
+          useValue: variantNumberRepo,
+        },
+        {
+          provide: getRepositoryToken(ProductVariantSku),
+          useValue: productVariantSkuRepo,
+        },
         { provide: getRepositoryToken(Favorite), useValue: favoriteRepo },
         { provide: getRepositoryToken(ProductView), useValue: productViewRepo },
-        { provide: getRepositoryToken(ListingTemplateEntity), useValue: listingTemplateRepo },
-        { provide: getRepositoryToken(GeoIndication), useValue: geoIndicationRepo },
-        { provide: getRepositoryToken(FeatureBadge), useValue: featureBadgeRepo },
+        {
+          provide: getRepositoryToken(ListingTemplateEntity),
+          useValue: listingTemplateRepo,
+        },
+        {
+          provide: getRepositoryToken(GeoIndication),
+          useValue: geoIndicationRepo,
+        },
+        {
+          provide: getRepositoryToken(FeatureBadge),
+          useValue: featureBadgeRepo,
+        },
         { provide: UserService, useValue: userService },
         { provide: STORAGE_SERVICE, useValue: storageService },
         { provide: AdminSettingsService, useValue: adminSettingsService },
@@ -1065,8 +1087,14 @@ describe('ProductService', () => {
       });
       categoryRepo.findOne.mockResolvedValue({ id: 'cat-1', isActive: true });
       categoryRepo.exist = jest.fn(async () => false);
-      productRepo.save.mockResolvedValue({ ...mockProduct, id: 'product-from-draft' });
-      productRepo.findOne.mockResolvedValue({ ...mockProduct, id: 'product-from-draft' });
+      productRepo.save.mockResolvedValue({
+        ...mockProduct,
+        id: 'product-from-draft',
+      });
+      productRepo.findOne.mockResolvedValue({
+        ...mockProduct,
+        id: 'product-from-draft',
+      });
 
       const result = await service.publishListingDraft('seller-1', 'draft-1');
 
@@ -1320,7 +1348,12 @@ describe('ProductService', () => {
 
         productViewRepo.createQueryBuilder.mockReturnValue(mockQb);
 
-        const result = await service.getRecentlyViewed('user-1', undefined, 1, 10);
+        const result = await service.getRecentlyViewed(
+          'user-1',
+          undefined,
+          1,
+          10,
+        );
 
         expect(result.items).toHaveLength(1);
         expect(result.total).toBe(1);

@@ -37,7 +37,10 @@ describe('AdminAuthService', () => {
       signAsync: jest.fn().mockResolvedValue('admin-token'),
     };
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-    service = new AdminAuthService(jwtService as unknown as JwtService, repo as never);
+    service = new AdminAuthService(
+      jwtService as unknown as JwtService,
+      repo as never,
+    );
   });
 
   afterEach(() => {
@@ -59,7 +62,9 @@ describe('AdminAuthService', () => {
         roles: [AdminRole.SUPER_ADMIN],
       }),
     );
-    expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ lastLoginAt: expect.any(Date) }));
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ lastLoginAt: expect.any(Date) }),
+    );
   });
 
   it('throws when admin login is inactive', async () => {
@@ -73,6 +78,8 @@ describe('AdminAuthService', () => {
   it('throws when getMe cannot find an active admin session', async () => {
     repo.findOne.mockResolvedValueOnce(null);
 
-    await expect(service.getMe('missing-admin')).rejects.toThrow(UnauthorizedException);
+    await expect(service.getMe('missing-admin')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

@@ -11,10 +11,13 @@ async function run() {
     const eventId = '1a619b5c-8fdf-4fa5-a334-b338184dea69';
     const currentSequence = 2;
 
-    const nextLot = await em.getRepository(Auction)
+    const nextLot = await em
+      .getRepository(Auction)
       .createQueryBuilder('a')
       .where('a.eventId = :eventId', { eventId })
-      .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+      .andWhere('a.approvalStatus = :status', {
+        status: AuctionApprovalStatus.APPROVED,
+      })
       .andWhere('a.sequenceNumber > :seq', { seq: currentSequence })
       .andWhere('a.status = :published', { published: AuctionStatus.PUBLISHED })
       .orderBy('a.sequenceNumber', 'ASC')
@@ -37,7 +40,9 @@ async function run() {
     }
 
     // Let's print all lots for this event to see their full properties
-    const allLots = await em.getRepository(Auction).find({ where: { eventId } });
+    const allLots = await em
+      .getRepository(Auction)
+      .find({ where: { eventId } });
     console.log('\n--- All Lots Properties ---');
     for (const lot of allLots) {
       console.log(`Lot #${lot.lotNumber}:`);

@@ -40,9 +40,15 @@ export class Phase12CartFoundation1746400000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_product"');
-    await queryRunner.query('ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_user"');
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_cart_items_user_created"');
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_product"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_user"',
+    );
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_cart_items_user_created"',
+    );
     await queryRunner.query('DROP TABLE IF EXISTS "cart_items"');
   }
 }

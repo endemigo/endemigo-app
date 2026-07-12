@@ -22,7 +22,11 @@ export class Payment extends BaseEntity {
   @Column({ length: 3, default: 'TRY' })
   currency: string;
 
-  @Column({ type: 'enum', enum: PaymentProvider, default: PaymentProvider.IYZICO })
+  @Column({
+    type: 'enum',
+    enum: PaymentProvider,
+    default: PaymentProvider.IYZICO,
+  })
   provider: PaymentProvider;
 
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })

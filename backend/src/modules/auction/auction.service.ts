@@ -10,12 +10,22 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  Not,
+  Repository,
+} from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Auction } from './entities/auction.entity';
 import { Bid } from './entities/bid.entity';
-import { AuctionEvent, UNTIMED_END_TIME } from './entities/auction-event.entity';
+import {
+  AuctionEvent,
+  UNTIMED_END_TIME,
+} from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
 import { AuctionEventInvitation } from './entities/auction-event-invitation.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -27,7 +37,12 @@ import { BidStatus } from '../../shared/types/bid-status.enum';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
-import { CreateAuctionDto, UpdateAuctionDto, PlaceBidDto, RegisterToAuctionDto } from './dto/auction.dto';
+import {
+  CreateAuctionDto,
+  UpdateAuctionDto,
+  PlaceBidDto,
+  RegisterToAuctionDto,
+} from './dto/auction.dto';
 import { OrderService } from '../order/order.service';
 import {
   AuctionPaymentStatus,
@@ -45,7 +60,6 @@ import {
 import { NotificationService } from '../notification/notification.service';
 import { PaymentService } from '../payment/payment.service';
 import { ProductService } from '../product/product.service';
-
 
 const WINNER_PAYMENT_WINDOW_HOURS = 24;
 const WINNER_PAYMENT_REMINDER_HOURS = 1;
@@ -86,9 +100,10 @@ export class AuctionService implements OnApplicationBootstrap {
     private readonly notificationService?: NotificationService,
   ) {}
 
-
   async onApplicationBootstrap() {
-    this.logger.log('Müzayede durumu eşitleme ve kurtarma motoru başlatılıyor...');
+    this.logger.log(
+      'Müzayede durumu eşitleme ve kurtarma motoru başlatılıyor...',
+    );
     try {
       await this.reconcileActiveAuctions();
       await this.reconcilePublishedAuctions();
@@ -158,7 +173,7 @@ export class AuctionService implements OnApplicationBootstrap {
 
   private async reconcileActiveAuctions() {
     const activeAuctions = await this.auctionRepo.find({
-      where: { status: AuctionStatus.ACTIVE }
+      where: { status: AuctionStatus.ACTIVE },
     });
 
     for (const auction of activeAuctions) {
@@ -166,26 +181,34 @@ export class AuctionService implements OnApplicationBootstrap {
       if (auction.isUntimed) continue;
       const now = new Date();
       if (auction.endTime <= now) {
-        this.logger.warn(`Sunucu kapalıyken süresi dolan lot sonlandırılıyor: ${auction.id}`);
+        this.logger.warn(
+          `Sunucu kapalıyken süresi dolan lot sonlandırılıyor: ${auction.id}`,
+        );
         try {
           await this.finalizeAuction(auction.id);
         } catch (err) {
-          this.logger.error(`Aktif lot (${auction.id}) sonlandırılırken hata: ${err}`);
+          this.logger.error(
+            `Aktif lot (${auction.id}) sonlandırılırken hata: ${err}`,
+          );
         }
       } else {
         const delay = auction.endTime.getTime() - now.getTime();
-        this.logger.log(`Aktif lot için bitiş görevi yeniden planlanıyor: ${auction.id} (Kalan: ${Math.round(delay / 1000)}sn)`);
+        this.logger.log(
+          `Aktif lot için bitiş görevi yeniden planlanıyor: ${auction.id} (Kalan: ${Math.round(delay / 1000)}sn)`,
+        );
         try {
           // Remove old job if exists
           await this.removeQueueJob(`end-${auction.id}`);
-          
+
           await this.auctionQueue.add(
             'end-auction',
             { auctionId: auction.id },
-            { delay, jobId: `end-${auction.id}` }
+            { delay, jobId: `end-${auction.id}` },
           );
         } catch (err) {
-          this.logger.error(`Aktif lot (${auction.id}) BullMQ planlaması başarısız: ${err}`);
+          this.logger.error(
+            `Aktif lot (${auction.id}) BullMQ planlaması başarısız: ${err}`,
+          );
         }
       }
     }
@@ -193,10 +216,10 @@ export class AuctionService implements OnApplicationBootstrap {
 
   private async reconcilePendingPayments() {
     const pendingAuctions = await this.auctionRepo.find({
-      where: { 
+      where: {
         status: AuctionStatus.ENDED,
-        winnerPaymentStatus: AuctionPaymentStatus.PENDING 
-      }
+        winnerPaymentStatus: AuctionPaymentStatus.PENDING,
+      },
     });
 
     for (const auction of pendingAuctions) {
@@ -204,27 +227,39 @@ export class AuctionService implements OnApplicationBootstrap {
 
       const now = new Date();
       if (auction.winnerPaymentDeadlineAt <= now) {
-        this.logger.warn(`Ödeme süresi geçen lot için yedek alıcı akışı başlatılıyor: ${auction.id}`);
+        this.logger.warn(
+          `Ödeme süresi geçen lot için yedek alıcı akışı başlatılıyor: ${auction.id}`,
+        );
         try {
           await this.processWinnerPaymentExpiry(auction.id);
         } catch (err) {
-          this.logger.error(`Ödeme süresi geçen lot (${auction.id}) işlenirken hata: ${err}`);
+          this.logger.error(
+            `Ödeme süresi geçen lot (${auction.id}) işlenirken hata: ${err}`,
+          );
         }
       } else {
-        this.logger.log(`Ödeme zaman aşımı görevi yeniden planlanıyor: ${auction.id}`);
+        this.logger.log(
+          `Ödeme zaman aşımı görevi yeniden planlanıyor: ${auction.id}`,
+        );
         try {
           // Remove old jobs if exists
           const round = auction.fallbackRound;
-          await this.removeQueueJob(`winner-payment-expiry-${auction.id}-r${round}`);
-          await this.removeQueueJob(`winner-payment-reminder-${auction.id}-r${round}`);
+          await this.removeQueueJob(
+            `winner-payment-expiry-${auction.id}-r${round}`,
+          );
+          await this.removeQueueJob(
+            `winner-payment-reminder-${auction.id}-r${round}`,
+          );
 
           await this.scheduleWinnerPaymentJobs(
             auction.id,
             auction.winnerPaymentDeadlineAt,
-            auction.fallbackRound
+            auction.fallbackRound,
           );
         } catch (err) {
-          this.logger.error(`Ödeme görevleri (${auction.id}) planlanırken hata: ${err}`);
+          this.logger.error(
+            `Ödeme görevleri (${auction.id}) planlanırken hata: ${err}`,
+          );
         }
       }
     }
@@ -284,18 +319,24 @@ export class AuctionService implements OnApplicationBootstrap {
       if (existingCount + addingCount > 5) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Endemigo müzayedelerine en fazla 5 ürün ile katılabilirsiniz',
+          message:
+            'Endemigo müzayedelerine en fazla 5 ürün ile katılabilirsiniz',
         });
       }
 
       if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+          message:
+            'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
         });
       }
     } else if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
-      if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+      if (
+        ![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(
+          event.status,
+        )
+      ) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Bu müzayede etkinliği başvurulara kapalı',
@@ -305,25 +346,32 @@ export class AuctionService implements OnApplicationBootstrap {
       if (event.ownerId !== sellerId) {
         throw new ForbiddenException({
           code: RC.FORBIDDEN,
-          message: 'Sadece kendi oluşturduğunuz bağımsız müzayedelere ürün ekleyebilirsiniz',
+          message:
+            'Sadece kendi oluşturduğunuz bağımsız müzayedelere ürün ekleyebilirsiniz',
         });
       }
 
       if (!profile.independentPreContractAcceptedAt) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+          message:
+            'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
         });
       }
 
       if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+          message:
+            'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
         });
       }
     } else if (event.eventType === AuctionEventSystemType.JOINT) {
-      if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+      if (
+        ![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(
+          event.status,
+        )
+      ) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
           message: 'Bu müzayede etkinliği başvurulara kapalı',
@@ -333,43 +381,60 @@ export class AuctionService implements OnApplicationBootstrap {
       if (!profile.jointPreContractAcceptedAt) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ortak müzayede katılımı için önce ön sözleşmeyi kabul etmelisiniz',
+          message:
+            'Ortak müzayede katılımı için önce ön sözleşmeyi kabul etmelisiniz',
         });
       }
 
       if (!guaranteeAccepted) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
+          message:
+            'Ürünlerin menşei ve tedarik garantisini vermeniz zorunludur',
         });
       }
 
       // Sahip değilse: kabul edilmiş davet YA DA açık çağrı (+ ≥20 aktif ürün) gerekir.
       if (event.ownerId !== sellerId) {
-        const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
-          where: { eventId, inviteeId: sellerId, status: InvitationStatus.ACCEPTED },
-        });
+        const invitation = await this.auctionRepo.manager.findOne(
+          AuctionEventInvitation,
+          {
+            where: {
+              eventId,
+              inviteeId: sellerId,
+              status: InvitationStatus.ACCEPTED,
+            },
+          },
+        );
         if (!invitation) {
           if (!event.openCallEnabled) {
             throw new ForbiddenException({
               code: RC.FORBIDDEN,
-              message: 'Bu ortak müzayedeye katılmak için davet edilmeli ve kabul etmelisiniz',
+              message:
+                'Bu ortak müzayedeye katılmak için davet edilmeli ve kabul etmelisiniz',
             });
           }
-          const applicantProductCount = await this.auctionRepo.manager.count('Product', {
-            where: { sellerId, status: ProductStatus.ACTIVE },
-          });
+          const applicantProductCount = await this.auctionRepo.manager.count(
+            'Product',
+            {
+              where: { sellerId, status: ProductStatus.ACTIVE },
+            },
+          );
           if (applicantProductCount < 20) {
             throw new ForbiddenException({
               code: RC.FORBIDDEN,
-              message: 'Açık çağrıya katılmak için en az 20 aktif ürününüz olmalıdır',
+              message:
+                'Açık çağrıya katılmak için en az 20 aktif ürününüz olmalıdır',
             });
           }
         }
       }
     }
 
-    if (event.submissionDeadline && new Date() > new Date(event.submissionDeadline)) {
+    if (
+      event.submissionDeadline &&
+      new Date() > new Date(event.submissionDeadline)
+    ) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Bu müzayede etkinliği için son ürün ekleme tarihi geçmiştir',
@@ -419,7 +484,6 @@ export class AuctionService implements OnApplicationBootstrap {
       });
     }
 
-
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -437,9 +501,10 @@ export class AuctionService implements OnApplicationBootstrap {
         reservePrice: dto.reservePrice ?? null,
         reserveMet: false,
         auctionType: event.auctionType, // Etkinlik türünü miras alır
-        antiSnipingEnabled: event.antiSnipingEnabled ?? (dto.antiSnipingEnabled ?? true),
-        extensionSeconds: event.extensionSeconds ?? (dto.extensionSeconds ?? 60),
-        maxExtensions: event.maxExtensions ?? (dto.maxExtensions ?? 5),
+        antiSnipingEnabled:
+          event.antiSnipingEnabled ?? dto.antiSnipingEnabled ?? true,
+        extensionSeconds: event.extensionSeconds ?? dto.extensionSeconds ?? 60,
+        maxExtensions: event.maxExtensions ?? dto.maxExtensions ?? 5,
         extensionDuration: event.extensionDuration ?? 60,
         culturalAssetRestricted: dto.culturalAssetRestricted ?? false,
         status: AuctionStatus.DRAFT,
@@ -862,7 +927,9 @@ export class AuctionService implements OnApplicationBootstrap {
     }
 
     const newStartPrice =
-      dto.startPrice !== undefined ? dto.startPrice : Number(auction.startPrice);
+      dto.startPrice !== undefined
+        ? dto.startPrice
+        : Number(auction.startPrice);
     const newReservePrice =
       dto.reservePrice !== undefined
         ? dto.reservePrice
@@ -1078,7 +1145,12 @@ export class AuctionService implements OnApplicationBootstrap {
 
   // ─── List ─────────────────────────────────────────────────
 
-  async findAll(page = 1, limit = 20, auctionType?: AuctionType, productId?: string) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    auctionType?: AuctionType,
+    productId?: string,
+  ) {
     // BIZ-13: Only show public-visible statuses
     const qb = this.auctionRepo
       .createQueryBuilder('a')
@@ -1118,12 +1190,13 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   async findEvents(status?: AuctionEventStatus, page = 1, limit = 20) {
-    const qb = this.auctionRepo.manager.createQueryBuilder(AuctionEvent, 'e')
+    const qb = this.auctionRepo.manager
+      .createQueryBuilder(AuctionEvent, 'e')
       .leftJoinAndSelect('e.category', 'category');
     if (status) {
       qb.where('e.status = :status', { status });
     }
-    
+
     const [items, total] = await qb
       .orderBy('e.createdAt', 'DESC')
       .skip((page - 1) * limit)
@@ -1206,9 +1279,7 @@ export class AuctionService implements OnApplicationBootstrap {
     page: number,
     limit: number,
   ) {
-    const where = approvalStatus
-      ? { sellerId, approvalStatus }
-      : { sellerId };
+    const where = approvalStatus ? { sellerId, approvalStatus } : { sellerId };
 
     const [auctions, total] = await this.auctionRepo.findAndCount({
       where,
@@ -1259,9 +1330,12 @@ export class AuctionService implements OnApplicationBootstrap {
         where: {
           winnerId: bidderId,
           winnerPaymentStatus: AuctionPaymentStatus.PENDING,
-        }
+        },
       });
-      const wonUnpaidTotal = wonUnpaidAuctions.reduce((sum, a) => sum + Number(a.currentPrice), 0);
+      const wonUnpaidTotal = wonUnpaidAuctions.reduce(
+        (sum, a) => sum + Number(a.currentPrice),
+        0,
+      );
 
       // Active exposure = auctions where this bidder currently holds the live
       // leading bid. auction.winnerId is only persisted at finalization, so it
@@ -1290,20 +1364,23 @@ export class AuctionService implements OnApplicationBootstrap {
         0,
       );
 
-      const newBidAmount = dto.maxAmount !== undefined && dto.maxAmount !== null 
-        ? Number(dto.maxAmount) 
-        : Number(dto.amount);
+      const newBidAmount =
+        dto.maxAmount !== undefined && dto.maxAmount !== null
+          ? Number(dto.maxAmount)
+          : Number(dto.amount);
 
       const totalRisk = wonUnpaidTotal + activeLeadingTotal + newBidAmount;
       const biddingLimit = Number(bidder.biddingLimit ?? 50000);
-      
+
       if (totalRisk > biddingLimit) {
         // Limit = depozit × 5 (depozit, hedef limitin %20'si). 50K taban limit
         // depozitosuzdur; hedef riskin tamamı depozitle teminatlandırılır.
-        const requiredDeposit = totalRisk * 0.20 - Number(bidder.totalDeposit ?? 0);
+        const requiredDeposit =
+          totalRisk * 0.2 - Number(bidder.totalDeposit ?? 0);
         throw new ForbiddenException({
           code: 'BIDDING_LIMIT_EXCEEDED',
-          message: 'Müzayede limitiniz yetersizdir. Limiti yükseltmek için depozito ödemesi yapın.',
+          message:
+            'Müzayede limitiniz yetersizdir. Limiti yükseltmek için depozito ödemesi yapın.',
           currentLimit: biddingLimit,
           requiredLimit: totalRisk,
           requiredDeposit: Math.max(0, requiredDeposit),
@@ -1314,11 +1391,16 @@ export class AuctionService implements OnApplicationBootstrap {
       const registration = await this.registrationRepo.findOne({
         where: [
           { userId: bidderId, auctionId: auction.id },
-          ...(auction.eventId ? [{ userId: bidderId, eventId: auction.eventId }] : []),
+          ...(auction.eventId
+            ? [{ userId: bidderId, eventId: auction.eventId }]
+            : []),
         ],
       });
 
-      if (!registration || registration.status !== AuctionRegistrationStatus.APPROVED) {
+      if (
+        !registration ||
+        registration.status !== AuctionRegistrationStatus.APPROVED
+      ) {
         throw this.forbidden(
           RC.AUCTION_REGISTRATION_REQUIRED,
           registration?.status === AuctionRegistrationStatus.PENDING
@@ -1499,24 +1581,37 @@ export class AuctionService implements OnApplicationBootstrap {
         await queryRunner.commitTransaction();
 
         const bidderName = await this.getBidderName(previousLeadBid.bidderId);
-        this.auctionGateway.emitBidNew(auctionId, {
-          amount: Number(previousLeadBid.amount),
-          bidderName,
-          currentPrice: Number(auction.currentPrice),
-          bidCount: auction.bidCount,
-          endTime: auction.endTime.toISOString(),
-          serverTime: new Date().toISOString(),
-        }, auction.eventId);
-        this.auctionGateway.emitBidOutbid(auctionId, bidderId, {
-          newAmount: Number(previousLeadBid.amount),
-          yourBid: submittedMaxAmount,
-        }, auction.eventId);
+        this.auctionGateway.emitBidNew(
+          auctionId,
+          {
+            amount: Number(previousLeadBid.amount),
+            bidderName,
+            currentPrice: Number(auction.currentPrice),
+            bidCount: auction.bidCount,
+            endTime: auction.endTime.toISOString(),
+            serverTime: new Date().toISOString(),
+          },
+          auction.eventId,
+        );
+        this.auctionGateway.emitBidOutbid(
+          auctionId,
+          bidderId,
+          {
+            newAmount: Number(previousLeadBid.amount),
+            yourBid: submittedMaxAmount,
+          },
+          auction.eventId,
+        );
 
         if (antiSnipingResult.extended) {
-          this.auctionGateway.emitAuctionExtended(auctionId, {
-            newEndTime: antiSnipingResult.newEndTime!.toISOString(),
-            extensionNumber: antiSnipingResult.extensionNumber!,
-          }, auction.eventId);
+          this.auctionGateway.emitAuctionExtended(
+            auctionId,
+            {
+              newEndTime: antiSnipingResult.newEndTime!.toISOString(),
+              extensionNumber: antiSnipingResult.extensionNumber!,
+            },
+            auction.eventId,
+          );
 
           const currentExt = antiSnipingResult.extensionNumber!;
           const jobIdsToRemove = [`end-${auctionId}`];
@@ -1558,8 +1653,7 @@ export class AuctionService implements OnApplicationBootstrap {
             maxAmount: submittedMaxAmount,
             premiumAmount: 0,
             buyerPremiumAmount: 0,
-            estimatedTotal:
-              Number(losingBid.amount),
+            estimatedTotal: Number(losingBid.amount),
             createdAt: losingBid.createdAt,
             isLeadingBid: false,
             outbidImmediately: true,
@@ -1631,21 +1725,30 @@ export class AuctionService implements OnApplicationBootstrap {
 
       // Broadcast new bid to room
       const bidderName = await this.getBidderName(bidderId);
-      this.auctionGateway.emitBidNew(auctionId, {
-        amount: Number(bid.amount),
-        bidderName,
-        currentPrice: Number(auction.currentPrice),
-        bidCount: auction.bidCount,
-        endTime: auction.endTime.toISOString(),
-        serverTime: new Date().toISOString(),
-      }, auction.eventId);
+      this.auctionGateway.emitBidNew(
+        auctionId,
+        {
+          amount: Number(bid.amount),
+          bidderName,
+          currentPrice: Number(auction.currentPrice),
+          bidCount: auction.bidCount,
+          endTime: auction.endTime.toISOString(),
+          serverTime: new Date().toISOString(),
+        },
+        auction.eventId,
+      );
 
       // Notify previous leader they got outbid
       if (previousLeadBid && previousLeadBid.bidderId !== bidderId) {
-        this.auctionGateway.emitBidOutbid(auctionId, previousLeadBid.bidderId, {
-          newAmount: Number(bid.amount),
-          yourBid: Number(previousLeadBid.amount),
-        }, auction.eventId);
+        this.auctionGateway.emitBidOutbid(
+          auctionId,
+          previousLeadBid.bidderId,
+          {
+            newAmount: Number(bid.amount),
+            yourBid: Number(previousLeadBid.amount),
+          },
+          auction.eventId,
+        );
         await this.notificationService?.createFromEvent({
           eventId: `auction-outbid:${auctionId}:${previousLeadBid.bidderId}:${bid.id}`,
           userId: previousLeadBid.bidderId,
@@ -1659,10 +1762,14 @@ export class AuctionService implements OnApplicationBootstrap {
 
       // If anti-sniping extended, notify room + reschedule BullMQ
       if (antiSnipingResult.extended) {
-        this.auctionGateway.emitAuctionExtended(auctionId, {
-          newEndTime: antiSnipingResult.newEndTime!.toISOString(),
-          extensionNumber: antiSnipingResult.extensionNumber!,
-        }, auction.eventId);
+        this.auctionGateway.emitAuctionExtended(
+          auctionId,
+          {
+            newEndTime: antiSnipingResult.newEndTime!.toISOString(),
+            extensionNumber: antiSnipingResult.extensionNumber!,
+          },
+          auction.eventId,
+        );
 
         // Reschedule BullMQ end-auction job
         // FIX: Önceki TÜM end job'larını temizle (base + tüm extension'lar)
@@ -1700,16 +1807,16 @@ export class AuctionService implements OnApplicationBootstrap {
       return {
         code: RC.BID_ACCEPTED,
         message: 'Bid accepted',
-          bid: {
-            id: bid.id,
-            amount: Number(bid.amount),
-            maxAmount: submittedMaxAmount,
-            premiumAmount: 0,
-            buyerPremiumAmount: 0,
-            estimatedTotal: Number(bid.amount),
-            createdAt: bid.createdAt,
-            isLeadingBid: true,
-            outbidImmediately: false,
+        bid: {
+          id: bid.id,
+          amount: Number(bid.amount),
+          maxAmount: submittedMaxAmount,
+          premiumAmount: 0,
+          buyerPremiumAmount: 0,
+          estimatedTotal: Number(bid.amount),
+          createdAt: bid.createdAt,
+          isLeadingBid: true,
+          outbidImmediately: false,
         },
         auction: {
           currentPrice: Number(auction.currentPrice),
@@ -1932,9 +2039,7 @@ export class AuctionService implements OnApplicationBootstrap {
     const timeLeft = endTime.getTime() - bidTime.getTime();
 
     if (timeLeft <= windowSec * 1000) {
-      const newEndTime = new Date(
-        endTime.getTime() + extensionSec * 1000,
-      );
+      const newEndTime = new Date(endTime.getTime() + extensionSec * 1000);
       this.logger.log(
         `Timed anti-sniping triggered for auction ${auction.id}: extension ${auction.currentExtensions + 1} (+${extensionSec}s)`,
       );
@@ -2233,7 +2338,9 @@ export class AuctionService implements OnApplicationBootstrap {
 
   // ─── Satış Onayı: admin/organizatör onayı → ödeme penceresi açılır ───
   async approveSale(auctionId: string, adminId?: string) {
-    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
     if (!auction) {
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     }
@@ -2324,7 +2431,8 @@ export class AuctionService implements OnApplicationBootstrap {
       },
     });
 
-    const results: { auctionId: string; approved: boolean; error?: string }[] = [];
+    const results: { auctionId: string; approved: boolean; error?: string }[] =
+      [];
     for (const lot of endedLots) {
       try {
         await this.approveSale(lot.id, adminId);
@@ -3197,7 +3305,8 @@ export class AuctionService implements OnApplicationBootstrap {
   // ─── Ortak Müzayede Etkinliği (Model 2) Canlı Akış & Yönetici Kontrolleri ───
 
   async handleSequentialLotProgression(auction: Auction, force = false) {
-    if (!auction.eventId || auction.auctionType !== AuctionType.REALTIME) return;
+    if (!auction.eventId || auction.auctionType !== AuctionType.REALTIME)
+      return;
 
     // Otomatik lot geçişi aktif mi kontrol et (force=true ise bypass et)
     const autoProgress = await this.isAutoProgressEnabled(auction.eventId);
@@ -3223,7 +3332,9 @@ export class AuctionService implements OnApplicationBootstrap {
     let nextLot = await this.auctionRepo
       .createQueryBuilder('a')
       .where('a.eventId = :eventId', { eventId: auction.eventId })
-      .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+      .andWhere('a.approvalStatus = :status', {
+        status: AuctionApprovalStatus.APPROVED,
+      })
       .andWhere('a.sequenceNumber > :seq', { seq: auction.sequenceNumber ?? 0 })
       .andWhere('a.status = :published', { published: AuctionStatus.PUBLISHED })
       .orderBy('a.sequenceNumber', 'ASC')
@@ -3234,7 +3345,9 @@ export class AuctionService implements OnApplicationBootstrap {
       nextLot = await this.auctionRepo
         .createQueryBuilder('a')
         .where('a.eventId = :eventId', { eventId: auction.eventId })
-        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .andWhere('a.approvalStatus = :status', {
+          status: AuctionApprovalStatus.APPROVED,
+        })
         .andWhere('a.id != :currentId', { currentId: auction.id })
         .andWhere('a.status IN (:...pendingStatuses)', {
           pendingStatuses: [AuctionStatus.PUBLISHED, AuctionStatus.DRAFT],
@@ -3255,11 +3368,13 @@ export class AuctionService implements OnApplicationBootstrap {
         activeLotId: nextLot.id,
       });
 
-      const product = await this.auctionRepo.manager.findOne('Product', {
+      const product = (await this.auctionRepo.manager.findOne('Product', {
         where: { id: nextLot.productId },
-      }) as any;
+      })) as any;
 
-      const transitionEndTime = new Date(Date.now() + transitionSeconds * 1000).toISOString();
+      const transitionEndTime = new Date(
+        Date.now() + transitionSeconds * 1000,
+      ).toISOString();
 
       // WebSocket odasına bekleme (geçiş) bildirimini gönder
       this.auctionGateway.emitLotTransition(auction.eventId, {
@@ -3274,7 +3389,7 @@ export class AuctionService implements OnApplicationBootstrap {
       await this.auctionQueue.add(
         'start-next-lot',
         { eventId: auction.eventId, nextLotId: nextLot.id },
-        { delay: transitionSeconds * 1000, jobId: `start-next-${nextLot.id}` }
+        { delay: transitionSeconds * 1000, jobId: `start-next-${nextLot.id}` },
       );
     } else {
       // Sıradaki lot yok. Gerçekten tamamlanmamış lot var mı diye kontrol et (onaylı olsun olmasın)
@@ -3292,8 +3407,10 @@ export class AuctionService implements OnApplicationBootstrap {
         .getCount();
 
       if (unfinishedLotsCount > 0) {
-        this.logger.log(`Müzayede ${auction.eventId} içinde ${unfinishedLotsCount} tamamlanmamış lot var. Etkinlik sonlandırılmıyor.`);
-        
+        this.logger.log(
+          `Müzayede ${auction.eventId} içinde ${unfinishedLotsCount} tamamlanmamış lot var. Etkinlik sonlandırılmıyor.`,
+        );
+
         await this.auctionRepo.manager.update(AuctionEvent, auction.eventId, {
           activeLotId: null,
           status: AuctionEventStatus.ACTIVE,
@@ -3318,7 +3435,9 @@ export class AuctionService implements OnApplicationBootstrap {
           { id: auction.eventId, isUntimed: true },
           { endTime: new Date() },
         );
-        this.auctionGateway.emitEventStatusChanged(auction.eventId, { status: AuctionEventStatus.ENDED });
+        this.auctionGateway.emitEventStatusChanged(auction.eventId, {
+          status: AuctionEventStatus.ENDED,
+        });
       }
     }
   }
@@ -3362,9 +3481,9 @@ export class AuctionService implements OnApplicationBootstrap {
       status: AuctionEventStatus.ACTIVE,
     });
 
-    const product = await this.auctionRepo.manager.findOne('Product', {
+    const product = (await this.auctionRepo.manager.findOne('Product', {
       where: { id: lot.productId },
-    }) as any;
+    })) as any;
 
     this.auctionGateway.emitActiveLotChanged(eventId, {
       activeLotId: lot.id,
@@ -3382,7 +3501,7 @@ export class AuctionService implements OnApplicationBootstrap {
       await this.auctionQueue.add(
         'end-auction',
         { auctionId: lot.id },
-        { delay: Math.max(0, delay), jobId: `end-${lot.id}` }
+        { delay: Math.max(0, delay), jobId: `end-${lot.id}` },
       );
     }
   }
@@ -3391,14 +3510,20 @@ export class AuctionService implements OnApplicationBootstrap {
     const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
       where: { id: eventId },
     });
-    if (!event || event.status !== AuctionEventStatus.ACTIVE || !event.activeLotId) {
+    if (
+      !event ||
+      event.status !== AuctionEventStatus.ACTIVE ||
+      !event.activeLotId
+    ) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Aktif müzayede odası bulunamadı veya duraklatılamaz',
       });
     }
 
-    const lot = await this.auctionRepo.findOne({ where: { id: event.activeLotId } });
+    const lot = await this.auctionRepo.findOne({
+      where: { id: event.activeLotId },
+    });
     if (!lot || lot.status !== AuctionStatus.ACTIVE) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -3432,7 +3557,9 @@ export class AuctionService implements OnApplicationBootstrap {
       });
     }
 
-    const lot = await this.auctionRepo.findOne({ where: { id: event.activeLotId } });
+    const lot = await this.auctionRepo.findOne({
+      where: { id: event.activeLotId },
+    });
     if (!lot || lot.status !== AuctionStatus.PUBLISHED) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -3456,13 +3583,13 @@ export class AuctionService implements OnApplicationBootstrap {
       await this.auctionQueue.add(
         'end-auction',
         { auctionId: lot.id },
-        { delay: remainingSec * 1000, jobId: `end-${lot.id}` }
+        { delay: remainingSec * 1000, jobId: `end-${lot.id}` },
       );
     }
 
-    const product = await this.auctionRepo.manager.findOne('Product', {
+    const product = (await this.auctionRepo.manager.findOne('Product', {
       where: { id: lot.productId },
-    }) as any;
+    })) as any;
 
     this.auctionGateway.emitActiveLotChanged(eventId, {
       activeLotId: lot.id,
@@ -3498,7 +3625,8 @@ export class AuctionService implements OnApplicationBootstrap {
     if (!resolvedMessage) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Geçersiz anons türü — BURNING, LAST_CALL, SOLD veya özel mesaj gerekli',
+        message:
+          'Geçersiz anons türü — BURNING, LAST_CALL, SOLD veya özel mesaj gerekli',
       });
     }
 
@@ -3508,7 +3636,11 @@ export class AuctionService implements OnApplicationBootstrap {
       lotId: event.activeLotId ?? null,
     });
 
-    return { code: RC.SUCCESS, message: 'Anons yayınlandı', announcement: resolvedMessage };
+    return {
+      code: RC.SUCCESS,
+      message: 'Anons yayınlandı',
+      announcement: resolvedMessage,
+    };
   }
 
   async skipLot(eventId: string) {
@@ -3523,7 +3655,9 @@ export class AuctionService implements OnApplicationBootstrap {
     }
 
     if (event.activeLotId) {
-      const lot = await this.auctionRepo.findOne({ where: { id: event.activeLotId } });
+      const lot = await this.auctionRepo.findOne({
+        where: { id: event.activeLotId },
+      });
       if (!lot) return { code: RC.SUCCESS };
 
       if (lot.status === AuctionStatus.ACTIVE) {
@@ -3534,21 +3668,28 @@ export class AuctionService implements OnApplicationBootstrap {
         await this.removeQueueJob(`end-${lot.id}`);
 
         await this.finalizeAuction(lot.id, true);
-        return { code: RC.SUCCESS, message: 'Sıradaki Lot\'a geçildi' };
+        return { code: RC.SUCCESS, message: "Sıradaki Lot'a geçildi" };
       } else {
         // Geçiş aşaması (Transition): Bekleyen job'ı iptal et ve hemen başlat
         await this.removeQueueJob(`start-next-${lot.id}`);
 
         await this.startNextLot(event.id, lot.id);
-        return { code: RC.SUCCESS, message: 'Bekleme süresi atlandı ve Lot başlatıldı' };
+        return {
+          code: RC.SUCCESS,
+          message: 'Bekleme süresi atlandı ve Lot başlatıldı',
+        };
       }
     } else {
       // Sıradaki onaylı ve yayınlanmış lotu bul
       let nextLot = await this.auctionRepo
         .createQueryBuilder('a')
         .where('a.eventId = :eventId', { eventId: event.id })
-        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
-        .andWhere('a.status = :published', { published: AuctionStatus.PUBLISHED })
+        .andWhere('a.approvalStatus = :status', {
+          status: AuctionApprovalStatus.APPROVED,
+        })
+        .andWhere('a.status = :published', {
+          published: AuctionStatus.PUBLISHED,
+        })
         .orderBy('a.sequenceNumber', 'ASC')
         .getOne();
 
@@ -3556,7 +3697,9 @@ export class AuctionService implements OnApplicationBootstrap {
         nextLot = await this.auctionRepo
           .createQueryBuilder('a')
           .where('a.eventId = :eventId', { eventId: event.id })
-          .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+          .andWhere('a.approvalStatus = :status', {
+            status: AuctionApprovalStatus.APPROVED,
+          })
           .andWhere('a.status IN (:...pendingStatuses)', {
             pendingStatuses: [AuctionStatus.PUBLISHED, AuctionStatus.DRAFT],
           })
@@ -3578,9 +3721,9 @@ export class AuctionService implements OnApplicationBootstrap {
           status: AuctionEventStatus.ACTIVE,
         });
 
-        const product = await this.auctionRepo.manager.findOne('Product', {
+        const product = (await this.auctionRepo.manager.findOne('Product', {
           where: { id: nextLot.productId },
-        }) as any;
+        })) as any;
 
         this.auctionGateway.emitActiveLotChanged(event.id, {
           activeLotId: nextLot.id,
@@ -3598,11 +3741,13 @@ export class AuctionService implements OnApplicationBootstrap {
           await this.auctionQueue.add(
             'end-auction',
             { auctionId: nextLot.id },
-            { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` }
+            { delay: Math.max(0, delay), jobId: `end-${nextLot.id}` },
           );
         }
 
-        this.auctionGateway.emitEventStatusChanged(event.id, { status: AuctionEventStatus.ACTIVE });
+        this.auctionGateway.emitEventStatusChanged(event.id, {
+          status: AuctionEventStatus.ACTIVE,
+        });
         return { code: RC.SUCCESS, message: 'Sıradaki Lot başlatıldı' };
       } else {
         throw new BadRequestException({
@@ -3671,19 +3816,28 @@ export class AuctionService implements OnApplicationBootstrap {
       `SUMMARY:${title}`,
       `DESCRIPTION:${details}`,
       'END:VEVENT',
-      'END:VCALENDAR'
+      'END:VCALENDAR',
     ].join('\r\n');
   }
 
-  async registerToAuction(userId: string, auctionId: string, dto?: RegisterToAuctionDto) {
-    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+  async registerToAuction(
+    userId: string,
+    auctionId: string,
+    dto?: RegisterToAuctionDto,
+  ) {
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
     if (!auction) {
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     }
 
     const bidder = await this.userService.findById(userId);
     if (!bidder?.isActive) {
-      throw this.forbidden(RC.ACCOUNT_DISABLED, 'Kullanıcı bulunamadı veya devre dışı');
+      throw this.forbidden(
+        RC.ACCOUNT_DISABLED,
+        'Kullanıcı bulunamadı veya devre dışı',
+      );
     }
 
     // Check if there is already a registration (either for this specific auction, or for the event it belongs to)
@@ -3694,7 +3848,10 @@ export class AuctionService implements OnApplicationBootstrap {
       ],
     });
 
-    if (registration && registration.status === AuctionRegistrationStatus.APPROVED) {
+    if (
+      registration &&
+      registration.status === AuctionRegistrationStatus.APPROVED
+    ) {
       return {
         code: RC.SUCCESS,
         message: 'Müzayede katılım kaydı zaten onaylanmış',
@@ -3710,7 +3867,14 @@ export class AuctionService implements OnApplicationBootstrap {
     let cardRegistered = false;
 
     // If card details are supplied in the request, register the new card (simulating 1 TL validation charge and refund)
-    if (dto && dto.cardNumber && dto.cardHolderName && dto.expireMonth && dto.expireYear && dto.cvc) {
+    if (
+      dto &&
+      dto.cardNumber &&
+      dto.cardHolderName &&
+      dto.expireMonth &&
+      dto.expireYear &&
+      dto.cvc
+    ) {
       try {
         await this.paymentService.registerCard(userId, {
           cardHolderName: dto.cardHolderName,
@@ -3732,7 +3896,8 @@ export class AuctionService implements OnApplicationBootstrap {
     if (!hasVerifiedCard) {
       throw new BadRequestException({
         code: RC.AUCTION_REGISTRATION_REQUIRED,
-        message: 'Müzayedeye katılabilmek için doğrulanmış bir kredi kartınızın bulunması gerekmektedir.',
+        message:
+          'Müzayedeye katılabilmek için doğrulanmış bir kredi kartınızın bulunması gerekmektedir.',
       });
     }
 
@@ -3741,13 +3906,16 @@ export class AuctionService implements OnApplicationBootstrap {
       try {
         await this.paymentService.payDeposit(userId, {
           amount: auction.requiredDeposit,
-          cardDetails: cardRegistered && dto ? {
-            cardHolderName: dto.cardHolderName!,
-            cardNumber: dto.cardNumber!,
-            expireMonth: dto.expireMonth!,
-            expireYear: dto.expireYear!,
-            cvc: dto.cvc!,
-          } : undefined,
+          cardDetails:
+            cardRegistered && dto
+              ? {
+                  cardHolderName: dto.cardHolderName!,
+                  cardNumber: dto.cardNumber!,
+                  expireMonth: dto.expireMonth!,
+                  expireYear: dto.expireYear!,
+                  cvc: dto.cvc!,
+                }
+              : undefined,
         });
       } catch (err) {
         throw new BadRequestException({
@@ -3774,7 +3942,10 @@ export class AuctionService implements OnApplicationBootstrap {
       });
     } else if (registration.status === AuctionRegistrationStatus.REJECTED) {
       registration.status = AuctionRegistrationStatus.PENDING;
-    } else if (registration.status === AuctionRegistrationStatus.PENDING && autoApprove) {
+    } else if (
+      registration.status === AuctionRegistrationStatus.PENDING &&
+      autoApprove
+    ) {
       registration.status = AuctionRegistrationStatus.APPROVED;
     }
 
@@ -3782,7 +3953,8 @@ export class AuctionService implements OnApplicationBootstrap {
     if (saved.status === AuctionRegistrationStatus.APPROVED) {
       return {
         code: RC.SUCCESS,
-        message: 'Kredi kartınız doğrulandı, katılımınız onaylandı. Pey verebilirsiniz.',
+        message:
+          'Kredi kartınız doğrulandı, katılımınız onaylandı. Pey verebilirsiniz.',
         registration: saved,
       };
     }
@@ -3799,10 +3971,16 @@ export class AuctionService implements OnApplicationBootstrap {
    * (2) hedef kültür varlığı kısıtlı lot içermiyor (2863 — kimlik/uygunluk
    * denetimi elle yapılır), (3) event bazında bayrak açık.
    */
-  private async canAutoApproveRegistration(auction: Auction, userId: string): Promise<boolean> {
-    const activeRestrictions = await this.auctionRepo.manager.count(AccountRestriction, {
-      where: { targetUserId: userId, status: RestrictionStatus.ACTIVE },
-    });
+  private async canAutoApproveRegistration(
+    auction: Auction,
+    userId: string,
+  ): Promise<boolean> {
+    const activeRestrictions = await this.auctionRepo.manager.count(
+      AccountRestriction,
+      {
+        where: { targetUserId: userId, status: RestrictionStatus.ACTIVE },
+      },
+    );
     if (activeRestrictions > 0) return false;
 
     if (auction.eventId) {
@@ -3820,7 +3998,9 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   async getRegistrationStatus(userId: string, auctionId: string) {
-    const auction = await this.auctionRepo.findOne({ where: { id: auctionId } });
+    const auction = await this.auctionRepo.findOne({
+      where: { id: auctionId },
+    });
     if (!auction) {
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     }
@@ -3839,8 +4019,13 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 
-  async listRegistrationsForAdmin(status?: AuctionRegistrationStatus, page = 1, limit = 20) {
-    const queryBuilder = this.registrationRepo.createQueryBuilder('reg')
+  async listRegistrationsForAdmin(
+    status?: AuctionRegistrationStatus,
+    page = 1,
+    limit = 20,
+  ) {
+    const queryBuilder = this.registrationRepo
+      .createQueryBuilder('reg')
       .leftJoinAndSelect('reg.user', 'user')
       .leftJoinAndSelect('reg.auction', 'auction')
       .leftJoinAndSelect('auction.product', 'product')
@@ -3867,12 +4052,19 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 
-  async updateRegistrationStatus(registrationId: string, status: AuctionRegistrationStatus, adminId?: string) {
+  async updateRegistrationStatus(
+    registrationId: string,
+    status: AuctionRegistrationStatus,
+    adminId?: string,
+  ) {
     const registration = await this.registrationRepo.findOne({
       where: { id: registrationId },
     });
     if (!registration) {
-      throw this.notFound(RC.AUCTION_REGISTRATION_NOT_FOUND, 'Müzayede katılım kaydı bulunamadı');
+      throw this.notFound(
+        RC.AUCTION_REGISTRATION_NOT_FOUND,
+        'Müzayede katılım kaydı bulunamadı',
+      );
     }
 
     registration.status = status;
@@ -3894,13 +4086,15 @@ export class AuctionService implements OnApplicationBootstrap {
       relatedEntityId: saved.auctionId ?? saved.eventId ?? saved.id,
     });
 
-    const code = status === AuctionRegistrationStatus.APPROVED
-      ? RC.AUCTION_REGISTRATION_APPROVED_SUCCESS
-      : RC.AUCTION_REGISTRATION_REJECTED_SUCCESS;
+    const code =
+      status === AuctionRegistrationStatus.APPROVED
+        ? RC.AUCTION_REGISTRATION_APPROVED_SUCCESS
+        : RC.AUCTION_REGISTRATION_REJECTED_SUCCESS;
 
-    const message = status === AuctionRegistrationStatus.APPROVED
-      ? 'Müzayede katılımı onaylandı'
-      : 'Müzayede katılımı reddedildi';
+    const message =
+      status === AuctionRegistrationStatus.APPROVED
+        ? 'Müzayede katılımı onaylandı'
+        : 'Müzayede katılımı reddedildi';
 
     return {
       code,
@@ -3955,7 +4149,8 @@ export class AuctionService implements OnApplicationBootstrap {
       if (!profile.independentPreContractAcceptedAt) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+          message:
+            'Müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
         });
       }
       // Bağımsız müzayede: en az 40 aktif ürünü olan tedarikçi açabilir.
@@ -3969,14 +4164,16 @@ export class AuctionService implements OnApplicationBootstrap {
       if (!profile.jointPreContractAcceptedAt) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ortak müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
+          message:
+            'Ortak müzayede oluşturabilmek için önce ön sözleşmeyi kabul etmelisiniz',
         });
       }
       // Kreatör müzayedeci rolü admin onayıyla verilir (en zor kazanılan rol).
       if (!profile.canCreateJoint) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
-          message: 'Ortak müzayede düzenleme yetkiniz bulunmuyor. Kreatör müzayedeci başvurusu için müşteri ilişkileriyle iletişime geçin.',
+          message:
+            'Ortak müzayede düzenleme yetkiniz bulunmuyor. Kreatör müzayedeci başvurusu için müşteri ilişkileriyle iletişime geçin.',
         });
       }
       // Organizatörün kendisinin de en az 20 aktif ürünü olmalı.
@@ -3989,7 +4186,8 @@ export class AuctionService implements OnApplicationBootstrap {
     } else {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Tedarikçiler sadece Bağımsız veya Ortak müzayede oluşturabilir',
+        message:
+          'Tedarikçiler sadece Bağımsız veya Ortak müzayede oluşturabilir',
       });
     }
 
@@ -4003,13 +4201,19 @@ export class AuctionService implements OnApplicationBootstrap {
     event.currency = this.normalizeEventCurrency(dto.currency);
     event.startTime = new Date(dto.startTime);
     event.endTime = new Date(dto.endTime);
-    event.submissionDeadline = dto.submissionDeadline ? new Date(dto.submissionDeadline) : null;
+    event.submissionDeadline = dto.submissionDeadline
+      ? new Date(dto.submissionDeadline)
+      : null;
     event.activeLotId = null;
     event.ownerId = sellerId;
     event.eventType = dto.eventType;
     event.jointManagementType = dto.jointManagementType ?? null;
-    event.minProductsCount = dto.minProductsCount ?? (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 40 : 60);
-    event.maxProductsCount = dto.maxProductsCount ?? (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 0 : 100);
+    event.minProductsCount =
+      dto.minProductsCount ??
+      (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 40 : 60);
+    event.maxProductsCount =
+      dto.maxProductsCount ??
+      (dto.eventType === AuctionEventSystemType.INDEPENDENT ? 0 : 100);
 
     const saved = await this.auctionRepo.manager.save(AuctionEvent, event);
     return {
@@ -4042,10 +4246,15 @@ export class AuctionService implements OnApplicationBootstrap {
         message: 'Ürün çağrısı sadece ortak müzayedelerde açılabilir',
       });
     }
-    if (![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(event.status)) {
+    if (
+      ![AuctionEventStatus.DRAFT, AuctionEventStatus.APPLICATION].includes(
+        event.status,
+      )
+    ) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Ürün çağrısı sadece taslak/başvuru aşamasındaki etkinliklerde değiştirilebilir',
+        message:
+          'Ürün çağrısı sadece taslak/başvuru aşamasındaki etkinliklerde değiştirilebilir',
       });
     }
 
@@ -4089,7 +4298,12 @@ export class AuctionService implements OnApplicationBootstrap {
         message: 'Organizatör lot onayı sadece ortak müzayedelerde geçerlidir',
       });
     }
-    if (![AuctionApprovalStatus.APPROVED, AuctionApprovalStatus.REJECTED].includes(status)) {
+    if (
+      ![
+        AuctionApprovalStatus.APPROVED,
+        AuctionApprovalStatus.REJECTED,
+      ].includes(status)
+    ) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Geçersiz onay durumu',
@@ -4115,7 +4329,10 @@ export class AuctionService implements OnApplicationBootstrap {
 
     // İçerik kapısı: ürün admin içerik onayından geçmeden (ACTIVE) lot kataloğa
     // alınamaz; organizatör onayı içerik denetiminin yerini tutmaz.
-    if (status === AuctionApprovalStatus.APPROVED && lot.product?.status !== ProductStatus.ACTIVE) {
+    if (
+      status === AuctionApprovalStatus.APPROVED &&
+      lot.product?.status !== ProductStatus.ACTIVE
+    ) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Ürün içerik onayından geçmeden (ACTIVE) lot onaylanamaz.',
@@ -4127,7 +4344,9 @@ export class AuctionService implements OnApplicationBootstrap {
       const maxSequence = await this.auctionRepo
         .createQueryBuilder('a')
         .where('a.eventId = :eventId', { eventId })
-        .andWhere('a.approvalStatus = :status', { status: AuctionApprovalStatus.APPROVED })
+        .andWhere('a.approvalStatus = :status', {
+          status: AuctionApprovalStatus.APPROVED,
+        })
         .select('MAX(a.sequenceNumber)', 'max')
         .getRawOne<{ max: number | null }>();
       lot.sequenceNumber = (maxSequence?.max ?? 0) + 1;
@@ -4249,7 +4468,9 @@ export class AuctionService implements OnApplicationBootstrap {
 
     // E-posta ile davet: organizatör UUID bilmek zorunda değil.
     if (!inviteeId && inviteeEmail) {
-      const byEmail = await this.userService.findByEmail(inviteeEmail.trim().toLowerCase());
+      const byEmail = await this.userService.findByEmail(
+        inviteeEmail.trim().toLowerCase(),
+      );
       if (!byEmail) {
         throw new BadRequestException({
           code: RC.VALIDATION_ERROR,
@@ -4265,17 +4486,22 @@ export class AuctionService implements OnApplicationBootstrap {
       });
     }
 
-    if (event.eventType !== AuctionEventSystemType.JOINT || event.ownerId !== hostSellerId) {
+    if (
+      event.eventType !== AuctionEventSystemType.JOINT ||
+      event.ownerId !== hostSellerId
+    ) {
       throw new ForbiddenException({
         code: RC.FORBIDDEN,
-        message: 'Sadece kendi düzenlediğiniz ortak müzayedeler için davet gönderebilirsiniz',
+        message:
+          'Sadece kendi düzenlediğiniz ortak müzayedeler için davet gönderebilirsiniz',
       });
     }
 
     if (event.status !== AuctionEventStatus.DRAFT) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Sadece taslak durumundaki müzayedeler için davet gönderebilirsiniz',
+        message:
+          'Sadece taslak durumundaki müzayedeler için davet gönderebilirsiniz',
       });
     }
 
@@ -4295,14 +4521,18 @@ export class AuctionService implements OnApplicationBootstrap {
     if (productsCount < 20) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
-        message: 'Davet edilecek tedarikçinin sistemde en az 20 ürünü bulunmalıdır',
+        message:
+          'Davet edilecek tedarikçinin sistemde en az 20 ürünü bulunmalıdır',
       });
     }
 
     // Check if already invited
-    const existing = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
-      where: { eventId, inviteeId },
-    });
+    const existing = await this.auctionRepo.manager.findOne(
+      AuctionEventInvitation,
+      {
+        where: { eventId, inviteeId },
+      },
+    );
     if (existing) {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
@@ -4316,7 +4546,10 @@ export class AuctionService implements OnApplicationBootstrap {
       status: InvitationStatus.PENDING,
     });
 
-    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    const saved = await this.auctionRepo.manager.save(
+      AuctionEventInvitation,
+      invitation,
+    );
 
     // Davetli haberdar edilmezse davet ölü kalır — bildirim zorunlu adım.
     await this.notificationService?.createFromEvent({
@@ -4338,10 +4571,13 @@ export class AuctionService implements OnApplicationBootstrap {
 
   // Organizatör bekleyen daveti geri çeker (davetlinin reddi değil).
   async cancelInvitation(invitationId: string, requesterId: string) {
-    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
-      where: { id: invitationId },
-      relations: ['event'],
-    });
+    const invitation = await this.auctionRepo.manager.findOne(
+      AuctionEventInvitation,
+      {
+        where: { id: invitationId },
+        relations: ['event'],
+      },
+    );
     if (!invitation) {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
@@ -4362,7 +4598,10 @@ export class AuctionService implements OnApplicationBootstrap {
     }
 
     invitation.status = InvitationStatus.EXPIRED;
-    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    const saved = await this.auctionRepo.manager.save(
+      AuctionEventInvitation,
+      invitation,
+    );
     return {
       code: RC.SUCCESS,
       message: 'Davet geri çekildi',
@@ -4371,10 +4610,13 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   async acceptInvitation(invitationId: string, inviteeId: string) {
-    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
-      where: { id: invitationId },
-      relations: ['event'],
-    });
+    const invitation = await this.auctionRepo.manager.findOne(
+      AuctionEventInvitation,
+      {
+        where: { id: invitationId },
+        relations: ['event'],
+      },
+    );
     if (!invitation) {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
@@ -4408,7 +4650,10 @@ export class AuctionService implements OnApplicationBootstrap {
     }
 
     invitation.status = InvitationStatus.ACCEPTED;
-    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    const saved = await this.auctionRepo.manager.save(
+      AuctionEventInvitation,
+      invitation,
+    );
 
     // Organizatör katılımcının kararından haberdar olur.
     if (invitation.event?.ownerId) {
@@ -4431,10 +4676,13 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   async rejectInvitation(invitationId: string, inviteeId: string) {
-    const invitation = await this.auctionRepo.manager.findOne(AuctionEventInvitation, {
-      where: { id: invitationId },
-      relations: ['event'],
-    });
+    const invitation = await this.auctionRepo.manager.findOne(
+      AuctionEventInvitation,
+      {
+        where: { id: invitationId },
+        relations: ['event'],
+      },
+    );
     if (!invitation) {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
@@ -4457,7 +4705,10 @@ export class AuctionService implements OnApplicationBootstrap {
     }
 
     invitation.status = InvitationStatus.REJECTED;
-    const saved = await this.auctionRepo.manager.save(AuctionEventInvitation, invitation);
+    const saved = await this.auctionRepo.manager.save(
+      AuctionEventInvitation,
+      invitation,
+    );
 
     if (invitation.event?.ownerId) {
       await this.notificationService?.createFromEvent({
@@ -4479,10 +4730,13 @@ export class AuctionService implements OnApplicationBootstrap {
   }
 
   async getInvitations(inviteeId: string) {
-    const invitations = await this.auctionRepo.manager.find(AuctionEventInvitation, {
-      where: { inviteeId },
-      relations: ['event'],
-    });
+    const invitations = await this.auctionRepo.manager.find(
+      AuctionEventInvitation,
+      {
+        where: { inviteeId },
+        relations: ['event'],
+      },
+    );
 
     return {
       code: RC.SUCCESS,
@@ -4491,4 +4745,3 @@ export class AuctionService implements OnApplicationBootstrap {
     };
   }
 }
-

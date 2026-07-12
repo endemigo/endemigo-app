@@ -1,6 +1,12 @@
 import { OrderReturnReasonCode } from '@endemigo/shared';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class RequestReturnDto {
   @ApiProperty({ enum: OrderReturnReasonCode })

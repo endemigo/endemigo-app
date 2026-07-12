@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { AdminAuditAction, AdminRole, RC } from '@endemigo/shared';
@@ -105,7 +109,9 @@ export class AdminAuditService {
     };
   }
 
-  private async resolveActorNames(actorIds: string[]): Promise<Map<string, string>> {
+  private async resolveActorNames(
+    actorIds: string[],
+  ): Promise<Map<string, string>> {
     const uniqueIds = [...new Set(actorIds.filter(Boolean))];
     if (!uniqueIds.length) {
       return new Map();

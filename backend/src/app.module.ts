@@ -73,7 +73,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     AuthModule,
     UserModule,
     CartModule,
-    SearchModule,     // MUST be before ProductModule/AuctionModule — route priority
+    SearchModule, // MUST be before ProductModule/AuctionModule — route priority
     ProductModule,
     AuctionModule,
     WalletModule,

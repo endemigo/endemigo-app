@@ -54,4 +54,3 @@ import { ProductModule } from '../product/product.module';
   exports: [AuctionService, AuctionGateway],
 })
 export class AuctionModule {}
-

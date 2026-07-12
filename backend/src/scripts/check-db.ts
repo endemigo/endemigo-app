@@ -8,14 +8,14 @@ async function run() {
   const app = await NestFactory.createApplicationContext(AppModule);
   try {
     const em = app.get(EntityManager);
-    
+
     const events = await em.find(AuctionEvent);
     console.log('--- EVENTS ---');
     for (const event of events) {
       console.log(`Event: ${event.title} (${event.id})`);
       console.log(`  Status: ${event.status}`);
       console.log(`  ActiveLotId: ${event.activeLotId}`);
-      
+
       const lots = await em.find(Auction, {
         where: { eventId: event.id },
         order: { sequenceNumber: 'ASC' },

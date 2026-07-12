@@ -2,11 +2,15 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { TokenType, VerificationToken } from './entities/verification-token.entity';
+import {
+  TokenType,
+  VerificationToken,
+} from './entities/verification-token.entity';
 import { User } from '../user/entities/user.entity';
 import { RC } from '../../shared/constants/response-codes';
 
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+const hashToken = (token: string) =>
+  createHash('sha256').update(token).digest('hex');
 
 describe('AuthService', () => {
   const user = {
@@ -17,7 +21,8 @@ describe('AuthService', () => {
     isSeller: false,
     isVerified: false,
     isActive: true,
-    passwordHash: '$2b$12$ylsMoEzZ3.jHpmkYAxSFHOnaF9lWUCsF5XAtdctMTfHvhQwj36tVm',
+    passwordHash:
+      '$2b$12$ylsMoEzZ3.jHpmkYAxSFHOnaF9lWUCsF5XAtdctMTfHvhQwj36tVm',
   } as User;
 
   const createService = () => {
@@ -28,12 +33,15 @@ describe('AuthService', () => {
     };
     const verificationTokenRepo = {
       manager: {
-        transaction: jest.fn((callback: (tx: typeof manager) => Promise<unknown>) =>
-          callback(manager),
+        transaction: jest.fn(
+          (callback: (tx: typeof manager) => Promise<unknown>) =>
+            callback(manager),
         ),
       },
       update: jest.fn(async () => undefined),
-      create: jest.fn((value: Partial<VerificationToken>) => value as VerificationToken),
+      create: jest.fn(
+        (value: Partial<VerificationToken>) => value as VerificationToken,
+      ),
       save: jest.fn(async (value: VerificationToken) => value),
     };
     const refreshTokenRepo = {
@@ -84,7 +92,9 @@ describe('AuthService', () => {
     const { service, userService } = createService();
     userService.findById.mockResolvedValue(null);
 
-    await expect(service.getProfile('missing')).rejects.toThrow(UnauthorizedException);
+    await expect(service.getProfile('missing')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('verifies email token inside a locked transaction', async () => {
@@ -119,7 +129,9 @@ describe('AuthService', () => {
     const { service, manager } = createService();
     manager.findOne.mockResolvedValueOnce(null);
 
-    await expect(service.verifyEmail('used-token')).rejects.toThrow(BadRequestException);
+    await expect(service.verifyEmail('used-token')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('resets password and revokes refresh tokens in the same transaction', async () => {

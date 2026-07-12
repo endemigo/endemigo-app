@@ -1,4 +1,11 @@
-import { IsIn, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 import { SUPPORTED_CURRENCIES } from '@endemigo/shared';
 
 export class InitiatePaymentDto {

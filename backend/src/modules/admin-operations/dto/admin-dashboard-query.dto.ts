@@ -1,6 +1,11 @@
 import { IsIn, IsOptional, IsString } from 'class-validator';
 
-export const ADMIN_DASHBOARD_PERIODS = ['day', 'week', 'month', 'custom'] as const;
+export const ADMIN_DASHBOARD_PERIODS = [
+  'day',
+  'week',
+  'month',
+  'custom',
+] as const;
 export type AdminDashboardPeriod = (typeof ADMIN_DASHBOARD_PERIODS)[number];
 
 export class AdminDashboardQueryDto {

@@ -10,7 +10,12 @@ import { CartItem } from './entities/cart-item.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CartItem, Product, VariantNumber, ProductVariantSku]),
+    TypeOrmModule.forFeature([
+      CartItem,
+      Product,
+      VariantNumber,
+      ProductVariantSku,
+    ]),
     AdminAuthModule,
   ],
   controllers: [CartController],

@@ -28,6 +28,8 @@ describe('ExportService', () => {
     const result = service.toXlsx([{ note: '<unsafe & value>' }]);
 
     expect(result.extension).toBe('xlsx');
-    expect(result.file.toString('utf8')).toContain('&lt;unsafe &amp; value&gt;');
+    expect(result.file.toString('utf8')).toContain(
+      '&lt;unsafe &amp; value&gt;',
+    );
   });
 });

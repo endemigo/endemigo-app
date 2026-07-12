@@ -1,7 +1,17 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
-import { AdminRole, AuctionPaymentStatus, ListingType, ProductStatus } from '@endemigo/shared';
+import {
+  AdminRole,
+  AuctionPaymentStatus,
+  ListingType,
+  ProductStatus,
+} from '@endemigo/shared';
 import { Auction } from '../auction/entities/auction.entity';
 import { Product } from '../product/entities/product.entity';
 import { VariantNumber } from '../product/entities/variant-number.entity';
@@ -42,9 +52,15 @@ export class CartService {
   }
 
   /** Müzayede kalemleri event para biriminde tahsil edilir; diğerleri TRY. */
-  private async resolveItemCurrencies(items: CartItem[]): Promise<Map<string, string>> {
+  private async resolveItemCurrencies(
+    items: CartItem[],
+  ): Promise<Map<string, string>> {
     const currencies = new Map<string, string>();
-    const auctionIds = [...new Set(items.map((i) => i.auctionId).filter((id): id is string => !!id))];
+    const auctionIds = [
+      ...new Set(
+        items.map((i) => i.auctionId).filter((id): id is string => !!id),
+      ),
+    ];
     if (auctionIds.length === 0) return currencies;
     const auctions = await this.cartRepo.manager.find(Auction, {
       where: { id: In(auctionIds) },
@@ -58,9 +74,14 @@ export class CartService {
 
   async addItem(userId: string, dto: AddCartItemDto) {
     const quantity = dto.quantity ?? 1;
-    const product = await this.productRepo.findOne({ where: { id: dto.productId } });
+    const product = await this.productRepo.findOne({
+      where: { id: dto.productId },
+    });
     if (!product) {
-      throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
+      throw new NotFoundException({
+        code: RC.PRODUCT_NOT_FOUND,
+        message: 'Ürün bulunamadı',
+      });
     }
 
     // Müzayede ürünü sabit fiyatla satılamaz. Kazanılan lot ise yalnızca
@@ -73,28 +94,43 @@ export class CartService {
         where: { id: dto.auctionId },
       });
       if (!auction || auction.productId !== dto.productId) {
-        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Müzayede bilgisi doğrulanamadı' });
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Müzayede bilgisi doğrulanamadı',
+        });
       }
-      if (auction.winnerId !== userId || auction.winnerPaymentStatus !== AuctionPaymentStatus.PENDING) {
-        throw new ForbiddenException({ code: RC.FORBIDDEN, message: 'Bu müzayede için ödeme yetkiniz yok' });
+      if (
+        auction.winnerId !== userId ||
+        auction.winnerPaymentStatus !== AuctionPaymentStatus.PENDING
+      ) {
+        throw new ForbiddenException({
+          code: RC.FORBIDDEN,
+          message: 'Bu müzayede için ödeme yetkiniz yok',
+        });
       }
       wonAuctionPrice = Number(auction.currentPrice);
     } else if (
       product.listingType === ListingType.AUCTION ||
       product.status === ProductStatus.UNDER_AUCTION
     ) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Müzayede ürünleri sepete eklenemez' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Müzayede ürünleri sepete eklenemez',
+      });
     }
 
     let variantNumberId = dto.variantId ?? null;
-    let productVariantSkuId = dto.productVariantSkuId ?? null;
+    const productVariantSkuId = dto.productVariantSkuId ?? null;
 
     if (productVariantSkuId) {
       const sku = await this.productVariantSkuRepo.findOne({
         where: { id: productVariantSkuId },
       });
       if (!sku || sku.productId !== dto.productId || sku.isActive === false) {
-        throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Varyant kombinasyonu bulunamadı' });
+        throw new NotFoundException({
+          code: RC.NOT_FOUND,
+          message: 'Varyant kombinasyonu bulunamadı',
+        });
       }
       if (!dto.auctionId && sku.stockQuantity < quantity) {
         throw new BadRequestException({
@@ -102,7 +138,8 @@ export class CartService {
           message: 'Seçilen varyant için yeterli stok yok',
         });
       }
-      variantNumberId = sku.sizeVariantNumberId ?? sku.colorVariantNumberId ?? variantNumberId;
+      variantNumberId =
+        sku.sizeVariantNumberId ?? sku.colorVariantNumberId ?? variantNumberId;
     } else if (!dto.auctionId && product.stockQuantity < quantity) {
       // Kesin kontrol checkout'ta atomik yapılır; burada erken uyarı verilir.
       throw new BadRequestException({
@@ -112,9 +149,14 @@ export class CartService {
     }
 
     if (variantNumberId) {
-      const variant = await this.variantNumberRepo.findOne({ where: { id: variantNumberId } });
+      const variant = await this.variantNumberRepo.findOne({
+        where: { id: variantNumberId },
+      });
       if (!variant) {
-        throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Varyant bulunamadı' });
+        throw new NotFoundException({
+          code: RC.NOT_FOUND,
+          message: 'Varyant bulunamadı',
+        });
       }
     }
 
@@ -166,16 +208,27 @@ export class CartService {
     userId: string,
     input: { productId: string; offerId: string; amount: number },
   ) {
-    const product = await this.productRepo.findOne({ where: { id: input.productId } });
+    const product = await this.productRepo.findOne({
+      where: { id: input.productId },
+    });
     if (!product) {
-      throw new NotFoundException({ code: RC.PRODUCT_NOT_FOUND, message: 'Ürün bulunamadı' });
+      throw new NotFoundException({
+        code: RC.PRODUCT_NOT_FOUND,
+        message: 'Ürün bulunamadı',
+      });
     }
     if (product.status !== ProductStatus.ACTIVE) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Ürün satışta değil' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün satışta değil',
+      });
     }
     const amount = Number(input.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Teklif tutarı geçersiz' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Teklif tutarı geçersiz',
+      });
     }
 
     let item = await this.cartRepo.findOne({
@@ -209,13 +262,22 @@ export class CartService {
   async updateItem(userId: string, itemId: string, dto: UpdateCartItemDto) {
     const item = await this.cartRepo.findOne({ where: { id: itemId, userId } });
     if (!item) {
-      throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Sepet ürünü bulunamadı' });
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Sepet ürünü bulunamadı',
+      });
     }
     if (item.auctionId) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünlerinin adedi güncellenemez' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Kazanılan müzayede ürünlerinin adedi güncellenemez',
+      });
     }
     if (item.offerId) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Teklifle eklenen ürünün adedi güncellenemez' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Teklifle eklenen ürünün adedi güncellenemez',
+      });
     }
     item.quantity = dto.quantity;
     await this.cartRepo.save(item);
@@ -231,13 +293,22 @@ export class CartService {
   async removeItem(userId: string, itemId: string) {
     const item = await this.cartRepo.findOne({ where: { id: itemId, userId } });
     if (!item) {
-      throw new NotFoundException({ code: RC.NOT_FOUND, message: 'Sepet ürünü bulunamadı' });
+      throw new NotFoundException({
+        code: RC.NOT_FOUND,
+        message: 'Sepet ürünü bulunamadı',
+      });
     }
     if (item.auctionId) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kazanılan müzayede ürünleri sepetten çıkarılamaz' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Kazanılan müzayede ürünleri sepetten çıkarılamaz',
+      });
     }
     if (item.offerId) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Kabul edilen teklif ürünü sepetten çıkarılamaz' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Kabul edilen teklif ürünü sepetten çıkarılamaz',
+      });
     }
 
     await this.cartRepo.remove(item);
@@ -253,7 +324,11 @@ export class CartService {
     if (force) {
       await this.cartRepo.delete({ userId });
     } else {
-      await this.cartRepo.delete({ userId, auctionId: IsNull(), offerId: IsNull() });
+      await this.cartRepo.delete({
+        userId,
+        auctionId: IsNull(),
+        offerId: IsNull(),
+      });
     }
     const items = await this.getUserCartItems(userId);
     return {
@@ -304,8 +379,12 @@ export class CartService {
         .createQueryBuilder('ci')
         .select('COUNT(DISTINCT ci.userId)', 'total')
         .where(userId ? 'ci.userId = :userId' : '1=1', { userId })
-        .andWhere(from ? 'ci.createdAt >= :from' : '1=1', { from: from ? new Date(from) : undefined })
-        .andWhere(to ? 'ci.createdAt <= :to' : '1=1', { to: to ? new Date(to) : undefined })
+        .andWhere(from ? 'ci.createdAt >= :from' : '1=1', {
+          from: from ? new Date(from) : undefined,
+        })
+        .andWhere(to ? 'ci.createdAt <= :to' : '1=1', {
+          to: to ? new Date(to) : undefined,
+        })
         .getRawOne<{ total: string }>(),
     ]);
 
@@ -399,7 +478,10 @@ export class CartService {
         auctionId: item.auctionId,
         currency: (item.auctionId && currencies?.get(item.auctionId)) || 'TRY',
         offerId: item.offerId,
-        customPrice: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : null,
+        customPrice:
+          item.customPrice !== null && item.customPrice !== undefined
+            ? Number(item.customPrice)
+            : null,
         variant: item.variantNumber
           ? {
               id: item.variantNumber.id,
@@ -424,7 +506,10 @@ export class CartService {
           ? {
               id: item.product.id,
               title: item.product.title,
-              price: item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : item.product.price,
+              price:
+                item.customPrice !== null && item.customPrice !== undefined
+                  ? Number(item.customPrice)
+                  : item.product.price,
               imageUrl: item.product.imageUrl,
               sellerId: item.product.sellerId,
             }

@@ -82,14 +82,28 @@ export class Phase20ProductVariantSku1747500000000 implements MigrationInterface
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IF EXISTS "UQ_cart_items_user_product_sku"');
-    await queryRunner.query('ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_product_variant_sku"');
-    await queryRunner.query('ALTER TABLE "cart_items" DROP COLUMN IF EXISTS "productVariantSkuId"');
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "UQ_cart_items_user_product_sku"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_product_variant_sku"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP COLUMN IF EXISTS "productVariantSkuId"',
+    );
 
-    await queryRunner.query('ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_size_variant"');
-    await queryRunner.query('ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_color_variant"');
-    await queryRunner.query('ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_product"');
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_product_variant_skus_product_sort"');
+    await queryRunner.query(
+      'ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_size_variant"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_color_variant"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "product_variant_skus" DROP CONSTRAINT IF EXISTS "FK_product_variant_skus_product"',
+    );
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_product_variant_skus_product_sort"',
+    );
     await queryRunner.query('DROP TABLE IF EXISTS "product_variant_skus"');
   }
 }

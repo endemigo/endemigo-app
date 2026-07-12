@@ -65,11 +65,15 @@ describe('CampaignService', () => {
     couponRedemptionRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn((value) => ({ id: 'redemption-1', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: 'redemption-1', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: 'redemption-1', ...value }),
+      ),
       count: jest.fn().mockResolvedValue(0),
     };
     productRepo = {
-      findOne: jest.fn().mockResolvedValue({ id: 'product-1', sellerId: 'seller-1' }),
+      findOne: jest
+        .fn()
+        .mockResolvedValue({ id: 'product-1', sellerId: 'seller-1' }),
     };
     trustService = {
       assertAllowed: jest.fn().mockResolvedValue({ allowed: true }),
@@ -93,7 +97,10 @@ describe('CampaignService', () => {
       metadata: {},
     });
 
-    const result = await service.optInPlatformCampaign('seller-1', 'campaign-1');
+    const result = await service.optInPlatformCampaign(
+      'seller-1',
+      'campaign-1',
+    );
 
     expect(result.code).toBe(RC.CAMPAIGN_OPTED_IN);
     expect(campaignRepo.save).toHaveBeenCalledWith(
@@ -238,7 +245,10 @@ describe('CampaignService', () => {
       metadata: {},
     });
 
-    const result = await service.updateCouponStatus('coupon-1', CouponStatus.DISABLED);
+    const result = await service.updateCouponStatus(
+      'coupon-1',
+      CouponStatus.DISABLED,
+    );
 
     expect(result.code).toBe(RC.COUPON_STATUS_UPDATED);
     expect(couponRepo.save).toHaveBeenCalledWith(
@@ -324,7 +334,10 @@ describe('CampaignService', () => {
   });
 
   it('enforces seller product/category targeting ownership', async () => {
-    productRepo.findOne.mockResolvedValue({ id: 'product-1', sellerId: 'other-seller' });
+    productRepo.findOne.mockResolvedValue({
+      id: 'product-1',
+      sellerId: 'other-seller',
+    });
 
     await expect(
       service.createCoupon('seller-1', {

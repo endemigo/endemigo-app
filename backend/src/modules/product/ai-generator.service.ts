@@ -51,7 +51,8 @@ export class AiGeneratorService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: this.configService?.get<string>('OPENAI_CHAT_MODEL') ?? 'gpt-4o-mini',
+        model:
+          this.configService?.get<string>('OPENAI_CHAT_MODEL') ?? 'gpt-4o-mini',
         messages: [
           {
             role: 'system',

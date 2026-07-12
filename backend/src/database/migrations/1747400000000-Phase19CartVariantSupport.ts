@@ -36,10 +36,18 @@ export class Phase19CartVariantSupport1747400000000 implements MigrationInterfac
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IF EXISTS "UQ_cart_items_user_product_no_variant"');
-    await queryRunner.query('DROP INDEX IF EXISTS "UQ_cart_items_user_product_variant"');
-    await queryRunner.query('ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_variant_number"');
-    await queryRunner.query('ALTER TABLE "cart_items" DROP COLUMN IF EXISTS "variantNumberId"');
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "UQ_cart_items_user_product_no_variant"',
+    );
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "UQ_cart_items_user_product_variant"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP CONSTRAINT IF EXISTS "FK_cart_items_variant_number"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "cart_items" DROP COLUMN IF EXISTS "variantNumberId"',
+    );
     await queryRunner.query(`
       ALTER TABLE "cart_items"
       ADD CONSTRAINT "UQ_cart_items_user_product"

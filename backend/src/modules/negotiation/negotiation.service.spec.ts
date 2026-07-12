@@ -104,24 +104,48 @@ describe('NegotiationService', () => {
 
   beforeEach(async () => {
     conversationRepo = {
-      create: jest.fn((data) => ({ id: 'conversation-1', createdAt: now, updatedAt: now, ...data })),
+      create: jest.fn((data) => ({
+        id: 'conversation-1',
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      })),
       save: jest.fn(async (entity) => ({ ...entity, updatedAt: now })),
       update: jest.fn(async () => ({ affected: 1 })),
       findOne: jest.fn(),
       find: jest.fn(),
     };
     offerRepo = {
-      create: jest.fn((data) => ({ id: 'offer-1', createdAt: now, updatedAt: now, ...data })),
+      create: jest.fn((data) => ({
+        id: 'offer-1',
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      })),
       save: jest.fn(async (entity) => ({ ...entity, updatedAt: now })),
       findOne: jest.fn(),
       exists: jest.fn(async () => false),
     };
     messageRepo = {
-      create: jest.fn((data) => ({ id: 'message-1', createdAt: now, updatedAt: now, ...data })),
-      save: jest.fn(async (entity) => ({ ...entity, createdAt: now, updatedAt: now })),
+      create: jest.fn((data) => ({
+        id: 'message-1',
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      })),
+      save: jest.fn(async (entity) => ({
+        ...entity,
+        createdAt: now,
+        updatedAt: now,
+      })),
     };
     violationRepo = {
-      create: jest.fn((data) => ({ id: 'violation-1', createdAt: now, updatedAt: now, ...data })),
+      create: jest.fn((data) => ({
+        id: 'violation-1',
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      })),
       save: jest.fn(async (entity) => entity),
       count: jest.fn(async () => 0),
     };
@@ -145,16 +169,25 @@ describe('NegotiationService', () => {
       recordAction: jest.fn(async () => undefined),
     };
     trustService = {
-      createFlag: jest.fn(async () => ({ code: RC.TRUST_FLAG_CREATED, flag: { id: 'flag-1' } })),
+      createFlag: jest.fn(async () => ({
+        code: RC.TRUST_FLAG_CREATED,
+        flag: { id: 'flag-1' },
+      })),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NegotiationService,
         ContentModerationService,
-        { provide: getRepositoryToken(Conversation), useValue: conversationRepo },
+        {
+          provide: getRepositoryToken(Conversation),
+          useValue: conversationRepo,
+        },
         { provide: getRepositoryToken(Offer), useValue: offerRepo },
-        { provide: getRepositoryToken(NegotiationMessage), useValue: messageRepo },
+        {
+          provide: getRepositoryToken(NegotiationMessage),
+          useValue: messageRepo,
+        },
         { provide: getRepositoryToken(ViolationLog), useValue: violationRepo },
         { provide: getRepositoryToken(Product), useValue: productRepo },
         { provide: getQueueToken('negotiation'), useValue: queue },
@@ -162,7 +195,10 @@ describe('NegotiationService', () => {
         { provide: NotificationService, useValue: notificationService },
         { provide: AdminAuditService, useValue: adminAuditService },
         { provide: TrustService, useValue: trustService },
-        { provide: NegotiationGateway, useValue: { emitConversationEvent: jest.fn() } },
+        {
+          provide: NegotiationGateway,
+          useValue: { emitConversationEvent: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -192,7 +228,10 @@ describe('NegotiationService', () => {
   });
 
   it('rejects conversation creation when Ask Price is not enabled', async () => {
-    productRepo.findOne.mockResolvedValue({ ...product, askPriceEnabled: false });
+    productRepo.findOne.mockResolvedValue({
+      ...product,
+      askPriceEnabled: false,
+    });
 
     await expect(
       service.createConversation('buyer-1', { productId: 'product-1' }),
@@ -334,9 +373,9 @@ describe('NegotiationService', () => {
   it('throws not found for non-participant conversation access', async () => {
     conversationRepo.findOne.mockResolvedValue(null);
 
-    await expect(service.getConversation('stranger-1', 'conversation-1')).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      service.getConversation('stranger-1', 'conversation-1'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('records an audited admin view with a reason', async () => {

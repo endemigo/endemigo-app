@@ -9,7 +9,8 @@ export const ADMIN_USER_RELATED_SECTIONS = [
   'coupon-usage',
 ] as const;
 
-export type AdminUserRelatedSection = (typeof ADMIN_USER_RELATED_SECTIONS)[number];
+export type AdminUserRelatedSection =
+  (typeof ADMIN_USER_RELATED_SECTIONS)[number];
 
 export class AdminUserRelatedQueryDto {
   @IsString()
@@ -24,4 +25,3 @@ export class AdminUserRelatedQueryDto {
   @IsString()
   limit?: string;
 }
-

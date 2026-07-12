@@ -8,7 +8,8 @@ async function run() {
   try {
     const em = app.get(EntityManager);
     // Tüm cüzdanların bakiyesini 1.000.000 TL yapalım
-    await em.createQueryBuilder()
+    await em
+      .createQueryBuilder()
       .update(Wallet)
       .set({ balance: 1000000 })
       .execute();

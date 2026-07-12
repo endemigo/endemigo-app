@@ -1,5 +1,14 @@
 import { VariantNumberStatus, VariantOptionKind } from '@endemigo/shared';
-import { IsEnum, IsHexColor, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsHexColor,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateAdminVariantNumberDto {
   @IsEnum(VariantOptionKind)

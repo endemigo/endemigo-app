@@ -34,7 +34,10 @@ export class AdminAuthService {
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      admin.passwordHash,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException({
         code: RC.INVALID_CREDENTIALS,

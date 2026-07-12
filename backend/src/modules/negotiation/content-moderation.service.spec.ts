@@ -15,7 +15,10 @@ describe('ContentModerationService', () => {
 
     expect(result.allowed).toBe(false);
     expect(result.violations).toEqual(
-      expect.arrayContaining([ViolationType.PLATFORM_NAME, ViolationType.PHONE]),
+      expect.arrayContaining([
+        ViolationType.PLATFORM_NAME,
+        ViolationType.PHONE,
+      ]),
     );
   });
 
@@ -36,7 +39,9 @@ describe('ContentModerationService', () => {
   });
 
   it('allows normal Turkish negotiation text without contact details', () => {
-    const result = service.moderate('Merhaba, bu ürün için 12500 TL uygun olur mu?');
+    const result = service.moderate(
+      'Merhaba, bu ürün için 12500 TL uygun olur mu?',
+    );
 
     expect(result).toEqual(
       expect.objectContaining({

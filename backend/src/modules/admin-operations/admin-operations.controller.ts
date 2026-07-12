@@ -115,7 +115,10 @@ export class AdminOperationsController {
   }
 
   @Get('users/:id/related')
-  async userRelated(@Param('id') id: string, @Query() query: AdminUserRelatedQueryDto) {
+  async userRelated(
+    @Param('id') id: string,
+    @Query() query: AdminUserRelatedQueryDto,
+  ) {
     return this.adminOperationsService.detailUserRelated(id, query);
   }
 
@@ -147,21 +150,37 @@ export class AdminOperationsController {
   }
 
   @Get('products')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async products(
     @Query() query: AdminListQueryDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.list('products', query, request.adminUser);
+    return this.adminOperationsService.list(
+      'products',
+      query,
+      request.adminUser,
+    );
   }
 
   @Get('products/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async product(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.detail('products', id, request.adminUser);
+    return this.adminOperationsService.detail(
+      'products',
+      id,
+      request.adminUser,
+    );
   }
 
   @Get('variants/numbers')
@@ -188,7 +207,11 @@ export class AdminOperationsController {
   }
 
   @Post('products')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async createProduct(
     @Body() dto: AdminProductActionDto,
     @Request() request: AdminOperationsRequest,
@@ -197,35 +220,56 @@ export class AdminOperationsController {
   }
 
   @Patch('products/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async updateProduct(
     @Param('id') id: string,
     @Body() dto: AdminProductActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateProduct(id, dto, request.adminUser);
+    return this.adminOperationsService.updateProduct(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Post('uploads/images')
-  @ApiOperation({ summary: 'Admin görsel yükleme (çoklu yükleme için tekil endpoint)' })
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (_req, file, callback) => {
-      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (allowedMimes.includes(file.mimetype)) {
-        callback(null, true);
-        return;
-      }
-      callback(
-        new BadRequestException({
-          code: RC.VALIDATION_ERROR,
-          message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
-        }),
-        false,
-      );
-    },
-  }))
+  @ApiOperation({
+    summary: 'Admin görsel yükleme (çoklu yükleme için tekil endpoint)',
+  })
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        const allowedMimes = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/gif',
+        ];
+        if (allowedMimes.includes(file.mimetype)) {
+          callback(null, true);
+          return;
+        }
+        callback(
+          new BadRequestException({
+            code: RC.VALIDATION_ERROR,
+            message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
+          }),
+          false,
+        );
+      },
+    }),
+  )
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Query('kind') kind?: string,
@@ -300,7 +344,13 @@ export class AdminOperationsController {
   }
 
   @Get('orders')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    AdminRole.FINANCE,
+    AdminRole.SUPPORT,
+    'seller' as AdminRole,
+  )
   async orders(
     @Query() query: AdminListQueryDto,
     @Request() request: AdminOperationsRequest,
@@ -309,7 +359,13 @@ export class AdminOperationsController {
   }
 
   @Get('orders/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    AdminRole.FINANCE,
+    AdminRole.SUPPORT,
+    'seller' as AdminRole,
+  )
   async order(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
@@ -338,21 +394,41 @@ export class AdminOperationsController {
   }
 
   @Get('payout-requests')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    AdminRole.FINANCE,
+    AdminRole.SUPPORT,
+    'seller' as AdminRole,
+  )
   async payoutRequests(
     @Query() query: AdminListQueryDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.list('payout-requests', query, request.adminUser);
+    return this.adminOperationsService.list(
+      'payout-requests',
+      query,
+      request.adminUser,
+    );
   }
 
   @Get('payout-requests/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    AdminRole.FINANCE,
+    AdminRole.SUPPORT,
+    'seller' as AdminRole,
+  )
   async payoutRequest(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.detail('payout-requests', id, request.adminUser);
+    return this.adminOperationsService.detail(
+      'payout-requests',
+      id,
+      request.adminUser,
+    );
   }
 
   @Get('negotiations')
@@ -371,7 +447,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.approveSeller(id, dto, request.adminUser);
+    return this.adminOperationsService.approveSeller(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('sellers/:id/reject')
@@ -398,18 +478,28 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.reactivateUser(id, dto, request.adminUser);
+    return this.adminOperationsService.reactivateUser(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('products/:id/review')
-  @ApiOperation({ summary: 'Ürün onay kuyruğu: onayla (ACTIVE) / reddet (DRAFT)' })
+  @ApiOperation({
+    summary: 'Ürün onay kuyruğu: onayla (ACTIVE) / reddet (DRAFT)',
+  })
   @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   async reviewProduct(
     @Param('id') id: string,
     @Body() dto: AdminProductReviewDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.reviewProduct(id, dto, request.adminUser);
+    return this.adminOperationsService.reviewProduct(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('products/:id/remove')
@@ -418,7 +508,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.removeProduct(id, dto, request.adminUser);
+    return this.adminOperationsService.removeProduct(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('auctions/:id/cancel')
@@ -427,18 +521,28 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.cancelAuction(id, dto, request.adminUser);
+    return this.adminOperationsService.cancelAuction(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('auctions/:id/finalize')
-  @ApiOperation({ summary: 'Aktif müzayedeyi elle sonlandırır (takılı lot kurtarma)' })
+  @ApiOperation({
+    summary: 'Aktif müzayedeyi elle sonlandırır (takılı lot kurtarma)',
+  })
   @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   async finalizeAuction(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.finalizeAuction(id, dto, request.adminUser);
+    return this.adminOperationsService.finalizeAuction(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('orders/:id/admin-review')
@@ -473,7 +577,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.approvePayout(id, dto, request.adminUser);
+    return this.adminOperationsService.approvePayout(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('payout-requests/:id/reject')
@@ -499,7 +607,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateCategory(id, dto, request.adminUser);
+    return this.adminOperationsService.updateCategory(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Delete('categories/:id')
@@ -508,7 +620,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.deleteCategory(id, dto, request.adminUser);
+    return this.adminOperationsService.deleteCategory(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Post('brands')
@@ -542,7 +658,10 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.createGeoIndication(dto, request.adminUser);
+    return this.adminOperationsService.createGeoIndication(
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('geo-indications/:id')
@@ -551,7 +670,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateGeoIndication(id, dto, request.adminUser);
+    return this.adminOperationsService.updateGeoIndication(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Delete('geo-indications/:id')
@@ -560,7 +683,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.deleteGeoIndication(id, dto, request.adminUser);
+    return this.adminOperationsService.deleteGeoIndication(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Post('feature-badges')
@@ -568,7 +695,10 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.createFeatureBadge(dto, request.adminUser);
+    return this.adminOperationsService.createFeatureBadge(
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('feature-badges/:id')
@@ -577,7 +707,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateFeatureBadge(id, dto, request.adminUser);
+    return this.adminOperationsService.updateFeatureBadge(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Delete('feature-badges/:id')
@@ -586,7 +720,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.deleteFeatureBadge(id, dto, request.adminUser);
+    return this.adminOperationsService.deleteFeatureBadge(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Post('listing-templates')
@@ -594,7 +732,10 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.createListingTemplate(dto, request.adminUser);
+    return this.adminOperationsService.createListingTemplate(
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('listing-templates/:id')
@@ -603,7 +744,11 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateListingTemplate(id, dto, request.adminUser);
+    return this.adminOperationsService.updateListingTemplate(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Delete('listing-templates/:id')
@@ -612,18 +757,30 @@ export class AdminOperationsController {
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.deleteListingTemplate(id, dto, request.adminUser);
+    return this.adminOperationsService.deleteListingTemplate(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   // ─── Ortak Müzayede Etkinliği (Model 2) Endpoints ───
 
   @Get('auction-events')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async auctionEvents(
     @Query() query: AdminListQueryDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.list('auction-events', query, request.adminUser);
+    return this.adminOperationsService.list(
+      'auction-events',
+      query,
+      request.adminUser,
+    );
   }
 
   // Faz 6: Atanabilir yayıncılar (endemigo operatörleri). NOT: ':id' route'undan ÖNCE olmalı.
@@ -634,22 +791,33 @@ export class AdminOperationsController {
   }
 
   @Get('auction-events/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async auctionEvent(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
   ) {
-    const detail = await this.adminOperationsService.detail('auction-events', id, request.adminUser);
+    const detail = await this.adminOperationsService.detail(
+      'auction-events',
+      id,
+      request.adminUser,
+    );
     if (detail && detail.overview) {
-      (detail.overview as any).autoProgress = await this.auctionService.isAutoProgressEnabled(id);
+      (detail.overview as any).autoProgress =
+        await this.auctionService.isAutoProgressEnabled(id);
     }
     const anyDetail = detail as any;
     if (anyDetail && anyDetail.approvedLots) {
       for (const lot of anyDetail.approvedLots) {
         if (lot.status === 'PUBLISHED') {
-          const pausedSec = await this.auctionService.getPausedRemainingSeconds(lot.id);
+          const pausedSec = await this.auctionService.getPausedRemainingSeconds(
+            lot.id,
+          );
           if (pausedSec !== undefined) {
-            (lot as any).pausedRemainingSeconds = pausedSec;
+            lot.pausedRemainingSeconds = pausedSec;
           }
         }
       }
@@ -658,58 +826,102 @@ export class AdminOperationsController {
   }
 
   @Post('auction-events')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async createAuctionEvent(
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.createAuctionEvent(dto, request.adminUser);
+    return this.adminOperationsService.createAuctionEvent(
+      dto,
+      request.adminUser,
+    );
   }
 
   @Post('auction-events/:id/lots')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async addLotsToEvent(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.addLotsToEvent(id, dto, request.adminUser);
+    return this.adminOperationsService.addLotsToEvent(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('auction-events/:id')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async updateAuctionEvent(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateAuctionEvent(id, dto, request.adminUser);
+    return this.adminOperationsService.updateAuctionEvent(
+      id,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Delete('auction-events/:id/lots/:lotId')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    'seller' as AdminRole,
+  )
   async removeLotFromEvent(
     @Param('id') eventId: string,
     @Param('lotId') lotId: string,
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.removeLotFromEvent(eventId, lotId, dto, request.adminUser);
+    return this.adminOperationsService.removeLotFromEvent(
+      eventId,
+      lotId,
+      dto,
+      request.adminUser,
+    );
   }
 
   @Patch('auction-events/:id/lots/sequence')
-  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS, AdminRole.FINANCE, AdminRole.SUPPORT, 'seller' as AdminRole)
+  @AdminRoles(
+    AdminRole.SUPER_ADMIN,
+    AdminRole.OPERATIONS,
+    AdminRole.FINANCE,
+    AdminRole.SUPPORT,
+    'seller' as AdminRole,
+  )
   async reorderLots(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,
     @Request() request: AdminOperationsRequest,
   ) {
     const payload = dto.metadata as { sequenceMap: Record<string, number> };
-    return this.adminOperationsService.reorderLots(id, payload.sequenceMap, request.adminUser);
+    return this.adminOperationsService.reorderLots(
+      id,
+      payload.sequenceMap,
+      request.adminUser,
+    );
   }
 
   @Patch('auctions/:id/approve')
-  @ApiOperation({ summary: 'Müzayede lotu onay/ret — ürün ACTIVE ise yayına alınır' })
+  @ApiOperation({
+    summary: 'Müzayede lotu onay/ret — ürün ACTIVE ise yayına alınır',
+  })
   @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   async approveLot(
     @Param('id') id: string,
@@ -717,35 +929,36 @@ export class AdminOperationsController {
     @Request() request: AdminOperationsRequest,
   ) {
     const payload = dto.metadata as { status: string };
-    return this.adminOperationsService.approveLot(id, payload.status as any, dto.reason, request.adminUser);
+    return this.adminOperationsService.approveLot(
+      id,
+      payload.status as any,
+      dto.reason,
+      request.adminUser,
+    );
   }
 
   @Patch('auction-events/:id/pause')
   @ApiOperation({ summary: 'Müzayede etkinliğini duraklatır' })
-  async pauseAuction(
-    @Param('id') id: string,
-  ) {
+  async pauseAuction(@Param('id') id: string) {
     return this.auctionService.pauseAuction(id);
   }
 
   @Patch('auction-events/:id/resume')
   @ApiOperation({ summary: 'Müzayede etkinliğini devam ettirir' })
-  async resumeAuction(
-    @Param('id') id: string,
-  ) {
+  async resumeAuction(@Param('id') id: string) {
     return this.auctionService.resumeAuction(id);
   }
 
   @Patch('auction-events/:id/skip')
-  @ApiOperation({ summary: 'Sıradaki Lot\'a atlar' })
-  async skipLot(
-    @Param('id') id: string,
-  ) {
+  @ApiOperation({ summary: "Sıradaki Lot'a atlar" })
+  async skipLot(@Param('id') id: string) {
     return this.auctionService.skipLot(id);
   }
 
   @Patch('auction-events/:id/announce')
-  @ApiOperation({ summary: 'Sunucu anonsu yayınla (yakılıyor / son çağrı / sattım)' })
+  @ApiOperation({
+    summary: 'Sunucu anonsu yayınla (yakılıyor / son çağrı / sattım)',
+  })
   async announceLot(
     @Param('id') id: string,
     @Body() dto: { type: string; message?: string },
@@ -771,7 +984,11 @@ export class AdminOperationsController {
   ) {
     const safePage = parsePositiveIntQuery(page, 'page', 1);
     const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 50);
-    return this.auctionService.listRegistrationsForAdmin(status, safePage, safeLimit);
+    return this.auctionService.listRegistrationsForAdmin(
+      status,
+      safePage,
+      safeLimit,
+    );
   }
 
   @Patch('auctions/registrations/:id/status')
@@ -781,11 +998,17 @@ export class AdminOperationsController {
     @Body() dto: { status: AuctionRegistrationStatus },
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.auctionService.updateRegistrationStatus(id, dto.status, request.adminUser.id);
+    return this.auctionService.updateRegistrationStatus(
+      id,
+      dto.status,
+      request.adminUser.id,
+    );
   }
 
   @Patch('auctions/:id/approve-sale')
-  @ApiOperation({ summary: 'Müzayede satışını onayla — kazanana ödeme penceresi açılır' })
+  @ApiOperation({
+    summary: 'Müzayede satışını onayla — kazanana ödeme penceresi açılır',
+  })
   async approveAuctionSale(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
@@ -794,7 +1017,9 @@ export class AdminOperationsController {
   }
 
   @Patch('auction-events/:id/approve-sales')
-  @ApiOperation({ summary: 'Etkinlikteki tüm biten lot satışlarını topluca onayla' })
+  @ApiOperation({
+    summary: 'Etkinlikteki tüm biten lot satışlarını topluca onayla',
+  })
   async approveAuctionEventSales(
     @Param('id') id: string,
     @Request() request: AdminOperationsRequest,
@@ -804,12 +1029,16 @@ export class AdminOperationsController {
 
   @Patch('users/:id/bidding-limit')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Admin updates a user\'s bidding limit' })
+  @ApiOperation({ summary: "Admin updates a user's bidding limit" })
   async updateBiddingLimit(
     @Param('id') id: string,
     @Body() dto: { limit: number },
     @Request() request: AdminOperationsRequest,
   ) {
-    return this.adminOperationsService.updateBiddingLimit(id, dto.limit, request.adminUser);
+    return this.adminOperationsService.updateBiddingLimit(
+      id,
+      dto.limit,
+      request.adminUser,
+    );
   }
 }

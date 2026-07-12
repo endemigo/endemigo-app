@@ -30,7 +30,10 @@ export interface RefundResult {
 export interface PaymentProviderPort {
   initializeCheckout(input: CheckoutInput): Promise<CheckoutResult>;
   retrieveCheckout(token: string): Promise<RetrievedPaymentResult>;
-  refundPayment(providerPaymentId: string, amount: number): Promise<RefundResult>;
+  refundPayment(
+    providerPaymentId: string,
+    amount: number,
+  ): Promise<RefundResult>;
   cancelPayment(providerPaymentId: string): Promise<RefundResult>;
   assertSignatureV3(payload: unknown, signature?: string): boolean;
 }

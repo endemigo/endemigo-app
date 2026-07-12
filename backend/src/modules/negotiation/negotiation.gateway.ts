@@ -21,7 +21,9 @@ import { Conversation } from './entities/conversation.entity';
   cors: buildCorsOptions(process.env.NODE_ENV, process.env.CORS_ORIGIN),
   transports: ['websocket', 'polling'],
 })
-export class NegotiationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NegotiationGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(NegotiationGateway.name);
 
@@ -71,7 +73,9 @@ export class NegotiationGateway implements OnGatewayConnection, OnGatewayDisconn
     });
     if (
       !conversation ||
-      ![conversation.buyerId, conversation.sellerId].includes(client.data.userId)
+      ![conversation.buyerId, conversation.sellerId].includes(
+        client.data.userId,
+      )
     ) {
       return { event: 'negotiation:error', data: { code: 'FORBIDDEN' } };
     }

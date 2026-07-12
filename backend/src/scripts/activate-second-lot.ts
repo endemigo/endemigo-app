@@ -21,7 +21,7 @@ async function run() {
       to: () => mockTo,
       emit: (event: string, data: any) => {
         console.log(`[Mock Socket Broadcast] Event: ${event}`, data);
-      }
+      },
     } as any;
 
     const eventId = '1a619b5c-8fdf-4fa5-a334-b338184dea69';
@@ -61,7 +61,9 @@ async function run() {
     console.log(`Updated event activeLotId to: ${secondLot.id}`);
 
     // Fetch product details for gateway emit
-    const product = await em.findOne('Product', { where: { id: secondLot.productId } }) as any;
+    const product = (await em.findOne('Product', {
+      where: { id: secondLot.productId },
+    })) as any;
 
     // Trigger real broadcast by accessing the real server if possible, or just emit via the gateway emit method
     // Wait, the gateway in this standalone app has a mocked server, but we want the running dev server (port 3030 instance) to receive/emit the update.
@@ -71,9 +73,8 @@ async function run() {
     // So the running server's socket clients won't get the socket emit immediately, but on page refresh they will see it.
     // Actually, does the running server listen to TypeORM subscribers or database changes? No.
     // But since the client page refetches details periodically or we can refresh, it will work.
-    
-    console.log('Database updated successfully! Transition complete.');
 
+    console.log('Database updated successfully! Transition complete.');
   } catch (err) {
     console.error('Error running script:', err);
   } finally {

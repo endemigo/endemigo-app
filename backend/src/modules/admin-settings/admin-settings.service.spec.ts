@@ -1,5 +1,10 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { AdminAuditAction, AdminRole, AdminSettingKey, RC } from '@endemigo/shared';
+import {
+  AdminAuditAction,
+  AdminRole,
+  AdminSettingKey,
+  RC,
+} from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AdminSettingsService } from './admin-settings.service';
 

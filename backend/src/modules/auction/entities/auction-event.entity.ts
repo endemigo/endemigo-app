@@ -1,6 +1,11 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
-import { AuctionEventStatus, AuctionType, AuctionEventSystemType, JointManagementType } from '@endemigo/shared';
+import {
+  AuctionEventStatus,
+  AuctionType,
+  AuctionEventSystemType,
+  JointManagementType,
+} from '@endemigo/shared';
 import { Category } from '../../product/entities/category.entity';
 
 // Süresiz (untimed) etkinlik/lot için nominal bitiş. Kolonlar NOT NULL kaldığı
@@ -59,7 +64,6 @@ export class AuctionEvent extends BaseEntity {
 
   @Column()
   title: string;
-
 
   @Column({ type: 'text', nullable: true })
   description: string | null;

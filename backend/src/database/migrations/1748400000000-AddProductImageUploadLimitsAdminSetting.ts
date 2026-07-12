@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddProductImageUploadLimitsAdminSetting1748400000000
-  implements MigrationInterface
-{
+export class AddProductImageUploadLimitsAdminSetting1748400000000 implements MigrationInterface {
   name = 'AddProductImageUploadLimitsAdminSetting1748400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -17,13 +17,18 @@ async function run() {
     console.log(`Status: ${event?.status}`);
     console.log(`Active Lot ID: ${event?.activeLotId}`);
 
-    const lots = await em.find(Auction, { where: { eventId }, order: { sequenceNumber: 'ASC' } });
+    const lots = await em.find(Auction, {
+      where: { eventId },
+      order: { sequenceNumber: 'ASC' },
+    });
     console.log('\n--- Lots in Event ---');
     for (const lot of lots) {
       console.log(`Lot #${lot.lotNumber} (ID: ${lot.id})`);
       console.log(`  Status: ${lot.status}`);
       console.log(`  Sequence: ${lot.sequenceNumber}`);
-      console.log(`  Start Price: ${lot.startPrice} | Current Price: ${lot.currentPrice}`);
+      console.log(
+        `  Start Price: ${lot.startPrice} | Current Price: ${lot.currentPrice}`,
+      );
       console.log(`  Bids Count: ${lot.bidCount}`);
       console.log(`  Start Time: ${lot.startTime?.toISOString()}`);
       console.log(`  End Time: ${lot.endTime?.toISOString()}`);

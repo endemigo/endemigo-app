@@ -251,20 +251,23 @@ export class OrderService {
       manager,
     );
 
-    const result = await this.createFromSource({
-      buyerId,
-      sellerId: product.sellerId,
-      productId: product.id,
-      productVariantSkuId: dto.productVariantSkuId ?? null,
-      amount: finalAmount,
-      currency,
-      source: OrderSource.DIRECT_SALE,
-      sourceReferenceId:
-        dto.idempotencyKey ?? `direct-sale:${product.id}:${buyerId}`,
-      discountResult,
-      shippingAddressId: opts?.shippingAddressId ?? null,
-      shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
-    }, manager);
+    const result = await this.createFromSource(
+      {
+        buyerId,
+        sellerId: product.sellerId,
+        productId: product.id,
+        productVariantSkuId: dto.productVariantSkuId ?? null,
+        amount: finalAmount,
+        currency,
+        source: OrderSource.DIRECT_SALE,
+        sourceReferenceId:
+          dto.idempotencyKey ?? `direct-sale:${product.id}:${buyerId}`,
+        discountResult,
+        shippingAddressId: opts?.shippingAddressId ?? null,
+        shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
+      },
+      manager,
+    );
 
     if (result.message === 'Order already exists') {
       await this.releaseDirectSaleStock(
@@ -311,16 +314,24 @@ export class OrderService {
         eventId: input.eventId ?? null,
         shippingAddressId: input.shippingAddressId ?? null,
         shippingAddressSnapshot: input.shippingAddressSnapshot ?? null,
-        initialStatus: isPending ? OrderStatus.PAYMENT_PENDING : OrderStatus.ESCROW_HELD,
-        initialEscrowStatus: isPending ? EscrowStatus.NOT_FUNDED : EscrowStatus.HELD,
+        initialStatus: isPending
+          ? OrderStatus.PAYMENT_PENDING
+          : OrderStatus.ESCROW_HELD,
+        initialEscrowStatus: isPending
+          ? EscrowStatus.NOT_FUNDED
+          : EscrowStatus.HELD,
         paymentId: input.paymentId ?? null,
-        auditReason: isPending ? 'auction_checkout_initiated' : 'auction_escrow_captured',
+        auditReason: isPending
+          ? 'auction_checkout_initiated'
+          : 'auction_escrow_captured',
       },
       manager,
     );
 
     if (!isPending && result.order && input.auctionId) {
-      const repo = manager ? manager.getRepository(Auction) : this.orderRepository?.manager?.getRepository(Auction);
+      const repo = manager
+        ? manager.getRepository(Auction)
+        : this.orderRepository?.manager?.getRepository(Auction);
       if (repo) {
         const auction = await repo.findOne({ where: { id: input.auctionId } });
         if (auction) {
@@ -346,19 +357,22 @@ export class OrderService {
       paymentId?: string | null;
     },
   ) {
-    return this.createFromSource({
-      buyerId: input.buyerId,
-      sellerId: input.sellerId,
-      productId: input.productId,
-      amount: input.amount,
-      currency: input.currency ?? 'TRY',
-      source: OrderSource.ASK_PRICE,
-      sourceReferenceId: input.acceptedOfferId,
-      shippingAddressId: opts?.shippingAddressId ?? null,
-      shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
-      paymentId: opts?.paymentId ?? null,
-      auditReason: 'ask_price_checkout_initiated',
-    }, manager);
+    return this.createFromSource(
+      {
+        buyerId: input.buyerId,
+        sellerId: input.sellerId,
+        productId: input.productId,
+        amount: input.amount,
+        currency: input.currency ?? 'TRY',
+        source: OrderSource.ASK_PRICE,
+        sourceReferenceId: input.acceptedOfferId,
+        shippingAddressId: opts?.shippingAddressId ?? null,
+        shippingAddressSnapshot: opts?.shippingAddressSnapshot ?? null,
+        paymentId: opts?.paymentId ?? null,
+        auditReason: 'ask_price_checkout_initiated',
+      },
+      manager,
+    );
   }
 
   async transitionOrder(
@@ -581,7 +595,9 @@ export class OrderService {
     const gross = Number(order.amount);
     const platformAmount = Number(order.platformCommissionAmount ?? 0);
     const dealerAmount = Number(order.dealerCommissionAmount ?? 0);
-    const sellerAmount = Number((gross - platformAmount - dealerAmount).toFixed(2));
+    const sellerAmount = Number(
+      (gross - platformAmount - dealerAmount).toFixed(2),
+    );
 
     const lines: Parameters<typeof this.ledgerService.postEntry>[0]['lines'] = [
       {
@@ -659,7 +675,11 @@ export class OrderService {
     if (order.status === OrderStatus.ESCROW_HELD) {
       if (order.groupId && order.sellerId && this.orderRepository) {
         const siblingOrders = await this.orderRepository.find({
-          where: { groupId: order.groupId, sellerId: order.sellerId, status: OrderStatus.ESCROW_HELD },
+          where: {
+            groupId: order.groupId,
+            sellerId: order.sellerId,
+            status: OrderStatus.ESCROW_HELD,
+          },
         });
         for (const sibling of siblingOrders) {
           await this.transitionOrder(
@@ -971,10 +991,14 @@ export class OrderService {
       });
     }
 
-    if (order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.RETURN_REQUESTED) {
+    if (
+      order.status !== OrderStatus.COMPLETED &&
+      order.status !== OrderStatus.RETURN_REQUESTED
+    ) {
       throw new BadRequestException({
         code: RC.ORDER_INVALID_TRANSITION,
-        message: 'Görsel sadece tamamlanmış veya iade aşamasındaki siparişler için yüklenebilir',
+        message:
+          'Görsel sadece tamamlanmış veya iade aşamasındaki siparişler için yüklenebilir',
       });
     }
 
@@ -986,7 +1010,9 @@ export class OrderService {
     }
 
     const url = await this.storage.upload(file, `returns/${orderId}`);
-    const currentImages = Array.isArray(order.returnImages) ? order.returnImages : [];
+    const currentImages = Array.isArray(order.returnImages)
+      ? order.returnImages
+      : [];
     currentImages.push(url);
     order.returnImages = currentImages;
     await this.orderRepository?.save(order);
@@ -1151,10 +1177,11 @@ export class OrderService {
   }
 
   async getBuyerOrders(buyerId: string) {
-    const orders = (await this.orderRepository?.find({
-      where: { buyerId },
-      order: { createdAt: 'DESC' },
-    })) || [];
+    const orders =
+      (await this.orderRepository?.find({
+        where: { buyerId },
+        order: { createdAt: 'DESC' },
+      })) || [];
 
     if (orders.length > 0 && this.productRepository) {
       const productIds = [...new Set(orders.map((o) => o.productId))];
@@ -1188,10 +1215,11 @@ export class OrderService {
   }
 
   async getSellerOrders(sellerId: string) {
-    const orders = (await this.orderRepository?.find({
-      where: { sellerId },
-      order: { createdAt: 'DESC' },
-    })) || [];
+    const orders =
+      (await this.orderRepository?.find({
+        where: { sellerId },
+        order: { createdAt: 'DESC' },
+      })) || [];
 
     if (orders.length > 0 && this.productRepository) {
       const productIds = [...new Set(orders.map((o) => o.productId))];
@@ -1309,7 +1337,9 @@ export class OrderService {
     if (saved.source === OrderSource.AUCTION && saved.sourceReferenceId) {
       const repo = this.orderRepository?.manager?.getRepository(Auction);
       if (repo) {
-        const auction = await repo.findOne({ where: { id: saved.sourceReferenceId } });
+        const auction = await repo.findOne({
+          where: { id: saved.sourceReferenceId },
+        });
         if (auction) {
           auction.status = AuctionStatus.COMPLETED;
           auction.winnerPaymentStatus = AuctionPaymentStatus.PAID;
@@ -1505,10 +1535,18 @@ export class OrderService {
     dealerAmount: number;
     dealerId: string | null;
   }> {
-    const empty = { rate: 0, commissionAmount: 0, platformAmount: 0, dealerAmount: 0, dealerId: null };
+    const empty = {
+      rate: 0,
+      commissionAmount: 0,
+      platformAmount: 0,
+      dealerAmount: 0,
+      dealerId: null,
+    };
     if (!eventId) return empty;
 
-    const repo = (manager ?? this.orderRepository?.manager)?.getRepository(AuctionEvent);
+    const repo = (manager ?? this.orderRepository?.manager)?.getRepository(
+      AuctionEvent,
+    );
     if (!repo) return empty;
     const event = await repo.findOne({ where: { id: eventId } });
     if (!event) return empty;
@@ -1523,7 +1561,9 @@ export class OrderService {
       dealerId = event.ownerId ?? null;
     } else if (event.eventType === AuctionEventSystemType.INDEPENDENT) {
       // Oran kararı bekliyor; tanımlı değilse kesinti yapma.
-      const configured = Number(this.configService?.get('INDEPENDENT_COMMISSION_RATE'));
+      const configured = Number(
+        this.configService?.get('INDEPENDENT_COMMISSION_RATE'),
+      );
       endemigoRate = Number.isFinite(configured) ? configured : 0;
     } else {
       endemigoRate = OrderService.ENDEMIGO_MANAGED_COMMISSION_RATE;
@@ -1623,7 +1663,8 @@ export class OrderService {
     const base = order.deliveryConfirmedAt ?? order.completedAt;
     if (!base) return null;
     return new Date(
-      new Date(base).getTime() + this.getReturnWindowDays() * 24 * 60 * 60 * 1000,
+      new Date(base).getTime() +
+        this.getReturnWindowDays() * 24 * 60 * 60 * 1000,
     );
   }
 
@@ -2130,12 +2171,19 @@ export class OrderService {
     return saved;
   }
 
-  async markPaymentEscrowHeldForPayment(paymentId: string, actorId?: string | null) {
+  async markPaymentEscrowHeldForPayment(
+    paymentId: string,
+    actorId?: string | null,
+  ) {
     if (!this.orderRepository) return [];
     const orders = await this.orderRepository.find({ where: { paymentId } });
     const results = [];
     for (const order of orders) {
-      const res = await this.markPaymentEscrowHeld(order.id, paymentId, actorId);
+      const res = await this.markPaymentEscrowHeld(
+        order.id,
+        paymentId,
+        actorId,
+      );
       results.push(res);
     }
     return results;

@@ -28,7 +28,10 @@ export class ExportService {
   toXlsx(rows: Record<string, unknown>[]): ExportResult {
     const columns = this.columnsFor(rows);
     const header = columns
-      .map((column) => `<Cell><Data ss:Type="String">${this.xmlEscape(column)}</Data></Cell>`)
+      .map(
+        (column) =>
+          `<Cell><Data ss:Type="String">${this.xmlEscape(column)}</Data></Cell>`,
+      )
       .join('');
     const body = rows
       .map((row) => {
@@ -63,9 +66,11 @@ export class ExportService {
     const lines = [
       'Endemigo Admin Report',
       columns.join(' | '),
-      ...rows.slice(0, 80).map((row) =>
-        columns.map((column) => this.cellValue(row[column])).join(' | '),
-      ),
+      ...rows
+        .slice(0, 80)
+        .map((row) =>
+          columns.map((column) => this.cellValue(row[column])).join(' | '),
+        ),
     ];
     return {
       file: this.buildSimplePdf(lines),
@@ -103,7 +108,10 @@ export class ExportService {
   }
 
   private pdfEscape(value: string) {
-    return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+    return value
+      .replaceAll('\\', '\\\\')
+      .replaceAll('(', '\\(')
+      .replaceAll(')', '\\)');
   }
 
   private buildSimplePdf(lines: string[]) {

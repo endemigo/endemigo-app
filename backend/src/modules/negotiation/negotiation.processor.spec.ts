@@ -28,6 +28,8 @@ describe('NegotiationProcessor', () => {
       data: { conversationId: 'conversation-1' },
     } as never);
 
-    expect(negotiationService.archiveInactiveConversation).toHaveBeenCalledWith('conversation-1');
+    expect(negotiationService.archiveInactiveConversation).toHaveBeenCalledWith(
+      'conversation-1',
+    );
   });
 });

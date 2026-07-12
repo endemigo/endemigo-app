@@ -19,7 +19,11 @@ export class PayoutRequest extends BaseEntity {
   @Column({ length: 3, default: 'TRY' })
   currency: string;
 
-  @Column({ type: 'enum', enum: PayoutRequestStatus, default: PayoutRequestStatus.REQUESTED })
+  @Column({
+    type: 'enum',
+    enum: PayoutRequestStatus,
+    default: PayoutRequestStatus.REQUESTED,
+  })
   status: PayoutRequestStatus;
 
   @Column()

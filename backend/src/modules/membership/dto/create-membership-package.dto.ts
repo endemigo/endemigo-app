@@ -1,4 +1,11 @@
-import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreateMembershipPackageDto {
   @IsString()

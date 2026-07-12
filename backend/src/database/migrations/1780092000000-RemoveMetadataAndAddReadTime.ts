@@ -1,12 +1,12 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RemoveMetadataAndAddReadTime1780092000000
-  implements MigrationInterface
-{
+export class RemoveMetadataAndAddReadTime1780092000000 implements MigrationInterface {
   name = 'RemoveMetadataAndAddReadTime1780092000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const rows = await queryRunner.query('SELECT id, document FROM content_studio_documents');
+    const rows = await queryRunner.query(
+      'SELECT id, document FROM content_studio_documents',
+    );
     for (const row of rows) {
       const doc = row.document;
       if (doc && doc.collections) {
@@ -16,7 +16,11 @@ export class RemoveMetadataAndAddReadTime1780092000000
             doc.collections[colKey] = list.map((item: any) => {
               if (item) {
                 let readTime = '';
-                if (item.metadata && typeof item.metadata === 'object' && typeof item.metadata.readTime === 'string') {
+                if (
+                  item.metadata &&
+                  typeof item.metadata === 'object' &&
+                  typeof item.metadata.readTime === 'string'
+                ) {
                   readTime = item.metadata.readTime;
                 }
                 delete item.category;
@@ -32,13 +36,15 @@ export class RemoveMetadataAndAddReadTime1780092000000
       }
       await queryRunner.query(
         'UPDATE content_studio_documents SET document = $1, "updatedAt" = now() WHERE id = $2',
-        [JSON.stringify(doc), row.id]
+        [JSON.stringify(doc), row.id],
       );
     }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const rows = await queryRunner.query('SELECT id, document FROM content_studio_documents');
+    const rows = await queryRunner.query(
+      'SELECT id, document FROM content_studio_documents',
+    );
     for (const row of rows) {
       const doc = row.document;
       if (doc && doc.collections) {
@@ -61,7 +67,7 @@ export class RemoveMetadataAndAddReadTime1780092000000
       }
       await queryRunner.query(
         'UPDATE content_studio_documents SET document = $1, "updatedAt" = now() WHERE id = $2',
-        [JSON.stringify(doc), row.id]
+        [JSON.stringify(doc), row.id],
       );
     }
   }

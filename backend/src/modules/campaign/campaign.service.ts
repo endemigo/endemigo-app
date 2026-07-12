@@ -133,7 +133,9 @@ export class CampaignService {
       };
     }
 
-    const optedInSellerIds = this.getStringArray(campaign.metadata.optedInSellerIds);
+    const optedInSellerIds = this.getStringArray(
+      campaign.metadata.optedInSellerIds,
+    );
     if (!optedInSellerIds.includes(sellerId)) optedInSellerIds.push(sellerId);
     campaign.metadata = { ...campaign.metadata, optedInSellerIds };
     const saved = await this.campaignRepo.save(campaign);
@@ -215,7 +217,9 @@ export class CampaignService {
           ...coupon,
           totalRedemptions,
           remainingUses:
-            coupon.maxUses === null ? null : Math.max(coupon.maxUses - totalRedemptions, 0),
+            coupon.maxUses === null
+              ? null
+              : Math.max(coupon.maxUses - totalRedemptions, 0),
         };
       }),
     );
@@ -249,7 +253,8 @@ export class CampaignService {
 
     if (dto.code !== undefined) coupon.code = dto.code.trim().toUpperCase();
     if (dto.discountType !== undefined) coupon.discountType = dto.discountType;
-    if (dto.discountValue !== undefined) coupon.discountValue = dto.discountValue;
+    if (dto.discountValue !== undefined)
+      coupon.discountValue = dto.discountValue;
     if (dto.startsAt !== undefined) coupon.startsAt = new Date(dto.startsAt);
     if (dto.endsAt !== undefined) coupon.endsAt = new Date(dto.endsAt);
     if (dto.minAmount !== undefined) coupon.minAmount = dto.minAmount;
@@ -410,7 +415,8 @@ export class CampaignService {
 
     return {
       code: RC.SUCCESS,
-      message: 'Aktif kampanya ve kuponlar güven kısıtlaması nedeniyle durduruldu',
+      message:
+        'Aktif kampanya ve kuponlar güven kısıtlaması nedeniyle durduruldu',
       pausedCampaignCount: campaigns.length,
       pausedCouponCount: coupons.length,
     };
@@ -482,7 +488,10 @@ export class CampaignService {
   }
 
   private isCampaignPausedForSeller(campaign: Campaign, sellerId: string) {
-    if (campaign.metadata?.pausedByRestriction && campaign.sellerId === sellerId) {
+    if (
+      campaign.metadata?.pausedByRestriction &&
+      campaign.sellerId === sellerId
+    ) {
       return true;
     }
     return this.getStringArray(campaign.metadata?.pausedSellerIds).includes(
@@ -497,7 +506,9 @@ export class CampaignService {
       coupons.map(async (coupon) => {
         const [total, userTotal] = await Promise.all([
           this.couponRedemptionRepo.count({ where: { couponId: coupon.id } }),
-          this.couponRedemptionRepo.count({ where: { couponId: coupon.id, userId } }),
+          this.couponRedemptionRepo.count({
+            where: { couponId: coupon.id, userId },
+          }),
         ]);
         totalByCoupon.set(coupon.id, total);
         userByCoupon.set(coupon.id, userTotal);
@@ -556,7 +567,8 @@ export class CampaignService {
 
   private normalizeTiers(tiers: Array<Record<string, unknown>>) {
     return tiers.map((tier) => ({
-      minAmount: typeof tier.minAmount === 'number' ? tier.minAmount : undefined,
+      minAmount:
+        typeof tier.minAmount === 'number' ? tier.minAmount : undefined,
       minQuantity:
         typeof tier.minQuantity === 'number' ? tier.minQuantity : undefined,
       discountType:

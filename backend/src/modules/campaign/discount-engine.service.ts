@@ -90,21 +90,33 @@ export class DiscountEngineService {
     input.campaignRules.forEach((rule) => {
       const rejection = this.getRuleRejection(rule, input, originalAmount);
       if (rejection) {
-        rejectedDiscounts.push({ source: 'campaign', id: rule.id, reason: rejection });
+        rejectedDiscounts.push({
+          source: 'campaign',
+          id: rule.id,
+          reason: rejection,
+        });
         return;
       }
       candidates.push({
         source: 'campaign',
         id: rule.id,
         discountType: rule.discountType,
-        discountAmount: this.calculateDiscount(rule, originalAmount, input.quantity),
+        discountAmount: this.calculateDiscount(
+          rule,
+          originalAmount,
+          input.quantity,
+        ),
       });
     });
 
     input.coupons.forEach((coupon) => {
       const rejection = this.getCouponRejection(coupon, input, originalAmount);
       if (rejection) {
-        rejectedDiscounts.push({ source: 'coupon', id: coupon.id, reason: rejection });
+        rejectedDiscounts.push({
+          source: 'coupon',
+          id: coupon.id,
+          reason: rejection,
+        });
         return;
       }
       candidates.push({
@@ -112,7 +124,11 @@ export class DiscountEngineService {
         id: coupon.id,
         code: coupon.code,
         discountType: coupon.discountType,
-        discountAmount: this.calculateDiscount(coupon, originalAmount, input.quantity),
+        discountAmount: this.calculateDiscount(
+          coupon,
+          originalAmount,
+          input.quantity,
+        ),
       });
     });
 
@@ -120,12 +136,18 @@ export class DiscountEngineService {
       candidates
         .map((candidate) => ({
           ...candidate,
-          discountAmount: Math.min(originalAmount, this.roundMoney(candidate.discountAmount)),
+          discountAmount: Math.min(
+            originalAmount,
+            this.roundMoney(candidate.discountAmount),
+          ),
         }))
-        .sort((left, right) => right.discountAmount - left.discountAmount)[0] ?? null;
+        .sort((left, right) => right.discountAmount - left.discountAmount)[0] ??
+      null;
 
     const discountAmount = appliedDiscount?.discountAmount ?? 0;
-    const finalAmount = this.roundMoney(Math.max(0, originalAmount - discountAmount));
+    const finalAmount = this.roundMoney(
+      Math.max(0, originalAmount - discountAmount),
+    );
 
     return {
       originalAmount,
@@ -143,10 +165,14 @@ export class DiscountEngineService {
     input: DiscountEvaluationInput,
     originalAmount: number,
   ): string | null {
-    if (!this.isInWindow(input.now, rule.startsAt, rule.endsAt)) return 'outside date range';
-    if (!this.scopeMatches(rule.scopeType, rule.scopeId, input)) return 'scope mismatch';
-    if (rule.minAmount && originalAmount < Number(rule.minAmount)) return 'amount threshold not met';
-    if (rule.minQuantity && input.quantity < Number(rule.minQuantity)) return 'quantity threshold not met';
+    if (!this.isInWindow(input.now, rule.startsAt, rule.endsAt))
+      return 'outside date range';
+    if (!this.scopeMatches(rule.scopeType, rule.scopeId, input))
+      return 'scope mismatch';
+    if (rule.minAmount && originalAmount < Number(rule.minAmount))
+      return 'amount threshold not met';
+    if (rule.minQuantity && input.quantity < Number(rule.minQuantity))
+      return 'quantity threshold not met';
     return null;
   }
 
@@ -156,15 +182,24 @@ export class DiscountEngineService {
     originalAmount: number,
   ): string | null {
     if (!input.couponCode) return 'one coupon required for coupon discount';
-    if (coupon.code.toUpperCase() !== input.couponCode.toUpperCase()) return 'different coupon';
+    if (coupon.code.toUpperCase() !== input.couponCode.toUpperCase())
+      return 'different coupon';
     if (coupon.status !== CouponStatus.ACTIVE) return 'coupon inactive';
-    if (!this.isInWindow(input.now, coupon.startsAt, coupon.endsAt)) return 'outside date range';
-    if (coupon.scopeType && coupon.scopeId && !this.scopeMatches(coupon.scopeType, coupon.scopeId, input)) {
+    if (!this.isInWindow(input.now, coupon.startsAt, coupon.endsAt))
+      return 'outside date range';
+    if (
+      coupon.scopeType &&
+      coupon.scopeId &&
+      !this.scopeMatches(coupon.scopeType, coupon.scopeId, input)
+    ) {
       return 'scope mismatch';
     }
-    if (coupon.minAmount && originalAmount < Number(coupon.minAmount)) return 'amount threshold not met';
-    if (coupon.maxUses && (coupon.totalRedemptions ?? 0) >= coupon.maxUses) return 'coupon max uses reached';
-    if ((coupon.userRedemptions ?? 0) >= coupon.perUserLimit) return 'COUPON_ALREADY_USED';
+    if (coupon.minAmount && originalAmount < Number(coupon.minAmount))
+      return 'amount threshold not met';
+    if (coupon.maxUses && (coupon.totalRedemptions ?? 0) >= coupon.maxUses)
+      return 'coupon max uses reached';
+    if ((coupon.userRedemptions ?? 0) >= coupon.perUserLimit)
+      return 'COUPON_ALREADY_USED';
     return null;
   }
 
@@ -173,12 +208,16 @@ export class DiscountEngineService {
     scopeId: string,
     input: DiscountEvaluationInput,
   ) {
-    if (scopeType === CampaignScopeType.PRODUCT) return input.productId === scopeId;
+    if (scopeType === CampaignScopeType.PRODUCT)
+      return input.productId === scopeId;
     return input.categoryId === scopeId;
   }
 
   private calculateDiscount(
-    discount: Pick<CampaignRuleInput, 'discountType' | 'discountValue' | 'tiers'>,
+    discount: Pick<
+      CampaignRuleInput,
+      'discountType' | 'discountValue' | 'tiers'
+    >,
     originalAmount: number,
     quantity: number,
   ) {
@@ -186,7 +225,11 @@ export class DiscountEngineService {
       discount.discountType === CampaignDiscountType.TIERED_AMOUNT ||
       discount.discountType === CampaignDiscountType.TIERED_QUANTITY
     ) {
-      const tier = this.selectTier(discount.tiers ?? [], originalAmount, quantity);
+      const tier = this.selectTier(
+        discount.tiers ?? [],
+        originalAmount,
+        quantity,
+      );
       if (!tier) return 0;
       return this.calculateSimpleDiscount(
         tier.discountType ?? CampaignDiscountType.FIXED_AMOUNT,
@@ -220,8 +263,10 @@ export class DiscountEngineService {
   ) {
     return tiers
       .filter((tier) => {
-        const amountOk = tier.minAmount === undefined || originalAmount >= tier.minAmount;
-        const quantityOk = tier.minQuantity === undefined || quantity >= tier.minQuantity;
+        const amountOk =
+          tier.minAmount === undefined || originalAmount >= tier.minAmount;
+        const quantityOk =
+          tier.minQuantity === undefined || quantity >= tier.minQuantity;
         return amountOk && quantityOk;
       })
       .sort((left, right) => {

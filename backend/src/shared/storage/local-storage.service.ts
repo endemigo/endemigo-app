@@ -4,7 +4,6 @@ import * as path from 'path';
 import { IStorageService } from './storage.interface';
 import { RC } from '../constants/response-codes';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const sharp = require('sharp');
 
 @Injectable()
@@ -30,8 +29,14 @@ export class LocalStorageService implements IStorageService {
 
     // WR-02: Verify image buffer before processing — MIME type alone is client-spoofable
     const metadata = await this.readImageMetadata(file.buffer);
-    if (!metadata.format || !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel formatı' });
+    if (
+      !metadata.format ||
+      !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)
+    ) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz görsel formatı',
+      });
     }
 
     // Generate unique filename with webp extension
@@ -45,7 +50,10 @@ export class LocalStorageService implements IStorageService {
         .webp({ quality: 80 })
         .toFile(filePath);
     } catch {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz görsel dosyası',
+      });
     }
 
     this.logger.log(`Uploaded: ${subPath}/${filename}`);
@@ -58,7 +66,11 @@ export class LocalStorageService implements IStorageService {
     const fullPath = path.resolve(process.cwd(), storagePath);
     const relativePath = path.relative(uploadRoot, fullPath);
 
-    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    if (
+      relativePath === '' ||
+      relativePath.startsWith('..') ||
+      path.isAbsolute(relativePath)
+    ) {
       throw new Error('Invalid storage delete path');
     }
 
@@ -68,11 +80,16 @@ export class LocalStorageService implements IStorageService {
     }
   }
 
-  private async readImageMetadata(buffer: Buffer): Promise<{ format?: string }> {
+  private async readImageMetadata(
+    buffer: Buffer,
+  ): Promise<{ format?: string }> {
     try {
       return await sharp(buffer).metadata();
     } catch {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz görsel dosyası',
+      });
     }
   }
 }

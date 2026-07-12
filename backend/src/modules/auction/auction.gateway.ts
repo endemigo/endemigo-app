@@ -21,7 +21,11 @@ import { buildCorsOptions } from '../../common/http/cors.util';
   transports: ['websocket', 'polling'],
 })
 export class AuctionGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleDestroy
 {
   // Oda adları UUID'den türetilir; rastgele string'lerle sınırsız oda/Map
   // büyümesini (memory DoS) kesmek için join'ler format + limit kontrolünden geçer.
@@ -53,7 +57,8 @@ export class AuctionGateway
   }
 
   onModuleDestroy() {
-    if (this.viewerBroadcastInterval) clearInterval(this.viewerBroadcastInterval);
+    if (this.viewerBroadcastInterval)
+      clearInterval(this.viewerBroadcastInterval);
   }
 
   private isValidRoomId(id: unknown): id is string {
@@ -157,9 +162,7 @@ export class AuctionGateway
     client.join(room);
     const count = (this.viewerCounts.get(auctionId) || 0) + 1;
     this.viewerCounts.set(auctionId, count);
-    this.logger.debug(
-      `Client ${client.id} joined ${room} (viewers: ${count})`,
-    );
+    this.logger.debug(`Client ${client.id} joined ${room} (viewers: ${count})`);
     this.server.to(room).emit('auction:viewer_count', {
       auctionId,
       count,
@@ -189,10 +192,7 @@ export class AuctionGateway
       };
     }
     client.leave(room);
-    const count = Math.max(
-      0,
-      (this.viewerCounts.get(auctionId) || 1) - 1,
-    );
+    const count = Math.max(0, (this.viewerCounts.get(auctionId) || 1) - 1);
     if (count <= 0) this.viewerCounts.delete(auctionId);
     else this.viewerCounts.set(auctionId, count);
     this.server.to(room).emit('auction:viewer_count', {
@@ -235,9 +235,7 @@ export class AuctionGateway
     client.join(room);
     const count = (this.eventViewerCounts.get(eventId) || 0) + 1;
     this.eventViewerCounts.set(eventId, count);
-    this.logger.debug(
-      `Client ${client.id} joined ${room} (viewers: ${count})`,
-    );
+    this.logger.debug(`Client ${client.id} joined ${room} (viewers: ${count})`);
     this.server.to(room).emit('event:viewer_count', {
       eventId,
       count,
@@ -266,10 +264,7 @@ export class AuctionGateway
       };
     }
     client.leave(room);
-    const count = Math.max(
-      0,
-      (this.eventViewerCounts.get(eventId) || 1) - 1,
-    );
+    const count = Math.max(0, (this.eventViewerCounts.get(eventId) || 1) - 1);
     if (count <= 0) this.eventViewerCounts.delete(eventId);
     else this.eventViewerCounts.set(eventId, count);
     this.server.to(room).emit('event:viewer_count', {
@@ -541,10 +536,7 @@ export class AuctionGateway
       .emit('event:lot_transition', { eventId, ...payload, serverTime });
   }
 
-  emitEventStatusChanged(
-    eventId: string,
-    payload: { status: string },
-  ) {
+  emitEventStatusChanged(eventId: string, payload: { status: string }) {
     const serverTime = new Date().toISOString();
     this.server
       .to(`event:${eventId}`)

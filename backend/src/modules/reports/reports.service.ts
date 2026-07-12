@@ -77,7 +77,11 @@ export class ReportsService {
   ) {}
 
   async getReport(type: ReportType, query: ReportQuery) {
-    const { items, total, page, limit } = await this.loadRows(type, query, true);
+    const { items, total, page, limit } = await this.loadRows(
+      type,
+      query,
+      true,
+    );
     return {
       code: RC.SUCCESS,
       message: 'Admin raporu getirildi',
@@ -88,7 +92,11 @@ export class ReportsService {
     };
   }
 
-  async exportReport(type: ReportType, format: ExportFormat, query: ReportQuery) {
+  async exportReport(
+    type: ReportType,
+    format: ExportFormat,
+    query: ReportQuery,
+  ) {
     const { items } = await this.loadRows(
       type,
       { ...query, page: 1, limit: 5000 },
@@ -188,7 +196,9 @@ export class ReportsService {
     if (type === 'trust') {
       const useRestrictions = Boolean(query.restrictionStatus);
       return {
-        repo: (useRestrictions ? this.restrictionRepo : this.trustFlagRepo) as Repository<ReportEntity>,
+        repo: (useRestrictions
+          ? this.restrictionRepo
+          : this.trustFlagRepo) as Repository<ReportEntity>,
         alias: useRestrictions ? 'restriction' : 'trustFlag',
         hasSellerId: true,
         statusValue: query.restrictionStatus ?? query.status,

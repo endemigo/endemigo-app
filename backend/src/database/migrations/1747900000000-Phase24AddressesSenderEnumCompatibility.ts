@@ -27,4 +27,3 @@ export class Phase24AddressesSenderEnumCompatibility1747900000000 implements Mig
     // PostgreSQL enum value rollback is intentionally skipped.
   }
 }
-

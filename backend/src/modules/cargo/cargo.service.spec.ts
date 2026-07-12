@@ -235,12 +235,14 @@ describe('CargoService', () => {
       findOne: jest.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(ordersMap.get(where.id) ?? null),
       ),
-      find: jest.fn(({ where }: { where: { groupId: string; sellerId: string } }) =>
-        Promise.resolve(
-          Array.from(ordersMap.values()).filter(
-            (o) => o.groupId === where.groupId && o.sellerId === where.sellerId,
+      find: jest.fn(
+        ({ where }: { where: { groupId: string; sellerId: string } }) =>
+          Promise.resolve(
+            Array.from(ordersMap.values()).filter(
+              (o) =>
+                o.groupId === where.groupId && o.sellerId === where.sellerId,
+            ),
           ),
-        ),
       ),
       save: jest.fn((order: Order) => {
         ordersMap.set(order.id, order);
@@ -250,30 +252,46 @@ describe('CargoService', () => {
 
     const shipmentsMap = new Map<string, CargoShipment>();
     const cargoRepository = {
-      findOne: jest.fn(({ where }: { where: { id?: string; groupId?: string; sellerId?: string; orderId?: string } }) => {
-        if (where.id) {
-          return Promise.resolve(shipmentsMap.get(where.id) ?? null);
-        }
-        if (where.groupId && where.sellerId) {
-          return Promise.resolve(
-            Array.from(shipmentsMap.values()).find(
-              (s) => s.groupId === where.groupId && s.sellerId === where.sellerId,
-            ) ?? null,
-          );
-        }
-        if (where.orderId) {
-          return Promise.resolve(
-            Array.from(shipmentsMap.values()).find((s) => s.orderId === where.orderId) ?? null,
-          );
-        }
-        return Promise.resolve(null);
-      }),
+      findOne: jest.fn(
+        ({
+          where,
+        }: {
+          where: {
+            id?: string;
+            groupId?: string;
+            sellerId?: string;
+            orderId?: string;
+          };
+        }) => {
+          if (where.id) {
+            return Promise.resolve(shipmentsMap.get(where.id) ?? null);
+          }
+          if (where.groupId && where.sellerId) {
+            return Promise.resolve(
+              Array.from(shipmentsMap.values()).find(
+                (s) =>
+                  s.groupId === where.groupId && s.sellerId === where.sellerId,
+              ) ?? null,
+            );
+          }
+          if (where.orderId) {
+            return Promise.resolve(
+              Array.from(shipmentsMap.values()).find(
+                (s) => s.orderId === where.orderId,
+              ) ?? null,
+            );
+          }
+          return Promise.resolve(null);
+        },
+      ),
       save: jest.fn((input: CargoShipment) => {
         if (!input.id) input.id = 'shipment-new';
         shipmentsMap.set(input.id, input);
         return Promise.resolve(input);
       }),
-      create: jest.fn((input: Partial<CargoShipment>) => input as CargoShipment),
+      create: jest.fn(
+        (input: Partial<CargoShipment>) => input as CargoShipment,
+      ),
     } as unknown as Repository<CargoShipment>;
 
     const mockCargoProvider = {
@@ -309,14 +327,20 @@ describe('CargoService', () => {
     expect(result2.shipment?.id).toBe(result1.shipment?.id);
 
     // 3. Transition shipment status to IN_TRANSIT
-    await service.transitionShipment(result1.shipment!.id!, CargoStatus.IN_TRANSIT);
+    await service.transitionShipment(
+      result1.shipment!.id,
+      CargoStatus.IN_TRANSIT,
+    );
 
     // Verify all orders in the group updated to IN_TRANSIT
     expect(ordersMap.get('order-1')?.status).toBe(OrderStatus.IN_TRANSIT);
     expect(ordersMap.get('order-2')?.status).toBe(OrderStatus.IN_TRANSIT);
 
     // 4. Transition shipment status to DELIVERED
-    await service.transitionShipment(result1.shipment!.id!, CargoStatus.DELIVERED);
+    await service.transitionShipment(
+      result1.shipment!.id,
+      CargoStatus.DELIVERED,
+    );
 
     // Verify all orders in the group updated to DELIVERED
     expect(ordersMap.get('order-1')?.status).toBe(OrderStatus.DELIVERED);

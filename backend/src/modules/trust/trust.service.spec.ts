@@ -51,13 +51,17 @@ describe('TrustService', () => {
     trustScoreRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn((value) => ({ id: 'trust-score-1', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: value.id ?? 'trust-score-1', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: value.id ?? 'trust-score-1', ...value }),
+      ),
     };
     trustFlagRepo = {
       findOne: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn((value) => ({ id: 'flag-1', ...value })),
-      save: jest.fn((value) => Promise.resolve({ id: value.id ?? 'flag-1', ...value })),
+      save: jest.fn((value) =>
+        Promise.resolve({ id: value.id ?? 'flag-1', ...value }),
+      ),
     };
     restrictionRepo = {
       find: jest.fn().mockResolvedValue([]),

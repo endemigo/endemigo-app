@@ -1,11 +1,17 @@
 import { Job } from 'bullmq';
-import { NotificationDeliveryStatus, NotificationEventType } from '@endemigo/shared';
+import {
+  NotificationDeliveryStatus,
+  NotificationEventType,
+} from '@endemigo/shared';
 import { NotificationProcessor } from './notification.processor';
 import { OneSignalProvider } from './providers/onesignal.provider';
 import { NotificationService } from './notification.service';
 
 describe('NotificationProcessor', () => {
-  let notificationService: Pick<NotificationService, 'findForDelivery' | 'updateDeliveryStatus'>;
+  let notificationService: Pick<
+    NotificationService,
+    'findForDelivery' | 'updateDeliveryStatus'
+  >;
   let provider: Pick<OneSignalProvider, 'sendPush'>;
   let processor: NotificationProcessor;
 
@@ -89,7 +95,9 @@ describe('NotificationProcessor', () => {
       title: 'Order updated',
       body: 'Order changed.',
     });
-    (provider.sendPush as jest.Mock).mockRejectedValue(new Error('temporary outage'));
+    (provider.sendPush as jest.Mock).mockRejectedValue(
+      new Error('temporary outage'),
+    );
 
     await expect(
       processor.process({
@@ -115,7 +123,9 @@ describe('NotificationProcessor', () => {
       title: 'Ask price',
       body: 'A buyer asked for a price.',
     });
-    (provider.sendPush as jest.Mock).mockRejectedValue(new Error('provider rejected'));
+    (provider.sendPush as jest.Mock).mockRejectedValue(
+      new Error('provider rejected'),
+    );
 
     await processor.process({
       name: 'send-push',

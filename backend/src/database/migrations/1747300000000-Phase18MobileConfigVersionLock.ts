@@ -15,4 +15,3 @@ export class Phase18MobileConfigVersionLock1747300000000 implements MigrationInt
     );
   }
 }
-

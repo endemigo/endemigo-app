@@ -19,8 +19,14 @@ export class BannerActiveWindowColumns1783500000000 implements MigrationInterfac
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('ALTER TABLE "banners" DROP COLUMN IF EXISTS "endAt"');
-    await queryRunner.query('ALTER TABLE "banners" DROP COLUMN IF EXISTS "startAt"');
-    await queryRunner.query('ALTER TABLE "banners" DROP COLUMN IF EXISTS "isActive"');
+    await queryRunner.query(
+      'ALTER TABLE "banners" DROP COLUMN IF EXISTS "endAt"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "banners" DROP COLUMN IF EXISTS "startAt"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "banners" DROP COLUMN IF EXISTS "isActive"',
+    );
   }
 }

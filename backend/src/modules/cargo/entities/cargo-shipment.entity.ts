@@ -1,10 +1,20 @@
-import { CargoProvider, CargoShipmentType, CargoStatus } from '@endemigo/shared';
+import {
+  CargoProvider,
+  CargoShipmentType,
+  CargoStatus,
+} from '@endemigo/shared';
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 @Entity('cargo_shipments')
-@Index(['orderId', 'shipmentType'], { unique: true, where: '"orderId" IS NOT NULL' })
-@Index(['groupId', 'sellerId', 'shipmentType'], { unique: true, where: '"groupId" IS NOT NULL AND "sellerId" IS NOT NULL' })
+@Index(['orderId', 'shipmentType'], {
+  unique: true,
+  where: '"orderId" IS NOT NULL',
+})
+@Index(['groupId', 'sellerId', 'shipmentType'], {
+  unique: true,
+  where: '"groupId" IS NOT NULL AND "sellerId" IS NOT NULL',
+})
 @Index(['trackingNumber'], { unique: true })
 export class CargoShipment extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
@@ -22,7 +32,11 @@ export class CargoShipment extends BaseEntity {
   @Column({ type: 'enum', enum: CargoProvider, default: CargoProvider.MOCK })
   provider: CargoProvider;
 
-  @Column({ type: 'enum', enum: CargoShipmentType, default: CargoShipmentType.FORWARD })
+  @Column({
+    type: 'enum',
+    enum: CargoShipmentType,
+    default: CargoShipmentType.FORWARD,
+  })
   shipmentType: CargoShipmentType;
 
   @Column({ type: 'enum', enum: CargoStatus, default: CargoStatus.PREPARING })

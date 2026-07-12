@@ -22,13 +22,14 @@ export class DevAdminSeedService implements OnModuleInit {
       return;
     }
 
-    const email = this.configService
-      .get<string>('DEV_ADMIN_EMAIL')
-      ?.trim()
-      .toLowerCase() || 'admin@endemigo.test';
-    const password = this.configService.get<string>('DEV_ADMIN_PASSWORD') || 'Secret123!';
+    const email =
+      this.configService.get<string>('DEV_ADMIN_EMAIL')?.trim().toLowerCase() ||
+      'admin@endemigo.test';
+    const password =
+      this.configService.get<string>('DEV_ADMIN_PASSWORD') || 'Secret123!';
     const displayName =
-      this.configService.get<string>('DEV_ADMIN_DISPLAY_NAME') || 'Development Admin';
+      this.configService.get<string>('DEV_ADMIN_DISPLAY_NAME') ||
+      'Development Admin';
 
     const passwordHash = await bcrypt.hash(password, 10);
     const admin = await this.adminUserRepo.findOne({ where: { email } });

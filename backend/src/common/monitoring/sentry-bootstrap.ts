@@ -12,6 +12,9 @@ type SentryNodeLike = {
   }) => void;
 };
 
+// TS'in dynamic import()'u CJS require'a transpile etmesini atlatmak için kasıtlı;
+// eval değil, modül yükleme hilesi.
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const dynamicImport = new Function(
   'moduleName',
   'return import(moduleName)',

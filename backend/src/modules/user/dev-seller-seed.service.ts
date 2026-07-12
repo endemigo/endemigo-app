@@ -25,11 +25,20 @@ export class DevSellerSeedService implements OnModuleInit {
       return;
     }
 
-    const email = this.configService.get<string>('DEV_SELLER_EMAIL')?.trim().toLowerCase() || 'a@a.com';
-    const password = this.configService.get<string>('DEV_SELLER_PASSWORD') || '123123';
-    const firstName = this.configService.get<string>('DEV_SELLER_FIRST_NAME') || 'Ahmet';
-    const lastName = this.configService.get<string>('DEV_SELLER_LAST_NAME') || 'Aydın';
-    const businessName = this.configService.get<string>('DEV_SELLER_BUSINESS_NAME') || 'A&A Onaylı Satıcı';
+    const email =
+      this.configService
+        .get<string>('DEV_SELLER_EMAIL')
+        ?.trim()
+        .toLowerCase() || 'a@a.com';
+    const password =
+      this.configService.get<string>('DEV_SELLER_PASSWORD') || '123123';
+    const firstName =
+      this.configService.get<string>('DEV_SELLER_FIRST_NAME') || 'Ahmet';
+    const lastName =
+      this.configService.get<string>('DEV_SELLER_LAST_NAME') || 'Aydın';
+    const businessName =
+      this.configService.get<string>('DEV_SELLER_BUSINESS_NAME') ||
+      'A&A Onaylı Satıcı';
 
     const passwordHash = await bcrypt.hash(password, 12);
     const existingUser = await this.userRepo.findOne({
@@ -75,7 +84,9 @@ export class DevSellerSeedService implements OnModuleInit {
     await this.userRepo.save(existingUser);
 
     const sellerProfile = existingUser.sellerProfile
-      ? await this.sellerProfileRepo.findOne({ where: { userId: existingUser.id } })
+      ? await this.sellerProfileRepo.findOne({
+          where: { userId: existingUser.id },
+        })
       : null;
 
     if (!sellerProfile) {
@@ -94,8 +105,10 @@ export class DevSellerSeedService implements OnModuleInit {
       sellerProfile.businessName = businessName;
       sellerProfile.status = SellerStatus.APPROVED;
       sellerProfile.approvedAt = new Date();
-      sellerProfile.agreementAcceptedAt = sellerProfile.agreementAcceptedAt || new Date();
-      sellerProfile.agreementVersion = sellerProfile.agreementVersion || '1.0.0';
+      sellerProfile.agreementAcceptedAt =
+        sellerProfile.agreementAcceptedAt || new Date();
+      sellerProfile.agreementVersion =
+        sellerProfile.agreementVersion || '1.0.0';
       sellerProfile.commissionRate = sellerProfile.commissionRate ?? 0.15;
       await this.sellerProfileRepo.save(sellerProfile);
     }

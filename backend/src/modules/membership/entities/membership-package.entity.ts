@@ -28,6 +28,9 @@ export class MembershipPackage extends BaseEntity {
   @Column({ type: 'jsonb', default: {} })
   metadata: Record<string, unknown>;
 
-  @OneToMany(() => MembershipSubscription, (subscription) => subscription.package)
+  @OneToMany(
+    () => MembershipSubscription,
+    (subscription) => subscription.package,
+  )
   subscriptions: MembershipSubscription[];
 }

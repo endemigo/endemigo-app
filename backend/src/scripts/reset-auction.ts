@@ -5,7 +5,11 @@ import { Auction } from '../modules/auction/entities/auction.entity';
 import { Bid } from '../modules/auction/entities/bid.entity';
 import { AuctionGateway } from '../modules/auction/auction.gateway';
 import { EntityManager } from 'typeorm';
-import { AuctionStatus, AuctionEventStatus, AuctionPaymentStatus } from '@endemigo/shared';
+import {
+  AuctionStatus,
+  AuctionEventStatus,
+  AuctionPaymentStatus,
+} from '@endemigo/shared';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
@@ -14,9 +18,9 @@ async function run() {
   try {
     const em = app.get(EntityManager);
     const gateway = app.get(AuctionGateway);
-    
+
     // Get the BullMQ queue using getQueueToken
-    const queue = app.get(getQueueToken('auction')) as Queue;
+    const queue = app.get(getQueueToken('auction'));
 
     const eventId = '1a619b5c-8fdf-4fa5-a334-b338184dea69';
     const lot1Id = '29c156e0-8138-4c5f-9d70-30018bf82445'; // Sequence 1 (Lot #LOT-202606-00002)
@@ -35,11 +39,12 @@ async function run() {
       to: () => mockTo,
       emit: (event: string, data: any) => {
         console.log(`[Mock Socket Broadcast] Event: ${event}`, data);
-      }
+      },
     } as any;
 
     // 1. Delete all bids for these lots
-    await em.createQueryBuilder()
+    await em
+      .createQueryBuilder()
       .delete()
       .from(Bid)
       .where('auctionId IN (:...lotIds)', { lotIds })
@@ -47,7 +52,8 @@ async function run() {
     console.log('Cleared all bids.');
 
     // 2. Delete/Release all wallet holds for these lots
-    await em.createQueryBuilder()
+    await em
+      .createQueryBuilder()
       .delete()
       .from('wallet_holds')
       .where('auctionId IN (:...lotIds)', { lotIds })
@@ -60,15 +66,17 @@ async function run() {
       event.status = AuctionEventStatus.ACTIVE;
       event.activeLotId = lot1Id;
       // Event bitiş tarihini geleceğe (2 saat sonraya) çekerek listenin "bitti" görmesini engelliyoruz
-      event.endTime = new Date(Date.now() + 2 * 60 * 60 * 1000); 
+      event.endTime = new Date(Date.now() + 2 * 60 * 60 * 1000);
       await em.save(event);
-      console.log('Reset auction event status to ACTIVE with Lot 1 as active and endTime extended.');
+      console.log(
+        'Reset auction event status to ACTIVE with Lot 1 as active and endTime extended.',
+      );
     }
 
     // 4. Reset Lot 1 (Set Active for 5 minutes)
     const now = new Date();
     const endTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes duration
-    
+
     const lot1 = await em.findOne(Auction, { where: { id: lot1Id } });
     if (lot1) {
       lot1.status = AuctionStatus.ACTIVE;
@@ -125,7 +133,9 @@ async function run() {
         try {
           const job1 = await queue.getJob(`winner-payment-expiry-${id}-r${r}`);
           if (job1) await job1.remove();
-          const job2 = await queue.getJob(`winner-payment-reminder-${id}-r${r}`);
+          const job2 = await queue.getJob(
+            `winner-payment-reminder-${id}-r${r}`,
+          );
           if (job2) await job2.remove();
         } catch {}
       }
@@ -136,12 +146,16 @@ async function run() {
     await queue.add(
       'end-auction',
       { auctionId: lot1Id },
-      { delay: Math.max(0, delay), jobId: `end-${lot1Id}` }
+      { delay: Math.max(0, delay), jobId: `end-${lot1Id}` },
     );
-    console.log(`Scheduled end-auction job for Lot 1 in BullMQ with ${Math.round(delay / 1000)} seconds delay.`);
+    console.log(
+      `Scheduled end-auction job for Lot 1 in BullMQ with ${Math.round(delay / 1000)} seconds delay.`,
+    );
 
     // 8. Broadcast to WebSocket
-    const product = await em.findOne('Product', { where: { id: lot1?.productId } }) as any;
+    const product = (await em.findOne('Product', {
+      where: { id: lot1?.productId },
+    })) as any;
     gateway.emitActiveLotChanged(eventId, {
       activeLotId: lot1Id,
       lotNumber: lot1?.lotNumber || null,
@@ -149,7 +163,9 @@ async function run() {
       currentPrice: Number(lot1?.startPrice || 0),
       endTime: endTime.toISOString(),
     });
-    gateway.emitEventStatusChanged(eventId, { status: AuctionEventStatus.ACTIVE });
+    gateway.emitEventStatusChanged(eventId, {
+      status: AuctionEventStatus.ACTIVE,
+    });
 
     console.log('Auction reset and initialized successfully!');
   } catch (err) {

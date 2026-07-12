@@ -21,28 +21,41 @@ export class R2StorageService implements IStorageService {
   private readonly publicUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.bucketName = this.configService.get<string>('R2_BUCKET_NAME', 'endemigo');
+    this.bucketName = this.configService.get<string>(
+      'R2_BUCKET_NAME',
+      'endemigo',
+    );
     this.publicUrl = this.configService.get<string>('R2_PUBLIC_URL', '');
 
     if (!this.publicUrl) {
-      this.logger.warn('R2_PUBLIC_URL not set — uploads will not be accessible via CDN');
+      this.logger.warn(
+        'R2_PUBLIC_URL not set — uploads will not be accessible via CDN',
+      );
     }
   }
 
   async upload(file: Express.Multer.File, subPath: string): Promise<string> {
     if (subPath.includes('..') || subPath.includes('\0')) {
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz depolama yolu' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz depolama yolu',
+      });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const sharp = require('sharp');
 
     // Optimize with Sharp before upload
     let optimized: Buffer;
     try {
       const metadata = await sharp(file.buffer).metadata();
-      if (!metadata.format || !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
-        throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel formatı' });
+      if (
+        !metadata.format ||
+        !['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)
+      ) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Geçersiz görsel formatı',
+        });
       }
 
       optimized = await sharp(file.buffer)
@@ -51,14 +64,16 @@ export class R2StorageService implements IStorageService {
         .toBuffer();
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException({ code: RC.VALIDATION_ERROR, message: 'Geçersiz görsel dosyası' });
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Geçersiz görsel dosyası',
+      });
     }
 
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
     const key = `${subPath}/${filename}`;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
       const client = new S3Client({
@@ -66,7 +81,10 @@ export class R2StorageService implements IStorageService {
         endpoint: `https://${this.configService.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
         credentials: {
           accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID', ''),
-          secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY', ''),
+          secretAccessKey: this.configService.get<string>(
+            'R2_SECRET_ACCESS_KEY',
+            '',
+          ),
         },
       });
 
@@ -89,7 +107,6 @@ export class R2StorageService implements IStorageService {
 
   async delete(filePath: string): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
       const key = filePath.replace(`${this.publicUrl}/`, '');
 
@@ -98,7 +115,10 @@ export class R2StorageService implements IStorageService {
         endpoint: `https://${this.configService.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
         credentials: {
           accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID', ''),
-          secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY', ''),
+          secretAccessKey: this.configService.get<string>(
+            'R2_SECRET_ACCESS_KEY',
+            '',
+          ),
         },
       });
 

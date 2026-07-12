@@ -33,10 +33,11 @@ export class AuctionProcessor extends WorkerHost {
     const auctionId = job.data.auctionId as string;
 
     try {
-
       switch (job.name) {
         case 'start-next-lot': {
-          this.logger.log(`Starting next lot ${nextLotId} for event ${eventId}`);
+          this.logger.log(
+            `Starting next lot ${nextLotId} for event ${eventId}`,
+          );
           if (eventId && nextLotId) {
             await this.auctionService.startNextLot(eventId, nextLotId);
           }
@@ -45,7 +46,8 @@ export class AuctionProcessor extends WorkerHost {
 
         case 'start-auction': {
           this.logger.log(`Starting auction ${auctionId}`);
-          const activated = await this.auctionService.activateAuction(auctionId);
+          const activated =
+            await this.auctionService.activateAuction(auctionId);
 
           // Retry senaryosu: önceki denemede aktivasyon başarılı olup uyarı
           // planlaması patlamış olabilir. Aktivasyon dönmediyse müzayedeyi
@@ -56,11 +58,15 @@ export class AuctionProcessor extends WorkerHost {
 
           if (activated) {
             // AUCT-ABS: absentee çözümlemesi fiyatı açmış olabilir.
-            this.auctionGateway.emitAuctionStarted(auctionId, {
-              startPrice: Number(auction.startPrice),
-              currentPrice: Number(auction.currentPrice),
-              bidCount: auction.bidCount ?? 0,
-            }, (auction as any).eventId);
+            this.auctionGateway.emitAuctionStarted(
+              auctionId,
+              {
+                startPrice: Number(auction.startPrice),
+                currentPrice: Number(auction.currentPrice),
+                bidCount: auction.bidCount ?? 0,
+              },
+              (auction as any).eventId,
+            );
           }
 
           // Süresiz lotta bitiş yok — "son X dakika" uyarısı anlamsız.
@@ -97,7 +103,9 @@ export class AuctionProcessor extends WorkerHost {
         }
 
         case 'auction-finalization-compensation': {
-          this.logger.log(`Retrying finalization side effects for ${auctionId}`);
+          this.logger.log(
+            `Retrying finalization side effects for ${auctionId}`,
+          );
           await this.auctionService.retryFinalizationSideEffects(auctionId);
           break;
         }

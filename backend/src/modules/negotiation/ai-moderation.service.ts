@@ -38,9 +38,10 @@ export class AiModerationService {
   }
 
   private localResult(input: AiModerationInput): AiModerationResult {
-    const ruleScore = input.ruleViolations.length > 0
-      ? Math.min(1, 0.72 + input.ruleViolations.length * 0.07)
-      : 0.08;
+    const ruleScore =
+      input.ruleViolations.length > 0
+        ? Math.min(1, 0.72 + input.ruleViolations.length * 0.07)
+        : 0.08;
 
     return {
       riskScore: Number(ruleScore.toFixed(2)),
@@ -65,7 +66,9 @@ export class AiModerationService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: this.configService?.get<string>('OPENAI_MODERATION_MODEL') ?? 'gpt-4.1-mini',
+        model:
+          this.configService?.get<string>('OPENAI_MODERATION_MODEL') ??
+          'gpt-4.1-mini',
         input: [
           {
             role: 'system',
@@ -96,7 +99,8 @@ export class AiModerationService {
     };
     const rawText =
       body.output_text ??
-      body.output?.flatMap((item) => item.content ?? [])
+      body.output
+        ?.flatMap((item) => item.content ?? [])
         .map((item) => item.text)
         .find((text): text is string => Boolean(text)) ??
       '';

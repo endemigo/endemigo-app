@@ -18,7 +18,14 @@ import { AuctionModule } from '../auction/auction.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, PaymentProviderEvent, Order, SavedCard, User, Address]),
+    TypeOrmModule.forFeature([
+      Payment,
+      PaymentProviderEvent,
+      Order,
+      SavedCard,
+      User,
+      Address,
+    ]),
     LedgerModule,
     NotificationModule,
     forwardRef(() => OrderModule),
@@ -31,4 +38,3 @@ import { AuctionModule } from '../auction/auction.module';
   exports: [PaymentService, TypeOrmModule],
 })
 export class PaymentModule {}
-

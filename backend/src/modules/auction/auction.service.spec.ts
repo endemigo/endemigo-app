@@ -10,7 +10,17 @@ import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
 import { UserService } from '../user/user.service';
 import { OrderService } from '../order/order.service';
-import { AuctionPaymentStatus, RC, AuctionApprovalStatus, AuctionRegistrationStatus, AuctionEventStatus, AuctionEventSystemType, JointManagementType, InvitationStatus, ProductStatus } from '@endemigo/shared';
+import {
+  AuctionPaymentStatus,
+  RC,
+  AuctionApprovalStatus,
+  AuctionRegistrationStatus,
+  AuctionEventStatus,
+  AuctionEventSystemType,
+  JointManagementType,
+  InvitationStatus,
+  ProductStatus,
+} from '@endemigo/shared';
 import { AuctionEvent } from './entities/auction-event.entity';
 import { AuctionRegistration } from './entities/auction-registration.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
@@ -203,14 +213,15 @@ describe('AuctionService', () => {
           Promise.resolve(maybeEntity ?? entityOrTarget),
         ),
         count: jest.fn().mockResolvedValue(0),
-        create: jest.fn((_entityClass: unknown, data: Record<string, unknown>) => ({
-          id: `new-${Date.now()}`,
-          ...data,
-        })),
+        create: jest.fn(
+          (_entityClass: unknown, data: Record<string, unknown>) => ({
+            id: `new-${Date.now()}`,
+            ...data,
+          }),
+        ),
         update: jest.fn().mockResolvedValue({}),
       },
     };
-
 
     bidRepo = {
       findOne: jest.fn(),
@@ -254,8 +265,6 @@ describe('AuctionService', () => {
       }),
       acceptPreContract: jest.fn(),
     };
-
-
 
     orderService = {
       createFromAuction: jest
@@ -307,7 +316,9 @@ describe('AuctionService', () => {
 
     paymentService = {
       listSavedCards: jest.fn().mockResolvedValue({ cards: [] }),
-      registerCard: jest.fn().mockResolvedValue({ code: 'SUCCESS', message: 'Verified' }),
+      registerCard: jest
+        .fn()
+        .mockResolvedValue({ code: 'SUCCESS', message: 'Verified' }),
       payDeposit: jest.fn(),
     };
 
@@ -332,11 +343,13 @@ describe('AuctionService', () => {
           where: jest.fn().mockReturnThis(),
           getCount: jest.fn().mockResolvedValue(0),
         }),
-        create: jest.fn((_entityClass: unknown, data: Record<string, unknown>) => ({
-          id: `new-${Date.now()}`,
-          createdAt: new Date(),
-          ...data,
-        })),
+        create: jest.fn(
+          (_entityClass: unknown, data: Record<string, unknown>) => ({
+            id: `new-${Date.now()}`,
+            createdAt: new Date(),
+            ...data,
+          }),
+        ),
         find: jest.fn().mockResolvedValue([]),
         save: jest.fn((entityOrTarget: unknown, maybeEntity?: unknown) =>
           Promise.resolve(maybeEntity ?? entityOrTarget),
@@ -355,7 +368,10 @@ describe('AuctionService', () => {
         AuctionService,
         { provide: getRepositoryToken(Auction), useValue: auctionRepo },
         { provide: getRepositoryToken(Bid), useValue: bidRepo },
-        { provide: getRepositoryToken(AuctionRegistration), useValue: registrationRepo },
+        {
+          provide: getRepositoryToken(AuctionRegistration),
+          useValue: registrationRepo,
+        },
         { provide: DataSource, useValue: mockDataSource },
         { provide: AuctionGateway, useValue: auctionGateway },
         { provide: WalletService, useValue: walletService },
@@ -1058,7 +1074,7 @@ describe('AuctionService', () => {
 
     it('biddingLimit yetersiz ise -> ForbiddenException fırlatmalı (BIDDING_LIMIT_EXCEEDED)', async () => {
       setupBidTransaction();
-      
+
       userService.findById.mockResolvedValueOnce({
         ...mockBuyer,
         biddingLimit: 50000,
@@ -1085,7 +1101,7 @@ describe('AuctionService', () => {
 
     it('biddingLimit yeterli ise -> teklif başarıyla verilmeli', async () => {
       setupBidTransaction();
-      
+
       userService.findById.mockResolvedValueOnce({
         ...mockBuyer,
         biddingLimit: 100000,
@@ -1101,7 +1117,9 @@ describe('AuctionService', () => {
         status: AuctionRegistrationStatus.APPROVED,
       });
 
-      const result = await service.placeBid('auction-1', 'buyer-1', { amount: 60000 });
+      const result = await service.placeBid('auction-1', 'buyer-1', {
+        amount: 60000,
+      });
       expect(result.bid.amount).toBe(60000);
     });
   });
@@ -1583,7 +1601,10 @@ describe('AuctionService', () => {
         }),
       );
 
-      const result = await service.adminCancelAuction('auction-1', 'Şüpheli işlem');
+      const result = await service.adminCancelAuction(
+        'auction-1',
+        'Şüpheli işlem',
+      );
 
       expect(auctionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1596,15 +1617,22 @@ describe('AuctionService', () => {
         expect.objectContaining({ auctionId: 'auction-1' }),
         { status: BidStatus.CANCELLED },
       );
-      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalledWith('auction-1');
-      expect(cartItemRepo.delete).toHaveBeenCalledWith({ auctionId: 'auction-1' });
+      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalledWith(
+        'auction-1',
+      );
+      expect(cartItemRepo.delete).toHaveBeenCalledWith({
+        auctionId: 'auction-1',
+      });
       expect(auctionQueue.getJob).toHaveBeenCalledWith('start-auction-1');
       expect(auctionQueue.getJob).toHaveBeenCalledWith('end-auction-1');
       expect(auctionQueue.getJob).toHaveBeenCalledWith('end-auction-1-ext1');
       expect(auctionQueue.getJob).toHaveBeenCalledWith('end-auction-1-ext2');
-      expect(auctionGateway.emitAuctionCancelled).toHaveBeenCalledWith('auction-1', {
-        reason: 'Şüpheli işlem',
-      });
+      expect(auctionGateway.emitAuctionCancelled).toHaveBeenCalledWith(
+        'auction-1',
+        {
+          reason: 'Şüpheli işlem',
+        },
+      );
       expect(auctionGateway.clearViewerCount).toHaveBeenCalledWith('auction-1');
       expect(result.code).toBe(RC.AUCTION_CANCELLED);
     });
@@ -1633,10 +1661,18 @@ describe('AuctionService', () => {
           winnerPaymentDeadlineAt: null,
         }),
       );
-      expect(auctionQueue.getJob).toHaveBeenCalledWith('winner-payment-expiry-auction-1-r1');
-      expect(auctionQueue.getJob).toHaveBeenCalledWith('winner-payment-reminder-auction-1-r1');
-      expect(cartItemRepo.delete).toHaveBeenCalledWith({ auctionId: 'auction-1' });
-      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalledWith('auction-1');
+      expect(auctionQueue.getJob).toHaveBeenCalledWith(
+        'winner-payment-expiry-auction-1-r1',
+      );
+      expect(auctionQueue.getJob).toHaveBeenCalledWith(
+        'winner-payment-reminder-auction-1-r1',
+      );
+      expect(cartItemRepo.delete).toHaveBeenCalledWith({
+        auctionId: 'auction-1',
+      });
+      expect(walletService.releaseAllHoldsForAuction).toHaveBeenCalledWith(
+        'auction-1',
+      );
     });
 
     it('COMPLETED müzayede iptal edilememeli', async () => {
@@ -1670,7 +1706,7 @@ describe('AuctionService', () => {
       expect(auctionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'auction-1' }),
       );
-      expect((auction.endTime as Date).getTime()).toBeLessThan(Date.now());
+      expect(auction.endTime.getTime()).toBeLessThan(Date.now());
       expect(auctionQueue.getJob).toHaveBeenCalledWith('end-auction-1');
       expect(auctionQueue.getJob).toHaveBeenCalledWith('end-auction-1-ext1');
       expect(finalizeSpy).toHaveBeenCalledWith('auction-1', true);
@@ -1694,7 +1730,9 @@ describe('AuctionService', () => {
           endTime: new Date(Date.now() - 5000),
         }),
       );
-      jest.spyOn(service, 'finalizeAuction').mockResolvedValue(undefined as never);
+      jest
+        .spyOn(service, 'finalizeAuction')
+        .mockResolvedValue(undefined as never);
 
       await expect(service.adminFinalizeAuction('auction-1')).rejects.toThrow(
         BadRequestException,
@@ -1730,9 +1768,12 @@ describe('AuctionService', () => {
       );
       const savedLot = auctionRepo.save.mock.calls[0][0];
       expect(savedLot.pausedRemainingSeconds).toBeGreaterThan(80);
-      expect(auctionGateway.emitEventStatusChanged).toHaveBeenCalledWith('event-1', {
-        status: 'PAUSED',
-      });
+      expect(auctionGateway.emitEventStatusChanged).toHaveBeenCalledWith(
+        'event-1',
+        {
+          status: 'PAUSED',
+        },
+      );
     });
 
     it('resumeAuction süreyi lot satırından okuyup temizlemeli', async () => {
@@ -1781,7 +1822,9 @@ describe('AuctionService', () => {
         mockEvent({ autoProgressEnabled: false }),
       );
 
-      await expect(service.isAutoProgressEnabled('event-1')).resolves.toBe(false);
+      await expect(service.isAutoProgressEnabled('event-1')).resolves.toBe(
+        false,
+      );
     });
   });
 
@@ -2085,8 +2128,12 @@ describe('AuctionService', () => {
       // Deadline onay anından itibaren +24 saat kurulmalı
       const savedAuction = auctionRepo.save.mock.calls[0][0];
       const deadlineMs = savedAuction.winnerPaymentDeadlineAt.getTime();
-      expect(deadlineMs).toBeGreaterThanOrEqual(before + 24 * 60 * 60 * 1000 - 5000);
-      expect(deadlineMs).toBeLessThanOrEqual(Date.now() + 24 * 60 * 60 * 1000 + 5000);
+      expect(deadlineMs).toBeGreaterThanOrEqual(
+        before + 24 * 60 * 60 * 1000 - 5000,
+      );
+      expect(deadlineMs).toBeLessThanOrEqual(
+        Date.now() + 24 * 60 * 60 * 1000 + 5000,
+      );
 
       // Kazanılan ürün sepete düşer (varsa eski kalem silinir)
       expect(cartItemRepo.delete).toHaveBeenCalledWith({
@@ -2151,7 +2198,10 @@ describe('AuctionService', () => {
     it('ikinci çağrı idempotent olmalı (Satış zaten onaylanmış)', async () => {
       const approvedAt = new Date(Date.now() - 60_000);
       auctionRepo.findOne.mockResolvedValueOnce(
-        createEndedAuction({ saleApprovedAt: approvedAt, saleApprovedBy: 'admin-1' }),
+        createEndedAuction({
+          saleApprovedAt: approvedAt,
+          saleApprovedBy: 'admin-1',
+        }),
       );
 
       const result = await service.approveSale('auction-1', 'admin-2');
@@ -2310,7 +2360,10 @@ describe('AuctionService', () => {
     };
 
     it('should throw ForbiddenException if user is not a seller', async () => {
-      userService.findById.mockResolvedValue({ id: 'buyer-1', isSeller: false });
+      userService.findById.mockResolvedValue({
+        id: 'buyer-1',
+        isSeller: false,
+      });
 
       await expect(
         service.applyToEvent('buyer-1', 'event-1', mockDto as any),
@@ -2318,7 +2371,10 @@ describe('AuctionService', () => {
     });
 
     it('should throw NotFoundException if event does not exist', async () => {
-      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      userService.findById.mockResolvedValue({
+        id: 'seller-1',
+        isSeller: true,
+      });
       auctionRepo.manager.findOne.mockResolvedValueOnce(null);
 
       await expect(
@@ -2327,7 +2383,10 @@ describe('AuctionService', () => {
     });
 
     it('should throw BadRequestException if event is not APPLICATION', async () => {
-      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      userService.findById.mockResolvedValue({
+        id: 'seller-1',
+        isSeller: true,
+      });
       auctionRepo.manager.findOne.mockResolvedValueOnce({
         id: 'event-1',
         eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
@@ -2341,7 +2400,10 @@ describe('AuctionService', () => {
     });
 
     it('should throw BadRequestException if submission deadline has passed', async () => {
-      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      userService.findById.mockResolvedValue({
+        id: 'seller-1',
+        isSeller: true,
+      });
       auctionRepo.manager.findOne.mockResolvedValueOnce({
         id: 'event-1',
         eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
@@ -2355,7 +2417,10 @@ describe('AuctionService', () => {
     });
 
     it('should apply successfully if deadline is in the future', async () => {
-      userService.findById.mockResolvedValue({ id: 'seller-1', isSeller: true });
+      userService.findById.mockResolvedValue({
+        id: 'seller-1',
+        isSeller: true,
+      });
       auctionRepo.manager.findOne
         .mockResolvedValueOnce({
           id: 'event-1',
@@ -2377,7 +2442,11 @@ describe('AuctionService', () => {
       auctionRepo.create.mockReturnValue({ id: 'auction-1' });
       auctionRepo.save.mockResolvedValue({ id: 'auction-1' });
 
-      const result = await service.applyToEvent('seller-1', 'event-1', mockDto as any);
+      const result = await service.applyToEvent(
+        'seller-1',
+        'event-1',
+        mockDto as any,
+      );
       expect(result).toBeDefined();
     });
   });
@@ -2398,7 +2467,12 @@ describe('AuctionService', () => {
       });
 
       await expect(
-        service.organizerApproveLot('event-1', 'lot-1', 'seller-1', AuctionApprovalStatus.APPROVED),
+        service.organizerApproveLot(
+          'event-1',
+          'lot-1',
+          'seller-1',
+          AuctionApprovalStatus.APPROVED,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -2407,9 +2481,9 @@ describe('AuctionService', () => {
     it('olmayan etkinlik → NotFoundException', async () => {
       auctionRepo.manager.findOne.mockResolvedValueOnce(null);
 
-      await expect(service.findEventDetails('nonexistent-event')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findEventDetails('nonexistent-event'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('etkinlik varsa approved lotlari sequenceNumber sırasıyla döndürmeli', async () => {
@@ -2465,18 +2539,29 @@ describe('AuctionService', () => {
     describe('registerToAuction', () => {
       it('müzayede yoksa -> NotFoundException fırlatmalı', async () => {
         auctionRepo.findOne.mockResolvedValueOnce(null);
-        await expect(service.registerToAuction('buyer-1', 'nonexistent')).rejects.toThrow(NotFoundException);
+        await expect(
+          service.registerToAuction('buyer-1', 'nonexistent'),
+        ).rejects.toThrow(NotFoundException);
       });
 
       it('kullanıcı devre dışıysa -> ForbiddenException fırlatmalı', async () => {
         auctionRepo.findOne.mockResolvedValueOnce(createMockAuction());
-        userService.findById.mockResolvedValueOnce({ id: 'buyer-1', isActive: false });
-        await expect(service.registerToAuction('buyer-1', 'auction-1')).rejects.toThrow(ForbiddenException);
+        userService.findById.mockResolvedValueOnce({
+          id: 'buyer-1',
+          isActive: false,
+        });
+        await expect(
+          service.registerToAuction('buyer-1', 'auction-1'),
+        ).rejects.toThrow(ForbiddenException);
       });
 
       it('zaten APPROVED kaydı varsa -> mevcut kaydı dönmeli', async () => {
         const mockAuction = createMockAuction();
-        const mockReg = { id: 'reg-1', userId: 'buyer-1', status: AuctionRegistrationStatus.APPROVED };
+        const mockReg = {
+          id: 'reg-1',
+          userId: 'buyer-1',
+          status: AuctionRegistrationStatus.APPROVED,
+        };
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(mockReg);
@@ -2493,7 +2578,9 @@ describe('AuctionService', () => {
         registrationRepo.findOne.mockResolvedValueOnce(null);
         paymentService.listSavedCards.mockResolvedValueOnce({ cards: [] });
 
-        await expect(service.registerToAuction('buyer-1', 'auction-1')).rejects.toThrow(BadRequestException);
+        await expect(
+          service.registerToAuction('buyer-1', 'auction-1'),
+        ).rejects.toThrow(BadRequestException);
       });
 
       it('kayıtlı kartı varsa -> PENDING olarak kaydetmeli', async () => {
@@ -2501,14 +2588,20 @@ describe('AuctionService', () => {
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
 
         const result = await service.registerToAuction('buyer-1', 'auction-1');
         expect(registrationRepo.create).toHaveBeenCalledWith(
-          expect.objectContaining({ status: AuctionRegistrationStatus.APPROVED }),
+          expect.objectContaining({
+            status: AuctionRegistrationStatus.APPROVED,
+          }),
         );
         expect(result.code).toBe(RC.SUCCESS);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.APPROVED);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.APPROVED,
+        );
       });
 
       it('kayıtlı kartı yok ama kart bilgisi gönderdiyse -> kartı doğrulayıp APPROVED yapmalı', async () => {
@@ -2527,7 +2620,9 @@ describe('AuctionService', () => {
         });
         expect(paymentService.registerCard).toHaveBeenCalled();
         expect(result.code).toBe(RC.SUCCESS);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.APPROVED);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.APPROVED,
+        );
       });
 
       it('müzayede giriş depozitosu gerektiriyorsa ve ödeme başarılıysa -> APPROVED kaydetmeli', async () => {
@@ -2535,25 +2630,38 @@ describe('AuctionService', () => {
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
         paymentService.payDeposit.mockResolvedValueOnce({ code: 'SUCCESS' });
 
         const result = await service.registerToAuction('buyer-1', 'auction-1');
-        expect(paymentService.payDeposit).toHaveBeenCalledWith('buyer-1', { amount: 10000, cardDetails: undefined });
+        expect(paymentService.payDeposit).toHaveBeenCalledWith('buyer-1', {
+          amount: 10000,
+          cardDetails: undefined,
+        });
         expect(result.code).toBe(RC.SUCCESS);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.APPROVED);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.APPROVED,
+        );
       });
 
       it('kültür varlığı kısıtlı lotta -> PENDING kalmalı (elle onay)', async () => {
-        const mockAuction = createMockAuction({ culturalAssetRestricted: true });
+        const mockAuction = createMockAuction({
+          culturalAssetRestricted: true,
+        });
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
 
         const result = await service.registerToAuction('buyer-1', 'auction-1');
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_PENDING);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.PENDING);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.PENDING,
+        );
       });
 
       it('aktif hesap kısıtı olan kullanıcıda -> PENDING kalmalı (elle onay)', async () => {
@@ -2561,12 +2669,16 @@ describe('AuctionService', () => {
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
-        (auctionRepo.manager.count as jest.Mock).mockResolvedValueOnce(1);
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
+        auctionRepo.manager.count.mockResolvedValueOnce(1);
 
         const result = await service.registerToAuction('buyer-1', 'auction-1');
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_PENDING);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.PENDING);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.PENDING,
+        );
       });
 
       it('REJECTED kaydı varsa yeniden başvuruda PENDING durumuna dönmeli', async () => {
@@ -2578,12 +2690,16 @@ describe('AuctionService', () => {
           userId: 'buyer-1',
           status: AuctionRegistrationStatus.REJECTED,
         });
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
 
         const result = await service.registerToAuction('buyer-1', 'auction-1');
         expect(registrationRepo.create).not.toHaveBeenCalled();
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_PENDING);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.PENDING);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.PENDING,
+        );
       });
 
       it('müzayede giriş depozitosu gerektiriyorsa ve ödeme başarısızsa -> BadRequestException fırlatmalı', async () => {
@@ -2591,10 +2707,16 @@ describe('AuctionService', () => {
         auctionRepo.findOne.mockResolvedValueOnce(mockAuction);
         userService.findById.mockResolvedValueOnce(mockBuyer);
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        paymentService.listSavedCards.mockResolvedValueOnce({ cards: [{ id: 'card-1' }] });
-        paymentService.payDeposit.mockRejectedValueOnce(new Error('Kredi kartı limiti yetersiz'));
+        paymentService.listSavedCards.mockResolvedValueOnce({
+          cards: [{ id: 'card-1' }],
+        });
+        paymentService.payDeposit.mockRejectedValueOnce(
+          new Error('Kredi kartı limiti yetersiz'),
+        );
 
-        await expect(service.registerToAuction('buyer-1', 'auction-1')).rejects.toThrow(BadRequestException);
+        await expect(
+          service.registerToAuction('buyer-1', 'auction-1'),
+        ).rejects.toThrow(BadRequestException);
         expect(paymentService.payDeposit).toHaveBeenCalled();
       });
     });
@@ -2602,10 +2724,17 @@ describe('AuctionService', () => {
     describe('getRegistrationStatus', () => {
       it('kayıt varsa -> durumu dönmeli', async () => {
         auctionRepo.findOne.mockResolvedValueOnce(createMockAuction());
-        const mockReg = { id: 'reg-1', userId: 'buyer-1', status: AuctionRegistrationStatus.APPROVED };
+        const mockReg = {
+          id: 'reg-1',
+          userId: 'buyer-1',
+          status: AuctionRegistrationStatus.APPROVED,
+        };
         registrationRepo.findOne.mockResolvedValueOnce(mockReg);
 
-        const result = await service.getRegistrationStatus('buyer-1', 'auction-1');
+        const result = await service.getRegistrationStatus(
+          'buyer-1',
+          'auction-1',
+        );
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_STATUS);
         expect(result.registration).toEqual(mockReg);
       });
@@ -2613,11 +2742,17 @@ describe('AuctionService', () => {
 
     describe('listRegistrationsForAdmin', () => {
       it('admin için katılım taleplerini listelemeli', async () => {
-        const mockRegs = [{ id: 'reg-1', status: AuctionRegistrationStatus.PENDING }];
+        const mockRegs = [
+          { id: 'reg-1', status: AuctionRegistrationStatus.PENDING },
+        ];
         const qb = registrationRepo.createQueryBuilder();
         qb.getManyAndCount.mockResolvedValueOnce([mockRegs, 1]);
 
-        const result = await service.listRegistrationsForAdmin(AuctionRegistrationStatus.PENDING, 1, 20);
+        const result = await service.listRegistrationsForAdmin(
+          AuctionRegistrationStatus.PENDING,
+          1,
+          20,
+        );
         expect(result.code).toBe(RC.SUCCESS);
         expect(result.items).toEqual(mockRegs);
         expect(result.pagination.total).toBe(1);
@@ -2627,27 +2762,52 @@ describe('AuctionService', () => {
     describe('updateRegistrationStatus', () => {
       it('olmayan kayıt -> NotFoundException fırlatmalı', async () => {
         registrationRepo.findOne.mockResolvedValueOnce(null);
-        await expect(service.updateRegistrationStatus('nonexistent', AuctionRegistrationStatus.APPROVED)).rejects.toThrow(NotFoundException);
+        await expect(
+          service.updateRegistrationStatus(
+            'nonexistent',
+            AuctionRegistrationStatus.APPROVED,
+          ),
+        ).rejects.toThrow(NotFoundException);
       });
 
       it('onaylanırsa -> APPROVED yapmalı', async () => {
-        const mockReg = { id: 'reg-1', status: AuctionRegistrationStatus.PENDING };
+        const mockReg = {
+          id: 'reg-1',
+          status: AuctionRegistrationStatus.PENDING,
+        };
         registrationRepo.findOne.mockResolvedValueOnce(mockReg);
-        registrationRepo.save.mockImplementationOnce((entity: any) => Promise.resolve(entity));
+        registrationRepo.save.mockImplementationOnce((entity: any) =>
+          Promise.resolve(entity),
+        );
 
-        const result = await service.updateRegistrationStatus('reg-1', AuctionRegistrationStatus.APPROVED);
+        const result = await service.updateRegistrationStatus(
+          'reg-1',
+          AuctionRegistrationStatus.APPROVED,
+        );
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_APPROVED_SUCCESS);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.APPROVED);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.APPROVED,
+        );
       });
 
       it('reddedilirse -> REJECTED yapmalı', async () => {
-        const mockReg = { id: 'reg-1', status: AuctionRegistrationStatus.PENDING };
+        const mockReg = {
+          id: 'reg-1',
+          status: AuctionRegistrationStatus.PENDING,
+        };
         registrationRepo.findOne.mockResolvedValueOnce(mockReg);
-        registrationRepo.save.mockImplementationOnce((entity: any) => Promise.resolve(entity));
+        registrationRepo.save.mockImplementationOnce((entity: any) =>
+          Promise.resolve(entity),
+        );
 
-        const result = await service.updateRegistrationStatus('reg-1', AuctionRegistrationStatus.REJECTED);
+        const result = await service.updateRegistrationStatus(
+          'reg-1',
+          AuctionRegistrationStatus.REJECTED,
+        );
         expect(result.code).toBe(RC.AUCTION_REGISTRATION_REJECTED_SUCCESS);
-        expect(result.registration.status).toBe(AuctionRegistrationStatus.REJECTED);
+        expect(result.registration.status).toBe(
+          AuctionRegistrationStatus.REJECTED,
+        );
       });
     });
   });
@@ -2840,9 +3000,14 @@ describe('AuctionService', () => {
           ...new Array(25).fill({ sellerId: 'seller-2' }),
         ];
         auctionRepo.find.mockResolvedValueOnce(lots);
-        auctionRepo.manager.save.mockImplementationOnce((_, e) => Promise.resolve(e));
+        auctionRepo.manager.save.mockImplementationOnce((_, e) =>
+          Promise.resolve(e),
+        );
 
-        const result = await service.submitEventForApproval('event-1', 'seller-1');
+        const result = await service.submitEventForApproval(
+          'event-1',
+          'seller-1',
+        );
         expect(result.code).toBe(RC.SUCCESS);
         expect(result.event.status).toBe(AuctionEventStatus.APPLICATION);
       });
@@ -2850,13 +3015,18 @@ describe('AuctionService', () => {
 
     describe('applyToEvent validations', () => {
       it('should throw BadRequest for Endemigo-Managed if supplier exceeds 5 products limit', async () => {
-        userService.findById.mockResolvedValueOnce({ id: 'seller-1', isSeller: true });
+        userService.findById.mockResolvedValueOnce({
+          id: 'seller-1',
+          isSeller: true,
+        });
         auctionRepo.manager.findOne.mockResolvedValueOnce({
           id: 'event-1',
           status: AuctionEventStatus.APPLICATION,
           eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
         });
-        userService.getSellerProfile.mockResolvedValueOnce({ sellerProfile: {} });
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: {},
+        });
         auctionRepo.count.mockResolvedValueOnce(5);
 
         await expect(
@@ -2869,13 +3039,18 @@ describe('AuctionService', () => {
       });
 
       it('should throw BadRequest if guaranteeAccepted is false or missing', async () => {
-        userService.findById.mockResolvedValueOnce({ id: 'seller-1', isSeller: true });
+        userService.findById.mockResolvedValueOnce({
+          id: 'seller-1',
+          isSeller: true,
+        });
         auctionRepo.manager.findOne.mockResolvedValueOnce({
           id: 'event-1',
           status: AuctionEventStatus.APPLICATION,
           eventType: AuctionEventSystemType.ENDEMIGO_MANAGED,
         });
-        userService.getSellerProfile.mockResolvedValueOnce({ sellerProfile: {} });
+        userService.getSellerProfile.mockResolvedValueOnce({
+          sellerProfile: {},
+        });
 
         await expect(
           service.applyToEvent('seller-1', 'event-1', {
@@ -2886,7 +3061,10 @@ describe('AuctionService', () => {
       });
 
       it('should throw Forbidden for Joint if seller is not owner and has no accepted invitation', async () => {
-        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        userService.findById.mockResolvedValueOnce({
+          id: 'seller-2',
+          isSeller: true,
+        });
         auctionRepo.manager.findOne.mockResolvedValueOnce({
           id: 'event-1',
           ownerId: 'seller-1',
@@ -2916,13 +3094,20 @@ describe('AuctionService', () => {
           eventType: AuctionEventSystemType.JOINT,
           status: AuctionEventStatus.DRAFT,
         });
-        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        userService.findById.mockResolvedValueOnce({
+          id: 'seller-2',
+          isSeller: true,
+        });
         auctionRepo.manager.count.mockResolvedValueOnce(25);
         auctionRepo.manager.findOne.mockResolvedValueOnce(null);
         auctionRepo.manager.create.mockReturnValue({ id: 'invite-1' });
         auctionRepo.manager.save.mockResolvedValueOnce({ id: 'invite-1' });
 
-        const result = await service.sendInvitation('event-1', 'seller-1', 'seller-2');
+        const result = await service.sendInvitation(
+          'event-1',
+          'seller-1',
+          'seller-2',
+        );
         expect(result.code).toBe(RC.SUCCESS);
         expect(result.invitation).toBeDefined();
       });
@@ -2934,7 +3119,10 @@ describe('AuctionService', () => {
           eventType: AuctionEventSystemType.JOINT,
           status: AuctionEventStatus.DRAFT,
         });
-        userService.findById.mockResolvedValueOnce({ id: 'seller-2', isSeller: true });
+        userService.findById.mockResolvedValueOnce({
+          id: 'seller-2',
+          isSeller: true,
+        });
         auctionRepo.manager.count.mockResolvedValueOnce(15);
 
         await expect(
@@ -2944,4 +3132,3 @@ describe('AuctionService', () => {
     });
   });
 });
-

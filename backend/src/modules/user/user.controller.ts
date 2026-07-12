@@ -125,7 +125,9 @@ export class UserController {
 
   @Post('become-seller')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Satıcı hesabına geçiş — sözleşme kabul + profil oluştur' })
+  @ApiOperation({
+    summary: 'Satıcı hesabına geçiş — sözleşme kabul + profil oluştur',
+  })
   @ApiResponse({ status: 201, description: 'Satıcı hesabı aktifleştirildi' })
   @ApiResponse({ status: 409, description: 'Zaten satıcısınız' })
   async becomeSeller(
@@ -215,11 +217,11 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   // CR-01: Strict rate limit — public endpoint accepting email+password
   @Throttle({ short: { ttl: 60000, limit: 5 } })
-  @ApiOperation({ summary: 'Silinen hesabı geri aktifleştir — grace period içinde' })
+  @ApiOperation({
+    summary: 'Silinen hesabı geri aktifleştir — grace period içinde',
+  })
   @ApiResponse({ status: 200, description: 'Hesap geri aktifleştirildi' })
-  async reactivateAccount(
-    @Body() dto: ReactivateAccountDto,
-  ) {
+  async reactivateAccount(@Body() dto: ReactivateAccountDto) {
     return this.userService.reactivateAccount(dto.email, dto.password);
   }
 }

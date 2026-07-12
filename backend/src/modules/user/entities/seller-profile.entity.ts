@@ -46,8 +46,8 @@ export class SellerProfile extends BaseEntity {
     type: 'varchar',
     nullable: true,
     transformer: {
-      to: (value: string | null) => value ? encrypt(value) : null,
-      from: (value: string | null) => value ? decrypt(value) : null,
+      to: (value: string | null) => (value ? encrypt(value) : null),
+      from: (value: string | null) => (value ? decrypt(value) : null),
     },
   })
   identityNumber: string | null;
@@ -56,8 +56,8 @@ export class SellerProfile extends BaseEntity {
   @Column({
     nullable: true,
     transformer: {
-      to: (value: string | null) => value ? encrypt(value) : null,
-      from: (value: string | null) => value ? decrypt(value) : null,
+      to: (value: string | null) => (value ? encrypt(value) : null),
+      from: (value: string | null) => (value ? decrypt(value) : null),
     },
   })
   iban: string;
@@ -94,7 +94,6 @@ export class SellerProfile extends BaseEntity {
 
   @Column()
   agreementAcceptedAt: Date;
-
 
   @Column({ default: '1.0.0' })
   agreementVersion: string;

@@ -67,13 +67,20 @@ describe('AdminOperationsService — auction event guards', () => {
     );
   });
 
-  const dto = (metadata: Record<string, unknown>) => ({ reason: 'test', metadata });
+  const dto = (metadata: Record<string, unknown>) => ({
+    reason: 'test',
+    metadata,
+  });
 
   describe('createAuctionEvent date validation', () => {
     it('rejects when endTime <= startTime', async () => {
       await expect(
         service.createAuctionEvent(
-          dto({ title: 'X', startTime: validDates.endTime, endTime: validDates.startTime }),
+          dto({
+            title: 'X',
+            startTime: validDates.endTime,
+            endTime: validDates.startTime,
+          }),
           adminActor,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -82,7 +89,11 @@ describe('AdminOperationsService — auction event guards', () => {
     it('rejects when submissionDeadline is after startTime', async () => {
       await expect(
         service.createAuctionEvent(
-          dto({ ...validDates, title: 'X', submissionDeadline: '2026-07-12T00:00:00.000Z' }),
+          dto({
+            ...validDates,
+            title: 'X',
+            submissionDeadline: '2026-07-12T00:00:00.000Z',
+          }),
           adminActor,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -164,9 +175,18 @@ describe('AdminOperationsService — auction event guards', () => {
     };
 
     it('rejects adding lots to a closed (ENDED) event', async () => {
-      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent, status: 'ENDED' });
+      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({
+        ...openEvent,
+        status: 'ENDED',
+      });
       await expect(
-        service.addLotsToEvent('event-1', dto({ items: [{ productId: 'p1', startingPrice: 100, lotOrder: 1 }] }), adminActor),
+        service.addLotsToEvent(
+          'event-1',
+          dto({
+            items: [{ productId: 'p1', startingPrice: 100, lotOrder: 1 }],
+          }),
+          adminActor,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -175,10 +195,12 @@ describe('AdminOperationsService — auction event guards', () => {
       await expect(
         service.addLotsToEvent(
           'event-1',
-          dto({ items: [
-            { productId: 'p1', startingPrice: 100, lotOrder: 1 },
-            { productId: 'p1', startingPrice: 120, lotOrder: 2 },
-          ] }),
+          dto({
+            items: [
+              { productId: 'p1', startingPrice: 100, lotOrder: 1 },
+              { productId: 'p1', startingPrice: 120, lotOrder: 2 },
+            ],
+          }),
           adminActor,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -187,24 +209,48 @@ describe('AdminOperationsService — auction event guards', () => {
     it('rejects a non-positive starting price', async () => {
       repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent });
       await expect(
-        service.addLotsToEvent('event-1', dto({ items: [{ productId: 'p1', startingPrice: 0, lotOrder: 1 }] }), adminActor),
+        service.addLotsToEvent(
+          'event-1',
+          dto({ items: [{ productId: 'p1', startingPrice: 0, lotOrder: 1 }] }),
+          adminActor,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('enforces maxProductsCount when set', async () => {
-      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent, maxProductsCount: 1 });
+      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({
+        ...openEvent,
+        maxProductsCount: 1,
+      });
       repos[AUCTION].count.mockResolvedValueOnce(1); // already at the cap
       await expect(
-        service.addLotsToEvent('event-1', dto({ items: [{ productId: 'p1', startingPrice: 100, lotOrder: 1 }] }), adminActor),
+        service.addLotsToEvent(
+          'event-1',
+          dto({
+            items: [{ productId: 'p1', startingPrice: 100, lotOrder: 1 }],
+          }),
+          adminActor,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('adds valid lots to an open event', async () => {
       repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent });
-      repos[PRODUCT].find.mockResolvedValueOnce([{ id: 'p1', sellerId: 'seller-9' }]);
+      repos[PRODUCT].find.mockResolvedValueOnce([
+        { id: 'p1', sellerId: 'seller-9' },
+      ]);
       const result = await service.addLotsToEvent(
         'event-1',
-        dto({ items: [{ productId: 'p1', startingPrice: 100, minIncrement: 5, lotOrder: 1 }] }),
+        dto({
+          items: [
+            {
+              productId: 'p1',
+              startingPrice: 100,
+              minIncrement: 5,
+              lotOrder: 1,
+            },
+          ],
+        }),
         adminActor,
       );
       expect(result.code).toBe(RC.SUCCESS);
@@ -216,9 +262,24 @@ describe('AdminOperationsService — auction event guards', () => {
     it('returns only active SUPER_ADMIN / OPERATIONS admins', async () => {
       const adminRepo = {
         find: jest.fn().mockResolvedValue([
-          { id: 'a1', displayName: 'Op One', email: 'op1@x.com', roles: [AdminRole.OPERATIONS] },
-          { id: 'a2', displayName: 'Support', email: 's@x.com', roles: [AdminRole.SUPPORT] },
-          { id: 'a3', displayName: 'Super', email: 'su@x.com', roles: [AdminRole.SUPER_ADMIN] },
+          {
+            id: 'a1',
+            displayName: 'Op One',
+            email: 'op1@x.com',
+            roles: [AdminRole.OPERATIONS],
+          },
+          {
+            id: 'a2',
+            displayName: 'Support',
+            email: 's@x.com',
+            roles: [AdminRole.SUPPORT],
+          },
+          {
+            id: 'a3',
+            displayName: 'Super',
+            email: 'su@x.com',
+            roles: [AdminRole.SUPER_ADMIN],
+          },
         ]),
       };
       // userRepo = repos[0]; metod userRepo.manager.getRepository(AdminUser) kullanır.

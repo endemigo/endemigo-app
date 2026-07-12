@@ -21,7 +21,13 @@ import { OrderService } from './order.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderAuditEvent, OrderReview, Product, User]),
+    TypeOrmModule.forFeature([
+      Order,
+      OrderAuditEvent,
+      OrderReview,
+      Product,
+      User,
+    ]),
     BullModule.registerQueue({
       name: 'order',
       defaultJobOptions: {

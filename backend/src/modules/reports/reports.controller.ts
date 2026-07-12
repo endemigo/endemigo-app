@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminRole } from '@endemigo/shared';
 import type { Response } from 'express';
@@ -47,7 +40,10 @@ export class ReportsController {
       `attachment; filename="${result.filename}"`,
     );
     response.setHeader('X-Response-Code', result.code);
-    response.setHeader('X-Response-Message', encodeURIComponent(result.message));
+    response.setHeader(
+      'X-Response-Message',
+      encodeURIComponent(result.message),
+    );
     return result.file;
   }
 }

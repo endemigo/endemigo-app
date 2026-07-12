@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Phase17ProductAdminPanelBindings1747100000000
-  implements MigrationInterface
-{
+export class Phase17ProductAdminPanelBindings1747100000000 implements MigrationInterface {
   name = 'Phase17ProductAdminPanelBindings1747100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -47,4 +45,3 @@ export class Phase17ProductAdminPanelBindings1747100000000
     );
   }
 }
-

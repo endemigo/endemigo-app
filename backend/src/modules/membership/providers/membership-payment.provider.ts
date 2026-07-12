@@ -14,7 +14,9 @@ export interface MembershipPaymentProvider {
     status: 'active' | 'pending';
     checkoutUrl?: string;
   }>;
-  cancelAtPeriodEnd(providerSubscriptionId: string): Promise<{ cancelledAtPeriodEnd: boolean }>;
+  cancelAtPeriodEnd(
+    providerSubscriptionId: string,
+  ): Promise<{ cancelledAtPeriodEnd: boolean }>;
   handleRenewalWebhook(payload: unknown): Promise<{
     providerSubscriptionId: string;
     status: 'success' | 'failed';

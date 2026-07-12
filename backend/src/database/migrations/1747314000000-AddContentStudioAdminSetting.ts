@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddContentStudioAdminSetting1747314000000
-  implements MigrationInterface
-{
+export class AddContentStudioAdminSetting1747314000000 implements MigrationInterface {
   name = 'AddContentStudioAdminSetting1747314000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

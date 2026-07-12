@@ -2,7 +2,12 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { Product } from '../../product/entities/product.entity';
 import { User } from '../../user/entities/user.entity';
-import { AuctionPaymentStatus, AuctionStatus, AuctionType, AuctionApprovalStatus } from '@endemigo/shared';
+import {
+  AuctionPaymentStatus,
+  AuctionStatus,
+  AuctionType,
+  AuctionApprovalStatus,
+} from '@endemigo/shared';
 import { AuctionEvent } from './auction-event.entity';
 
 @Entity('auctions')
@@ -38,7 +43,6 @@ export class Auction extends BaseEntity {
 
   @Column({ default: false })
   reserveMet: boolean;
-
 
   @Column({ type: 'enum', enum: AuctionStatus, default: AuctionStatus.DRAFT })
   status: AuctionStatus;
@@ -149,7 +153,7 @@ export class Auction extends BaseEntity {
   @Column({ default: false })
   culturalAssetRestricted: boolean;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.00 })
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.0 })
   requiredDeposit: number;
 
   // Menşei/tedarik garantisi taahhüdünün lot bazında kaydı (hukuki iz).

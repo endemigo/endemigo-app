@@ -78,10 +78,7 @@ export class AdsController {
   @Get('admin/ads')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin reklam talepleri' })
-  async adminRequests(
-    @Query('page') page = '1',
-    @Query('limit') limit = '25',
-  ) {
+  async adminRequests(@Query('page') page = '1', @Query('limit') limit = '25') {
     return this.adsService.listAdminRequests(Number(page), Number(limit));
   }
 

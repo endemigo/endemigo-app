@@ -19,7 +19,10 @@ function hashToIndex(value: string, size: number): number {
   return hash % size;
 }
 
-export function resolveSellerBanner(userId: string, bannerUrl?: string | null): string {
+export function resolveSellerBanner(
+  userId: string,
+  bannerUrl?: string | null,
+): string {
   if (bannerUrl && bannerUrl.trim().length > 0) {
     return bannerUrl.trim();
   }

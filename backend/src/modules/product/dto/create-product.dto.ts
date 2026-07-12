@@ -179,7 +179,10 @@ export class CreateProductDto {
   @IsOptional()
   productionDistrict?: string;
 
-  @ApiPropertyOptional({ enum: ProductProductionSeason, default: ProductProductionSeason.ALL_TIME })
+  @ApiPropertyOptional({
+    enum: ProductProductionSeason,
+    default: ProductProductionSeason.ALL_TIME,
+  })
   @IsEnum(ProductProductionSeason)
   @IsOptional()
   productionSeason?: ProductProductionSeason;
@@ -199,7 +202,10 @@ export class CreateProductDto {
   @IsOptional()
   salesMonths?: number[];
 
-  @ApiPropertyOptional({ enum: ProductCondition, default: ProductCondition.NEW })
+  @ApiPropertyOptional({
+    enum: ProductCondition,
+    default: ProductCondition.NEW,
+  })
   @IsEnum(ProductCondition)
   @IsOptional()
   condition?: ProductCondition;

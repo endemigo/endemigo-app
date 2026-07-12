@@ -27,8 +27,12 @@ export class Phase15VariantKinds1747000001000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_variant_numbers_kind`);
-    await queryRunner.query(`ALTER TABLE variant_numbers DROP COLUMN IF EXISTS "swatchHex"`);
-    await queryRunner.query(`ALTER TABLE variant_numbers DROP COLUMN IF EXISTS kind`);
+    await queryRunner.query(
+      `ALTER TABLE variant_numbers DROP COLUMN IF EXISTS "swatchHex"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE variant_numbers DROP COLUMN IF EXISTS kind`,
+    );
     await queryRunner.query(`DROP TYPE IF EXISTS variant_option_kind`);
   }
 }

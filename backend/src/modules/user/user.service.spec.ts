@@ -18,7 +18,12 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { AddressType, NegotiationStatus, OrderStatus, PayoutRequestStatus } from '@endemigo/shared';
+import {
+  AddressType,
+  NegotiationStatus,
+  OrderStatus,
+  PayoutRequestStatus,
+} from '@endemigo/shared';
 import * as bcrypt from 'bcrypt';
 import { RC } from '../../shared/constants/response-codes';
 
@@ -76,7 +81,10 @@ describe('UserService', () => {
           // Simulate transactional EntityManager
           const txManager = {
             findOne: userRepo.findOne,
-            create: (EntityClass: any, data: any) => ({ id: 'new-id', ...data }),
+            create: (EntityClass: any, data: any) => ({
+              id: 'new-id',
+              ...data,
+            }),
             save: jest.fn((entity: any) => Promise.resolve(entity)),
           };
           return cb(txManager);
@@ -108,11 +116,16 @@ describe('UserService', () => {
         transaction: jest.fn(async (cb) => {
           const manager = {
             count: jest.fn().mockResolvedValue(0),
-            create: jest.fn((EntityClass: unknown, data: Record<string, unknown>) => ({
-              id: 'address-1',
-              ...data,
-            })),
-            save: jest.fn(async (_EntityClass: unknown, entity: Record<string, unknown>) => entity),
+            create: jest.fn(
+              (EntityClass: unknown, data: Record<string, unknown>) => ({
+                id: 'address-1',
+                ...data,
+              }),
+            ),
+            save: jest.fn(
+              async (_EntityClass: unknown, entity: Record<string, unknown>) =>
+                entity,
+            ),
             update: jest.fn().mockResolvedValue(undefined),
           };
           return cb(manager);
@@ -154,16 +167,31 @@ describe('UserService', () => {
       providers: [
         UserService,
         { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(SellerProfile), useValue: sellerProfileRepo },
+        {
+          provide: getRepositoryToken(SellerProfile),
+          useValue: sellerProfileRepo,
+        },
         { provide: getRepositoryToken(KvkkConsent), useValue: kvkkConsentRepo },
         { provide: getRepositoryToken(Address), useValue: addressRepo },
-        { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
+        {
+          provide: getRepositoryToken(RefreshToken),
+          useValue: refreshTokenRepo,
+        },
         { provide: getRepositoryToken(Product), useValue: productRepo },
         { provide: getRepositoryToken(Order), useValue: orderRepo },
-        { provide: getRepositoryToken(Notification), useValue: notificationRepo },
-        { provide: getRepositoryToken(Conversation), useValue: conversationRepo },
+        {
+          provide: getRepositoryToken(Notification),
+          useValue: notificationRepo,
+        },
+        {
+          provide: getRepositoryToken(Conversation),
+          useValue: conversationRepo,
+        },
         { provide: getRepositoryToken(Wallet), useValue: walletRepo },
-        { provide: getRepositoryToken(PayoutRequest), useValue: payoutRequestRepo },
+        {
+          provide: getRepositoryToken(PayoutRequest),
+          useValue: payoutRequestRepo,
+        },
       ],
     }).compile();
 
@@ -243,7 +271,10 @@ describe('UserService', () => {
       userRepo.findOne.mockResolvedValue({ ...mockUser, isSeller: true });
 
       await expect(
-        service.becomeSeller('user-1', { businessName: 'Test', agreementAccepted: true }),
+        service.becomeSeller('user-1', {
+          businessName: 'Test',
+          agreementAccepted: true,
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -251,7 +282,10 @@ describe('UserService', () => {
       userRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.becomeSeller('nonexistent', { businessName: 'Test', agreementAccepted: true }),
+        service.becomeSeller('nonexistent', {
+          businessName: 'Test',
+          agreementAccepted: true,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -261,7 +295,11 @@ describe('UserService', () => {
   // ==========================================
   describe('getSellerProfile', () => {
     it('should return seller profile', async () => {
-      const profile = { id: 'sp-1', businessName: 'Shop', status: SellerStatus.APPROVED };
+      const profile = {
+        id: 'sp-1',
+        businessName: 'Shop',
+        status: SellerStatus.APPROVED,
+      };
       sellerProfileRepo.findOne.mockResolvedValue(profile);
 
       const result = await service.getSellerProfile('user-1');
@@ -272,7 +310,9 @@ describe('UserService', () => {
     it('should throw NotFoundException if no seller profile', async () => {
       sellerProfileRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.getSellerProfile('user-1')).rejects.toThrow(NotFoundException);
+      await expect(service.getSellerProfile('user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -283,12 +323,17 @@ describe('UserService', () => {
         { id: 'address-1', type: AddressType.SHIPPING, title: 'Home' },
       ]);
 
-      const result = await service.listAddresses('user-1', AddressType.SHIPPING);
+      const result = await service.listAddresses(
+        'user-1',
+        AddressType.SHIPPING,
+      );
 
       expect(result.code).toBe(RC.ADDRESS_LIST_FETCHED);
       expect(result.addresses).toHaveLength(1);
       expect(addressRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { userId: 'user-1', type: AddressType.SHIPPING } }),
+        expect.objectContaining({
+          where: { userId: 'user-1', type: AddressType.SHIPPING },
+        }),
       );
     });
 
@@ -400,10 +445,10 @@ describe('UserService', () => {
     });
 
     it('should create consent with isAccepted=false (withdrawal)', async () => {
-      const result = await service.createConsent(
-        'user-1',
-        { consentType: ConsentType.THIRD_PARTY_SHARING, isAccepted: false },
-      );
+      const result = await service.createConsent('user-1', {
+        consentType: ConsentType.THIRD_PARTY_SHARING,
+        isAccepted: false,
+      });
 
       expect(result.consent.isAccepted).toBe(false);
     });
@@ -425,7 +470,9 @@ describe('UserService', () => {
 
     it('should block deletion while active workflows exist', async () => {
       userRepo.findOne.mockResolvedValue({ ...mockUser });
-      userRepo.manager.createQueryBuilder().getOne.mockResolvedValueOnce({ id: 'auction-1' });
+      userRepo.manager
+        .createQueryBuilder()
+        .getOne.mockResolvedValueOnce({ id: 'auction-1' });
 
       await expect(
         service.deleteAccount('user-1', 'Test1234!'),
@@ -462,7 +509,10 @@ describe('UserService', () => {
       };
       userRepo.findOne.mockResolvedValue(deletedUser);
 
-      const result = await service.reactivateAccount('Test@Test.com', 'Test1234!');
+      const result = await service.reactivateAccount(
+        'Test@Test.com',
+        'Test1234!',
+      );
 
       expect(result.code).toBe(RC.ACCOUNT_REACTIVATED);
       expect(userRepo.findOne).toHaveBeenCalledWith({
@@ -472,7 +522,11 @@ describe('UserService', () => {
     });
 
     it('should reject if account already active', async () => {
-      userRepo.findOne.mockResolvedValue({ ...mockUser, isActive: true, deletedAt: null });
+      userRepo.findOne.mockResolvedValue({
+        ...mockUser,
+        isActive: true,
+        deletedAt: null,
+      });
 
       await expect(
         service.reactivateAccount('test@test.com', 'Test1234!'),

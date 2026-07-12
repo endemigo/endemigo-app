@@ -1,4 +1,12 @@
-import { IsEnum, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { ListingType } from '../../../shared/types/listing-type.enum';
 import { ListingDraftEntryMode } from '../../../shared/types/listing-draft-entry-mode.enum';
 

@@ -6,7 +6,7 @@ import { Queue } from 'bullmq';
 async function run() {
   const app = await NestFactory.createApplicationContext(AppModule);
   try {
-    const queue = app.get('BullQueue_auction') as Queue;
+    const queue = app.get('BullQueue_auction');
     const activeJobs = await queue.getActive();
     const delayedJobs = await queue.getDelayed();
     const completedJobs = await queue.getCompleted();
@@ -21,7 +21,10 @@ async function run() {
     if (delayedJobs.length > 0) {
       console.log('\n--- Delayed Jobs ---');
       for (const job of delayedJobs) {
-        console.log(`Job ID: ${job.id}, Name: ${job.name}, Delay: ${job.delay}ms, Data:`, job.data);
+        console.log(
+          `Job ID: ${job.id}, Name: ${job.name}, Delay: ${job.delay}ms, Data:`,
+          job.data,
+        );
       }
     }
   } catch (err) {

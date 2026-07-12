@@ -17,7 +17,11 @@ export class CargoShipmentEvent extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   detail: string | null;
 
-  @Column({ type: 'enum', enum: CargoEventSource, default: CargoEventSource.SYSTEM })
+  @Column({
+    type: 'enum',
+    enum: CargoEventSource,
+    default: CargoEventSource.SYSTEM,
+  })
   source: CargoEventSource;
 
   @Column({ type: 'timestamptz' })

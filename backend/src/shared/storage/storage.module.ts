@@ -29,4 +29,3 @@ import { R2StorageService } from './r2-storage.service';
   exports: [STORAGE_SERVICE],
 })
 export class StorageModule {}
-

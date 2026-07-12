@@ -1,4 +1,9 @@
-import { EscrowStatus, OrderReturnReasonCode, OrderSource, OrderStatus } from '@endemigo/shared';
+import {
+  EscrowStatus,
+  OrderReturnReasonCode,
+  OrderSource,
+  OrderStatus,
+} from '@endemigo/shared';
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { User } from '../../user/entities/user.entity';
@@ -66,7 +71,11 @@ export class Order extends BaseEntity {
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.CREATED })
   status: OrderStatus;
 
-  @Column({ type: 'enum', enum: EscrowStatus, default: EscrowStatus.NOT_FUNDED })
+  @Column({
+    type: 'enum',
+    enum: EscrowStatus,
+    default: EscrowStatus.NOT_FUNDED,
+  })
   escrowStatus: EscrowStatus;
 
   @Column({ type: 'uuid', nullable: true })

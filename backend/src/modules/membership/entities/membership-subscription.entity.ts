@@ -11,14 +11,25 @@ export class MembershipSubscription extends BaseEntity {
   @Column()
   packageId: string;
 
-  @ManyToOne(() => MembershipPackage, (membershipPackage) => membershipPackage.subscriptions)
+  @ManyToOne(
+    () => MembershipPackage,
+    (membershipPackage) => membershipPackage.subscriptions,
+  )
   @JoinColumn({ name: 'packageId' })
   package: MembershipPackage;
 
-  @Column({ type: 'enum', enum: MembershipStatus, default: MembershipStatus.FREE })
+  @Column({
+    type: 'enum',
+    enum: MembershipStatus,
+    default: MembershipStatus.FREE,
+  })
   status: MembershipStatus;
 
-  @Column({ type: 'enum', enum: MembershipPeriod, default: MembershipPeriod.MONTHLY })
+  @Column({
+    type: 'enum',
+    enum: MembershipPeriod,
+    default: MembershipPeriod.MONTHLY,
+  })
   period: MembershipPeriod;
 
   @Column({ type: 'timestamptz', default: () => 'now()' })

@@ -19,7 +19,11 @@ import {
 } from '@endemigo/shared';
 import { User } from './entities/user.entity';
 import { Address } from './entities/address.entity';
-import { SellerProfile, SellerStatus, SellerType } from './entities/seller-profile.entity';
+import {
+  SellerProfile,
+  SellerStatus,
+  SellerType,
+} from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { TrustService } from '../trust/trust.service';
@@ -100,13 +104,22 @@ export class UserService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
+    if (!user)
+      throw new NotFoundException({
+        code: RC.USER_NOT_FOUND,
+        message: 'Kullanıcı bulunamadı',
+      });
 
     // Telefon numarası unique kontrolü
     if (dto.phone) {
-      const existing = await this.userRepo.findOne({ where: { phone: dto.phone } });
+      const existing = await this.userRepo.findOne({
+        where: { phone: dto.phone },
+      });
       if (existing && existing.id !== userId) {
-        throw new ConflictException({ code: RC.PHONE_ALREADY_EXISTS, message: 'Bu telefon numarası zaten kullanılıyor' });
+        throw new ConflictException({
+          code: RC.PHONE_ALREADY_EXISTS,
+          message: 'Bu telefon numarası zaten kullanılıyor',
+        });
       }
     }
 
@@ -204,14 +217,21 @@ export class UserService {
     });
   }
 
-  async updateAddress(userId: string, addressId: string, dto: UpdateAddressDto) {
+  async updateAddress(
+    userId: string,
+    addressId: string,
+    dto: UpdateAddressDto,
+  ) {
     const user = await this.findUserOrThrow(userId);
     const address = await this.findAddressOrThrow(userId, addressId);
     const targetType = dto.type ?? address.type;
     this.assertSenderAddressAccess(user, targetType);
 
     return this.addressRepo.manager.transaction(async (manager) => {
-      if (dto.isDefault || (dto.type && dto.type !== address.type && address.isDefault)) {
+      if (
+        dto.isDefault ||
+        (dto.type && dto.type !== address.type && address.isDefault)
+      ) {
         await manager.update(
           Address,
           { userId, type: targetType, isDefault: true },
@@ -225,10 +245,14 @@ export class UserService {
       if (dto.phone !== undefined) address.phone = dto.phone.trim();
       if (dto.city !== undefined) address.city = dto.city.trim();
       if (dto.district !== undefined) address.district = dto.district.trim();
-      if (dto.neighborhood !== undefined) address.neighborhood = dto.neighborhood.trim() || null;
-      if (dto.addressLine !== undefined) address.addressLine = dto.addressLine.trim();
-      if (dto.postalCode !== undefined) address.postalCode = dto.postalCode.trim() || null;
-      if (dto.country !== undefined) address.country = dto.country.trim() || 'TR';
+      if (dto.neighborhood !== undefined)
+        address.neighborhood = dto.neighborhood.trim() || null;
+      if (dto.addressLine !== undefined)
+        address.addressLine = dto.addressLine.trim();
+      if (dto.postalCode !== undefined)
+        address.postalCode = dto.postalCode.trim() || null;
+      if (dto.country !== undefined)
+        address.country = dto.country.trim() || 'TR';
       if (dto.isDefault !== undefined) address.isDefault = dto.isDefault;
 
       const saved = await manager.save(Address, address);
@@ -323,19 +347,45 @@ export class UserService {
       senderAddressCount,
     ] = await Promise.all([
       this.sellerProfileRepo.findOne({ where: { userId: sellerId } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.ESCROW_HELD } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.PREPARING_SHIPMENT } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.IN_TRANSIT } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.DELIVERED } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.RETURN_REQUESTED } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.RETURN_IN_TRANSIT } }),
-      this.orderRepo.count({ where: { sellerId, status: OrderStatus.REFUNDED } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.DRAFT } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.PENDING_REVIEW } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.ACTIVE } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.OUT_OF_STOCK } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.SUSPENDED } }),
-      this.productRepo.count({ where: { sellerId, status: ProductStatus.SOLD } }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.ESCROW_HELD },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.PREPARING_SHIPMENT },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.IN_TRANSIT },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.DELIVERED },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.RETURN_REQUESTED },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.RETURN_IN_TRANSIT },
+      }),
+      this.orderRepo.count({
+        where: { sellerId, status: OrderStatus.REFUNDED },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.DRAFT },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.PENDING_REVIEW },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.ACTIVE },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.OUT_OF_STOCK },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.SUSPENDED },
+      }),
+      this.productRepo.count({
+        where: { sellerId, status: ProductStatus.SOLD },
+      }),
       this.productRepo.count({
         where: {
           sellerId,
@@ -343,18 +393,25 @@ export class UserService {
           stockQuantity: LessThanOrEqual(3),
         },
       }),
-      this.notificationRepo.count({ where: { userId: sellerId, readAt: IsNull() } }),
+      this.notificationRepo.count({
+        where: { userId: sellerId, readAt: IsNull() },
+      }),
       this.conversationRepo.count({
         where: { sellerId, status: NegotiationStatus.OPEN },
       }),
       this.walletRepo.findOne({ where: { userId: sellerId } }),
       this.payoutRequestRepo.find({ where: { sellerId } }),
-      this.addressRepo.count({ where: { userId: sellerId, type: AddressType.SENDER } }),
+      this.addressRepo.count({
+        where: { userId: sellerId, type: AddressType.SENDER },
+      }),
     ]);
 
     const pendingPayoutAmount = payoutRequests
       .filter((item) =>
-        [PayoutRequestStatus.REQUESTED, PayoutRequestStatus.ADMIN_REVIEW].includes(item.status),
+        [
+          PayoutRequestStatus.REQUESTED,
+          PayoutRequestStatus.ADMIN_REVIEW,
+        ].includes(item.status),
       )
       .reduce((sum, item) => sum + Number(item.amount), 0);
     const processingPayoutAmount = payoutRequests
@@ -370,7 +427,9 @@ export class UserService {
       summary: {
         seller: {
           id: user.id,
-          businessName: sellerProfile?.businessName ?? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
+          businessName:
+            sellerProfile?.businessName ??
+            `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
           status: sellerProfile?.status ?? SellerStatus.PENDING,
         },
         orders: {
@@ -394,14 +453,18 @@ export class UserService {
         wallet: {
           balance: Number(wallet?.balance ?? 0),
           held: Number(wallet?.heldAmount ?? 0),
-          available: Number(wallet?.balance ?? 0) - Number(wallet?.heldAmount ?? 0),
+          available:
+            Number(wallet?.balance ?? 0) - Number(wallet?.heldAmount ?? 0),
         },
         payouts: {
           pendingAmount: pendingPayoutAmount,
           processingAmount: processingPayoutAmount,
           paidAmount: paidPayoutAmount,
           pendingCount: payoutRequests.filter((item) =>
-            [PayoutRequestStatus.REQUESTED, PayoutRequestStatus.ADMIN_REVIEW].includes(item.status),
+            [
+              PayoutRequestStatus.REQUESTED,
+              PayoutRequestStatus.ADMIN_REVIEW,
+            ].includes(item.status),
           ).length,
         },
         inbox: {
@@ -440,14 +503,23 @@ export class UserService {
     try {
       return await this.userRepo.manager.transaction(async (manager) => {
         const user = await manager.findOne(User, { where: { id: userId } });
-        if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
-        if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+        if (!user)
+          throw new NotFoundException({
+            code: RC.USER_NOT_FOUND,
+            message: 'Kullanıcı bulunamadı',
+          });
+        if (user.isSeller)
+          throw new ConflictException({
+            code: RC.ALREADY_SELLER,
+            message: 'Zaten satıcısınız',
+          });
 
         // WR-06: Require email verification before seller registration
         if (!user.isVerified) {
           throw new BadRequestException({
             code: 'EMAIL_NOT_VERIFIED',
-            message: 'Satıcı olmak için önce e-posta adresinizi doğrulamalısınız',
+            message:
+              'Satıcı olmak için önce e-posta adresinizi doğrulamalısınız',
           });
         }
 
@@ -464,28 +536,40 @@ export class UserService {
             });
           }
           if (existingProfile.status === SellerStatus.APPROVED) {
-            throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+            throw new ConflictException({
+              code: RC.ALREADY_SELLER,
+              message: 'Zaten satıcısınız',
+            });
           }
           if (existingProfile.status === SellerStatus.SUSPENDED) {
             throw new ForbiddenException({
               code: RC.SELLER_SUSPENDED,
-              message: 'Satıcı hesabınız askıya alınmış. Lütfen destek ekibiyle iletişime geçin.',
+              message:
+                'Satıcı hesabınız askıya alınmış. Lütfen destek ekibiyle iletişime geçin.',
             });
           }
           // TERMINATED (reddedilmiş/kapatılmış): mevcut satır yeni başvuru olarak güncellenir
           // Tip değişiminde karşı tipe ait alanlar temizlenir (bireyselde VKN, kurumsalda TC kalmasın)
           existingProfile.businessName = dto.businessName;
           existingProfile.sellerType = sellerType;
-          existingProfile.taxOffice = isIndividual ? null : (dto.taxOffice ?? existingProfile.taxOffice);
-          existingProfile.taxNumber = isIndividual ? null : (dto.taxNumber ?? existingProfile.taxNumber);
-          existingProfile.identityNumber = isIndividual ? (dto.identityNumber ?? existingProfile.identityNumber) : null;
+          existingProfile.taxOffice = isIndividual
+            ? null
+            : (dto.taxOffice ?? existingProfile.taxOffice);
+          existingProfile.taxNumber = isIndividual
+            ? null
+            : (dto.taxNumber ?? existingProfile.taxNumber);
+          existingProfile.identityNumber = isIndividual
+            ? (dto.identityNumber ?? existingProfile.identityNumber)
+            : null;
           existingProfile.iban = dto.iban ?? existingProfile.iban;
           existingProfile.status = SellerStatus.PENDING;
           existingProfile.approvedAt = null as unknown as Date;
           existingProfile.agreementAcceptedAt = new Date();
           existingProfile.agreementVersion = '1.0.0';
-          existingProfile.agreementIpAddress = ipAddress ?? existingProfile.agreementIpAddress;
-          existingProfile.agreementUserAgent = userAgent ?? existingProfile.agreementUserAgent;
+          existingProfile.agreementIpAddress =
+            ipAddress ?? existingProfile.agreementIpAddress;
+          existingProfile.agreementUserAgent =
+            userAgent ?? existingProfile.agreementUserAgent;
           const reapplied = await manager.save(existingProfile);
 
           return {
@@ -544,7 +628,10 @@ export class UserService {
     } catch (error: unknown) {
       // CR-03: TOCTOU'yu asıl önleyen seller_profiles.userId UNIQUE constraint'i —
       // eşzamanlı iki başvuruda kaybeden istek 23505 alır, 500 yerine 409 dönülür.
-      const dbError = error as { code?: string; driverError?: { code?: string } };
+      const dbError = error as {
+        code?: string;
+        driverError?: { code?: string };
+      };
       if (dbError.code === '23505' || dbError.driverError?.code === '23505') {
         throw new ConflictException({
           code: RC.SELLER_APPLICATION_ALREADY_PENDING,
@@ -557,7 +644,11 @@ export class UserService {
 
   async getSellerProfile(userId: string) {
     const profile = await this.sellerProfileRepo.findOne({ where: { userId } });
-    if (!profile) throw new NotFoundException({ code: RC.SELLER_PROFILE_NOT_FOUND, message: 'Satıcı profili bulunamadı' });
+    if (!profile)
+      throw new NotFoundException({
+        code: RC.SELLER_PROFILE_NOT_FOUND,
+        message: 'Satıcı profili bulunamadı',
+      });
     const trustBadge = this.trustService
       ? await this.trustService.getSellerTrustBadge(userId)
       : null;
@@ -599,7 +690,6 @@ export class UserService {
     };
   }
 
-
   // ==========================================
   // Seller Public Profile
   // ==========================================
@@ -637,8 +727,13 @@ export class UserService {
     return {
       profile: {
         id: user.id,
-        name: user.sellerProfile?.businessName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Satıcı',
-        avatar: user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName || 'E')}&background=0097D8&color=fff&size=256`,
+        name:
+          user.sellerProfile?.businessName ||
+          `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+          'Satıcı',
+        avatar:
+          user.avatarUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName || 'E')}&background=0097D8&color=fff&size=256`,
         banner: resolveSellerBanner(user.id, user.bannerUrl),
         rating: reviewSummary.rating,
         reviewCount: reviewSummary.reviewCount,
@@ -647,7 +742,9 @@ export class UserService {
         totalSales: products.length * 34 + 12,
         description: user.bio || undefined,
         location: user.location || 'Türkiye',
-        since: user.createdAt ? new Date(user.createdAt).getFullYear().toString() : undefined,
+        since: user.createdAt
+          ? new Date(user.createdAt).getFullYear().toString()
+          : undefined,
         trustBadges: trustBadge ? [trustBadge] : ['verified'],
       },
       reviews: reviewSummary.reviews,
@@ -657,15 +754,18 @@ export class UserService {
         description: p.description,
         price: Number(p.price),
         imageUrl: p.imageUrl,
-        images: p.images?.map((img) => ({
-          id: img.id,
-          url: img.url,
-          sortOrder: img.sortOrder,
-          isPrimary: img.isPrimary,
-        })) || [],
+        images:
+          p.images?.map((img) => ({
+            id: img.id,
+            url: img.url,
+            sortOrder: img.sortOrder,
+            isPrimary: img.isPrimary,
+          })) || [],
         status: p.status,
         sellerId: p.sellerId,
-        sellerName: user.sellerProfile?.businessName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        sellerName:
+          user.sellerProfile?.businessName ||
+          `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         categoryId: p.categoryId,
         categoryName: p.category?.name || null,
         stockQuantity: p.stockQuantity,
@@ -673,7 +773,9 @@ export class UserService {
         condition: p.condition,
         listingType: p.listingType,
         askPriceEnabled: p.askPriceEnabled,
-        askPriceMinAmount: p.askPriceMinAmount ? Number(p.askPriceMinAmount) : null,
+        askPriceMinAmount: p.askPriceMinAmount
+          ? Number(p.askPriceMinAmount)
+          : null,
         favoriteCount: p.favoriteCount,
         createdAt: p.createdAt,
       })),
@@ -724,10 +826,7 @@ export class UserService {
     return address;
   }
 
-  private assertSenderAddressAccess(
-    user: User,
-    type?: AddressType,
-  ) {
+  private assertSenderAddressAccess(user: User, type?: AddressType) {
     if (type === AddressType.SENDER && !user.isSeller) {
       throw new ForbiddenException({
         code: RC.FORBIDDEN,
@@ -760,8 +859,10 @@ export class UserService {
       reviewCount > 0
         ? Number(
             (
-              mappedReviews.reduce((total, review) => total + review.rating, 0) /
-              reviewCount
+              mappedReviews.reduce(
+                (total, review) => total + review.rating,
+                0,
+              ) / reviewCount
             ).toFixed(1),
           )
         : 0;
@@ -816,11 +917,19 @@ export class UserService {
 
   async deleteAccount(userId: string, password: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
+    if (!user)
+      throw new NotFoundException({
+        code: RC.USER_NOT_FOUND,
+        message: 'Kullanıcı bulunamadı',
+      });
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new UnauthorizedException({ code: RC.WRONG_PASSWORD, message: 'Şifre hatalı' });
+    if (!isValid)
+      throw new UnauthorizedException({
+        code: RC.WRONG_PASSWORD,
+        message: 'Şifre hatalı',
+      });
 
     await this.assertAccountCanBeDeleted(userId);
 
@@ -835,7 +944,10 @@ export class UserService {
       { isRevoked: true },
     );
 
-    return { code: RC.ACCOUNT_DELETED, message: 'Hesabınız silindi. 30 gün içinde geri aktifleştirebilirsiniz.' };
+    return {
+      code: RC.ACCOUNT_DELETED,
+      message: 'Hesabınız silindi. 30 gün içinde geri aktifleştirebilirsiniz.',
+    };
   }
 
   async reactivateAccount(email: string, password: string) {
@@ -848,21 +960,35 @@ export class UserService {
     });
 
     // CR-01: Generic error messages to prevent user enumeration
-    if (!user) throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
+    if (!user)
+      throw new BadRequestException({
+        code: RC.REACTIVATION_FAILED,
+        message: 'İşlem başarısız',
+      });
     if (user.isActive && !user.deletedAt) {
-      throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
+      throw new BadRequestException({
+        code: RC.REACTIVATION_FAILED,
+        message: 'İşlem başarısız',
+      });
     }
 
     // Şifre doğrulama
     const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) throw new BadRequestException({ code: RC.REACTIVATION_FAILED, message: 'İşlem başarısız' });
+    if (!isValid)
+      throw new BadRequestException({
+        code: RC.REACTIVATION_FAILED,
+        message: 'İşlem başarısız',
+      });
 
     // Grace period kontrolü (30 gün)
     if (user.deletedAt) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       if (user.deletedAt < thirtyDaysAgo) {
-        throw new BadRequestException({ code: RC.GRACE_PERIOD_EXPIRED, message: 'Grace period sona erdi, hesap geri aktifleştirilemez' });
+        throw new BadRequestException({
+          code: RC.GRACE_PERIOD_EXPIRED,
+          message: 'Grace period sona erdi, hesap geri aktifleştirilemez',
+        });
       }
     }
 
@@ -871,13 +997,18 @@ export class UserService {
     user.deletedAt = null;
     await this.userRepo.save(user);
 
-    return { code: RC.ACCOUNT_REACTIVATED, message: 'Hesabınız başarıyla geri aktifleştirildi' };
+    return {
+      code: RC.ACCOUNT_REACTIVATED,
+      message: 'Hesabınız başarıyla geri aktifleştirildi',
+    };
   }
 
   private async assertAccountCanBeDeleted(userId: string): Promise<void> {
     const activeAuction = await this.userRepo.manager
       .createQueryBuilder('Auction', 'auction')
-      .where('auction.sellerId = :userId OR auction.winnerId = :userId', { userId })
+      .where('auction.sellerId = :userId OR auction.winnerId = :userId', {
+        userId,
+      })
       .andWhere('auction.status IN (:...statuses)', {
         statuses: [AuctionStatus.PUBLISHED, AuctionStatus.ACTIVE],
       })
@@ -892,7 +1023,9 @@ export class UserService {
 
     const activeOrder = await this.userRepo.manager
       .createQueryBuilder('Order', 'userOrder')
-      .where('userOrder.buyerId = :userId OR userOrder.sellerId = :userId', { userId })
+      .where('userOrder.buyerId = :userId OR userOrder.sellerId = :userId', {
+        userId,
+      })
       .andWhere('userOrder.status IN (:...statuses)', {
         statuses: [
           OrderStatus.CREATED,

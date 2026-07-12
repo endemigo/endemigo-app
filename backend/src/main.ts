@@ -5,7 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
-import { buildCorsOptions, getAllowedCorsOrigins } from './common/http/cors.util';
+import {
+  buildCorsOptions,
+  getAllowedCorsOrigins,
+} from './common/http/cors.util';
 import { initBackendMonitoring } from './common/monitoring/sentry-bootstrap';
 import { RedisIoAdapter } from './shared/websocket/redis-io.adapter';
 
@@ -18,7 +21,10 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   const corsOrigin = process.env.CORS_ORIGIN;
-  const allowedOrigins = getAllowedCorsOrigins(process.env.NODE_ENV, corsOrigin);
+  const allowedOrigins = getAllowedCorsOrigins(
+    process.env.NODE_ENV,
+    corsOrigin,
+  );
   if (allowedOrigins.length === 0 && process.env.NODE_ENV === 'production') {
     throw new Error('CORS_ORIGIN must be set in production');
   }
@@ -57,8 +63,11 @@ async function bootstrap() {
   logger.log(`🚀 Endemigo API running on http://localhost:${port}`);
   logger.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
 }
-bootstrap().catch((error) => {
+bootstrap().catch((error: unknown) => {
   // Açılış hatası unhandled rejection olarak kaybolmasın.
-  console.error('Bootstrap failed:', error);
+  new Logger('Bootstrap').error(
+    'Bootstrap failed',
+    error instanceof Error ? error.stack : String(error),
+  );
   process.exit(1);
 });

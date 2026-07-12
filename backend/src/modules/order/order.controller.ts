@@ -1,5 +1,20 @@
-import { Body, Controller, Get, Param, Patch, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,7 +34,10 @@ export class OrderController {
 
   @Post('direct-sale')
   @ApiOperation({ summary: 'Create direct sale order' })
-  createDirectSale(@CurrentUser('id') buyerId: string, @Body() dto: CreateOrderDto) {
+  createDirectSale(
+    @CurrentUser('id') buyerId: string,
+    @Body() dto: CreateOrderDto,
+  ) {
     return this.orderService.createFromDirectSale(buyerId, dto);
   }
 
@@ -67,30 +85,40 @@ export class OrderController {
   @Post(':id/return-images')
   @ApiOperation({ summary: 'Upload return proof image' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (_req, file, callback) => {
-      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (allowedMimes.includes(file.mimetype)) {
-        callback(null, true);
-      } else {
-        callback(
-          new BadRequestException({
-            code: RC.VALIDATION_ERROR,
-            message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
-          }),
-          false,
-        );
-      }
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        const allowedMimes = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/gif',
+        ];
+        if (allowedMimes.includes(file.mimetype)) {
+          callback(null, true);
+        } else {
+          callback(
+            new BadRequestException({
+              code: RC.VALIDATION_ERROR,
+              message: 'Sadece JPEG, PNG, WebP ve GIF dosyaları yüklenebilir',
+            }),
+            false,
+          );
+        }
+      },
+    }),
+  )
   async uploadReturnImage(
     @CurrentUser('id') userId: string,
     @Param('id') orderId: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
-      throw new BadRequestException({ code: RC.FILE_REQUIRED, message: 'Görsel dosyası zorunludur' });
+      throw new BadRequestException({
+        code: RC.FILE_REQUIRED,
+        message: 'Görsel dosyası zorunludur',
+      });
     }
     return this.orderService.uploadReturnImage(userId, orderId, file);
   }
@@ -108,7 +136,9 @@ export class OrderController {
 
   @Post(':id/confirm-return-delivered')
   @Roles('seller', 'admin')
-  @ApiOperation({ summary: 'Confirm return shipment delivery and finalize refund' })
+  @ApiOperation({
+    summary: 'Confirm return shipment delivery and finalize refund',
+  })
   confirmReturnDelivered(
     @CurrentUser() user: { id: string; isAdmin?: boolean },
     @Param('id') id: string,

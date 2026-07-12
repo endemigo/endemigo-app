@@ -138,12 +138,15 @@ export class BannerService {
     }
 
     if (dto.name !== undefined) banner.name = dto.name;
-    if (dto.slideDuration !== undefined) banner.slideDuration = dto.slideDuration;
+    if (dto.slideDuration !== undefined)
+      banner.slideDuration = dto.slideDuration;
     if (dto.aspectRatio !== undefined) banner.aspectRatio = dto.aspectRatio;
     if (dto.items !== undefined) banner.items = this.withItemIds(dto.items);
     if (dto.isActive !== undefined) banner.isActive = dto.isActive;
-    if (dto.startAt !== undefined) banner.startAt = dto.startAt ? new Date(dto.startAt) : null;
-    if (dto.endAt !== undefined) banner.endAt = dto.endAt ? new Date(dto.endAt) : null;
+    if (dto.startAt !== undefined)
+      banner.startAt = dto.startAt ? new Date(dto.startAt) : null;
+    if (dto.endAt !== undefined)
+      banner.endAt = dto.endAt ? new Date(dto.endAt) : null;
     this.assertValidWindow(banner.startAt, banner.endAt);
 
     const saved = await this.bannerRepo.save(banner);
