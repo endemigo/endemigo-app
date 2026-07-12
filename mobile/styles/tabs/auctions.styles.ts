@@ -51,6 +51,8 @@ export const styles = StyleSheet.create({
   headerLogo: {
     width: 108,
     height: 24,
+    // Müzayede kimliği: logo bu ekranda auctionGreen'e boyanır.
+    tintColor: Colors.auctionGreen,
   },
   headerActions: {
     flexDirection: 'row',
@@ -64,17 +66,10 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: `${Colors.primary}1F`,
+    borderColor: Colors.primaryTintBorderFaint,
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.sm,
-  },
-  headerTitle: {
-    fontFamily: FontFamily.headlineBlack,
-    fontWeight: '800',
-    fontSize: FontSize.subheading,
-    color: Colors.onSurface,
-    marginTop: Spacing.xs,
   },
 
   // List
@@ -382,15 +377,17 @@ export const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   statusChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.slate100,
-    gap: Spacing.xs,
+    gap: 4,
   },
   statusChipActive: {
     backgroundColor: Colors.slate900,
@@ -513,10 +510,12 @@ export const styles = StyleSheet.create({
   },
 
   // ─── Yeniden tasarım: chip filtre satırı ───────────────────
+  // Chipler satırı eşit bölüşür — başlık kalktığı için üst boşluk da burada.
   chipRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
   },
   headerSearchButton: {
@@ -605,6 +604,7 @@ export const styles = StyleSheet.create({
     fontFamily: FontFamily.bodySemiBold,
     color: Colors.slate400,
     letterSpacing: 0.6,
+    textTransform: 'uppercase',
     marginHorizontal: Spacing.base,
     marginBottom: Spacing.xs,
     marginTop: Spacing.xs,
@@ -654,26 +654,49 @@ export const styles = StyleSheet.create({
   },
 
   // ─── Geçmiş müzayede satırı ────────────────────────────────
+  // Yaklaşan kartıyla aynı iskelet, sönük tonlar — liste tutarlı görünür.
   pastRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     marginHorizontal: Spacing.base,
-    marginBottom: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+  },
+  pastThumb: {
+    width: 56,
+    height: 44,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.slate50,
+    backgroundColor: Colors.slate100,
+    opacity: 0.7,
+  },
+  pastBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   pastTitle: {
-    flex: 1,
-    fontSize: FontSize.caption,
+    fontSize: FontSize.meta,
     fontFamily: FontFamily.bodyMedium,
-    color: Colors.slate500,
+    color: Colors.slate600,
   },
   pastMeta: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
     color: Colors.slate400,
+  },
+  pastResults: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  pastResultsText: {
+    fontSize: FontSize.caption,
+    fontFamily: FontFamily.bodySemiBold,
+    color: Colors.slate500,
   },
 });

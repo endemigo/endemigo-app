@@ -1,5 +1,5 @@
-import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { AdminAuditAction, AdminRole, PayoutRequestStatus, ProductStatus, RC } from '@endemigo/shared';
+import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { AdminAuditAction, AdminRole, AuctionApprovalStatus, AuctionEventStatus, AuctionEventSystemType, PayoutRequestStatus, ProductStatus, RC } from '@endemigo/shared';
 import { AdminAuditService } from '../admin-audit/admin-audit.service';
 import { AuctionService } from '../auction/auction.service';
 import { SellerStatus } from '../user/entities/seller-profile.entity';
@@ -15,10 +15,24 @@ type MockRepo = {
   softDelete: jest.Mock;
   update: jest.Mock;
   createQueryBuilder: jest.Mock;
+  manager: {
+    transaction: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    getRepository: jest.Mock;
+  };
 };
 
 function createRepo(): MockRepo {
+  // createUser gibi akışlar repo.manager.transaction içinde manager.create/save kullanır
+  const manager: MockRepo['manager'] = {
+    transaction: jest.fn(async (cb: (m: unknown) => Promise<unknown>) => cb(manager)),
+    create: jest.fn((_entity: unknown, value: unknown) => value),
+    save: jest.fn(async (_entity: unknown, value: unknown) => value),
+    getRepository: jest.fn(() => createRepo()),
+  };
   return {
+    manager,
     count: jest.fn().mockResolvedValue(0),
     find: jest.fn().mockResolvedValue([]),
     findAndCount: jest.fn().mockResolvedValue([[], 0]),
@@ -430,6 +444,88 @@ describe('AdminOperationsService', () => {
     expect(result.relatedRecords.orders).toEqual([]);
     expect(result.relatedRecords.pagination.orders.hasMore).toBe(false);
     expect(result.overview.passwordHash).toBeUndefined();
+  });
+
+  // ─── Müzayede onay kapıları (fix/auction-add-flow-guards) ───
+
+  it('updateAuctionEvent: satıcı etkinliği APPLICATION ötesine (ACTIVE) taşıyamaz', async () => {
+    repos[8].findOne.mockResolvedValueOnce({
+      id: 'event-1',
+      ownerId: 'seller-9',
+      auctioneerId: null,
+      status: AuctionEventStatus.APPLICATION,
+      eventType: AuctionEventSystemType.INDEPENDENT,
+      isUntimed: false,
+    });
+
+    await expect(
+      service.updateAuctionEvent(
+        'event-1',
+        { reason: 'yayına al', metadata: { status: AuctionEventStatus.ACTIVE } },
+        { id: 'seller-9', roles: ['seller' as AdminRole] },
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('updateAuctionEvent: satıcı DRAFT → APPLICATION onaya sunabilir', async () => {
+    repos[8].findOne.mockResolvedValueOnce({
+      id: 'event-1',
+      ownerId: 'seller-9',
+      auctioneerId: null,
+      status: AuctionEventStatus.DRAFT,
+      eventType: AuctionEventSystemType.INDEPENDENT,
+      isUntimed: false,
+      minProductsCount: 0,
+    });
+    repos[7].count.mockResolvedValue(50);
+
+    const result = await service.updateAuctionEvent(
+      'event-1',
+      { reason: 'onaya sun', metadata: { status: AuctionEventStatus.APPLICATION } },
+      { id: 'seller-9', roles: ['seller' as AdminRole] },
+    );
+    expect(result.code).toBe(RC.SUCCESS);
+  });
+
+  it('approveLot: ürün ACTIVE değilse lot onaylanamaz', async () => {
+    repos[7].findOne.mockResolvedValueOnce({
+      id: 'auc-1',
+      eventId: 'event-1',
+      sellerId: 's1',
+      approvalStatus: AuctionApprovalStatus.PENDING,
+      product: { id: 'p1', title: 'X', status: ProductStatus.PENDING_REVIEW },
+      seller: { id: 's1' },
+    });
+
+    await expect(
+      service.approveLot('auc-1', AuctionApprovalStatus.APPROVED, 'ok', {
+        id: 'admin-1',
+        roles: [AdminRole.OPERATIONS],
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('approveLot: ürün ACTIVE ise lot onaylanır (PUBLISHED)', async () => {
+    repos[7].findOne.mockResolvedValueOnce({
+      id: 'auc-1',
+      eventId: 'event-1',
+      sellerId: 's1',
+      approvalStatus: AuctionApprovalStatus.PENDING,
+      product: { id: 'p1', title: 'X', status: ProductStatus.ACTIVE },
+      seller: { id: 's1' },
+    });
+    repos[7].createQueryBuilder.mockReturnValueOnce({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ max: 0 }),
+    });
+
+    const result = await service.approveLot('auc-1', AuctionApprovalStatus.APPROVED, 'ok', {
+      id: 'admin-1',
+      roles: [AdminRole.OPERATIONS],
+    });
+    expect(result.code).toBe(RC.SUCCESS);
   });
 
   it('returns detailed product records with buyer and interaction summary', async () => {

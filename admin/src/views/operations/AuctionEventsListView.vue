@@ -345,6 +345,10 @@
                   <input type="checkbox" v-model="wizardForm.isUntimed" />
                   <span>Süresiz müzayede — bitiş zamanı yok, etkinliği yalnızca panelden yönetici sonlandırır</span>
                 </label>
+                <label class="wizard-field wizard-untimed-toggle">
+                  <input type="checkbox" v-model="wizardForm.autoApproveRegistrations" />
+                  <span>Kayıtları otomatik onayla — kartı doğrulanan katılımcı beklemeden pey verir (kültür varlığı lotu varsa her koşulda elle onay işler)</span>
+                </label>
                 <div v-if="!wizardForm.isUntimed" class="wizard-field">
                   <label>Bitiş Tarihi *</label>
                   <input class="input" type="datetime-local" v-model="wizardForm.endTime" />
@@ -713,6 +717,16 @@ function generateFormFields(row: any | null): DrawerField[] {
         ],
       });
     }
+    fields.push({
+      key: 'autoApproveRegistrations',
+      label: 'Kayıtları Otomatik Onayla (kültür varlığı lotu varsa elle onay işler)',
+      type: 'select',
+      value: row.autoApproveRegistrations === false ? 'false' : 'true',
+      options: [
+        { label: 'Evet (kart doğrulanan anında katılır)', value: 'true' },
+        { label: 'Hayır (her kayıt elle onaylanır)', value: 'false' },
+      ],
+    });
     // Faz 6: Canlı yayını yürütecek kişi (operatör/kreatör). Boş bırakılırsa sahibe düşer.
     const auctioneerOptions = [
       { label: '— Sahip / Varsayılan —', value: '' },
@@ -789,6 +803,7 @@ const wizardForm = reactive({
   startTime: '',
   endTime: '',
   isUntimed: false,
+  autoApproveRegistrations: true,
   submissionDeadline: '',
   auctionType: 'REALTIME',
   currency: 'TRY',
@@ -870,6 +885,7 @@ function handleNewEventClick() {
     startTime: '',
     endTime: '',
     isUntimed: false,
+    autoApproveRegistrations: true,
     submissionDeadline: '',
     auctionType: 'REALTIME',
     currency: 'TRY',
@@ -909,6 +925,7 @@ async function submitWizard() {
     startTime: wizardForm.startTime,
     endTime: wizardForm.isUntimed ? '' : wizardForm.endTime,
     isUntimed: wizardForm.isUntimed ? 'true' : 'false',
+    autoApproveRegistrations: wizardForm.autoApproveRegistrations ? 'true' : 'false',
     submissionDeadline: wizardForm.submissionDeadline || '',
     auctionType: wizardForm.isUntimed ? 'REALTIME' : wizardForm.auctionType,
     currency: wizardForm.currency,

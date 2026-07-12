@@ -43,7 +43,12 @@ export default function CartScreen() {
 
   const handleQuantityChange = (itemId: string, currentQty: number, delta: number) => {
     const nextQty = currentQty + delta;
-    if (nextQty < 1 || nextQty > 99) return;
+    if (nextQty > 99) return;
+    // Adet 0'a düşerse ürünü sepetten çıkar.
+    if (nextQty < 1) {
+      handleRemoveItem(itemId);
+      return;
+    }
     Haptics.selectionAsync().catch(() => undefined);
     updateItemQuantity(itemId, nextQty).catch(() => undefined);
   };
@@ -138,7 +143,7 @@ export default function CartScreen() {
                         onPress={() => handleQuantityChange(item.id, item.quantity, -1)}
                         activeOpacity={0.8}
                       >
-                        <Ionicons name="remove" size={14} color={Colors.onSurface} />
+                        <Ionicons name={item.quantity <= 1 ? 'trash-outline' : 'remove'} size={14} color={Colors.onSurface} />
                       </TouchableOpacity>
                       <Text style={styles.stepperValue}>{item.quantity}</Text>
                       <TouchableOpacity

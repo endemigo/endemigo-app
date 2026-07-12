@@ -3581,7 +3581,9 @@ const bannersList = ref<any[]>([]);
 
 async function loadBannersList() {
   try {
-    const response = await adminApi.get<{ items: any[] }>('/admin/banners');
+    const response = await adminApi.get<{ items: any[] }>('/admin/banners', {
+      params: { limit: 100 },
+    });
     bannersList.value = response.data.items ?? [];
   } catch {
     bannersList.value = [];

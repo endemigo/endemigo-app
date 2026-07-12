@@ -709,6 +709,8 @@ export class AdminOperationsController {
   }
 
   @Patch('auctions/:id/approve')
+  @ApiOperation({ summary: 'Müzayede lotu onay/ret — ürün ACTIVE ise yayına alınır' })
+  @AdminRoles(AdminRole.SUPER_ADMIN, AdminRole.OPERATIONS)
   async approveLot(
     @Param('id') id: string,
     @Body() dto: AdminActionDto,

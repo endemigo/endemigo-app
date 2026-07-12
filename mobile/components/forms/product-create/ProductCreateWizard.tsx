@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -44,7 +44,6 @@ import {
 } from '../../../types/productCreate.ts';
 import { resolveApiErrorMessage } from '../../../utils/apiError';
 import { getCategoryIcon, getCategoryMockImage } from '../../../utils/productCreateCategoryPresentation.ts';
-import { AUCTION_DURATION_PRESETS, AUCTION_START_DELAY_PRESETS, buildAuctionSchedule } from '../../../utils/productCreateSchedule.ts';
 import {
   DEFAULT_MAX_PRODUCT_IMAGE_COUNT,
   mapPickerAssetToProductImage,
@@ -325,24 +324,36 @@ export function ProductCreateWizard({
     }
   };
 
+  // Router param'ları focus olayından sonra gelebilir; stale closure ile
+  // reset AUCTION girişini DIRECT_SALE'e döndürmesin diye ref üzerinden okunur.
+  const entryParamsRef = useRef({ entryMode: initialEntryMode, auctionType: initialAuctionType });
+  useEffect(() => {
+    entryParamsRef.current = { entryMode: initialEntryMode, auctionType: initialAuctionType };
+  }, [initialEntryMode, initialAuctionType]);
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      reset(initialEntryMode, initialAuctionType);
+      const { entryMode: em, auctionType: at } = entryParamsRef.current;
+      reset(em, at);
       setCurrentStep(1);
       setImages([]);
       setSelectedExistingProductId(null);
-      setEntryMode(initialEntryMode ?? null);
+      setEntryMode(em ?? null);
+      setEventLotCount(0);
     });
 
     return unsubscribe;
-  }, [navigation, reset, initialEntryMode, initialAuctionType]);
+  }, [navigation, reset]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Etkinlik kartına dokununca açılan detay/onay modalı.
+  const [eventDetail, setEventDetail] = useState<any | null>(null);
+  // Bu oturumda aynı etkinliğe yayınlanan lot sayısı (kota 5).
+  const [eventLotCount, setEventLotCount] = useState(0);
   const [entryMode, setEntryMode] = useState<ProductCreateEntryMode | null>(initialEntryMode ?? null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
-  const [showAuctionAdvanced, setShowAuctionAdvanced] = useState(false);
   const [selectedExistingProductId, setSelectedExistingProductId] = useState<string | null>(null);
   const [isProvinceModalVisible, setProvinceModalVisible] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState('');
@@ -550,6 +561,22 @@ export function ProductCreateWizard({
     state.categoryId,
   ]);
   const isListingFieldVisible = (field: MobileListingCreateOptionalField): boolean => {
+    // Müzayede lotu tekil üründür: toptan fiyat, satış ayları, sezon, SKU,
+    // barkod ve uluslararası kargo şablonu gibi e-ticaret alanları gizlenir.
+    if (
+      state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION &&
+      ([
+        'wholesalePrice',
+        'salesMonths',
+        'productionSeasons',
+        'sku',
+        'barcodeNo',
+        'deliveryTemplateInternational',
+        'desiInternational',
+      ] as MobileListingCreateOptionalField[]).includes(field)
+    ) {
+      return false;
+    }
     const enabledByConfig = listingFieldVisibility.optionalFields?.includes(field) ?? true;
     if (!enabledByConfig) return false;
 
@@ -881,28 +908,6 @@ export function ProductCreateWizard({
     setImages((currentImages) => currentImages.filter((image) => image.id !== imageId));
   }
 
-  function handleApplyAuctionPreset(startDelayHours: number, durationHours?: number) {
-    const nextDuration = durationHours ?? state.selectedAuctionDurationHours ?? AUCTION_DURATION_PRESETS[0];
-    const schedule = buildAuctionSchedule(startDelayHours, nextDuration);
-    patchState({
-      auctionStartTime: schedule.startTime,
-      auctionEndTime: schedule.endTime,
-      selectedAuctionStartDelayHours: startDelayHours,
-      selectedAuctionDurationHours: nextDuration,
-    });
-  }
-
-  function handleApplyAuctionDuration(durationHours: number) {
-    const nextStartDelay = state.selectedAuctionStartDelayHours ?? AUCTION_START_DELAY_PRESETS[0];
-    const schedule = buildAuctionSchedule(nextStartDelay, durationHours);
-    patchState({
-      auctionStartTime: schedule.startTime,
-      auctionEndTime: schedule.endTime,
-      selectedAuctionStartDelayHours: nextStartDelay,
-      selectedAuctionDurationHours: durationHours,
-    });
-  }
-
   function handleToggleSalesMonth(month: number) {
     const currentMonths = state.salesMonths || [];
     const nextMonths = currentMonths.includes(month)
@@ -977,6 +982,11 @@ export function ProductCreateWizard({
 
     try {
       setIsSubmitting(true);
+      // Müzayede döngüsü için etkinlik bağlamı reset'ten önce saklanır.
+      const submittedListingType = state.listingType;
+      const keepEventId = state.selectedEventId;
+      const keepEventTimes = { auctionStartTime: state.auctionStartTime, auctionEndTime: state.auctionEndTime };
+      const keepAuctionType = state.auctionType === PRODUCT_CREATE_AUCTION_TYPES.TIMED ? 'TIMED' : 'REALTIME';
       const product = await submitProductCreateWizard(state, images, selectedExistingProductId ?? undefined);
       reset(initialEntryMode, initialAuctionType);
       setImages([]);
@@ -984,26 +994,46 @@ export function ProductCreateWizard({
       setEntryMode(initialEntryMode ?? null);
       setDraftId(null);
       setCategorySearch('');
-      setShowAuctionAdvanced(false);
       setSelectedExistingProductId(null);
       await onCreated();
 
       const isPendingReview = (product as any)?.status === 'PENDING_REVIEW';
       let messageKey = '';
-      if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
+      if (submittedListingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
         messageKey = isPendingReview ? 'listing.auctionPendingReviewSuccess' : 'listing.auctionCreatedSuccess';
       } else {
         messageKey = isPendingReview ? 'listing.pendingReviewSuccess' : 'listing.publishedSuccess';
       }
 
-      showModal({
-        title: t('common.success'),
-        message: t(messageKey),
-        type: 'success',
-        onConfirm: () => {
-          router.replace('/(tabs)/seller-dashboard' as never);
-        },
-      });
+      if (submittedListingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION && keepEventId) {
+        // Bireysel katılım 1-5 ürün: aynı etkinliğe yeni ürün ekleme döngüsü.
+        setEventLotCount((count) => count + 1);
+        showModal({
+          title: t('common.success'),
+          message: `${t(messageKey)}\n\n${t('listing.addAnotherToEventPrompt')}`,
+          type: 'success',
+          confirmText: t('listing.addAnotherToEvent'),
+          cancelText: t('common.done'),
+          onConfirm: () => {
+            reset('AUCTION' as never, keepAuctionType);
+            setEntryMode('AUCTION' as never);
+            patchState({ selectedEventId: keepEventId, ...keepEventTimes });
+            setCurrentStep(1);
+          },
+          onCancel: () => {
+            router.replace('/(tabs)/seller-dashboard' as never);
+          },
+        });
+      } else {
+        showModal({
+          title: t('common.success'),
+          message: t(messageKey),
+          type: 'success',
+          onConfirm: () => {
+            router.replace('/(tabs)/seller-dashboard' as never);
+          },
+        });
+      }
     } catch (error: unknown) {
       showModal({
         title: t('common.error'),
@@ -1298,19 +1328,6 @@ export function ProductCreateWizard({
               />
             </View>
           ) : null}
-          {isListingFieldVisible('retailPrice') ? (
-            <View style={styles.inlineBlock}>
-              <Text style={styles.inputLabel}>{t('listing.retailPrice')}</Text>
-              <TextInput
-                style={styles.input}
-                value={state.retailPrice}
-                onChangeText={(value) => updateField('retailPrice', formatPriceInput(value))}
-                placeholder="0"
-                placeholderTextColor={Colors.slate400}
-                keyboardType="decimal-pad"
-              />
-            </View>
-          ) : null}
         </View>
       </>
     );
@@ -1329,9 +1346,38 @@ export function ProductCreateWizard({
             ) : eventsError ? (
               <Text style={{ color: Colors.error, fontSize: 13, marginBottom: 8 }}>{eventsError}</Text>
             ) : auctionEvents.length === 0 ? (
-              <Text style={{ color: Colors.slate500, fontSize: 13, marginVertical: 8 }}>
-                Şu anda başvuru sürecinde olan aktif bir müzayede etkinliği bulunmamaktadır.
-              </Text>
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: Colors.surface,
+                  borderWidth: 1,
+                  borderColor: Colors.outlineVariant,
+                  borderRadius: 16,
+                  paddingVertical: 28,
+                  paddingHorizontal: 20,
+                  marginVertical: 8,
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: `${Colors.primary}12`,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={26} color={Colors.primary} />
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.onSurface, textAlign: 'center' }}>
+                  {t('listing.noAuctionEventsTitle')}
+                </Text>
+                <Text style={{ fontSize: 13, lineHeight: 19, color: Colors.slate500, textAlign: 'center' }}>
+                  {t('listing.noAuctionEventsBody')}
+                </Text>
+              </View>
             ) : (
               <View style={{ gap: 8, marginVertical: 8 }}>
                 {auctionEvents.map((event) => {
@@ -1340,7 +1386,14 @@ export function ProductCreateWizard({
                     <TouchableOpacity
                       key={event.id}
                       activeOpacity={0.85}
-                      onPress={() => updateField('selectedEventId', isSelected ? null : event.id)}
+                      onPress={() => {
+                        if (isSelected) {
+                          patchState({ selectedEventId: null, auctionStartTime: '', auctionEndTime: '' });
+                          return;
+                        }
+                        // Seçim onayı detay modalında ("Katılıyorum") verilir.
+                        setEventDetail(event);
+                      }}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -1365,7 +1418,7 @@ export function ProductCreateWizard({
                           {event.description}
                         </Text>
                         <Text style={{ fontSize: 10, color: Colors.primary, fontWeight: '600' }}>
-                          Son Katılım: {new Date(event.submissionDeadline).toLocaleDateString('tr-TR')}
+                          {t('listing.eventDeadline')}: {new Date(event.submissionDeadline).toLocaleDateString('tr-TR')}
                         </Text>
                       </View>
                       <View style={{
@@ -1453,7 +1506,7 @@ export function ProductCreateWizard({
       <>
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>
-            {t(isAuction ? 'listing.startPrice' : 'listing.price')} *
+            {t(isAuction ? 'listing.startPrice' : 'listing.retailPrice')}{isAuction ? ' *' : ''}
           </Text>
           <TextInput
             style={styles.input}
@@ -1475,43 +1528,36 @@ export function ProductCreateWizard({
           </Text>
         </View>
 
-        {isAuction ? null : (
+        {isAuction ? (
+          // Lot Ayarları: minimum artış zorunlu, rezerv fiyat opsiyonel.
           <>
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingVertical: 12,
-                marginBottom: 16,
-              }}
-              activeOpacity={0.8}
-              onPress={() => patchState({ askPriceEnabled: !state.askPriceEnabled, askPriceMinAmount: !state.askPriceEnabled ? state.askPriceMinAmount : '' })}
-            >
-              <View style={{ flex: 1, marginRight: 16 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>{t('listing.askPriceEnabled')}</Text>
-                <Text style={{ fontSize: 12, color: Colors.slate500, marginTop: 2, lineHeight: 16 }}>{t('listing.askPriceHint')}</Text>
-              </View>
-              <View style={[styles.checkbox, state.askPriceEnabled && styles.checkboxChecked]}>
-                {state.askPriceEnabled ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
-              </View>
-            </TouchableOpacity>
-
-            {state.askPriceEnabled ? (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{t('listing.askPriceMinAmount')} *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={state.askPriceMinAmount}
-                  onChangeText={(value) => updateField('askPriceMinAmount', formatPriceInput(value))}
-                  placeholder="0"
-                  placeholderTextColor={Colors.slate400}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            ) : null}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{t('listing.minIncrement')} *</Text>
+              <TextInput
+                style={styles.input}
+                value={state.auctionMinIncrement}
+                onChangeText={(value) => updateField('auctionMinIncrement', formatPriceInput(value))}
+                placeholder="100"
+                placeholderTextColor={Colors.slate400}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.helperText}>{t('listing.minIncrementHelp')}</Text>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{t('listing.reservePrice')}</Text>
+              <TextInput
+                style={styles.input}
+                value={state.auctionReservePrice}
+                onChangeText={(value) => updateField('auctionReservePrice', formatPriceInput(value))}
+                placeholder="0"
+                placeholderTextColor={Colors.slate400}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.helperText}>{t('listing.reservePriceHelp')}</Text>
+            </View>
           </>
-        )}
+        ) : null}
+
       </>
     );
   }
@@ -1521,7 +1567,7 @@ export function ProductCreateWizard({
     return (
       <>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.description')} & {t('listing.sellerNotes')} *</Text>
+          <Text style={styles.inputLabel}>{t('listing.description')} & {t('listing.sellerNotes')}</Text>
           <TextInput
             style={[
               styles.input,
@@ -1539,26 +1585,6 @@ export function ProductCreateWizard({
         </View>
 
         <View style={styles.inlineRow}>
-          <View style={styles.inlineBlock}>
-            <Text style={styles.inputLabel}>{t('listing.stock')} *</Text>
-            {hasVariants ? (
-              <View style={[styles.input, { backgroundColor: Colors.slate50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }]}>
-                <Text style={{ color: Colors.slate600, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 }}>
-                  {state.stockQuantity}
-                </Text>
-                <Ionicons name="lock-closed" size={16} color={Colors.slate400} />
-              </View>
-            ) : (
-              <TextInput
-                style={styles.input}
-                value={state.stockQuantity}
-                onChangeText={(value) => updateField('stockQuantity', value)}
-                placeholder="1"
-                placeholderTextColor={Colors.slate400}
-                keyboardType="number-pad"
-              />
-            )}
-          </View>
           {isListingFieldVisible('originRegion') ? (
             <View style={styles.inlineBlock}>
               <Text style={styles.inputLabel}>{t('listing.originRegion')}</Text>
@@ -1583,6 +1609,8 @@ export function ProductCreateWizard({
   }
 
   function renderVariantSection() {
+    // Müzayede lotu tekil parçadır; varyant/stok kavramı uygulanmaz.
+    if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) return null;
     const isVariantEnabled = selectedListingTemplate?.variant?.enabled === true;
     if (!isVariantEnabled) return null;
 
@@ -2135,7 +2163,10 @@ export function ProductCreateWizard({
               />
               <View style={{ flex: 1, gap: 4 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.onSurface }} numberOfLines={1}>
+                  <Text
+                    style={{ fontSize: 14, fontWeight: '700', color: Colors.onSurface, flexShrink: 1 }}
+                    numberOfLines={1}
+                  >
                     {selectedEvent.title}
                   </Text>
                   <View style={{
@@ -2143,9 +2174,15 @@ export function ProductCreateWizard({
                     paddingHorizontal: 6,
                     paddingVertical: 2,
                     borderRadius: 4,
+                    flexShrink: 0,
                   }}>
                     <Text style={{ fontSize: 8, fontWeight: '700', color: Colors.white }}>
-                      {t('listing.eventBadge')}
+                      {(selectedEvent.isUntimed
+                        ? t('auctions.untimed', { defaultValue: 'Süresiz' })
+                        : selectedEvent.auctionType === 'TIMED'
+                          ? t('listing.eventRuleTimed')
+                          : t('listing.eventRuleRealtime')
+                      ).toLocaleUpperCase('tr-TR')}
                     </Text>
                   </View>
                 </View>
@@ -2169,155 +2206,61 @@ export function ProductCreateWizard({
               }}
             >
               <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>
-                {t('listing.standaloneAuctionLabel')}
+                {t('listing.eventRequiredLabel')}
               </Text>
               <Text style={{ fontSize: 12, color: Colors.slate500, marginTop: 4 }}>
-                {t('listing.standaloneAuctionDesc')}
+                {t('listing.eventRequiredDesc')}
               </Text>
             </View>
           )}
         </View>
 
-        {!state.selectedEventId ? (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{t('listing.auctionStartsWhen')} *</Text>
-              <View style={styles.chipRow}>
-                {AUCTION_START_DELAY_PRESETS.map((hours) => (
-                  <TouchableOpacity
-                    key={`auction-start-${hours}`}
-                    style={[styles.chip, state.selectedAuctionStartDelayHours === hours && styles.chipActive]}
-                    activeOpacity={0.85}
-                    onPress={() => handleApplyAuctionPreset(hours)}
-                  >
-                    <Text style={[styles.chipText, state.selectedAuctionStartDelayHours === hours && styles.chipTextActive]}>
-                      {t('listing.hoursLater', { count: hours })}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{t('listing.auctionDuration')} *</Text>
-              <View style={styles.chipRow}>
-                {AUCTION_DURATION_PRESETS.map((hours) => (
-                  <TouchableOpacity
-                    key={`auction-duration-${hours}`}
-                    style={[styles.chip, state.selectedAuctionDurationHours === hours && styles.chipActive]}
-                    activeOpacity={0.85}
-                    onPress={() => handleApplyAuctionDuration(hours)}
-                  >
-                    <Text style={[styles.chipText, state.selectedAuctionDurationHours === hours && styles.chipTextActive]}>
-                      {t('listing.durationHours', { count: hours })}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.inlineRow}>
-              <View style={styles.inlineBlock}>
-                <Text style={styles.inputLabel}>{t('listing.auctionType')}</Text>
-                <View style={styles.chipRow}>
-                  {[PRODUCT_CREATE_AUCTION_TYPES.REALTIME, PRODUCT_CREATE_AUCTION_TYPES.TIMED].map((auctionType) => (
-                    <TouchableOpacity
-                      key={auctionType}
-                      style={[styles.chip, state.auctionType === auctionType && styles.chipActive]}
-                      activeOpacity={0.85}
-                      onPress={() => updateField('auctionType', auctionType)}
-                    >
-                      <Text style={[styles.chipText, state.auctionType === auctionType && styles.chipTextActive]}>
-                        {t(`listing.auctionTypes.${auctionType}`)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-          </>
-        ) : null}
-
+        {/* Lot ekonomisi adım 2'de girilir; burada salt-okunur özet gösterilir. */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.minIncrement')} *</Text>
-          <TextInput
-            style={styles.input}
-            value={state.auctionMinIncrement}
-            onChangeText={(value) => updateField('auctionMinIncrement', formatPriceInput(value))}
-            placeholder="1"
-            placeholderTextColor={Colors.slate400}
-            keyboardType="decimal-pad"
-          />
+          <Text style={styles.inputLabel}>{t('listing.lotSettingsSummary')}</Text>
+          <View
+            style={{
+              backgroundColor: Colors.slate50,
+              borderWidth: 1,
+              borderColor: Colors.slate200,
+              borderRadius: 12,
+              padding: 12,
+              marginTop: 8,
+              gap: 8,
+            }}
+          >
+            {[
+              [t('listing.startPrice'), state.auctionStartPrice || '-'],
+              [t('listing.minIncrement'), state.auctionMinIncrement || '-'],
+              [t('listing.reservePrice'), state.auctionReservePrice || t('listing.reserveNone')],
+            ].map(([label, value]) => (
+              <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, color: Colors.slate500 }}>{label}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.onSurface }}>
+                  {value} {selectedEvent?.currency ?? 'TRY'}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {/* 1-5 döngüsü görünürlüğü: yayın sonrası aynı etkinliğe devam edilebilir. */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: `${Colors.primary}0D`,
+              borderRadius: 10,
+              padding: 10,
+              marginTop: 8,
+            }}
+          >
+            <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+            <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: Colors.primary }}>
+              {t('listing.multiLotHint', { current: eventLotCount + 1 })}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('listing.reservePrice')}</Text>
-          <TextInput
-            style={styles.input}
-            value={state.auctionReservePrice}
-            onChangeText={(value) => updateField('auctionReservePrice', formatPriceInput(value))}
-            placeholder="0"
-            placeholderTextColor={Colors.slate400}
-            keyboardType="decimal-pad"
-          />
-          <Text style={styles.helperText}>{t('listing.reservePriceHint')}</Text>
-        </View>
-
-        {!state.selectedEventId ? (
-          <>
-            <TouchableOpacity
-              style={styles.advancedToggle}
-              activeOpacity={0.85}
-              onPress={() => setShowAuctionAdvanced(!showAuctionAdvanced)}
-            >
-              <Ionicons name={showAuctionAdvanced ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.primary} />
-              <Text style={styles.advancedToggleText}>{t('listing.moreAuctionSettings')}</Text>
-            </TouchableOpacity>
-
-            {showAuctionAdvanced ? (
-              <>
-                <TouchableOpacity
-                  style={styles.toggleCard}
-                  activeOpacity={0.85}
-                  onPress={() => updateField('antiSnipingEnabled', !state.antiSnipingEnabled)}
-                >
-                  <View>
-                    <Text style={styles.toggleTitle}>{t('listing.antiSnipingEnabled')}</Text>
-                    <Text style={styles.toggleSub}>{t('listing.antiSnipingHint')}</Text>
-                  </View>
-                  <View style={[styles.checkbox, state.antiSnipingEnabled && styles.checkboxChecked]}>
-                    {state.antiSnipingEnabled ? <Ionicons name="checkmark" size={14} color={Colors.white} /> : null}
-                  </View>
-                </TouchableOpacity>
-
-                <View style={styles.inlineRow}>
-                  <View style={styles.inlineBlock}>
-                    <Text style={styles.inputLabel}>{t('listing.extensionSeconds')}</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={state.extensionSeconds}
-                      onChangeText={(value) => updateField('extensionSeconds', value)}
-                      placeholder="60"
-                      placeholderTextColor={Colors.slate400}
-                      keyboardType="number-pad"
-                    />
-                  </View>
-                  <View style={styles.inlineBlock}>
-                    <Text style={styles.inputLabel}>{t('maxExtensions')}</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={state.maxExtensions}
-                      onChangeText={(value) => updateField('maxExtensions', value)}
-                      placeholder="5"
-                      placeholderTextColor={Colors.slate400}
-                      keyboardType="number-pad"
-                    />
-                  </View>
-                </View>
-              </>
-            ) : null}
-          </>
-        ) : null}
       </>
     );
   }
@@ -2372,19 +2315,13 @@ export function ProductCreateWizard({
           <View style={styles.compactRow}>
             <Text style={styles.compactRowLabel}>{t('listing.summaryPrice')}</Text>
             <Text style={styles.compactRowValue}>
-              {state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION 
+              {state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
                 ? formatCurrency(parsePriceInput(state.auctionStartPrice) || 0)
-                : formatCurrency(parsePriceInput(state.directSalePrice) || 0)}
+                : parsePriceInput(state.directSalePrice)
+                  ? formatCurrency(parsePriceInput(state.directSalePrice) || 0)
+                  : t('listing.askPriceEnabled')}
             </Text>
           </View>
-
-          {/* Stok Adedi */}
-          {state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION ? (
-            <View style={styles.compactRow}>
-              <Text style={styles.compactRowLabel}>{t('listing.stockQuantity')}</Text>
-              <Text style={styles.compactRowValue}>{state.stockQuantity}</Text>
-            </View>
-          ) : null}
 
           {/* Marka */}
           {state.brand ? (
@@ -2590,13 +2527,132 @@ export function ProductCreateWizard({
                   color={Colors.white}
                 />
                 <Text style={styles.primaryButtonText}>
-                  {t(currentStep === 7 ? 'listing.publish' : 'listing.next')}
+                  {t(
+                    currentStep === 7
+                      ? state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
+                        ? 'common.save'
+                        : 'listing.publish'
+                      : 'listing.next',
+                  )}
                 </Text>
               </>
             ) : null}
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Müzayede etkinliği detay + katılım onayı */}
+      <Modal
+        visible={!!eventDetail}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEventDetail(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            paddingHorizontal: 20,
+          }}
+        >
+          <View style={{ backgroundColor: Colors.surface, borderRadius: 20, overflow: 'hidden' }}>
+            {eventDetail?.coverImageUrl ? (
+              <Image
+                source={{ uri: eventDetail.coverImageUrl }}
+                style={{ width: '100%', height: 140, backgroundColor: Colors.slate100 }}
+                contentFit="cover"
+              />
+            ) : null}
+            <View style={{ padding: 20, gap: 10 }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.onSurface }}>
+                {eventDetail?.title}
+              </Text>
+              {eventDetail?.description ? (
+                <Text style={{ fontSize: 13, lineHeight: 19, color: Colors.slate500 }}>
+                  {eventDetail.description}
+                </Text>
+              ) : null}
+              <View style={{ gap: 6, marginTop: 4 }}>
+                {[
+                  [t('listing.auctionType'), eventDetail?.isUntimed
+                    ? t('auctions.untimed', { defaultValue: 'Süresiz' })
+                    : eventDetail?.auctionType === 'TIMED'
+                      ? t('listing.eventRuleTimed')
+                      : t('listing.eventRuleRealtime')],
+                  [t('listing.eventRuleStart'), eventDetail?.startTime
+                    ? new Date(eventDetail.startTime).toLocaleString('tr-TR')
+                    : '-'],
+                  [t('listing.eventDeadline'), eventDetail?.submissionDeadline
+                    ? new Date(eventDetail.submissionDeadline).toLocaleString('tr-TR')
+                    : '-'],
+                  [t('listing.eventCurrency'), eventDetail?.currency || 'TRY'],
+                  eventDetail?.antiSnipingEnabled
+                    ? [t('listing.eventRuleAntiSniping'), `+${eventDetail?.extensionSeconds ?? 60}sn × ${eventDetail?.maxExtensions ?? 5}`]
+                    : null,
+                  eventDetail?.eventType === 'ENDEMIGO_MANAGED'
+                    ? [t('listing.eventRuleMaxFive'), '']
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .map((row) => {
+                    const [label, value] = row as [string, string];
+                    return (
+                      <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 13, color: Colors.slate500 }}>{label}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.onSurface }}>{value}</Text>
+                      </View>
+                    );
+                  })}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    borderWidth: 1.5,
+                    borderColor: Colors.outlineVariant,
+                    borderRadius: 14,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.85}
+                  onPress={() => setEventDetail(null)}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.onSurface }}>
+                    {t('listing.declineEvent')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: Colors.primary,
+                    borderRadius: 14,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    // Lot zamanı ve kuralları etkinlikten miras alınır.
+                    patchState({
+                      selectedEventId: eventDetail.id,
+                      auctionStartTime: eventDetail.startTime ?? '',
+                      auctionEndTime: eventDetail.endTime ?? '',
+                      auctionType: eventDetail.auctionType === 'TIMED'
+                        ? PRODUCT_CREATE_AUCTION_TYPES.TIMED
+                        : PRODUCT_CREATE_AUCTION_TYPES.REALTIME,
+                    });
+                    setEventDetail(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.white }}>
+                    {t('listing.joinEvent')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={isCategoryModalVisible}

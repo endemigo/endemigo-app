@@ -9,6 +9,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { PasswordInput } from './PasswordInput';
 import { useAuthStore } from '../../store/authStore';
 import { styles } from './AuthRegisterWizardModal.styles';
 import { CardDetails } from '../auction/CardVerificationModal';
@@ -207,17 +208,15 @@ export function AuthRegisterWizardModal({
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('auth.password')}</Text>
-            <View style={styles.inputShell}>
-              <TextInput
-                style={styles.input}
-                placeholder={t('auth.passwordPlaceholder')}
-                placeholderTextColor={Colors.slate400}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                editable={!isPending}
-              />
-            </View>
+            <PasswordInput
+              wrapperStyle={styles.inputShell}
+              inputStyle={styles.input}
+              placeholder={t('auth.passwordPlaceholder')}
+              placeholderTextColor={Colors.slate400}
+              value={password}
+              onChangeText={setPassword}
+              editable={!isPending}
+            />
           </View>
 
           <TouchableOpacity

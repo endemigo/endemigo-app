@@ -23,6 +23,14 @@
       @filter="setFilters"
       @action="handleTableAction"
     >
+      <template #cell-isActive="{ row }">
+        <div class="banner-status-cell">
+          <span class="status-pill" :class="`tone-${bannerStatusInfo(row).tone}`">
+            {{ bannerStatusInfo(row).label }}
+          </span>
+          <small v-if="bannerWindowLabel(row)" class="status-window">{{ bannerWindowLabel(row) }}</small>
+        </div>
+      </template>
       <template #cell-name="{ row, value }">
         <div class="banner-name-cell">
           <span class="banner-name-text">{{ value }}</span>
@@ -104,6 +112,27 @@
                 />
                 <small class="muted">Çoklu slayt yüklenirse slaytlar arası bekleme süresidir.</small>
               </div>
+            </div>
+
+            <!-- Publication Status & Schedule -->
+            <div class="form-row grid-2">
+              <div class="form-group">
+                <label for="banner-start">Yayın Başlangıcı (Opsiyonel)</label>
+                <input id="banner-start" v-model="form.startAt" type="datetime-local" class="input" />
+                <small class="muted">Boş bırakılırsa hemen yayına girer.</small>
+              </div>
+              <div class="form-group">
+                <label for="banner-end">Yayın Bitişi (Opsiyonel)</label>
+                <input id="banner-end" v-model="form.endAt" type="datetime-local" class="input" />
+                <small class="muted">Boş bırakılırsa süresiz yayında kalır.</small>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input v-model="form.isActive" type="checkbox" />
+                <span>Banner aktif (kapatılırsa mobil uygulamada gösterilmez, tarihlerden bağımsız)</span>
+              </label>
             </div>
 
             <!-- Slide Items Manager -->
@@ -260,7 +289,6 @@
                             <option value="AUCTIONS">Müzayede Sayfasını Aç</option>
                             <option value="SEARCH">Arama Sorgusu Çalıştır</option>
                             <option value="CUSTOM_ROUTE">Özel Mobil Rota (Route) Path</option>
-                            <option value="ANNOUNCEMENT">Duyuru / Haber / Blog Aç</option>
                           </select>
                         </div>
                         <div class="form-group">
@@ -527,6 +555,7 @@ const columns: AdminColumn[] = [
   { key: 'slug', label: 'Slug / Kimlik' },
   { key: 'aspectRatio', label: 'Görsel Oranı' },
   { key: 'slideDuration', label: 'Geçiş Hızı (ms)' },
+  { key: 'isActive', label: 'Durum' },
   { key: 'createdAt', label: 'Oluşturulma', format: 'date' },
 ];
 
@@ -559,6 +588,9 @@ interface BannerFormInput {
   slideDuration: number;
   aspectRatio: '16:9' | '4:3' | '1:1' | '3:1';
   items: BannerItemInput[];
+  isActive: boolean;
+  startAt: string; // datetime-local value, '' = yok
+  endAt: string; // datetime-local value, '' = yok
 }
 
 const form = ref<BannerFormInput>({
@@ -567,6 +599,9 @@ const form = ref<BannerFormInput>({
   slideDuration: 3000,
   aspectRatio: '16:9',
   items: [],
+  isActive: true,
+  startAt: '',
+  endAt: '',
 });
 
 const activeSlideIndex = ref(0);
@@ -581,7 +616,7 @@ watch(() => form.value.items.length, (newLength) => {
 
 // Selector State
 const selectorOpen = ref(false);
-const selectorType = ref<'CATEGORY' | 'PRODUCT' | 'PRODUCTS' | 'AUCTIONS' | 'ANNOUNCEMENT' | null>(null);
+const selectorType = ref<'CATEGORY' | 'PRODUCT' | 'PRODUCTS' | 'AUCTIONS' | null>(null);
 const selectorTargetIndex = ref<number | null>(null);
 const selectorSearchQuery = ref('');
 const selectorLoading = ref(false);
@@ -592,7 +627,6 @@ const selectorSelectedIds = ref<string[]>([]);
 const categoryMap = ref<Record<string, string>>({});
 const productMap = ref<Record<string, string>>({});
 const auctionMap = ref<Record<string, string>>({});
-const announcementMap = ref<Record<string, string>>({});
 const mapsLoaded = ref(false);
 
 // Analyzed mobile routes from expo router
@@ -654,7 +688,7 @@ async function loadBanners() {
         .map((f) => [f.key, f.value]),
     );
 
-    const response = await adminApi.get<{ items: any[] }>('/admin/banners', {
+    const response = await adminApi.get<{ items: any[]; total?: number }>('/admin/banners', {
       params: {
         page: pagination.value.page,
         limit: pagination.value.limit,
@@ -663,7 +697,7 @@ async function loadBanners() {
     });
 
     rows.value = response.data.items ?? [];
-    pagination.value.total = response.data.items?.length ?? 0;
+    pagination.value.total = response.data.total ?? response.data.items?.length ?? 0;
   } catch (err) {
     error.value = toApiMessage(err);
     rows.value = [];
@@ -700,6 +734,9 @@ async function handleTableAction(action: AdminTableAction, row: Record<string, u
       slug: String(row.slug),
       slideDuration: Number(row.slideDuration ?? 3000),
       aspectRatio: (row.aspectRatio || '16:9') as any,
+      isActive: row.isActive !== false,
+      startAt: toDatetimeLocal(row.startAt),
+      endAt: toDatetimeLocal(row.endAt),
       items: ((row.items as any[]) || []).map((item) => ({
         id: item.id || `slide-${Date.now()}-${Math.random()}`,
         imageUrl: item.imageUrl || '',
@@ -716,7 +753,16 @@ async function handleTableAction(action: AdminTableAction, row: Record<string, u
     activeLocale.value = 'tr';
     editorOpen.value = true;
   } else if (action.key === 'delete') {
-    const confirmation = confirm('Bu bannerı silmek istediğinizden emin misiniz?');
+    const usage = await getBannerUsageCount(String(row.id));
+    let confirmMessage = 'Bu bannerı silmek istediğinizden emin misiniz?';
+    if (usage === null) {
+      confirmMessage = `Bannerın ana sayfa yerleşiminde kullanılıp kullanılmadığı doğrulanamadı.\n${confirmMessage}`;
+    } else if (usage.draft > 0 || usage.published > 0) {
+      confirmMessage =
+        `DİKKAT: Bu banner ana sayfa yerleşiminde bağlı (taslakta ${usage.draft}, yayında ${usage.published} alan). ` +
+        `Silerseniz bu alanlar mobil uygulamada boş kalır.\n${confirmMessage}`;
+    }
+    const confirmation = confirm(confirmMessage);
     if (!confirmation) return;
 
     const auditReason = prompt('Silme gerekçesini giriniz:');
@@ -743,6 +789,9 @@ function openCreate() {
     slideDuration: 3000,
     aspectRatio: '16:9',
     items: [],
+    isActive: true,
+    startAt: '',
+    endAt: '',
   };
   activeSlideIndex.value = 0;
   activeLocale.value = 'tr';
@@ -798,6 +847,11 @@ async function saveBanner() {
     return;
   }
 
+  if (form.value.startAt && form.value.endAt && new Date(form.value.endAt) <= new Date(form.value.startAt)) {
+    alert('Yayın bitiş tarihi başlangıç tarihinden sonra olmalıdır.');
+    return;
+  }
+
   saving.value = true;
   error.value = null;
 
@@ -807,6 +861,9 @@ async function saveBanner() {
       slug: form.value.slug,
       slideDuration: form.value.slideDuration,
       aspectRatio: form.value.aspectRatio,
+      isActive: form.value.isActive,
+      startAt: form.value.startAt ? new Date(form.value.startAt).toISOString() : null,
+      endAt: form.value.endAt ? new Date(form.value.endAt).toISOString() : null,
       items: form.value.items.map((item) => ({
         imageUrl: item.imageUrl,
         actionType: item.actionType,
@@ -884,8 +941,6 @@ function getActionPlaceholder(type: string): string {
       return 'Arama anahtar kelimesi (Örn: zeytinyağı)';
     case 'CUSTOM_ROUTE':
       return 'Mobil rota path (Örn: /(tabs)/explore)';
-    case 'ANNOUNCEMENT':
-      return 'Duyuru, Haber veya Blog seçin';
     default:
       return 'Aksiyon değerini girin';
   }
@@ -894,6 +949,54 @@ function getActionPlaceholder(type: string): string {
 function getFullUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   return `${API_URL.replace(/\/$/, '')}${url}`;
+}
+
+function toDatetimeLocal(value: unknown): string {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatWindowDate(value: unknown): string {
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function bannerStatusInfo(row: Record<string, unknown>): { label: string; tone: string } {
+  if (row.isActive === false) return { label: 'Pasif', tone: 'off' };
+  const now = new Date();
+  if (row.startAt && new Date(String(row.startAt)) > now) return { label: 'Zamanlanmış', tone: 'scheduled' };
+  if (row.endAt && new Date(String(row.endAt)) < now) return { label: 'Süresi Doldu', tone: 'expired' };
+  return { label: 'Yayında', tone: 'live' };
+}
+
+function bannerWindowLabel(row: Record<string, unknown>): string {
+  const start = row.startAt ? formatWindowDate(row.startAt) : '';
+  const end = row.endAt ? formatWindowDate(row.endAt) : '';
+  if (start && end) return `${start} → ${end}`;
+  if (start) return `${start} itibaren`;
+  if (end) return `${end} tarihine kadar`;
+  return '';
+}
+
+async function getBannerUsageCount(bannerId: string): Promise<{ draft: number; published: number } | null> {
+  try {
+    const response = await adminApi.get<{ document: { draft: any; published: any } }>('/admin/mobile-config/draft');
+    const countIn = (config: any): number =>
+      Array.isArray(config?.otherSurfaces)
+        ? config.otherSurfaces.filter((slot: any) => String(slot?.bannerId ?? '') === bannerId).length
+        : 0;
+    return {
+      draft: countIn(response.data.document?.draft),
+      published: countIn(response.data.document?.published),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Pure Vue lightweight Canvas-based Image Cropper logic
@@ -1124,7 +1227,7 @@ watch(cropperOpen, (isOpen) => {
 
 // Selection Selector Methods
 function isResourceAction(type: string): boolean {
-  return ['CATEGORY', 'PRODUCT', 'PRODUCTS', 'AUCTIONS', 'ANNOUNCEMENT'].includes(type);
+  return ['CATEGORY', 'PRODUCT', 'PRODUCTS', 'AUCTIONS'].includes(type);
 }
 
 function getSelectorTitle(): string {
@@ -1137,14 +1240,12 @@ function getSelectorTitle(): string {
       return 'Çoklu Ürün Seçin';
     case 'AUCTIONS':
       return 'Müzayede Seçin';
-    case 'ANNOUNCEMENT':
-      return 'Duyuru, Haber veya Blog Seçin';
     default:
       return 'Öğe Seçin';
   }
 }
 
-async function openSelector(index: number, type: 'CATEGORY' | 'PRODUCT' | 'PRODUCTS' | 'AUCTIONS' | 'ANNOUNCEMENT') {
+async function openSelector(index: number, type: 'CATEGORY' | 'PRODUCT' | 'PRODUCTS' | 'AUCTIONS') {
   selectorTargetIndex.value = index;
   selectorType.value = type;
   selectorSearchQuery.value = '';
@@ -1193,25 +1294,6 @@ async function openSelector(index: number, type: 'CATEGORY' | 'PRODUCT' | 'PRODU
           extra: event.status ? `Durum: ${event.status}` : '',
         };
       });
-    } else if (type === 'ANNOUNCEMENT') {
-      const response = await adminApi.get<{ document: { collections: { news: any[], blogs: any[] } } }>('/admin/content-studio');
-      const newsItems = (response.data.document.collections.news ?? []).map((n) => {
-        announcementMap.value[String(n.id)] = String(n.title);
-        return {
-          id: String(n.id),
-          name: String(n.title),
-          extra: 'Koleksiyon: Haber/Duyuru',
-        };
-      });
-      const blogItems = (response.data.document.collections.blogs ?? []).map((b) => {
-        announcementMap.value[String(b.id)] = String(b.title);
-        return {
-          id: String(b.id),
-          name: String(b.title),
-          extra: 'Koleksiyon: Blog Yazısı',
-        };
-      });
-      selectorItems.value = [...newsItems, ...blogItems];
     }
   } catch (err) {
     alert(`Veri yükleme hatası: ${toApiMessage(err)}`);
@@ -1288,14 +1370,6 @@ async function loadResourceMaps() {
       auctionMap.value[String(event.id)] = String(event.title);
     });
 
-    const studioRes = await adminApi.get<{ document: { collections: { news: any[], blogs: any[] } } }>('/admin/content-studio');
-    (studioRes.data.document.collections.news ?? []).forEach((n) => {
-      announcementMap.value[String(n.id)] = String(n.title);
-    });
-    (studioRes.data.document.collections.blogs ?? []).forEach((b) => {
-      announcementMap.value[String(b.id)] = String(b.title);
-    });
-
     mapsLoaded.value = true;
   } catch (err) {
     console.error('Resource maps loading failed', err);
@@ -1321,10 +1395,6 @@ function getActionValueLabel(actionType: string, actionValue: string): string {
   
   if (actionType === 'AUCTIONS') {
     return auctionMap.value[actionValue] || 'Müzayede (ID: ' + actionValue.slice(0, 8) + '...)';
-  }
-
-  if (actionType === 'ANNOUNCEMENT') {
-    return announcementMap.value[actionValue] || 'Duyuru/Blog (ID: ' + actionValue.slice(0, 8) + '...)';
   }
 
   return actionValue;
@@ -1985,6 +2055,48 @@ function getActionValueLabel(actionType: string, actionValue: string): string {
 
 .lang-inputs-container {
   width: 100%;
+}
+
+/* Banner Status Cell */
+.banner-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.status-pill.tone-live {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.tone-off {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.status-pill.tone-scheduled {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pill.tone-expired {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-window {
+  font-size: 10.5px;
+  color: var(--text-muted, #9ca3af);
+  white-space: nowrap;
 }
 
 /* Premium Banner Thumbnails List in Row */

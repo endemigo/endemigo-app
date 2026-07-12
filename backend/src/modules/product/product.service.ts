@@ -756,8 +756,6 @@ export class ProductService {
       if (imageCount < imageUploadLimits.min) {
         errors.push(`En az ${imageUploadLimits.min} ürün görseli gereklidir`);
       }
-      if (!product.description || product.description.trim().length < 10)
-        errors.push('Ürün açıklaması en az 10 karakter olmalıdır');
       if (!product.categoryId) errors.push('Kategori seçimi zorunludur');
       if (!product.askPriceEnabled && (!product.price || Number(product.price) < 1)) {
         errors.push('Fiyat en az 1₺ olmalıdır');

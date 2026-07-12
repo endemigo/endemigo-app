@@ -91,6 +91,11 @@ export class AuctionEvent extends BaseEntity {
   @Column({ default: false })
   isUntimed: boolean;
 
+  // Kart doğrulanan katılımcı beklemeden APPROVED olur. Kültür varlığı
+  // kısıtlı lot içeren etkinlikte bayrağa bakılmaksızın elle onay işler.
+  @Column({ default: true })
+  autoApproveRegistrations: boolean;
+
   @Column({ type: 'timestamp' })
   startTime: Date;
 

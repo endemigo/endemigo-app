@@ -55,6 +55,8 @@ interface AuctionCreatePayload {
   startPrice: number;
   minIncrement: number;
   reservePrice?: number;
+  // Lot zamanı/kuralları backend'de etkinlikten miras alınır; buradaki
+  // değerler yalnızca DTO doğrulaması için etkinlikten kopyalanır.
   startTime: string;
   endTime: string;
   auctionType: ProductCreateWizardState['auctionType'];
@@ -83,14 +85,17 @@ function resolveStringField(
 export function buildProductCreatePayload(
   state: ProductCreateWizardState,
 ): ProductCreatePayload {
-  const priceSource = state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE
-    ? state.directSalePrice
-    : state.auctionStartPrice;
+  const isDirectSale = state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE;
+  const priceSource = isDirectSale ? state.directSalePrice : state.auctionStartPrice;
   const priceVal = parsePriceInput(priceSource);
   const parsedPrice = priceVal !== undefined && priceVal > 0 ? normalizeMoneyScale(priceVal) : undefined;
   const parsedRetailPrice = parseOptionalNumber(state.retailPrice);
   const parsedWholesalePrice = parseOptionalNumber(state.wholesalePrice);
   const parsedAskPriceMinAmount = parseOptionalNumber(state.askPriceMinAmount);
+  // Fiyatsız direkt satış ürünü otomatik "Fiyat Sor" ilanına dönüşür.
+  const effectiveAskPriceEnabled = isDirectSale
+    ? state.askPriceEnabled || parsedPrice === undefined
+    : false;
 
   return {
     title: state.title.trim(),
@@ -128,8 +133,8 @@ export function buildProductCreatePayload(
     additionalCertificates: state.additionalCertificates.trim() || undefined,
     condition: state.condition,
     listingType: state.listingType,
-    askPriceEnabled: state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE ? state.askPriceEnabled : false,
-    askPriceMinAmount: state.listingType === PRODUCT_CREATE_LISTING_TYPES.DIRECT_SALE && state.askPriceEnabled
+    askPriceEnabled: effectiveAskPriceEnabled,
+    askPriceMinAmount: effectiveAskPriceEnabled
       ? (parsedAskPriceMinAmount !== undefined ? normalizeMoneyScale(parsedAskPriceMinAmount) : undefined)
       : undefined,
     weight: parseOptionalNumber(state.weight),

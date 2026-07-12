@@ -14,6 +14,12 @@ export class ForgotPasswordDto {
   email: string;
 }
 
+export class ResendVerificationDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail()
+  email: string;
+}
+
 export class ResetPasswordDto {
   @ApiProperty({ description: 'Şifre sıfırlama tokeni' })
   @IsNotEmpty()

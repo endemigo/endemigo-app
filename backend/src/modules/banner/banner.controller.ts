@@ -6,6 +6,7 @@ import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminJwtGuard } from '../admin-auth/guards/admin-jwt.guard';
 import { BannerService } from './banner.service';
 import { CreateBannerDto } from './dto/create-banner.dto';
+import { ListBannersQueryDto } from './dto/list-banners.query.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
 
 interface BannerAdminRequest {
@@ -29,8 +30,8 @@ export class BannerController {
   @ApiBearerAuth()
   @Get('admin/banners')
   @ApiOperation({ summary: 'Tüm banner listesini getir' })
-  async list() {
-    return this.bannerService.listBanners();
+  async list(@Query() query: ListBannersQueryDto) {
+    return this.bannerService.listBanners(query);
   }
 
   @Public()

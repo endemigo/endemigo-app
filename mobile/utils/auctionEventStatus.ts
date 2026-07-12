@@ -30,13 +30,13 @@ export function formatStartsIn(
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
   const diff = startMs - now;
-  if (diff <= 0) return t('auctions.startingSoon', { defaultValue: 'Başlamak üzere' });
+  if (diff <= 0) return t('auctions.startingSoon');
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return t('auctions.startsInMinutes', { defaultValue: `${mins} dk sonra`, count: mins });
+  if (mins < 60) return t('auctions.startsInMinutes', { count: mins });
   if (mins < 24 * 60) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return t('auctions.startsInHours', { defaultValue: `${h}s ${m}dk sonra`, h, m });
+    return t('auctions.startsInHours', { h, m });
   }
   return new Date(startMs).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US', {
     day: 'numeric',

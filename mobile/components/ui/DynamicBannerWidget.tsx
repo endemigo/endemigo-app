@@ -91,7 +91,11 @@ export function DynamicBannerWidget({ bannerId, title }: Props) {
         router.push('/(tabs)/seller-campaigns' as any);
         break;
       case 'AUCTIONS':
-        router.push('/(tabs)/auctions' as any);
+        if (actionValue && actionValue !== '/') {
+          router.push(`/auction/event/${actionValue}` as any);
+        } else {
+          router.push('/(tabs)/auctions' as any);
+        }
         break;
       case 'SEARCH':
         router.push({

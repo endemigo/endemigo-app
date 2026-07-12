@@ -107,8 +107,15 @@ export default function ExploreScreen() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ section?: string }>();
+  const params = useLocalSearchParams<{ section?: string; q?: string }>();
   const [query, setQuery] = React.useState('');
+
+  React.useEffect(() => {
+    const incoming = typeof params.q === 'string' ? params.q.trim() : '';
+    if (incoming) {
+      setQuery(incoming);
+    }
+  }, [params.q]);
   const debouncedQuery = useDebounce(query, 400);
   const [activeSection, setActiveSection] = React.useState<ExploreSectionKey>(
     normalizeSection(params.section),

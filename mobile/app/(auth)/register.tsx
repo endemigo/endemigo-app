@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auth/register.styles';
+import { PasswordInput } from '../../components/auth/PasswordInput';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 
 // K1 (backend RegisterDto): OWASP şifre politikası ile birebir aynı regex
@@ -124,16 +125,14 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={styles.label}>{t('auth.password')}</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth.passwordPlaceholder')}
-              placeholderTextColor={Colors.slate400}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+          <PasswordInput
+            wrapperStyle={styles.inputWrapper}
+            inputStyle={styles.input}
+            placeholder={t('auth.passwordPlaceholder')}
+            placeholderTextColor={Colors.slate400}
+            value={password}
+            onChangeText={setPassword}
+          />
 
           {password.length > 0 && (
             <View style={styles.rulesContainer}>

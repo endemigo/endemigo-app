@@ -21,7 +21,8 @@ import { AuctionEventInvitation } from './entities/auction-event-invitation.enti
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { AuctionStatus } from '../../shared/types/auction-status.enum';
 import { AuctionType } from '../../shared/types/auction-type.enum';
-import { AuctionRegistrationStatus } from '@endemigo/shared';
+import { AuctionRegistrationStatus, RestrictionStatus } from '@endemigo/shared';
+import { AccountRestriction } from '../trust/entities/account-restriction.entity';
 import { BidStatus } from '../../shared/types/bid-status.enum';
 import { AuctionGateway } from './auction.gateway';
 import { WalletService } from '../wallet/wallet.service';
@@ -270,9 +271,15 @@ export class AuctionService implements OnApplicationBootstrap {
         });
       }
 
-      // Check product count limit (max 5)
+      // Check product count limit (max 5) — iptal edilen ve reddedilen
+      // başvurular kotayı tüketmez.
       const existingCount = await this.auctionRepo.count({
-        where: { eventId, sellerId },
+        where: {
+          eventId,
+          sellerId,
+          status: Not(AuctionStatus.CANCELLED),
+          approvalStatus: Not(AuctionApprovalStatus.REJECTED),
+        },
       });
       if (existingCount + addingCount > 5) {
         throw new BadRequestException({
@@ -1188,6 +1195,37 @@ export class AuctionService implements OnApplicationBootstrap {
     if (!auction)
       throw this.notFound(RC.AUCTION_NOT_FOUND, 'Müzayede bulunamadı');
     return this.toResponse(auction);
+  }
+
+  // Satıcının kendi lotları/başvuruları — public listelemeden farklı olarak
+  // DRAFT/PENDING dahil tüm durumları döndürür (mobil "Ürünlerim" düzenleme akışı
+  // hangi ürünün onay bekleyen lotu olduğunu bu listeden eşler).
+  async findMyLots(
+    sellerId: string,
+    approvalStatus: AuctionApprovalStatus | undefined,
+    page: number,
+    limit: number,
+  ) {
+    const where = approvalStatus
+      ? { sellerId, approvalStatus }
+      : { sellerId };
+
+    const [auctions, total] = await this.auctionRepo.findAndCount({
+      where,
+      relations: ['product', 'product.category', 'event'],
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      code: RC.SUCCESS,
+      message: 'Auctions fetched',
+      items: auctions.map((auction) => this.toResponse(auction)),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -3065,7 +3103,12 @@ export class AuctionService implements OnApplicationBootstrap {
       // Event'e bağlı lotlar event para biriminde peylenir; bağımsız
       // müzayedeler TRY. Relation yüklenmediyse TRY varsayılır.
       currency: auction.event?.currency ?? 'TRY',
+      // Lotun bağlı olduğu etkinlik — mobil lot ekranı salon linki ve
+      // lot gezinmesi için kullanır.
+      eventId: auction.eventId ?? null,
+      eventTitle: auction.event?.title ?? null,
       status: auction.status,
+      approvalStatus: auction.approvalStatus,
       auctionType: auction.auctionType,
       isUntimed: auction.isUntimed,
       startTime: auction.startTime,
@@ -3714,27 +3757,66 @@ export class AuctionService implements OnApplicationBootstrap {
       }
     }
 
-    // Kayıt PENDING açılır — her müzayedede katılım talebi sistem/admin
-    // tarafından ayrıca onaylanır (şartname kabulü + uygunluk kontrolü).
+    // Kart doğrulanan katılımcı uygunsa beklemeden APPROVED olur; kültür
+    // varlığı kısıtlı lot, kapalı bayrak veya aktif hesap kısıtı elle onaya
+    // düşürür. REJECTED geçmişi olan kullanıcı da her zaman elle incelenir.
+    const autoApprove = await this.canAutoApproveRegistration(auction, userId);
+
     if (!registration) {
       registration = this.registrationRepo.create({
         userId,
         auctionId: auction.eventId ? null : auctionId,
         eventId: auction.eventId || null,
-        status: AuctionRegistrationStatus.PENDING,
+        status: autoApprove
+          ? AuctionRegistrationStatus.APPROVED
+          : AuctionRegistrationStatus.PENDING,
         acceptedTermsAt: new Date(),
       });
     } else if (registration.status === AuctionRegistrationStatus.REJECTED) {
       registration.status = AuctionRegistrationStatus.PENDING;
+    } else if (registration.status === AuctionRegistrationStatus.PENDING && autoApprove) {
+      registration.status = AuctionRegistrationStatus.APPROVED;
     }
 
     const saved = await this.registrationRepo.save(registration);
+    if (saved.status === AuctionRegistrationStatus.APPROVED) {
+      return {
+        code: RC.SUCCESS,
+        message: 'Kredi kartınız doğrulandı, katılımınız onaylandı. Pey verebilirsiniz.',
+        registration: saved,
+      };
+    }
     return {
       code: RC.AUCTION_REGISTRATION_PENDING,
       message:
         'Kredi kartınız doğrulandı, katılım talebiniz alındı. Onaylandığında bildirim alacaksınız.',
       registration: saved,
     };
+  }
+
+  /**
+   * Otomatik onay uygunluğu: (1) kullanıcıda aktif hesap kısıtı yok,
+   * (2) hedef kültür varlığı kısıtlı lot içermiyor (2863 — kimlik/uygunluk
+   * denetimi elle yapılır), (3) event bazında bayrak açık.
+   */
+  private async canAutoApproveRegistration(auction: Auction, userId: string): Promise<boolean> {
+    const activeRestrictions = await this.auctionRepo.manager.count(AccountRestriction, {
+      where: { targetUserId: userId, status: RestrictionStatus.ACTIVE },
+    });
+    if (activeRestrictions > 0) return false;
+
+    if (auction.eventId) {
+      const event = await this.auctionRepo.manager.findOne(AuctionEvent, {
+        where: { id: auction.eventId },
+      });
+      if (!event?.autoApproveRegistrations) return false;
+      const culturalLots = await this.auctionRepo.count({
+        where: { eventId: auction.eventId, culturalAssetRestricted: true },
+      });
+      return culturalLots === 0;
+    }
+
+    return !auction.culturalAssetRestricted;
   }
 
   async getRegistrationStatus(userId: string, auctionId: string) {
@@ -4028,6 +4110,15 @@ export class AuctionService implements OnApplicationBootstrap {
       throw new BadRequestException({
         code: RC.VALIDATION_ERROR,
         message: 'Sadece onay bekleyen lotlar karara bağlanabilir',
+      });
+    }
+
+    // İçerik kapısı: ürün admin içerik onayından geçmeden (ACTIVE) lot kataloğa
+    // alınamaz; organizatör onayı içerik denetiminin yerini tutmaz.
+    if (status === AuctionApprovalStatus.APPROVED && lot.product?.status !== ProductStatus.ACTIVE) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün içerik onayından geçmeden (ACTIVE) lot onaylanamaz.',
       });
     }
 

@@ -718,6 +718,10 @@ export default function AuctionDetailScreen() {
           statusLabel={statusLabel}
           isActive={isActive}
           isEnded={isEnded}
+          isUpcoming={isUpcoming}
+          startTime={auction.startTime}
+          serverTime={serverTime}
+          onStartExpired={refetch}
           viewerCount={socket.viewerCount}
           isConnected={socket.isConnected}
           auctionType={auction.auctionType}
@@ -725,6 +729,34 @@ export default function AuctionDetailScreen() {
           onBack={() => router.back()}
           t={t}
         />
+
+        {/* Lotun bağlı olduğu müzayede etkinliği — dokununca salona gider. */}
+        {auction.eventId && eventDetails?.event?.title ? (
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              marginHorizontal: Spacing.base,
+              marginTop: Spacing.sm,
+              paddingHorizontal: Spacing.base,
+              paddingVertical: Spacing.sm,
+              borderRadius: 12,
+              backgroundColor: Colors.secondaryContainer,
+            }}
+            activeOpacity={0.8}
+            onPress={() => router.push(`/auction/event/${auction.eventId}` as never)}
+          >
+            <Ionicons name="albums-outline" size={16} color={Colors.onSecondaryContainer} />
+            <Text
+              style={{ flex: 1, color: Colors.onSecondaryContainer, fontWeight: '600', fontSize: 13 }}
+              numberOfLines={1}
+            >
+              {eventDetails.event.title}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={Colors.onSecondaryContainer} />
+          </TouchableOpacity>
+        ) : null}
 
         {sortedEventLots.length > 1 && currentLotIndex >= 0 ? (
           <View
@@ -922,8 +954,8 @@ export default function AuctionDetailScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
-              <Text style={styles.openComposerButtonText}>
-                {t('auction.addToCalendarShort', { defaultValue: 'Takvim' })}
+              <Text style={[styles.openComposerButtonText, { fontSize: 14 }]}>
+                {t('auction.addToCalendarShort', { defaultValue: 'Takvime Ekle' })}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -931,7 +963,8 @@ export default function AuctionDetailScreen() {
               onPress={handleOpenComposerClick}
               activeOpacity={0.85}
             >
-              <Text style={styles.openComposerButtonText}>
+              <Ionicons name="pricetag-outline" size={18} color={Colors.white} style={{ marginBottom: 4 }} />
+              <Text style={[styles.openComposerButtonText, { fontSize: 14 }]}>
                 {t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
               </Text>
             </TouchableOpacity>

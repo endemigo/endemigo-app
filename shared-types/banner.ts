@@ -20,6 +20,9 @@ export interface Banner {
   slideDuration: number; // Transition duration in ms (e.g. 3000)
   aspectRatio: '16:9' | '4:3' | '1:1' | '3:1'; // Aspect ratio standard
   items: BannerItem[];
+  isActive: boolean; // Inactive banners are hidden from the mobile app
+  startAt?: Date | string | null; // Visibility window start (optional)
+  endAt?: Date | string | null; // Visibility window end (optional)
   createdAt: Date;
   updatedAt: Date;
 }

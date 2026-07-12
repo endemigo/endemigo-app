@@ -10,7 +10,7 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
+      "url": "https://u.expo.dev/408b2a07-ac8a-4c67-9a76-f0c76f88ce3d"
     },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -18,7 +18,13 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.endemigo.app"
+      "bundleIdentifier": "com.endemigo.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -34,8 +40,26 @@
     },
     "extra": {
       "eas": {
-        "projectId": "00000000-0000-0000-0000-000000000000"
-      }
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.endemigo.app.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.endemigo.app.onesignal"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "408b2a07-ac8a-4c67-9a76-f0c76f88ce3d"
+      },
+      "router": {}
     },
     "plugins": [
       "expo-router",
@@ -75,6 +99,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "fthkrtl"
   }
 }

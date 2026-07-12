@@ -102,20 +102,23 @@ export function canContinueProductCreateStep(
   state: ProductCreateWizardState,
   imageCount: number,
   visibilityOptions?: ListingFieldVisibilityOptions,
-  minImageCount = 1,
+  minImageCount = 0,
 ): boolean {
   if (step === 1) {
+    // Satıcı tek başına müzayede açamaz; müzayede ilanı bir etkinliğe başvuru olmak zorunda.
+    if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION && !state.selectedEventId) {
+      return false;
+    }
     return state.categoryId.length > 0;
   }
 
   if (step === 2) {
     const hasBasics = state.title.trim().length >= 3;
+    // Direkt satışta fiyat boş bırakılabilir; boş fiyat ürünü "Fiyat Sor" olarak yayınlar.
     const hasPricing = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
-      ? isPositiveNumber(state.auctionStartPrice)
-      : state.askPriceEnabled
-        ? true
-        : isPositiveNumber(state.directSalePrice);
-    const hasDetails = state.description.trim().length >= 3 && isNonNegativeInteger(state.stockQuantity);
+      ? isPositiveNumber(state.auctionStartPrice) && isPositiveNumber(state.auctionMinIncrement)
+      : state.directSalePrice.trim().length === 0 || isPositiveNumber(state.directSalePrice);
+    const hasDetails = isNonNegativeInteger(state.stockQuantity);
     return hasBasics && hasPricing && hasDetails;
   }
 
@@ -133,21 +136,14 @@ export function canContinueProductCreateStep(
   if (state.listingType !== PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
     return true;
   }
-  if (state.selectedEventId) {
-    return true;
-  }
-  return (
-    state.auctionStartTime.length > 0
-    && state.auctionEndTime.length > 0
-    && isPositiveNumber(state.auctionMinIncrement)
-  );
+  return Boolean(state.selectedEventId) && isPositiveNumber(state.auctionMinIncrement);
 }
 
 export function isProductCreateReadyToSubmit(
   state: ProductCreateWizardState,
   imageCount: number,
   visibilityOptions?: ListingFieldVisibilityOptions,
-  minImageCount = 1,
+  minImageCount = 0,
 ): boolean {
   const normalizedVisibilityOptions = {
     optionalFields: visibilityOptions?.optionalFields ?? [...MOBILE_LISTING_CREATE_OPTIONAL_FIELDS],

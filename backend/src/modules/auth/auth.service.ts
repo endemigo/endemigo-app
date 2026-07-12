@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,6 +32,7 @@ interface DatabaseError {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly REFRESH_TOKEN_TTL_DAYS = 7;
 
   constructor(
@@ -89,15 +91,23 @@ export class AuthService {
       userAgent,
     );
 
-    // AUTH-02: Email doğrulama tokeni oluştur ve gönder
-    const verificationToken = await this.createVerificationToken(
-      user.id,
-      TokenType.EMAIL_VERIFICATION,
-    );
-    await this.emailService.sendVerificationEmail(
-      user.email,
-      verificationToken.rawToken,
-    );
+    // AUTH-02: Email doğrulama tokeni oluştur ve gönder.
+    // Mail gönderimi patlarsa kayıt iptal edilmez — kullanıcı oluşmuş durumda,
+    // retry DUPLICATE_EMAIL'e çarpar; token /auth/resend-verification ile yenilenir.
+    try {
+      const verificationToken = await this.createVerificationToken(
+        user.id,
+        TokenType.EMAIL_VERIFICATION,
+      );
+      await this.emailService.sendVerificationEmail(
+        user.email,
+        verificationToken.rawToken,
+      );
+    } catch (emailError) {
+      this.logger.warn(
+        `Doğrulama e-postası gönderilemedi (${user.email}): ${String(emailError)}`,
+      );
+    }
 
     const accessToken = this.generateAccessToken(
       user.id,
@@ -424,6 +434,33 @@ export class AuthService {
 
       return { code: RC.EMAIL_VERIFIED, message: 'E-posta adresiniz doğrulandı' };
     });
+  }
+
+  // Kayıt maili kaybolduğunda / token süresi dolduğunda tek çıkış yolu.
+  // forgotPassword ile aynı enumeration-safe davranış: kullanıcı yoksa veya
+  // zaten doğrulanmışsa da aynı generic yanıt döner.
+  async resendVerificationEmail(email: string) {
+    const genericResponse = {
+      code: RC.VERIFICATION_EMAIL_SENT,
+      message: 'E-posta adresiniz kayıtlıysa doğrulama bağlantısı gönderildi',
+    };
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.userService.findByEmail(normalizedEmail);
+    if (!user || user.deletedAt || user.isVerified) {
+      return genericResponse;
+    }
+
+    const verificationToken = await this.createVerificationToken(
+      user.id,
+      TokenType.EMAIL_VERIFICATION,
+    );
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      verificationToken.rawToken,
+    );
+
+    return genericResponse;
   }
 
   // ==========================================

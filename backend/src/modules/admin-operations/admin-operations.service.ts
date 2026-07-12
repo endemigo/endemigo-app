@@ -38,7 +38,7 @@ import { AuctionService } from '../auction/auction.service';
 import { NotificationService } from '../notification/notification.service';
 import { User } from '../user/entities/user.entity';
 import { Address } from '../user/entities/address.entity';
-import { SellerProfile, SellerStatus } from '../user/entities/seller-profile.entity';
+import { SellerProfile, SellerStatus, SellerType } from '../user/entities/seller-profile.entity';
 import { Conversation } from '../negotiation/entities/conversation.entity';
 import { NegotiationMessage } from '../negotiation/entities/negotiation-message.entity';
 import { ViolationLog } from '../negotiation/entities/violation-log.entity';
@@ -158,13 +158,16 @@ export interface AdminCreateMemberPayload {
   firstName?: string;
   lastName?: string;
   memberType?: string;
+  businessName?: string;
 }
 
 export interface AdminSellerPayload {
   businessName?: string;
   phone?: string;
+  sellerType?: string;
   taxOffice?: string;
   taxNumber?: string;
+  identityNumber?: string;
   commissionRate?: string | number;
   status?: SellerStatus;
 }
@@ -1865,8 +1868,10 @@ export class AdminOperationsService {
         id: true,
         userId: true,
         businessName: true,
+        sellerType: true,
         taxOffice: true,
         taxNumber: true,
+        identityNumber: true,
         phone: true,
         status: true,
         commissionRate: true,
@@ -2954,16 +2959,40 @@ export class AdminOperationsService {
 
     const memberType = payload.memberType?.trim().toUpperCase() ?? 'CUSTOMER';
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = this.userRepo.create({
-      email,
-      passwordHash,
-      firstName: this.toNullableString(payload.firstName) ?? undefined,
-      lastName: this.toNullableString(payload.lastName) ?? undefined,
-      isSeller: memberType === 'SELLER',
-      isActive: true,
-      isVerified: false,
+
+    // isSeller=true bir kullanıcı SellerProfile olmadan yarım kalır (seller-profile 404,
+    // müzayede başvurusu ve ön sözleşme patlar) — user + profil aynı transaction'da açılır.
+    const saved = await this.userRepo.manager.transaction(async (manager) => {
+      const user = manager.create(User, {
+        email,
+        passwordHash,
+        firstName: this.toNullableString(payload.firstName) ?? undefined,
+        lastName: this.toNullableString(payload.lastName) ?? undefined,
+        isSeller: memberType === 'SELLER',
+        isActive: true,
+        isVerified: false,
+      });
+      const savedUser = await manager.save(User, user);
+
+      if (memberType === 'SELLER') {
+        const fullName = [payload.firstName, payload.lastName]
+          .map((part) => this.toNullableString(part))
+          .filter(Boolean)
+          .join(' ');
+        const sellerProfile = manager.create(SellerProfile, {
+          userId: savedUser.id,
+          businessName: this.toNullableString(payload.businessName) ?? (fullName || email),
+          status: SellerStatus.APPROVED,
+          approvedAt: new Date(),
+          agreementAcceptedAt: new Date(),
+          agreementVersion: '1.0.0',
+          agreementUserAgent: 'admin-created',
+        });
+        await manager.save(SellerProfile, sellerProfile);
+      }
+
+      return savedUser;
     });
-    const saved = await this.userRepo.save(user);
 
     return {
       code: RC.ADMIN_USER_CREATED,
@@ -3175,6 +3204,7 @@ export class AdminOperationsService {
         id: true,
         userId: true,
         businessName: true,
+        sellerType: true,
         phone: true,
         taxOffice: true,
         taxNumber: true,
@@ -3230,6 +3260,9 @@ export class AdminOperationsService {
     const before = { status: sellerProfile.status };
     sellerProfile.status = SellerStatus.TERMINATED;
     await this.sellerProfileRepo.save(sellerProfile);
+    // updateSeller ile tutarlı: APPROVED bir satıcı reddedilirse/kapatılırsa
+    // satıcı yetkisi de kapanmalı, yoksa isSeller=true kalıp satmaya devam eder.
+    await this.userRepo.update(sellerProfile.userId, { isSeller: false });
     await this.record(actor, AdminAuditAction.SELLER_REJECTED, 'SELLER', id, dto, before, {
       status: sellerProfile.status,
     });
@@ -3267,11 +3300,21 @@ export class AdminOperationsService {
     if (payload.phone !== undefined) {
       sellerProfile.phone = this.toNullableString(payload.phone) ?? '';
     }
+    if (payload.sellerType !== undefined) {
+      sellerProfile.sellerType = this.matchEnumValue<SellerType>(
+        payload.sellerType,
+        Object.values(SellerType),
+        sellerProfile.sellerType,
+      );
+    }
     if (payload.taxOffice !== undefined) {
       sellerProfile.taxOffice = this.toNullableString(payload.taxOffice) ?? '';
     }
     if (payload.taxNumber !== undefined) {
       sellerProfile.taxNumber = this.toNullableString(payload.taxNumber) ?? '';
+    }
+    if (payload.identityNumber !== undefined) {
+      sellerProfile.identityNumber = this.toNullableString(payload.identityNumber);
     }
     if (payload.commissionRate !== undefined) {
       sellerProfile.commissionRate = this.toNumber(payload.commissionRate, Number(sellerProfile.commissionRate ?? 0.15));
@@ -3307,6 +3350,7 @@ export class AdminOperationsService {
       approvedAt: saved.approvedAt,
       businessName: saved.businessName,
       phone: saved.phone,
+      sellerType: saved.sellerType,
       taxOffice: saved.taxOffice,
       taxNumber: saved.taxNumber,
       commissionRate: saved.commissionRate,
@@ -4584,8 +4628,10 @@ export class AdminOperationsService {
         id: true,
         userId: true,
         businessName: true,
+        sellerType: true,
         taxOffice: true,
         taxNumber: true,
+        identityNumber: true,
         phone: true,
         status: true,
         commissionRate: true,
@@ -5546,6 +5592,9 @@ export class AdminOperationsService {
         throw new ForbiddenException({ code: RC.ADMIN_FORBIDDEN, message: 'Ortak müzayede açma yetkiniz yok. Yetki için endemigo ile iletişime geçin.' });
       }
     }
+    event.autoApproveRegistrations = (payload as any).autoApproveRegistrations !== undefined
+      ? this.toBooleanValue((payload as any).autoApproveRegistrations)
+      : true;
     event.antiSnipingEnabled = payload.antiSnipingEnabled !== undefined ? this.toBooleanValue(payload.antiSnipingEnabled) : true;
     event.maxExtensions = payload.maxExtensions !== undefined ? this.toNumber(payload.maxExtensions, 5) : 5;
     event.extensionSeconds = payload.extensionSeconds !== undefined ? this.toNumber(payload.extensionSeconds, 60) : 60;
@@ -5639,6 +5688,20 @@ export class AdminOperationsService {
     if (payload.coverImageUrl !== undefined) event.coverImageUrl = payload.coverImageUrl;
     if (payload.categoryId !== undefined) event.categoryId = payload.categoryId;
     if (payload.status !== undefined) {
+      // Satıcı (sahip/yayıncı) etkinliği yalnızca onaya sunabilir (DRAFT → APPLICATION).
+      // UPCOMING/ACTIVE/ENDED gibi canlıya alma geçişleri admin onayının kapısıdır;
+      // aksi halde satıcı kendi etkinliğini onaysız yayına alabilirdi.
+      if (this.isPureSeller(actor) && payload.status !== event.status) {
+        const sellerAllowed =
+          event.status === AuctionEventStatus.DRAFT &&
+          payload.status === AuctionEventStatus.APPLICATION;
+        if (!sellerAllowed) {
+          throw new ForbiddenException({
+            code: RC.ADMIN_FORBIDDEN,
+            message: 'Etkinliği yalnızca onaya sunabilirsiniz; yayına alma işlemini endemigo ekibi yapar.',
+          });
+        }
+      }
       if (payload.status === AuctionEventStatus.APPLICATION && event.status !== AuctionEventStatus.APPLICATION) {
         const lotsCount = await this.auctionRepo.count({ where: { eventId: id } });
         // Faz 5: eşik entity'den okunur (create anında set edilir), hardcode değil.
@@ -5728,6 +5791,9 @@ export class AdminOperationsService {
     if ((payload as any).auctioneerId !== undefined) {
       const canAssign = !this.isPureSeller(actor) || event.ownerId === actor.id;
       if (canAssign) event.auctioneerId = (payload as any).auctioneerId || null;
+    }
+    if ((payload as any).autoApproveRegistrations !== undefined) {
+      event.autoApproveRegistrations = this.toBooleanValue((payload as any).autoApproveRegistrations);
     }
     if (payload.antiSnipingEnabled !== undefined) event.antiSnipingEnabled = this.toBooleanValue(payload.antiSnipingEnabled);
     if (payload.maxExtensions !== undefined) event.maxExtensions = this.toNumber(payload.maxExtensions, 5);
@@ -5973,6 +6039,15 @@ export class AdminOperationsService {
       throw new NotFoundException({
         code: RC.NOT_FOUND,
         message: 'Müzayede başvurusu bulunamadı',
+      });
+    }
+
+    // İçerik kapısı: yalnızca admin içerik onayından geçmiş (ACTIVE) ürünün lotu
+    // yayına onaylanabilir. Onaylanmamış ürün lot onayıyla vitrine sızmasın.
+    if (status === AuctionApprovalStatus.APPROVED && auction.product?.status !== ProductStatus.ACTIVE) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'Ürün içerik onayından geçmeden (ACTIVE) lot onaylanamaz. Önce ürünü onaylayın.',
       });
     }
 

@@ -183,7 +183,10 @@ function PurchasePanel({
       {!isAskPrice && (
         <View style={styles.purchasePriceRow}>
           <Text style={styles.purchasePrice}>{formatProductPrice(product, t)}</Text>
-          <Text style={styles.purchaseUnitText}>{t('product.perUnit')}</Text>
+          {/* "/ adet" yalnızca gerçek fiyat varken; müzayede/fiyat-sor'da gizli. */}
+          {product.listingType !== ListingType.AUCTION && Number(product.price) > 0 && (
+            <Text style={styles.purchaseUnitText}>{t('product.perUnit')}</Text>
+          )}
         </View>
       )}
 
@@ -927,6 +930,19 @@ export default function ProductDetailScreen() {
                   {favoriteActive ? t('product.favorited', { defaultValue: 'Favorilerde' }) : t('product.saveItem', { defaultValue: 'Favoriye Ekle' })}
                 </Text>
               </TouchableOpacity>
+            </View>
+          ) : product.listingType === ListingType.AUCTION ? (
+            // Müzayede ürünü tek başına satılmaz; auction kaydı yüklenmemişse
+            // sepet paneli yerine bilgilendirme gösterilir.
+            <View style={styles.purchaseCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="hammer-outline" size={18} color={Colors.primary} />
+                <Text style={{ flex: 1, color: Colors.onSurfaceVariant, fontSize: 14 }}>
+                  {t('product.auctionOnlyNotice', {
+                    defaultValue: 'Bu ürün yalnızca müzayede etkinliği üzerinden satılır.',
+                  })}
+                </Text>
+              </View>
             </View>
           ) : (
             <View

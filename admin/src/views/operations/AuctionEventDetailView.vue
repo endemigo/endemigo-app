@@ -1651,7 +1651,9 @@ onMounted(() => {
       }
     }
 
-    // Aktif lot ise yeni teklifi listeye ekle
+    // Aktif lot ise yeni teklifi hemen (maskeli adla) göster, ardından admin
+    // endpoint'inden tam adlı listeyle değiştir — socket yayını gizlilik
+    // gereği "Ad S." maskesi taşır, admin listesi tam ad döner.
     if (activeLot.value && data.auctionId === activeLot.value.id) {
       activeLotBids.value.unshift({
         id: data.id || Math.random().toString(),
@@ -1659,6 +1661,7 @@ onMounted(() => {
         amount: data.amount,
         createdAt: data.serverTime || new Date().toISOString(),
       });
+      fetchActiveLotBids();
     }
 
     // Background refresh to update list

@@ -18,4 +18,13 @@ export class BannerEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', default: [] })
   items: BannerItem[];
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  startAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  endAt: Date | null;
 }

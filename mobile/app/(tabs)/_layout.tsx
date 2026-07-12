@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, View, Text, Image, Modal, PanResponder, Animated as RNAnimated } from 'react-native';
+import { TouchableOpacity, View, Text, Image, Linking, Modal, PanResponder, Animated as RNAnimated } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 import { useRoleModeStore } from '../../store/roleModeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
-import { styles } from '../../styles/tabs/_layout.styles';
+import ENV from '../../lib/config';
+import { styles, TAB_BAR_CONTENT_HEIGHT } from '../../styles/tabs/_layout.styles';
 import { styles as entryModeStyles } from '../../components/forms/product-create/ProductCreateWizard.styles';
 
 const AnimatedSafeAreaView = RNAnimated.createAnimatedComponent(SafeAreaView);
@@ -20,6 +21,7 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const isProfileScreen = pathname === '/profile';
+  const insets = useSafeAreaInsets();
   const getSubpageOptions = (titleKey: string, fallbackRoute = '/(tabs)/profile') => ({
     href: null,
     headerTitle: () => (
@@ -46,7 +48,7 @@ export default function TabLayout() {
   const isSellerMode = activeMode === 'seller';
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const [isEntryModeModalVisible, setIsEntryModeModalVisible] = useState(false);
-  const [modalStep, setModalStep] = useState<'main' | 'auctionType' | 'auctionProductCount' | 'independentInfo'>('main');
+  const [modalStep, setModalStep] = useState<'main' | 'auctionType' | 'auctionProductCount' | 'jointInfo' | 'independentInfo'>('main');
 
   const panY = React.useMemo(() => new RNAnimated.Value(0), []);
 
@@ -116,7 +118,15 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.slate400,
         tabBarHideOnKeyboard: true,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            // Home indicator / gesture bar payı tek yerden: inset varsa o,
+            // yoksa minimum iç boşluk. İçerik yüksekliği sabit kalır.
+            height: TAB_BAR_CONTENT_HEIGHT + Math.max(insets.bottom, Spacing.sm),
+            paddingBottom: Math.max(insets.bottom, Spacing.sm),
+          },
+        ],
         tabBarItemStyle: styles.tabBarItem,
         tabBarLabelStyle: styles.tabBarLabel,
         headerStyle: styles.header,
@@ -199,11 +209,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
+          // Tab bar'dan gizli; ekrana ana sayfa araması ve banner linkleriyle gidiliyor
+          href: null,
           title: t('tabs.search'),
           headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="buy-now"
+        options={{
+          title: t('tabs.buyNow'),
+          headerShown: false,
+          href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'search' : 'search-outline'}
+              name={focused ? 'bag-handle' : 'bag-handle-outline'}
               size={24}
               color={color}
             />
@@ -260,21 +280,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'speedometer' : 'speedometer-outline'}
-              size={24}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="buy-now"
-        options={{
-          title: t('tabs.buyNow'),
-          headerShown: false,
-          href: isSellerMode ? null : undefined,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'bag-handle' : 'bag-handle-outline'}
               size={24}
               color={color}
             />
@@ -429,6 +434,28 @@ export default function TabLayout() {
             </View>
           )}
 
+          {modalStep === 'jointInfo' && (
+            <View style={entryModeStyles.entryModeHeaderArea}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                <TouchableOpacity
+                  onPress={() => setModalStep('auctionProductCount')}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: Colors.slate100,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                </TouchableOpacity>
+              </View>
+              <Text style={entryModeStyles.entryModeTitle}>{t('listing.jointInfoTitle')}</Text>
+            </View>
+          )}
+
           {modalStep === 'auctionType' && (
             <View style={entryModeStyles.entryModeHeaderArea}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
@@ -518,7 +545,7 @@ export default function TabLayout() {
                   <TouchableOpacity
                     style={[entryModeStyles.entryModeOption, entryModeStyles.entryModeOptionAuction]}
                     activeOpacity={0.7}
-                    onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
+                    onPress={() => setModalStep('jointInfo')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
                       <Ionicons name="people-outline" size={24} color={Colors.secondary} />
@@ -550,18 +577,44 @@ export default function TabLayout() {
               </>
             )}
 
+            {modalStep === 'jointInfo' && (
+              <>
+                <View style={entryModeStyles.independentInfoBox}>
+                  <Text style={entryModeStyles.independentInfoBody}>{t('listing.jointInfoBody')}</Text>
+                </View>
+
+                {/* Toplu yükleme mobilde yok — kullanıcı web satıcı paneline yönlendirilir. */}
+                <TouchableOpacity
+                  style={[entryModeStyles.primaryButton, entryModeStyles.primaryButtonAuction]}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    setIsEntryModeModalVisible(false);
+                    Linking.openURL(ENV.SELLER_WEB_URL).catch(() => undefined);
+                  }}
+                >
+                  <Ionicons name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
+                  <Text style={entryModeStyles.primaryButtonText}>{t('listing.continueOnWeb')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
             {modalStep === 'independentInfo' && (
               <>
                 <View style={entryModeStyles.independentInfoBox}>
                   <Text style={entryModeStyles.independentInfoBody}>{t('listing.independentInfoBody')}</Text>
                 </View>
 
+                {/* Toplu yükleme mobilde yok — kullanıcı web satıcı paneline yönlendirilir. */}
                 <TouchableOpacity
                   style={[entryModeStyles.primaryButton, entryModeStyles.primaryButtonAuction]}
                   activeOpacity={0.85}
-                  onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
+                  onPress={() => {
+                    setIsEntryModeModalVisible(false);
+                    Linking.openURL(ENV.SELLER_WEB_URL).catch(() => undefined);
+                  }}
                 >
-                  <Text style={entryModeStyles.primaryButtonText}>{t('listing.independentInfoConfirm')}</Text>
+                  <Ionicons name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
+                  <Text style={entryModeStyles.primaryButtonText}>{t('listing.continueOnWeb')}</Text>
                 </TouchableOpacity>
               </>
             )}

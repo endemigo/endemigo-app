@@ -1,5 +1,17 @@
-import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
-import type { BannerItem } from '@endemigo/shared';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { BannerItemDto } from './banner-item.dto';
 
 export class CreateBannerDto {
   @IsString()
@@ -20,5 +32,23 @@ export class CreateBannerDto {
   aspectRatio?: '16:9' | '4:3' | '1:1' | '3:1';
 
   @IsArray()
-  items: BannerItem[];
+  @ValidateNested({ each: true })
+  @Type(() => BannerItemDto)
+  items: BannerItemDto[];
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  @IsISO8601()
+  @IsOptional()
+  startAt?: string | null;
+
+  @IsISO8601()
+  @IsOptional()
+  endAt?: string | null;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

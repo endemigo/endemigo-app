@@ -523,6 +523,15 @@ export default function HomeScreen() {
                   style={styles.searchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onSubmitEditing={() => {
+                    const q = searchQuery.trim();
+                    if (!q) return;
+                    setSearchQuery('');
+                    router.push({ pathname: '/(tabs)/explore', params: { q } });
+                  }}
                 />
               </View>
               <View style={styles.searchActions}>

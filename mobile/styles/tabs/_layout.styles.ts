@@ -1,5 +1,10 @@
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Colors, FontFamily, FontSize, Spacing, Shadows } from '../../constants/theme';
+
+// İkon + label alanı (üst padding dahil). height ve paddingBottom
+// _layout.tsx'te safe-area inset'iyle dinamik hesaplanır — buraya platform
+// sabiti koyma: inset'le toplanınca bar iOS'ta şişer.
+export const TAB_BAR_CONTENT_HEIGHT = 62;
 
 export const styles = StyleSheet.create({
   tabBar: {
@@ -8,9 +13,7 @@ export const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === 'ios' ? 26 : Spacing.sm,
     paddingTop: Spacing.md,
-    height: Platform.OS === 'ios' ? 92 : 70,
     position: 'absolute',
     ...Shadows.tabBar,
   },

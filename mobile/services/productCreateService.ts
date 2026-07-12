@@ -17,12 +17,6 @@ interface ProductCreateResponse {
   message: string;
 }
 
-interface AuctionCreateResponse {
-  id: string;
-  code: string;
-  message: string;
-}
-
 async function createProduct(state: ProductCreateWizardState) {
   if (ENV.USE_MOCK) {
     return mockService.createProduct(buildProductCreatePayload(state));
@@ -63,26 +57,6 @@ async function publishProduct(productId: string) {
   return data;
 }
 
-async function createAuction(productId: string, state: ProductCreateWizardState) {
-  if (ENV.USE_MOCK) {
-    return mockService.createAuction(buildAuctionCreatePayload(productId, state));
-  }
-
-  const { data } = await api.post<AuctionCreateResponse>(
-    '/auctions',
-    buildAuctionCreatePayload(productId, state),
-  );
-  return data;
-}
-
-async function publishAuction(auctionId: string) {
-  if (ENV.USE_MOCK) {
-    return mockService.publishAuction(auctionId);
-  }
-
-  return api.patch(`/auctions/${auctionId}/publish`);
-}
-
 async function applyToEvent(eventId: string, productId: string, state: ProductCreateWizardState) {
   if (ENV.USE_MOCK) {
     return { id: 'mock-auction-id', code: 'SUCCESS', message: 'Başvuru alındı' };
@@ -116,11 +90,22 @@ export async function submitProductCreateWizard(
   }
 
   if (state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION) {
-    if (state.selectedEventId) {
+    // Satıcı tek başına müzayede açamaz; lot yalnızca bir etkinliğe başvuru olarak oluşturulur.
+    if (!state.selectedEventId) {
+      throw new Error('Müzayede ilanı için etkinlik seçimi zorunludur.');
+    }
+    try {
       await applyToEvent(state.selectedEventId, product.id, state);
-    } else {
-      const auction = await createAuction(product.id, state);
-      await publishAuction(auction.id);
+    } catch (error) {
+      // Başvuru başarısız olursa lot'suz AUCTION ürün yayında kalmasın —
+      // bu akışta oluşturulan ürünü DRAFT'a geri çek. Mevcut ürün seçildiyse
+      // (existingProductId) ürün zaten önceden yayındaydı; durumuna dokunma.
+      if (!existingProductId && !ENV.USE_MOCK) {
+        await api
+          .patch(`/products/${product.id}`, { status: ProductStatus.DRAFT })
+          .catch(() => undefined);
+      }
+      throw error;
     }
   }
 

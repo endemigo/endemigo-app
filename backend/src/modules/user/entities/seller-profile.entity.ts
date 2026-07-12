@@ -10,6 +10,11 @@ export enum SellerStatus {
   TERMINATED = 'TERMINATED',
 }
 
+export enum SellerType {
+  INDIVIDUAL = 'INDIVIDUAL',
+  CORPORATE = 'CORPORATE',
+}
+
 @Entity('seller_profiles')
 export class SellerProfile extends BaseEntity {
   @Column()
@@ -22,11 +27,30 @@ export class SellerProfile extends BaseEntity {
   @Column()
   businessName: string;
 
-  @Column({ nullable: true })
-  taxOffice: string;
+  // Mevcut satırlar işletme bilgisiyle başvurduğu için default CORPORATE
+  @Column({
+    type: 'enum',
+    enum: SellerType,
+    default: SellerType.CORPORATE,
+  })
+  sellerType: SellerType;
 
-  @Column({ nullable: true })
-  taxNumber: string;
+  @Column({ type: 'varchar', nullable: true })
+  taxOffice: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  taxNumber: string | null;
+
+  // KVKK — TC Kimlik No IBAN gibi şifrelenerek saklanır (AES-256-GCM)
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    transformer: {
+      to: (value: string | null) => value ? encrypt(value) : null,
+      from: (value: string | null) => value ? decrypt(value) : null,
+    },
+  })
+  identityNumber: string | null;
 
   // CR-02: KVKK — IBAN şifrelenerek saklanır (AES-256-GCM)
   @Column({

@@ -8,6 +8,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { useRoleModeStore } from '../../store/roleModeStore';
 import { useWalletBalance } from '../../hooks/useWallet';
@@ -28,6 +31,22 @@ export default function ProfileScreen() {
   const activeMode = useRoleModeStore((state) => state.activeMode);
   const syncRoleModeFromUser = useRoleModeStore((state) => state.syncRoleModeFromUser);
   const resetRoleMode = useRoleModeStore((state) => state.resetRoleMode);
+
+  // Bekleyen satıcı başvurusu varken "Satıcı Ol" yerine durum kartı gösterilir.
+  const { data: sellerApplication } = useQuery<{ status?: string } | null>({
+    queryKey: ['seller-application', user?.id],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/users/seller-profile');
+        return res.data?.sellerProfile ?? null;
+      } catch (error: unknown) {
+        if (isAxiosError(error) && error.response?.status === 404) return null;
+        throw error;
+      }
+    },
+    enabled: Boolean(user) && !user?.isSeller,
+  });
+  const isSellerApplicationPending = sellerApplication?.status === 'PENDING';
 
   useEffect(() => {
     syncRoleModeFromUser(user);
@@ -294,19 +313,38 @@ export default function ProfileScreen() {
         onNavigate={(route) => router.push(route as never)}
       />
 
-      {/* Become Seller Button */}
+      {/* Become Seller Button / Pending Application State */}
       {!user?.isSeller && (
-        <TouchableOpacity
-          style={styles.sellerButton}
-          onPress={() => router.push('/(tabs)/become-seller')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="storefront" size={22} color={Colors.white} />
-          <View style={styles.sellerButtonContent}>
-            <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
-            <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
+        isSellerApplicationPending ? (
+          <View
+            style={[
+              styles.sellerButton,
+              { backgroundColor: Colors.secondaryContainer },
+            ]}
+          >
+            <Ionicons name="hourglass-outline" size={22} color={Colors.onSecondaryContainer} />
+            <View style={styles.sellerButtonContent}>
+              <Text style={[styles.sellerButtonText, { color: Colors.onSecondaryContainer }]}>
+                {t('seller.applicationPendingTitle')}
+              </Text>
+              <Text style={[styles.sellerButtonSub, { color: Colors.onSecondaryContainer }]}>
+                {t('seller.applicationPendingShort')}
+              </Text>
+            </View>
           </View>
-        </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.sellerButton}
+            onPress={() => router.push('/(tabs)/become-seller')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="storefront" size={22} color={Colors.white} />
+            <View style={styles.sellerButtonContent}>
+              <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
+              <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
+            </View>
+          </TouchableOpacity>
+        )
       )}
 
       {/* Logout Button */}

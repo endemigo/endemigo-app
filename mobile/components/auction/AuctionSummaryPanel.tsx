@@ -93,36 +93,38 @@ export function AuctionSummaryPanel({
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.overline}>{summaryTitle}</Text>
-          <Text style={styles.currentPriceLabel}>{t('auction.currentPrice')}</Text>
+          <Text style={styles.currentPriceLabel}>{bidCount > 0 ? t('auction.currentPrice') : t('auction.startingBid')}</Text>
           <Text style={styles.currentPriceValue}>{formatCurrency(currentPrice, currency)}</Text>
         </View>
 
-        <View style={styles.timerShell}>
-          <View style={[styles.timerBadge, isEnded && styles.timerBadgeEnded]}>
-            <Text
-              style={[
-                styles.timerBadgeText,
-                isEnded && styles.timerBadgeTextEnded,
-              ]}
-            >
-              {timerBadgeText}
-            </Text>
+        {/* Başlama sayacı artık hero çipinde. Upcoming'de bu kutu gizlenir. */}
+        {isUpcomingAuction ? null : (
+          <View style={styles.timerShell}>
+            <View style={[styles.timerBadge, isEnded && styles.timerBadgeEnded]}>
+              <Text
+                style={[
+                  styles.timerBadgeText,
+                  isEnded && styles.timerBadgeTextEnded,
+                ]}
+              >
+                {timerBadgeText}
+              </Text>
+            </View>
+            {isUntimed && !isEnded ? (
+              <Text style={styles.timerEndedText}>
+                {t('auctions.untimed', { defaultValue: 'Süresiz' })}
+              </Text>
+            ) : timerActive ? (
+              <CountdownTimer
+                endTime={timerTarget}
+                serverTime={serverTime}
+                onExpired={onTimeExpired}
+              />
+            ) : (
+              <Text style={styles.timerEndedText}>00:00:00</Text>
+            )}
           </View>
-          {isUntimed && !isUpcomingAuction && !isEnded ? (
-            <Text style={styles.timerEndedText}>
-              {t('auctions.untimed', { defaultValue: 'Süresiz' })}
-            </Text>
-          ) : timerActive ? (
-            <CountdownTimer
-              endTime={timerTarget}
-              serverTime={serverTime}
-              onExpired={onTimeExpired}
-              label={isUpcomingAuction ? t('auction.startsInLabel') : undefined}
-            />
-          ) : (
-            <Text style={styles.timerEndedText}>00:00:00</Text>
-          )}
-        </View>
+        )}
       </View>
 
       <View style={styles.metricsGrid}>

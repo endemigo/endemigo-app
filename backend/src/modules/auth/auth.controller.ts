@@ -21,6 +21,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import {
   ForgotPasswordDto,
+  ResendVerificationDto,
   ResetPasswordDto,
   VerifyEmailDto,
 } from './dto/password-recovery.dto';
@@ -100,6 +101,16 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Geçersiz token' })
   async verifyEmail(@Body() dto: VerifyEmailDto) {
     return this.authService.verifyEmail(dto.token);
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
+  @ApiOperation({ summary: 'Doğrulama e-postasını yeniden gönder' })
+  @ApiResponse({ status: 200, description: 'E-posta kayıtlıysa doğrulama bağlantısı gönderildi' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerificationEmail(dto.email);
   }
 
   // ==========================================

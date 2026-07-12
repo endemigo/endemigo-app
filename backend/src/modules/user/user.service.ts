@@ -19,7 +19,7 @@ import {
 } from '@endemigo/shared';
 import { User } from './entities/user.entity';
 import { Address } from './entities/address.entity';
-import { SellerProfile, SellerStatus } from './entities/seller-profile.entity';
+import { SellerProfile, SellerStatus, SellerType } from './entities/seller-profile.entity';
 import { KvkkConsent } from './entities/kvkk-consent.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { TrustService } from '../trust/trust.service';
@@ -433,54 +433,126 @@ export class UserService {
     ipAddress?: string,
     userAgent?: string,
   ) {
-    // CR-03: Transaction prevents TOCTOU race — concurrent requests can't create duplicate SellerProfiles
-    return this.userRepo.manager.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
-      if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+    // Eski istemciler sellerType göndermez — kurumsal varsayılır
+    const sellerType = dto.sellerType ?? SellerType.CORPORATE;
+    const isIndividual = sellerType === SellerType.INDIVIDUAL;
 
-      // WR-06: Require email verification before seller registration
-      if (!user.isVerified) {
-        throw new BadRequestException({
-          code: 'EMAIL_NOT_VERIFIED',
-          message: 'Satıcı olmak için önce e-posta adresinizi doğrulamalısınız',
+    try {
+      return await this.userRepo.manager.transaction(async (manager) => {
+        const user = await manager.findOne(User, { where: { id: userId } });
+        if (!user) throw new NotFoundException({ code: RC.USER_NOT_FOUND, message: 'Kullanıcı bulunamadı' });
+        if (user.isSeller) throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+
+        // WR-06: Require email verification before seller registration
+        if (!user.isVerified) {
+          throw new BadRequestException({
+            code: 'EMAIL_NOT_VERIFIED',
+            message: 'Satıcı olmak için önce e-posta adresinizi doğrulamalısınız',
+          });
+        }
+
+        // Phase 8 sonrası isSeller onaya kadar false kaldığı için mevcut başvuru
+        // ayrıca kontrol edilmeli; yoksa ikinci başvuru unique(userId) ihlaliyle patlar.
+        const existingProfile = await manager.findOne(SellerProfile, {
+          where: { userId },
+        });
+        if (existingProfile) {
+          if (existingProfile.status === SellerStatus.PENDING) {
+            throw new ConflictException({
+              code: RC.SELLER_APPLICATION_ALREADY_PENDING,
+              message: 'Satıcı başvurunuz zaten incelemede',
+            });
+          }
+          if (existingProfile.status === SellerStatus.APPROVED) {
+            throw new ConflictException({ code: RC.ALREADY_SELLER, message: 'Zaten satıcısınız' });
+          }
+          if (existingProfile.status === SellerStatus.SUSPENDED) {
+            throw new ForbiddenException({
+              code: RC.SELLER_SUSPENDED,
+              message: 'Satıcı hesabınız askıya alınmış. Lütfen destek ekibiyle iletişime geçin.',
+            });
+          }
+          // TERMINATED (reddedilmiş/kapatılmış): mevcut satır yeni başvuru olarak güncellenir
+          // Tip değişiminde karşı tipe ait alanlar temizlenir (bireyselde VKN, kurumsalda TC kalmasın)
+          existingProfile.businessName = dto.businessName;
+          existingProfile.sellerType = sellerType;
+          existingProfile.taxOffice = isIndividual ? null : (dto.taxOffice ?? existingProfile.taxOffice);
+          existingProfile.taxNumber = isIndividual ? null : (dto.taxNumber ?? existingProfile.taxNumber);
+          existingProfile.identityNumber = isIndividual ? (dto.identityNumber ?? existingProfile.identityNumber) : null;
+          existingProfile.iban = dto.iban ?? existingProfile.iban;
+          existingProfile.status = SellerStatus.PENDING;
+          existingProfile.approvedAt = null as unknown as Date;
+          existingProfile.agreementAcceptedAt = new Date();
+          existingProfile.agreementVersion = '1.0.0';
+          existingProfile.agreementIpAddress = ipAddress ?? existingProfile.agreementIpAddress;
+          existingProfile.agreementUserAgent = userAgent ?? existingProfile.agreementUserAgent;
+          const reapplied = await manager.save(existingProfile);
+
+          return {
+            code: RC.SELLER_APPLICATION_PENDING,
+            message: 'Satıcı başvurunuz admin incelemesine alındı',
+            id: user.id,
+            email: user.email,
+            isSeller: false,
+            sellerProfile: {
+              id: reapplied.id,
+              businessName: reapplied.businessName,
+              sellerType: reapplied.sellerType,
+              status: reapplied.status,
+              agreementVersion: reapplied.agreementVersion,
+            },
+          };
+        }
+
+        // SellerProfile oluştur — bireyselde VKN/vergi dairesi, kurumsalda TC alınmaz
+        const sellerProfile = manager.create(SellerProfile, {
+          userId,
+          businessName: dto.businessName,
+          sellerType,
+          taxOffice: isIndividual ? null : dto.taxOffice,
+          taxNumber: isIndividual ? null : dto.taxNumber,
+          identityNumber: isIndividual ? dto.identityNumber : null,
+          iban: dto.iban,
+          status: SellerStatus.PENDING,
+          agreementAcceptedAt: new Date(),
+          agreementVersion: '1.0.0',
+          // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
+          agreementIpAddress: ipAddress,
+          agreementUserAgent: userAgent,
+        });
+        await manager.save(sellerProfile);
+
+        // Phase 8: Satıcı yetkisi admin onayından sonra açılır.
+        user.isSeller = false;
+        await manager.save(user);
+
+        return {
+          code: RC.SELLER_APPLICATION_PENDING,
+          message: 'Satıcı başvurunuz admin incelemesine alındı',
+          id: user.id,
+          email: user.email,
+          isSeller: false,
+          sellerProfile: {
+            id: sellerProfile.id,
+            businessName: sellerProfile.businessName,
+            sellerType: sellerProfile.sellerType,
+            status: sellerProfile.status,
+            agreementVersion: sellerProfile.agreementVersion,
+          },
+        };
+      });
+    } catch (error: unknown) {
+      // CR-03: TOCTOU'yu asıl önleyen seller_profiles.userId UNIQUE constraint'i —
+      // eşzamanlı iki başvuruda kaybeden istek 23505 alır, 500 yerine 409 dönülür.
+      const dbError = error as { code?: string; driverError?: { code?: string } };
+      if (dbError.code === '23505' || dbError.driverError?.code === '23505') {
+        throw new ConflictException({
+          code: RC.SELLER_APPLICATION_ALREADY_PENDING,
+          message: 'Satıcı başvurunuz zaten incelemede',
         });
       }
-
-      // SellerProfile oluştur
-      const sellerProfile = manager.create(SellerProfile, {
-        userId,
-        businessName: dto.businessName,
-        taxOffice: dto.taxOffice,
-        taxNumber: dto.taxNumber,
-        iban: dto.iban,
-        status: SellerStatus.PENDING,
-        agreementAcceptedAt: new Date(),
-        agreementVersion: '1.0.0',
-        // USER-05: Sözleşme kabulü IP ve UserAgent kaydı
-        agreementIpAddress: ipAddress,
-        agreementUserAgent: userAgent,
-      });
-      await manager.save(sellerProfile);
-
-      // Phase 8: Satıcı yetkisi admin onayından sonra açılır.
-      user.isSeller = false;
-      await manager.save(user);
-
-      return {
-        code: RC.SELLER_APPLICATION_PENDING,
-        message: 'Satıcı başvurunuz admin incelemesine alındı',
-        id: user.id,
-        email: user.email,
-        isSeller: false,
-        sellerProfile: {
-          id: sellerProfile.id,
-          businessName: sellerProfile.businessName,
-          status: sellerProfile.status,
-          agreementVersion: sellerProfile.agreementVersion,
-        },
-      };
-    });
+      throw error;
+    }
   }
 
   async getSellerProfile(userId: string) {
@@ -503,6 +575,14 @@ export class UserService {
       throw new NotFoundException({
         code: RC.SELLER_PROFILE_NOT_FOUND,
         message: 'Satıcı profili bulunamadı',
+      });
+    }
+
+    // Ön sözleşme yalnızca onaylı satıcılar için — PENDING/SUSPENDED/TERMINATED kabul edemez
+    if (profile.status !== SellerStatus.APPROVED) {
+      throw new ForbiddenException({
+        code: RC.FORBIDDEN,
+        message: 'Ön sözleşme kabulü için onaylı satıcı olmanız gereklidir',
       });
     }
 

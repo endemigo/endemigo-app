@@ -101,20 +101,30 @@ export function useAuctionEventSocket(
         tone: 'accent' | 'error' | 'primary' = 'primary',
         at?: string,
       ) => {
-        setState((currentState) => ({
-          ...currentState,
-          activityFeed: [
-            {
-              id: `${Date.now()}-${Math.random()}`,
-              title,
-              body,
-              tone,
-              // Sunucu saati varsa onu kullan — "ne zaman oldu" akışta görünsün.
-              at: at ?? new Date().toISOString(),
-            },
-            ...currentState.activityFeed,
-          ].slice(0, 20),
-        }));
+        // Sunucu saati varsa onu kullan — "ne zaman oldu" akışta görünsün.
+        const itemAt = at ?? new Date().toISOString();
+        setState((currentState) => {
+          // Gateway aynı olayı hem lot hem salon odasına basar; socket iki
+          // odadaysa çift teslim olur. Kopyalar aynı serverTime'ı taşır —
+          // aynı (başlık, gövde, an) zaten akıştaysa yut.
+          const isDuplicate = currentState.activityFeed.some(
+            (f) => f.at === itemAt && f.title === title && f.body === body,
+          );
+          if (isDuplicate) return currentState;
+          return {
+            ...currentState,
+            activityFeed: [
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                title,
+                body,
+                tone,
+                at: itemAt,
+              },
+              ...currentState.activityFeed,
+            ].slice(0, 20),
+          };
+        });
       };
 
       const onConnect = () => {

@@ -4,7 +4,7 @@ export interface ProductImageUploadLimits {
 }
 
 export const DEFAULT_PRODUCT_IMAGE_UPLOAD_LIMITS: ProductImageUploadLimits = {
-  min: 1,
+  min: 0,
   max: 10,
 };
 

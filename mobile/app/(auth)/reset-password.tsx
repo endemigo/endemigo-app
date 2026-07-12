@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,7 @@ import api from '../../lib/api';
 import { useModalStore } from '../../store/modalStore';
 import { Colors } from '../../constants/theme';
 import { styles } from '../../styles/auth/reset-password.styles';
+import { PasswordInput } from '../../components/auth/PasswordInput';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_.#\-])[A-Za-z\d@$!%*?&_.#\-]{8,}$/;
@@ -78,28 +78,24 @@ export default function ResetPasswordScreen() {
 
         <View style={styles.formCard}>
           <Text style={styles.label}>{t('auth.newPassword')}</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth.passwordPlaceholder')}
-              placeholderTextColor={Colors.slate400}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+          <PasswordInput
+            wrapperStyle={styles.inputWrapper}
+            inputStyle={styles.input}
+            placeholder={t('auth.passwordPlaceholder')}
+            placeholderTextColor={Colors.slate400}
+            value={password}
+            onChangeText={setPassword}
+          />
 
           <Text style={styles.label}>{t('auth.confirmPassword')}</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth.confirmPasswordPlaceholder')}
-              placeholderTextColor={Colors.slate400}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-            />
-          </View>
+          <PasswordInput
+            wrapperStyle={styles.inputWrapper}
+            inputStyle={styles.input}
+            placeholder={t('auth.confirmPasswordPlaceholder')}
+            placeholderTextColor={Colors.slate400}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
 
           <Text style={styles.hint}>{t('auth.passwordPolicy')}</Text>
 

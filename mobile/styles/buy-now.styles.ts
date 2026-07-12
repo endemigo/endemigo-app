@@ -67,18 +67,18 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: `${Colors.primary}1F`,
+    borderColor: Colors.primaryTintBorderFaint,
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.sm,
   },
   profileActionButton: {
-    backgroundColor: `${Colors.primary}10`,
-    borderColor: `${Colors.primary}2E`,
+    backgroundColor: Colors.primaryTintSurface,
+    borderColor: Colors.primaryTintBorder,
   },
   notificationActionButton: {
-    backgroundColor: `${Colors.primary}10`,
-    borderColor: `${Colors.primary}2E`,
+    backgroundColor: Colors.primaryTintSurface,
+    borderColor: Colors.primaryTintBorder,
   },
   section: {
     paddingHorizontal: Spacing.base,

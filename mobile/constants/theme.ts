@@ -20,6 +20,12 @@ export const Colors = {
   onPrimaryContainer: '#FCFCFF',
   primaryFixed: '#C9E6FF',
   primaryFixedDim: '#8ACEFF',
+  // Opak primer tintler: Android'de elevation gölgesi yarı saydam (alpha-hex)
+  // zeminin arkasından sızıp gri kutu görünümü yaratır — elevation'lı
+  // yüzeylerde `${primary}XX` yerine bunları kullan.
+  primaryTintSurface: '#EFF8FD',   // ≈ primary %6, beyaz üzerine
+  primaryTintBorder: '#D1ECF8',    // ≈ primary %18, beyaz üzerine
+  primaryTintBorderFaint: '#E0F2FA', // ≈ primary %12, beyaz üzerine
 
   // Secondary
   secondary: '#2B8A3E',

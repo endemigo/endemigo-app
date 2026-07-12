@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TFunction } from 'i18next';
@@ -19,6 +19,11 @@ type AuctionHeroProps = {
   statusLabel: string;
   isActive: boolean;
   isEnded: boolean;
+  // Yakında başlayan müzayedelerde badge içinde başlama sayacı gösterilir.
+  isUpcoming?: boolean;
+  startTime?: string;
+  serverTime?: string;
+  onStartExpired?: () => void;
   viewerCount: number;
   isConnected: boolean;
   auctionType?: string;
@@ -37,6 +42,10 @@ export function AuctionHero({
   statusLabel,
   isActive,
   isEnded,
+  isUpcoming,
+  startTime,
+  serverTime,
+  onStartExpired,
   viewerCount,
   isConnected,
   auctionType,
@@ -45,6 +54,30 @@ export function AuctionHero({
   t,
 }: AuctionHeroProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
+
+  // Başlama sayacı: "Yakında Başlıyor" statik etiketi yerine canlı geri sayım.
+  const showStartCountdown = !!(isUpcoming && startTime && !isActive && !isEnded);
+  const [startCountdown, setStartCountdown] = useState('');
+  useEffect(() => {
+    if (!showStartCountdown || !startTime) {
+      setStartCountdown('');
+      return;
+    }
+    const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const tick = () => {
+      const diff = Math.max(0, new Date(startTime).getTime() - (Date.now() + offset));
+      const total = Math.floor(diff / 1000);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      setStartCountdown(h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`);
+      if (diff === 0) onStartExpired?.();
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [showStartCountdown, startTime, serverTime, onStartExpired]);
   const fullscreenImages = galleryImages?.length
     ? [...galleryImages].sort((a, b) => a.sortOrder - b.sortOrder).map((img) => img.url)
     : [imageUri];
@@ -78,7 +111,16 @@ export function AuctionHero({
         <View style={styles.topMetaGroup}>
           <View style={[styles.statusBadge, statusTone]}>
             {isActive ? <View style={styles.liveDot} /> : null}
-            <Text style={styles.statusText}>{statusLabel}</Text>
+            {showStartCountdown && startCountdown ? (
+              <>
+                <Ionicons name="time-outline" size={13} color={Colors.white} />
+                <Text style={styles.statusText}>
+                  {t('auction.startCountdownPrefix')}: {startCountdown}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.statusText}>{statusLabel}</Text>
+            )}
           </View>
         </View>
         <View style={styles.audienceBadge}>

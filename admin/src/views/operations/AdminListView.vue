@@ -386,6 +386,11 @@ const memberFields = (row: Record<string, unknown> | null): DrawerField[] => [
     value: (getString(row, 'memberType') as MemberType) || 'CUSTOMER',
     options: memberTypeOptions,
   },
+  {
+    key: 'businessName',
+    label: 'Mağaza / İşletme Adı (satıcı tipi için)',
+    value: getString(row, 'businessName'),
+  },
 ];
 
 const sellerStatusOptions = [
@@ -709,6 +714,7 @@ const resourceConfigs: Record<string, ResourceConfig> = {
     detailBase: 'sellers',
     columns: [
       { key: 'businessName', label: 'Kullanıcı', route: (row) => `/users/${String(row.userId ?? '')}` },
+      { key: 'sellerType', label: 'Tip', format: 'status' },
       { key: 'status', label: 'Durum', format: 'status' },
       { key: 'approvedAt', label: 'Onaylandı', format: 'date' },
       { key: 'createdAt', label: 'Oluşturuldu', format: 'date' },

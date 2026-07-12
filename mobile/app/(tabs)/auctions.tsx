@@ -182,10 +182,12 @@ const SingleAuctionCard = React.memo(({
 // Canlı salon: büyük hero kart + tek CTA.
 const LiveEventHero = React.memo(({
   item,
+  locale,
   t,
   onPress,
 }: {
   item: AuctionEvent;
+  locale: string;
   t: any;
   onPress: (id: string) => void;
 }) => (
@@ -197,7 +199,9 @@ const LiveEventHero = React.memo(({
       />
       <View style={styles.heroLiveBadge}>
         <View style={styles.heroLiveDot} />
-        <Text style={styles.heroLiveText}>{t('auctions.live').toLocaleUpperCase('tr-TR')}</Text>
+        <Text style={styles.heroLiveText}>
+          {t('auctions.live').toLocaleUpperCase(locale === 'tr' ? 'tr-TR' : 'en-US')}
+        </Text>
       </View>
     </View>
     <View style={styles.heroInfo}>
@@ -206,16 +210,16 @@ const LiveEventHero = React.memo(({
         {item.lotCount !== undefined && (
           <Text style={styles.heroMetaText}>
             <Ionicons name="hammer-outline" size={13} color={Colors.slate500} />
-            {' '}{t('auctions.eventCount', { count: item.lotCount, defaultValue: `${item.lotCount} Lot` })}
+            {' '}{t('auctions.eventCount', { count: item.lotCount })}
           </Text>
         )}
         <Text style={styles.heroMetaText}>
           <Ionicons name="radio-outline" size={13} color={Colors.slate500} />
-          {' '}{t('auctions.liveNow', { defaultValue: 'Şu an yayında' })}
+          {' '}{t('auctions.liveNow')}
         </Text>
       </View>
       <View style={styles.heroCta}>
-        <Text style={styles.heroCtaText}>{t('auctions.enterRoom', { defaultValue: 'Salona Gir' })}</Text>
+        <Text style={styles.heroCtaText}>{t('auctions.enterRoom')}</Text>
       </View>
     </View>
   </TouchableOpacity>
@@ -249,7 +253,7 @@ const UpcomingEventRow = React.memo(({
         </Text>
         {item.lotCount !== undefined && (
           <Text style={styles.compactMetaText}>
-            {t('auctions.lotCountShort', { defaultValue: `${item.lotCount} lot`, count: item.lotCount })}
+            {t('auctions.lotCountShort', { count: item.lotCount })}
           </Text>
         )}
       </View>
@@ -258,25 +262,44 @@ const UpcomingEventRow = React.memo(({
   </TouchableOpacity>
 ));
 
-// Geçmiş: sönük tek satır — yer kaplamaz, sonuçlara götürür.
+// Geçmiş: sönük thumbnail'lı kart — bitiş tarihi + lot sayısı, sonuçlara götürür.
 const PastEventRow = React.memo(({
   item,
+  locale,
   t,
   onPress,
 }: {
   item: AuctionEvent;
+  locale: string;
   t: any;
   onPress: (id: string) => void;
-}) => (
-  <TouchableOpacity style={styles.pastRow} onPress={() => onPress(item.id)} activeOpacity={0.7}>
-    <Text style={styles.pastTitle} numberOfLines={1}>{item.title}</Text>
-    <Text style={styles.pastMeta}>
-      {item.lotCount !== undefined
-        ? t('auctions.pastMeta', { defaultValue: `${item.lotCount} lot · Sonuçlar`, count: item.lotCount })
-        : t('auctions.results', { defaultValue: 'Sonuçlar' })}
-    </Text>
-  </TouchableOpacity>
-));
+}) => {
+  const endDate = new Date(item.endTime).toLocaleDateString(
+    locale === 'tr' ? 'tr-TR' : 'en-US',
+    { day: 'numeric', month: 'short', year: 'numeric' },
+  );
+  return (
+    <TouchableOpacity style={styles.pastRow} onPress={() => onPress(item.id)} activeOpacity={0.7}>
+      <Image
+        source={{ uri: item.coverImageUrl || `https://placehold.co/112x88/F8F9FA/94A3B8?text=%20` }}
+        style={styles.pastThumb}
+      />
+      <View style={styles.pastBody}>
+        <Text style={styles.pastTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.pastMeta} numberOfLines={1}>
+          {endDate}
+          {item.lotCount !== undefined
+            ? ` · ${t('auctions.lotCountShort', { count: item.lotCount })}`
+            : ''}
+        </Text>
+      </View>
+      <View style={styles.pastResults}>
+        <Text style={styles.pastResultsText}>{t('auctions.results')}</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.slate400} />
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 export default function AuctionsScreen() {
   const router = useRouter();
@@ -418,7 +441,7 @@ export default function AuctionsScreen() {
         rows.push({
           key: 'section-upcoming',
           kind: 'section',
-          title: t('auctions.sectionUpcoming', { defaultValue: 'YAKLAŞAN' }),
+          title: t('auctions.sectionUpcoming'),
         });
         for (const item of upcoming) rows.push({ key: `up-${item.id}`, kind: 'upcoming', item });
       }
@@ -428,7 +451,7 @@ export default function AuctionsScreen() {
         rows.push({
           key: 'section-past',
           kind: 'section',
-          title: t('auctions.sectionPast', { defaultValue: 'GEÇMİŞ' }),
+          title: t('auctions.sectionPast'),
         });
         for (const item of ended) rows.push({ key: `past-${item.id}`, kind: 'ended', item });
       }
@@ -461,7 +484,7 @@ export default function AuctionsScreen() {
       return <Text style={styles.sectionLabel}>{row.title}</Text>;
     }
     if (row.kind === 'live') {
-      return <LiveEventHero item={row.item} t={t} onPress={handleAuctionEventPress} />;
+      return <LiveEventHero item={row.item} locale={locale} t={t} onPress={handleAuctionEventPress} />;
     }
     if (row.kind === 'upcoming') {
       return (
@@ -474,7 +497,7 @@ export default function AuctionsScreen() {
         />
       );
     }
-    return <PastEventRow item={row.item} t={t} onPress={handleAuctionEventPress} />;
+    return <PastEventRow item={row.item} locale={locale} t={t} onPress={handleAuctionEventPress} />;
   }, [now, locale, t, handleAuctionEventPress]);
 
   const isCurrentLoading = activeTab === 'single' ? isLoading : isEventsLoading;
@@ -485,7 +508,8 @@ export default function AuctionsScreen() {
     { key: 'live', label: t('auctions.live'), dot: true },
     { key: 'upcoming', label: t('auctions.waiting') },
     { key: 'ended', label: t('auctions.ended') },
-    { key: 'single', label: t('auctions.singleTabShort', { defaultValue: 'Tekli' }) },
+    // Tekli müzayede sekmesi geçici olarak gizli; geri açmak için satırı aç.
+    // { key: 'single', label: t('auctions.singleTabShort') },
   ];
 
   return (
@@ -552,7 +576,6 @@ export default function AuctionsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <Text style={styles.headerTitle}>{t('auctions.title')}</Text>
       </View>
 
       {/* Arama: başlıktaki ikonla açılır — kalıcı yer kaplamaz */}
@@ -594,7 +617,10 @@ export default function AuctionsScreen() {
               {chip.dot && (
                 <View style={[styles.statusDot, { backgroundColor: Colors.error }]} />
               )}
-              <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>
+              <Text
+                style={[styles.statusChipText, isActive && styles.statusChipTextActive]}
+                numberOfLines={1}
+              >
                 {chip.label}
               </Text>
             </TouchableOpacity>
@@ -639,10 +665,10 @@ export default function AuctionsScreen() {
         <View style={styles.center}>
           <Ionicons name="hammer-outline" size={64} color={Colors.slate300} />
           <Text style={styles.emptyText}>
-            {activeTab === 'single' ? t('auctions.empty') : t('auctions.eventEmpty', { defaultValue: 'Aktif etkinlik bulunmuyor' })}
+            {activeTab === 'single' ? t('auctions.empty') : t('auctions.eventEmpty')}
           </Text>
           <Text style={styles.emptySubtext}>
-            {t('auctions.eventEmptySub', { defaultValue: 'Aradığınız kriterlere uygun müzayede bulunamadı.' })}
+            {activeTab === 'single' ? t('auctions.emptySub') : t('auctions.eventEmptySub')}
           </Text>
         </View>
       ) : activeTab === 'single' ? (

@@ -208,26 +208,6 @@ export function useWithdrawBid() {
   });
 }
 
-export function useCreateAuction() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (dto: {
-      productId: string;
-      startPrice: number;
-      minIncrement?: number;
-      startTime: string;
-      endTime: string;
-    }) => {
-      if (ENV.USE_MOCK) throw new Error('Müzayede oluşturma mock\'ta desteklenmiyor');
-      const { data } = await api.post('/auctions', dto);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auctions'] });
-    },
-  });
-}
-
 export function useCompleteAuctionPayment() {
   const queryClient = useQueryClient();
 

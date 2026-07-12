@@ -183,6 +183,34 @@ export class AuctionController {
     return this.auctionService.getInvitations(userId);
   }
 
+  // ':id'den ÖNCE tanımlı olmalı (ParseUUIDPipe '/auctions/my'yi 400'lemesin).
+  @Get('my')
+  @ApiBearerAuth()
+  @Roles('seller')
+  @ApiOperation({ summary: 'Satıcının kendi lotları/başvuruları (DRAFT/PENDING dahil)' })
+  @ApiQuery({ name: 'approvalStatus', required: false, enum: AuctionApprovalStatus })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  async findMyLots(
+    @CurrentUser('id') userId: string,
+    @Query('approvalStatus') approvalStatus?: AuctionApprovalStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (
+      approvalStatus &&
+      !Object.values(AuctionApprovalStatus).includes(approvalStatus)
+    ) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message: 'approvalStatus must be a valid AuctionApprovalStatus',
+      });
+    }
+    const safePage = parsePositiveIntQuery(page, 'page', 1);
+    const safeLimit = parsePositiveIntQuery(limit, 'limit', 20, 100);
+    return this.auctionService.findMyLots(userId, approvalStatus, safePage, safeLimit);
+  }
+
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Müzayede detay' })

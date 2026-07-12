@@ -180,7 +180,7 @@ export function AuctionBidComposer({
         <View style={styles.infoCard}>
           <Ionicons name="information-circle-outline" size={18} color={Colors.primary} />
           <Text style={styles.infoCardText}>
-            {t('auction.maxBidHint', 'İsterseniz sistem sizin adınıza maksimum teklif sınırınıza kadar otomatik artırır.')}
+            {t('auction.maxBidHint', 'Sistem sizin adınıza maksimum teklif sınırınıza kadar otomatik artırır.')}
           </Text>
         </View>
       )}

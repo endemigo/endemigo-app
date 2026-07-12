@@ -105,6 +105,36 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     lineHeight: 18,
   },
+  typeSwitchRow: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.base,
+    gap: Spacing.sm,
+  },
+  typeSwitchOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.slate200,
+  },
+  typeSwitchOptionActive: {
+    backgroundColor: `${Colors.primary}12`,
+    borderColor: Colors.primary,
+  },
+  typeSwitchText: {
+    color: Colors.onSurfaceVariant,
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.body,
+  },
+  typeSwitchTextActive: {
+    color: Colors.primary,
+  },
   formCard: {
     marginHorizontal: Spacing.base,
     backgroundColor: Colors.white,

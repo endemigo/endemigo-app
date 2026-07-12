@@ -95,7 +95,6 @@ export default function LiveEventRoomScreen() {
   // Selected upcoming lot to view in preview modal
   const [selectedLotForPreview, setSelectedLotForPreview] = useState<string | null>(null);
   const [biddingLotId, setBiddingLotId] = useState<string | null>(null);
-  const [catalogSort, setCatalogSort] = useState<'lot' | 'priceAsc' | 'priceDesc'>('lot');
 
   // Local state for ticking countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(0);
@@ -1143,25 +1142,7 @@ export default function LiveEventRoomScreen() {
         {activeSubTab === 'catalog' && (
           <View>
             {user && registrationData?.registration ? (
-              registrationData.registration.status === 'APPROVED' ? (
-                <View
-                  style={{
-                    backgroundColor: `${Colors.auctionGreen}1A`,
-                    borderRadius: BorderRadius.md,
-                    paddingVertical: Spacing.sm,
-                    paddingHorizontal: Spacing.base,
-                    marginBottom: Spacing.sm,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <Ionicons name="checkmark-circle" size={18} color={Colors.auctionGreen} />
-                  <Text style={{ color: Colors.auctionGreen, fontWeight: '700' }}>
-                    {t('auction.registrationApprovedBanner', { defaultValue: 'Onaylandın — pey verebilirsin' })}
-                  </Text>
-                </View>
-              ) : (
+              registrationData.registration.status === 'APPROVED' ? null : (
                 <TouchableOpacity
                   onPress={
                     registrationData.registration.status === 'REJECTED'
@@ -1217,45 +1198,7 @@ export default function LiveEventRoomScreen() {
               )
             ) : null}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.sm }}>
-              {([
-                { key: 'lot', label: t('auction.sortByLot', { defaultValue: 'Lot Sırası' }) },
-                { key: 'priceAsc', label: t('auction.sortByPriceAsc', { defaultValue: 'Fiyat Artan' }) },
-                { key: 'priceDesc', label: t('auction.sortByPriceDesc', { defaultValue: 'Fiyat Azalan' }) },
-              ] as const).map((option) => (
-                <TouchableOpacity
-                  key={option.key}
-                  onPress={() => setCatalogSort(option.key)}
-                  activeOpacity={0.8}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor:
-                      catalogSort === option.key ? Colors.primary : Colors.slate100,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: catalogSort === option.key ? Colors.white : Colors.slate500,
-                      fontWeight: '600',
-                      fontSize: 12,
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {(catalogSort === 'lot'
-              ? sortedLots
-              : [...(lots || [])].sort((a, b) =>
-                  catalogSort === 'priceAsc'
-                    ? Number(a.currentPrice) - Number(b.currentPrice)
-                    : Number(b.currentPrice) - Number(a.currentPrice),
-                )
-            ).map((lot, index) => {
+            {sortedLots.map((lot, index) => {
               const isTimeEnded = lot.endTime ? new Date(lot.endTime).getTime() <= getSynchronizedTime() : false;
               const isLotEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED || isTimeEnded;
               const isLotActive = lot.id === activeLotId && !isLotEnded;
@@ -1412,13 +1355,15 @@ export default function LiveEventRoomScreen() {
                   !isBidLocked && { backgroundColor: `${Colors.primary}10`, borderColor: Colors.primary }
                 ]}
                 onPress={async () => {
-                  if (isBidLocked) {
-                    setIsBidLocked(false);
-                    try {
-                      await SecureStore.setItemAsync('endemigo_bid_lock_disabled', 'true');
-                    } catch (err) {
-                      console.error('Failed to write lock status to SecureStore:', err);
-                    }
+                  const nextLocked = !isBidLocked;
+                  setIsBidLocked(nextLocked);
+                  try {
+                    await SecureStore.setItemAsync(
+                      'endemigo_bid_lock_disabled',
+                      nextLocked ? 'false' : 'true',
+                    );
+                  } catch (err) {
+                    console.error('Failed to write lock status to SecureStore:', err);
                   }
                 }}
                 activeOpacity={0.8}
@@ -1673,7 +1618,9 @@ export default function LiveEventRoomScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.previewPreBidButtonText}>
-                  {t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
+                  {previewedLot.id === activeLotId
+                    ? t('auction.placeBid')
+                    : t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
                 </Text>
               </TouchableOpacity>
             </View>

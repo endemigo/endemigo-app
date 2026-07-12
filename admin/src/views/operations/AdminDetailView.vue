@@ -231,8 +231,20 @@
                   <strong>{{ (isSellerResource ? getString(overview, 'userId') : (overview.sellerProfile ? getString(overview.sellerProfile, 'userId') : '')) || '-' }}</strong>
                 </div>
                 <div class="metric-row">
+                  <span>Satıcı Tipi</span>
+                  <strong>{{ ((isSellerResource ? getString(overview, 'sellerType') : (overview.sellerProfile ? getString(overview.sellerProfile, 'sellerType') : '')) === 'INDIVIDUAL' ? 'Bireysel' : 'Kurumsal') }}</strong>
+                </div>
+                <div class="metric-row">
                   <span>Telefon</span>
                   <strong>{{ (isSellerResource ? getString(overview, 'phone') : (overview.sellerProfile ? getString(overview.sellerProfile, 'phone') : '')) || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>TC Kimlik No</span>
+                  <strong>{{ (isSellerResource ? getString(overview, 'identityNumber') : (overview.sellerProfile ? getString(overview.sellerProfile, 'identityNumber') : '')) || '-' }}</strong>
+                </div>
+                <div class="metric-row">
+                  <span>Vergi No / Dairesi</span>
+                  <strong>{{ ((isSellerResource ? getString(overview, 'taxNumber') : (overview.sellerProfile ? getString(overview.sellerProfile, 'taxNumber') : '')) || '-') + ' / ' + ((isSellerResource ? getString(overview, 'taxOffice') : (overview.sellerProfile ? getString(overview.sellerProfile, 'taxOffice') : '')) || '-') }}</strong>
                 </div>
                 <div class="metric-row">
                   <span>Komisyon</span>
