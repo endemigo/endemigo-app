@@ -23,6 +23,23 @@ interface ListingDraftResponse {
   };
 }
 
+export interface ListingDraftSummary {
+  id: string;
+  entryMode: ProductCreateEntryMode;
+  listingType: ProductCreateWizardState['listingType'];
+  categoryId: string | null;
+  currentStep: number;
+  status: string;
+  payload: {
+    rawState?: ProductCreateWizardState;
+    product?: Record<string, unknown>;
+  } & Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+  // Cihazda (misafir/onaysız) tutulan taslaklarda true; backend taslaklarında undefined.
+  isLocal?: boolean;
+}
+
 export async function createListingDraft(
   state: ProductCreateWizardState,
   entryMode: ProductCreateEntryMode,
@@ -65,4 +82,18 @@ export async function updateListingDraft(
 export async function publishListingDraft(draftId: string) {
   const { data } = await api.post<ListingDraftResponse>(`/products/drafts/${draftId}/publish`);
   return data;
+}
+
+export async function listListingDrafts(): Promise<ListingDraftSummary[]> {
+  const { data } = await api.get<{ drafts: ListingDraftSummary[] }>('/products/drafts');
+  return data.drafts ?? [];
+}
+
+export async function getListingDraft(draftId: string): Promise<ListingDraftSummary> {
+  const { data } = await api.get<{ draft: ListingDraftSummary }>(`/products/drafts/${draftId}`);
+  return data.draft;
+}
+
+export async function deleteListingDraft(draftId: string): Promise<void> {
+  await api.delete(`/products/drafts/${draftId}`);
 }

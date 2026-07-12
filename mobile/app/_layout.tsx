@@ -68,7 +68,6 @@ function AuthGate({ children }: { children: ReactNode }) {
     '/membership',
     '/seller-ads',
     '/seller-campaigns',
-    '/become-seller',
     '/notifications',
     '/notification-preferences',
   ].some((prefix) => pathname.startsWith(prefix));

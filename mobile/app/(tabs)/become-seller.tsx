@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,11 @@ import { useCategories, useMyProducts } from '../../hooks/useProducts';
 import api from '../../lib/api';
 import { resolveApiErrorMessage } from '../../utils/apiError';
 import { Colors } from '../../constants/theme';
-import { ProductCreateWizard } from '../../components/forms/product-create/ProductCreateWizard';
+import {
+  ProductCreateWizard,
+  type ProductCreateWizardHandle,
+  type ProductCreateDraftMeta,
+} from '../../components/forms/product-create/ProductCreateWizard';
 import { styles } from '../../styles/tabs/become-seller.styles';
 
 interface SellerApplication {
@@ -36,13 +40,20 @@ type SellerType = 'INDIVIDUAL' | 'CORPORATE';
 const IDENTITY_NUMBER_REGEX = /^[1-9]\d{10}$/;
 
 export default function BecomeSellerScreen() {
-  const { user } = useAuthStore();
+  const { user, isLoggedIn } = useAuthStore();
   const { showModal } = useModalStore();
   const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { mode, auctionType } = useLocalSearchParams<{ mode?: string; auctionType?: string }>();
+  const { mode, auctionType, draftId } = useLocalSearchParams<{ mode?: string; auctionType?: string; draftId?: string }>();
   const isSeller = Boolean(user?.isSeller);
+
+  // Wizard header'ındaki "Taslak Kaydet" için imperative handle + durum.
+  const wizardRef = useRef<ProductCreateWizardHandle>(null);
+  const [draftMeta, setDraftMeta] = useState<ProductCreateDraftMeta>({ canSave: false, isSaving: false });
+  const handleDraftMetaChange = useCallback((meta: ProductCreateDraftMeta) => {
+    setDraftMeta(meta);
+  }, []);
 
   // Onay bekleyen başvuru varken formu tekrar göstermemek için mevcut başvuru durumu
   const { data: application } = useQuery<SellerApplication | null>({
@@ -132,7 +143,7 @@ export default function BecomeSellerScreen() {
     }
   };
 
-  if (!isSeller && (application?.status === 'PENDING' || application?.status === 'SUSPENDED')) {
+  if (isLoggedIn && !isSeller && (application?.status === 'PENDING' || application?.status === 'SUSPENDED')) {
     const isPending = application.status === 'PENDING';
     // Başvuru sonrası bekleme ekranı: geri oku yok, tek çıkış "Tamam" → ana sayfa.
     return (
@@ -202,7 +213,9 @@ export default function BecomeSellerScreen() {
     );
   }
 
-  if (!isSeller) {
+  // Misafir (giriş yapmamış) sihirbazı görür ve taslağı cihazına kaydeder; giriş yapmış
+  // ama satıcı olmayan kullanıcı satıcı başvuru formunu görür.
+  if (isLoggedIn && !isSeller) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <KeyboardAvoidingView
@@ -387,10 +400,29 @@ export default function BecomeSellerScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('listing.pageTitle')}</Text>
-          <View style={styles.headerSpacer} />
+          {draftMeta.canSave ? (
+            <TouchableOpacity
+              style={styles.headerDraftButton}
+              onPress={() => wizardRef.current?.saveDraft()}
+              disabled={draftMeta.isSaving}
+              activeOpacity={0.8}
+            >
+              {draftMeta.isSaving ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <>
+                  <Ionicons name="bookmark-outline" size={15} color={Colors.primary} />
+                  <Text style={styles.headerDraftButtonText}>{t('listing.saveDraft')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
 
         <ProductCreateWizard
+          ref={wizardRef}
           categories={categories || []}
           recentProducts={(myProductsData?.items || []).slice(0, 6)}
           totalProducts={myProductsData?.total || 0}
@@ -398,6 +430,8 @@ export default function BecomeSellerScreen() {
           onCreated={refetchMyProducts}
           initialEntryMode={mode as never}
           initialAuctionType={auctionType}
+          initialDraftId={draftId}
+          onDraftMetaChange={handleDraftMetaChange}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

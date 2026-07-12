@@ -251,23 +251,8 @@ export default function TabLayout() {
           tabPress: (e) => {
             e.preventDefault();
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-            if (!isLoggedIn) {
-              useModalStore.getState().showModal({
-                title: t('common.authRequiredTitle'),
-                message: t('common.authRequiredMessage'),
-                type: 'info',
-                confirmText: t('auth.login'),
-                cancelText: t('common.cancel'),
-                onConfirm: () => {
-                  useModalStore.getState().hideModal();
-                  router.push('/(auth)/login');
-                },
-                onCancel: () => {
-                  useModalStore.getState().hideModal();
-                }
-              });
-              return;
-            }
+            // Misafir de ilan akışını başlatabilir; taslağı cihazına kaydeder,
+            // yayın için son adımda üyelik/satıcı onayına yönlendirilir.
             setModalStep('main');
             setIsEntryModeModalVisible(true);
           }

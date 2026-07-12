@@ -37,6 +37,24 @@ export const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
+  headerDraftButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 40,
+    height: 34,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primaryTintSurface,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}30`,
+    justifyContent: 'center',
+  },
+  headerDraftButtonText: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: FontSize.caption,
+    color: Colors.primary,
+  },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',

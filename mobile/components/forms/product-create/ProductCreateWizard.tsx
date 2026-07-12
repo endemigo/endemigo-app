@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -49,14 +49,43 @@ import {
   mapPickerAssetToProductImage,
 } from '../../../utils/productImageUpload.ts';
 import { formatPriceInput, parsePriceInput } from '../../../utils/priceInputMask.ts';
+import { checkLotPrices } from '../../../utils/auctionLot.ts';
 import { formatCurrency } from '../../../utils/transactionFormatters';
-import { createListingDraft, updateListingDraft } from '../../../services/listingDraftService.ts';
+import {
+  createListingDraft,
+  updateListingDraft,
+  getListingDraft,
+  deleteListingDraft,
+  type ListingDraftSummary,
+} from '../../../services/listingDraftService.ts';
+import {
+  saveLocalListingDraft,
+  getLocalListingDraft,
+  deleteLocalListingDraft,
+  isLocalDraftId,
+} from '../../../services/localListingDraftService.ts';
+import {
+  useListingDrafts,
+  useLocalListingDrafts,
+  useInvalidateListingDrafts,
+} from '../../../hooks/useListingDrafts.ts';
+import { useAuthStore } from '../../../store/authStore';
 import { submitProductCreateWizard, generateAiContent } from '../../../services/productCreateService.ts';
 import api from '../../../lib/api';
 import ENV from '../../../lib/config';
 import { ProductCreateProgress } from './ProductCreateProgress';
 import { ProductTypeSegment } from './ProductTypeSegment';
 import { styles } from './ProductCreateWizard.styles';
+
+export interface ProductCreateDraftMeta {
+  // Taslak kaydedilebilir mi (giriş modu seçildi mi) + kaydetme sürüyor mu.
+  canSave: boolean;
+  isSaving: boolean;
+}
+
+export interface ProductCreateWizardHandle {
+  saveDraft: () => void;
+}
 
 interface ProductCreateWizardProps {
   categories: Category[];
@@ -66,6 +95,10 @@ interface ProductCreateWizardProps {
   onCreated: () => Promise<unknown> | void;
   initialEntryMode?: ProductCreateEntryMode;
   initialAuctionType?: string;
+  // Kaldığı taslaktan devam etmek için: mount'ta payload rehydrate edilir.
+  initialDraftId?: string | null;
+  // Header'daki "Taslak Kaydet" butonunun durumunu üst ekrana bildirir.
+  onDraftMetaChange?: (meta: ProductCreateDraftMeta) => void;
 }
 
 const STEP_TITLE_KEYS: Record<ProductCreateWizardStep, string> = {
@@ -196,15 +229,18 @@ const findParentCategoryOfId = (list: Category[], id: string, parent: Category |
   return null;
 };
 
-export function ProductCreateWizard({
-  categories,
-  recentProducts,
-  totalProducts,
-  isProductsLoading,
-  onCreated,
-  initialEntryMode,
-  initialAuctionType,
-}: ProductCreateWizardProps) {
+export const ProductCreateWizard = forwardRef<ProductCreateWizardHandle, ProductCreateWizardProps>(
+  function ProductCreateWizard({
+    categories,
+    recentProducts,
+    totalProducts,
+    isProductsLoading,
+    onCreated,
+    initialEntryMode,
+    initialAuctionType,
+    initialDraftId,
+    onDraftMetaChange,
+  }: ProductCreateWizardProps, ref) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { showModal } = useModalStore();
@@ -331,8 +367,11 @@ export function ProductCreateWizard({
     entryParamsRef.current = { entryMode: initialEntryMode, auctionType: initialAuctionType };
   }, [initialEntryMode, initialAuctionType]);
 
+  // Taslaktan devam ediliyorsa focus reset'i rehydrate edilen state'i ezmesin.
+  const isResumingDraftRef = useRef(Boolean(initialDraftId));
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
+      if (isResumingDraftRef.current) return;
       const { entryMode: em, auctionType: at } = entryParamsRef.current;
       reset(em, at);
       setCurrentStep(1);
@@ -345,12 +384,27 @@ export function ProductCreateWizard({
     return unsubscribe;
   }, [navigation, reset]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   // Etkinlik kartına dokununca açılan detay/onay modalı.
   const [eventDetail, setEventDetail] = useState<any | null>(null);
   // Bu oturumda aynı etkinliğe yayınlanan lot sayısı (kota 5).
   const [eventLotCount, setEventLotCount] = useState(0);
   const [entryMode, setEntryMode] = useState<ProductCreateEntryMode | null>(initialEntryMode ?? null);
-  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(initialDraftId ?? null);
+  const invalidateDrafts = useInvalidateListingDrafts();
+  // Auth: yalnız onaylı satıcı backend'e taslak yazabilir/yayınlayabilir.
+  // Misafir + onay bekleyen kullanıcı taslağı CİHAZDA (yerel) tutar.
+  const authUser = useAuthStore((s) => s.user);
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const isSeller = Boolean(authUser?.isSeller);
+  const canUseBackendDrafts = isSeller;
+  // Adım 1 "devam eden taslaklar" listesi: yerel + (satıcıysa) backend, giriş modu seçilince.
+  const { data: backendDrafts = [] } = useListingDrafts(Boolean(entryMode) && isSeller);
+  const { data: localDrafts = [] } = useLocalListingDrafts(Boolean(entryMode));
+  const listingDrafts = useMemo(
+    () => [...localDrafts, ...backendDrafts],
+    [localDrafts, backendDrafts],
+  );
   const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedRootCategoryId, setSelectedRootCategoryId] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
@@ -696,6 +750,8 @@ export function ProductCreateWizard({
             });
             return;
           }
+          // Misafirde /users/addresses auth ister (401); gereksiz çağrıyı atla.
+          if (!isLoggedIn) return;
           const { data } = await api.get('/users/addresses');
           const addresses = Array.isArray(data) ? data : (data?.addresses || []);
           const defaultAddress = addresses.find((addr: any) => addr.isDefault || addr.type === 'BUSINESS') || addresses[0];
@@ -951,18 +1007,149 @@ export function ProductCreateWizard({
     });
   }
 
+  // Taslağı doğru hedefe kaydeder: onaylı satıcı → backend (yerel taslaktan gelindiyse
+  // mezun eder ve yereli siler), misafir/onaysız → cihaz (yerel). Kayıt id'sini döndürür.
+  async function saveDraftRouted(step: ProductCreateWizardStep): Promise<string> {
+    if (!entryMode) throw new Error('entryMode required');
+    if (canUseBackendDrafts) {
+      const backendId = draftId && !isLocalDraftId(draftId) ? draftId : null;
+      if (backendId) {
+        await updateListingDraft(backendId, state, entryMode, step);
+        return backendId;
+      }
+      const draft = await createListingDraft(state, entryMode, step);
+      if (draftId && isLocalDraftId(draftId)) {
+        deleteLocalListingDraft(draftId).catch(() => undefined);
+      }
+      return draft.id;
+    }
+    const saved = await saveLocalListingDraft({
+      id: draftId && isLocalDraftId(draftId) ? draftId : undefined,
+      entryMode,
+      listingType: state.listingType,
+      categoryId: state.categoryId,
+      currentStep: step,
+      state,
+    });
+    return saved.id;
+  }
+
   async function persistDraft(nextStep: ProductCreateWizardStep) {
     if (!entryMode) return;
     try {
-      if (draftId) {
-        await updateListingDraft(draftId, state, entryMode, nextStep);
-        return;
-      }
-      const draft = await createListingDraft(state, entryMode, nextStep);
-      setDraftId(draft.id);
+      const id = await saveDraftRouted(nextStep);
+      setDraftId(id);
+      invalidateDrafts();
     } catch {
       // Draft autosave is best-effort; publishing still uses the normal create flow.
     }
+  }
+
+  async function fetchDraftById(id: string): Promise<ListingDraftSummary | null> {
+    if (isLocalDraftId(id)) return getLocalListingDraft(id);
+    return getListingDraft(id);
+  }
+
+  // Bir taslağın payload'ını mevcut sihirbaza yükler (in-place devam).
+  function applyDraftToWizard(draft: ListingDraftSummary) {
+    const rawState = draft.payload?.rawState;
+    isResumingDraftRef.current = true;
+    if (rawState) {
+      patchState(rawState);
+    }
+    setDraftId(draft.id);
+    setEntryMode(draft.entryMode);
+    setImages([]);
+    setSelectedExistingProductId(null);
+    const step = Math.min(Math.max(draft.currentStep ?? 1, 1), 7) as ProductCreateWizardStep;
+    setCurrentStep(step);
+  }
+
+  // Kaldığı taslaktan devam: mount'ta draftId param'ıyla payload çekilir.
+  useEffect(() => {
+    if (!initialDraftId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const draft = await fetchDraftById(initialDraftId);
+        if (cancelled) return;
+        if (draft) {
+          applyDraftToWizard(draft);
+        } else {
+          isResumingDraftRef.current = false;
+        }
+      } catch {
+        // Taslak yüklenemezse sihirbaz normal (boş) haliyle açılır.
+        isResumingDraftRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftId]);
+
+  // Explicit "Taslak Kaydet": mevcut adımı kaydeder, uygun ekrana döner.
+  async function handleSaveDraft() {
+    if (!entryMode || isSavingDraft) return;
+    try {
+      setIsSavingDraft(true);
+      const id = await saveDraftRouted(currentStep);
+      setDraftId(id);
+      invalidateDrafts();
+      const savedLocally = isLocalDraftId(id);
+      showModal({
+        title: t('listing.draftSavedTitle'),
+        message: savedLocally ? t('listing.guestDraftSavedBody') : t('listing.draftSavedBody'),
+        type: 'success',
+        onConfirm: () => {
+          router.replace((savedLocally ? '/(tabs)/home' : '/(tabs)/seller-dashboard') as never);
+        },
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'listing.draftSaveError'),
+        type: 'error',
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  // Header butonu her zaman en güncel closure'ı çağırsın diye ref üzerinden.
+  const saveDraftRef = useRef(handleSaveDraft);
+  saveDraftRef.current = handleSaveDraft;
+  useImperativeHandle(ref, () => ({
+    saveDraft: () => saveDraftRef.current(),
+  }), []);
+
+  useEffect(() => {
+    onDraftMetaChange?.({ canSave: Boolean(entryMode), isSaving: isSavingDraft });
+  }, [entryMode, isSavingDraft, onDraftMetaChange]);
+
+  function draftDisplayTitle(draft: ListingDraftSummary): string {
+    const title = draft.payload?.rawState?.title?.trim();
+    return title && title.length > 0 ? title : t('listing.draftUntitled');
+  }
+
+  function handleDeleteDraftInline(id: string) {
+    showModal({
+      title: t('listing.deleteDraft'),
+      message: t('listing.draftDeleteConfirm'),
+      type: 'info',
+      confirmText: t('listing.deleteDraft'),
+      cancelText: t('common.cancel'),
+      onConfirm: () => {
+        const remove = isLocalDraftId(id) ? deleteLocalListingDraft(id) : deleteListingDraft(id);
+        remove
+          .then(() => {
+            invalidateDrafts();
+            if (draftId === id) setDraftId(null);
+          })
+          .catch(() => undefined);
+      },
+    });
   }
 
   async function handleGoNext() {
@@ -987,7 +1174,10 @@ export function ProductCreateWizard({
       const keepEventId = state.selectedEventId;
       const keepEventTimes = { auctionStartTime: state.auctionStartTime, auctionEndTime: state.auctionEndTime };
       const keepAuctionType = state.auctionType === PRODUCT_CREATE_AUCTION_TYPES.TIMED ? 'TIMED' : 'REALTIME';
+      // Yayınlanan taslak varsa yayın sonrası temizlenir.
+      const publishedDraftId = draftId;
       const product = await submitProductCreateWizard(state, images, selectedExistingProductId ?? undefined);
+      isResumingDraftRef.current = false;
       reset(initialEntryMode, initialAuctionType);
       setImages([]);
       setCurrentStep(1);
@@ -995,6 +1185,14 @@ export function ProductCreateWizard({
       setDraftId(null);
       setCategorySearch('');
       setSelectedExistingProductId(null);
+      if (publishedDraftId) {
+        // Ürün oluştu; taslağı sil (best-effort) ve listeyi tazele.
+        const removePublished = isLocalDraftId(publishedDraftId)
+          ? deleteLocalListingDraft(publishedDraftId)
+          : deleteListingDraft(publishedDraftId);
+        removePublished.catch(() => undefined);
+        invalidateDrafts();
+      }
       await onCreated();
 
       const isPendingReview = (product as any)?.status === 'PENDING_REVIEW';
@@ -1043,6 +1241,48 @@ export function ProductCreateWizard({
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  // Misafir/onaysız kullanıcı son adımda: taslağı yerel kaydet + "Üye Ol / Satıcı Ol"e yönlendir.
+  async function handleGuestFinalCta() {
+    if (!entryMode || isSavingDraft) return;
+    try {
+      setIsSavingDraft(true);
+      const id = await saveDraftRouted(currentStep);
+      setDraftId(id);
+      invalidateDrafts();
+      showModal({
+        title: t('listing.guestSignUpTitle'),
+        message: t('listing.guestSignUpBody'),
+        type: 'success',
+        confirmText: isLoggedIn ? t('listing.becomeSellerCta') : t('listing.guestSignUpCta'),
+        cancelText: t('common.cancel'),
+        onConfirm: () => {
+          router.push((isLoggedIn ? '/(tabs)/become-seller' : '/(auth)/register') as never);
+        },
+      });
+    } catch (error: unknown) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(error, t, 'listing.draftSaveError'),
+        type: 'error',
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  // Alt bar ana buton: ara adım → ileri; son adım → satıcıysa yayınla, değilse üyelik CTA.
+  function handlePrimaryAction() {
+    if (currentStep !== 7) {
+      void handleGoNext();
+      return;
+    }
+    if (isSeller) {
+      void handleSubmit();
+      return;
+    }
+    void handleGuestFinalCta();
   }
 
   function handleSelectExistingProduct(product: Product) {
@@ -1553,7 +1793,11 @@ export function ProductCreateWizard({
                 placeholderTextColor={Colors.slate400}
                 keyboardType="decimal-pad"
               />
-              <Text style={styles.helperText}>{t('listing.reservePriceHelp')}</Text>
+              {checkLotPrices(state.auctionStartPrice, state.auctionReservePrice).reserveBelowStart ? (
+                <Text style={[styles.helperText, { color: Colors.error }]}>{t('listing.reserveTooLow')}</Text>
+              ) : (
+                <Text style={styles.helperText}>{t('listing.reservePriceHelp')}</Text>
+              )}
             </View>
           </>
         ) : null}
@@ -2417,6 +2661,29 @@ export function ProductCreateWizard({
     return renderReviewStep();
   }
 
+  const resumableDrafts = listingDrafts.filter((draft) => draft.id !== draftId);
+
+  // Alt bar ana buton durumu (satıcı yayınlar; misafir/onaysız üyelik CTA görür).
+  const isFinalStep = currentStep === 7;
+  const isAuctionListing = state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION;
+  const isGuestFinal = isFinalStep && !isSeller;
+  const primaryBusy = isSubmitting || isSavingDraft;
+  const primaryDisabled =
+    primaryBusy
+    || (!isFinalStep && !canContinue)
+    || (isFinalStep && isSeller && !canSubmit)
+    || (isGuestFinal && !entryMode);
+  const primaryLabelKey = !isFinalStep
+    ? 'listing.next'
+    : isSeller
+      ? (isAuctionListing ? 'common.save' : 'listing.publish')
+      : (isLoggedIn ? 'listing.becomeSellerCta' : 'listing.guestSignUpCta');
+  const primaryIconName = !isFinalStep
+    ? 'arrow-forward'
+    : isSeller
+      ? 'checkmark-circle-outline'
+      : 'person-add-outline';
+
   return (
     <>
       <View style={styles.page}>
@@ -2434,6 +2701,43 @@ export function ProductCreateWizard({
             />
             {renderCurrentStep()}
           </View>
+
+          {currentStep === 1 && resumableDrafts.length > 0 ? (
+            <View style={styles.productsCard}>
+              <View style={styles.productsCardHeader}>
+                <Text style={styles.productsCardTitle}>{t('listing.draftsSectionTitle')}</Text>
+                <Ionicons name="documents-outline" size={20} color={Colors.primary} />
+              </View>
+              {resumableDrafts.slice(0, 3).map((draft) => (
+                <TouchableOpacity
+                  key={`draft-${draft.id}`}
+                  style={styles.productRow}
+                  activeOpacity={0.85}
+                  onPress={() => applyDraftToWizard(draft)}
+                >
+                  <View style={styles.productRowInfo}>
+                    <Text style={styles.productRowTitle} numberOfLines={1}>
+                      {draftDisplayTitle(draft)}
+                    </Text>
+                    <Text style={styles.productRowSub}>
+                      {draft.entryMode === 'AUCTION'
+                        ? t('listing.draftAuctionBadge')
+                        : t('listing.draftMarketplaceBadge')}
+                      {' · '}
+                      {t('listing.draftStepLabel', { step: draft.currentStep })}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteDraftInline(draft.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 6 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={Colors.slate400} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
 
           {currentStep === 1 ? (
             <View style={styles.productsCard}>
@@ -2510,31 +2814,18 @@ export function ProductCreateWizard({
           <TouchableOpacity
             style={[
               styles.primaryButton,
-              state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION && styles.primaryButtonAuction,
-              ((!canContinue && currentStep !== 7) || (!canSubmit && currentStep === 7) || isSubmitting)
-                && styles.primaryButtonDisabled,
+              isAuctionListing && styles.primaryButtonAuction,
+              primaryDisabled && styles.primaryButtonDisabled,
             ]}
             activeOpacity={0.88}
-            onPress={currentStep === 7 ? handleSubmit : handleGoNext}
-            disabled={((!canContinue && currentStep !== 7) || (!canSubmit && currentStep === 7) || isSubmitting)}
+            onPress={handlePrimaryAction}
+            disabled={primaryDisabled}
           >
-            {isSubmitting ? <ActivityIndicator color={Colors.white} /> : null}
-            {!isSubmitting ? (
+            {primaryBusy ? <ActivityIndicator color={Colors.white} /> : null}
+            {!primaryBusy ? (
               <>
-                <Ionicons
-                  name={currentStep === 7 ? 'checkmark-circle-outline' : 'arrow-forward'}
-                  size={18}
-                  color={Colors.white}
-                />
-                <Text style={styles.primaryButtonText}>
-                  {t(
-                    currentStep === 7
-                      ? state.listingType === PRODUCT_CREATE_LISTING_TYPES.AUCTION
-                        ? 'common.save'
-                        : 'listing.publish'
-                      : 'listing.next',
-                  )}
-                </Text>
+                <Ionicons name={primaryIconName} size={18} color={Colors.white} />
+                <Text style={styles.primaryButtonText}>{t(primaryLabelKey)}</Text>
               </>
             ) : null}
           </TouchableOpacity>
@@ -3724,4 +4015,4 @@ export function ProductCreateWizard({
       {renderEntryModeSheet()}
     </>
   );
-}
+});
