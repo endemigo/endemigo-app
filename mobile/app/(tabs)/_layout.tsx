@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { TouchableOpacity, View, Text, Image, Linking, Modal, PanResponder, Animated as RNAnimated } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,7 +39,7 @@ export default function TabLayout() {
         }}
         activeOpacity={0.7}
       >
-        <Ionicons name="chevron-back" size={24} color={Colors.onSurface} />
+        <AppIcon name="chevron-back" size={24} color={Colors.onSurface} />
       </TouchableOpacity>
     ),
     headerRight: () => null,
@@ -117,6 +117,22 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.slate400,
+        // Android varsayılan Material ripple'ı (büyük gri daire) premium
+        // durmuyor; opacity geri bildirimli rippleless butonla değiştir.
+        tabBarButton: (props) => (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={(e) => props.onPress?.(e)}
+            onLongPress={props.onLongPress ?? undefined}
+            accessibilityRole="button"
+            accessibilityState={props.accessibilityState}
+            accessibilityLabel={props.accessibilityLabel}
+            testID={props.testID}
+            style={props.style}
+          >
+            {props.children}
+          </TouchableOpacity>
+        ),
         tabBarHideOnKeyboard: true,
         tabBarStyle: [
           styles.tabBar,
@@ -133,15 +149,22 @@ export default function TabLayout() {
         headerTintColor: Colors.onSurface,
         headerTitleStyle: styles.headerTitle,
         headerTitleAlign: 'center',
-        headerTitle: () => (isProfileScreen ? (
-          <Text style={styles.headerProfileTitle}>{t('tabs.profile')}</Text>
-        ) : (
-          <Image
-            source={require('../../assets/images/endemigo-icon.png')}
-            style={styles.headerGoatIcon}
-            resizeMode="contain"
-          />
-        )),
+        // Sabit View wrapper: profilde Text, diğerinde Image — kök element tipini
+        // takas etmek Fabric'te "child already has a parent" çökmesine yol açıyordu;
+        // stabil kapsayıcı içinde child swap güvenli.
+        headerTitle: () => (
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            {isProfileScreen ? (
+              <Text style={styles.headerProfileTitle}>{t('tabs.profile')}</Text>
+            ) : (
+              <Image
+                source={require('../../assets/images/endemigo-icon.png')}
+                style={styles.headerGoatIcon}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        ),
         headerLeft: () => null,
         headerRight: () => (
           <View style={styles.headerActions}>
@@ -149,12 +172,20 @@ export default function TabLayout() {
               <>
                 <TouchableOpacity
                   style={styles.headerActionButtonCompact}
-                  onPress={() => router.push('/(tabs)/profile')}
+                  onPress={() => {
+                    // Guest profil route'una girmemeli (hem UX hem çökme kaynağı):
+                    // giriş yoksa login'e yönlendir.
+                    if (!isLoggedIn) {
+                      router.push('/(auth)/login');
+                      return;
+                    }
+                    router.push('/(tabs)/profile');
+                  }}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.profile')}
                 >
-                  <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                  <AppIcon name="person-outline" size={18} color={Colors.primary} />
                   <Text style={styles.headerActionText}>{t('tabs.profile')}</Text>
                 </TouchableOpacity>
                 <View style={styles.headerDivider} />
@@ -186,7 +217,7 @@ export default function TabLayout() {
               accessibilityRole="button"
               accessibilityLabel={t('tabs.notifications')}
             >
-              <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+              <AppIcon name="notifications-outline" size={20} color={Colors.primary} />
             </TouchableOpacity>
           </View>
         ),
@@ -200,7 +231,7 @@ export default function TabLayout() {
           // Satıcı modunda pazaryeri ana sayfası gizli; satıcı Panelim'e düşer.
           href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'home' : 'home-outline'}
               size={24}
               color={color}
@@ -224,7 +255,7 @@ export default function TabLayout() {
           headerShown: false,
           href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'bag-handle' : 'bag-handle-outline'}
               size={24}
               color={color}
@@ -240,7 +271,7 @@ export default function TabLayout() {
           tabBarStyle: { display: 'none' },
           href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'add-circle' : 'add-circle-outline'}
               size={24}
               color={color}
@@ -265,7 +296,7 @@ export default function TabLayout() {
           headerShown: false,
           href: isSellerMode ? undefined : null,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'speedometer' : 'speedometer-outline'}
               size={24}
               color={color}
@@ -280,7 +311,7 @@ export default function TabLayout() {
           headerShown: false,
           href: isSellerMode ? null : undefined,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'heart' : 'heart-outline'}
               size={24}
               color={color}
@@ -295,7 +326,7 @@ export default function TabLayout() {
           headerShown: false,
           href: isSellerMode ? undefined : null,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'megaphone' : 'megaphone-outline'}
               size={24}
               color={color}
@@ -310,7 +341,7 @@ export default function TabLayout() {
           headerShown: false,
           tabBarActiveTintColor: Colors.auctionGreen,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
+            <AppIcon
               name={focused ? 'hammer' : 'hammer-outline'}
               size={24}
               color={color}
@@ -333,7 +364,7 @@ export default function TabLayout() {
             ? () => null
             : getSubpageOptions('orders.buyerHeaderTitle').headerLeft,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
+            <AppIcon name={focused ? 'receipt' : 'receipt-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -364,7 +395,7 @@ export default function TabLayout() {
             ? () => null
             : getSubpageOptions('negotiation.list.title').headerLeft,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={24} color={color} />
+            <AppIcon name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -375,12 +406,15 @@ export default function TabLayout() {
         name="profile"
         options={{
           ...getSubpageOptions('tabs.profile', '/(tabs)/explore'),
-          // En sağda kök profil sekmesi (her iki modda).
+          // En sağda profil — yalnız satıcı modunda kök sekme; alıcıda subpage
+          // (header profil butonundan açılır).
           title: t('tabs.profile'),
-          href: undefined,
-          headerLeft: () => null,
+          href: isSellerMode ? undefined : null,
+          headerLeft: isSellerMode
+            ? () => null
+            : getSubpageOptions('tabs.profile', '/(tabs)/explore').headerLeft,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
+            <AppIcon name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -426,7 +460,7 @@ export default function TabLayout() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                  <AppIcon name="chevron-back" size={20} color={Colors.onSurface} />
                 </TouchableOpacity>
               </View>
               <Text style={entryModeStyles.entryModeTitle}>{t('listing.auctionProductCountTitle')}</Text>
@@ -449,7 +483,7 @@ export default function TabLayout() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                  <AppIcon name="chevron-back" size={20} color={Colors.onSurface} />
                 </TouchableOpacity>
               </View>
               <Text style={entryModeStyles.entryModeTitle}>{t('listing.independentInfoTitle')}</Text>
@@ -471,7 +505,7 @@ export default function TabLayout() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                  <AppIcon name="chevron-back" size={20} color={Colors.onSurface} />
                 </TouchableOpacity>
               </View>
               <Text style={entryModeStyles.entryModeTitle}>{t('listing.jointInfoTitle')}</Text>
@@ -493,7 +527,7 @@ export default function TabLayout() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+                  <AppIcon name="chevron-back" size={20} color={Colors.onSurface} />
                 </TouchableOpacity>
               </View>
               <Text style={entryModeStyles.entryModeTitle}>{t('listing.auctionType')}</Text>
@@ -511,7 +545,7 @@ export default function TabLayout() {
                     onPress={() => handleSelectEntryMode('MARKETPLACE')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerMarketplace]}>
-                      <Ionicons name="storefront-outline" size={24} color={Colors.primary} />
+                      <AppIcon name="storefront-outline" size={24} color={Colors.primary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <View style={entryModeStyles.entryModeOptionHeaderRow}>
@@ -519,7 +553,7 @@ export default function TabLayout() {
                       </View>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeMarketplaceBody')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
  
@@ -530,7 +564,7 @@ export default function TabLayout() {
                     onPress={() => setModalStep('auctionProductCount')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
-                      <Ionicons name="hammer-outline" size={24} color={Colors.secondary} />
+                      <AppIcon name="hammer-outline" size={24} color={Colors.secondary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <View style={entryModeStyles.entryModeOptionHeaderRow}>
@@ -538,7 +572,7 @@ export default function TabLayout() {
                       </View>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionBody')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
               </>
@@ -553,13 +587,13 @@ export default function TabLayout() {
                     onPress={() => setModalStep('auctionType')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
-                      <Ionicons name="cube-outline" size={24} color={Colors.secondary} />
+                      <AppIcon name="cube-outline" size={24} color={Colors.secondary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionSingleTitle')}</Text>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionSingleDesc')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
 
@@ -570,13 +604,13 @@ export default function TabLayout() {
                     onPress={() => setModalStep('jointInfo')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
-                      <Ionicons name="people-outline" size={24} color={Colors.secondary} />
+                      <AppIcon name="people-outline" size={24} color={Colors.secondary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionJointTitle')}</Text>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionJointDesc')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
 
@@ -587,13 +621,13 @@ export default function TabLayout() {
                     onPress={() => setModalStep('independentInfo')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction]}>
-                      <Ionicons name="business-outline" size={24} color={Colors.secondary} />
+                      <AppIcon name="business-outline" size={24} color={Colors.secondary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <Text style={entryModeStyles.entryModeOptionTitle}>{t('listing.optionIndependentTitle')}</Text>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.optionIndependentDesc')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
               </>
@@ -614,7 +648,7 @@ export default function TabLayout() {
                     Linking.openURL(ENV.SELLER_WEB_URL).catch(() => undefined);
                   }}
                 >
-                  <Ionicons name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
+                  <AppIcon name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
                   <Text style={entryModeStyles.primaryButtonText}>{t('listing.continueOnWeb')}</Text>
                 </TouchableOpacity>
               </>
@@ -635,7 +669,7 @@ export default function TabLayout() {
                     Linking.openURL(ENV.SELLER_WEB_URL).catch(() => undefined);
                   }}
                 >
-                  <Ionicons name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
+                  <AppIcon name="open-outline" size={16} color={Colors.white} style={{ marginRight: 8 }} />
                   <Text style={entryModeStyles.primaryButtonText}>{t('listing.continueOnWeb')}</Text>
                 </TouchableOpacity>
               </>
@@ -650,7 +684,7 @@ export default function TabLayout() {
                     onPress={() => handleSelectEntryMode('AUCTION', 'REALTIME')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, entryModeStyles.entryModeIconContainerAuction, { backgroundColor: `${Colors.secondary}12` }]}>
-                      <Ionicons name="flash-outline" size={24} color={Colors.secondary} />
+                      <AppIcon name="flash-outline" size={24} color={Colors.secondary} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <View style={entryModeStyles.entryModeOptionHeaderRow}>
@@ -658,7 +692,7 @@ export default function TabLayout() {
                       </View>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionRealtimeBody')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
  
@@ -669,7 +703,7 @@ export default function TabLayout() {
                     onPress={() => handleSelectEntryMode('AUCTION', 'TIMED')}
                   >
                     <View style={[entryModeStyles.entryModeIconContainer, { backgroundColor: Colors.slate100 }]}>
-                      <Ionicons name="time-outline" size={24} color={Colors.slate600} />
+                      <AppIcon name="time-outline" size={24} color={Colors.slate600} />
                     </View>
                     <View style={entryModeStyles.entryModeOptionTextWrap}>
                       <View style={entryModeStyles.entryModeOptionHeaderRow}>
@@ -677,7 +711,7 @@ export default function TabLayout() {
                       </View>
                       <Text style={entryModeStyles.entryModeOptionBody}>{t('listing.entryModeAuctionTimedBody')}</Text>
                     </View>
-                    <Ionicons name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
+                    <AppIcon name="chevron-forward-outline" size={20} color={Colors.slate400} style={entryModeStyles.entryModeOptionChevron} />
                   </TouchableOpacity>
                 </Animated.View>
               </>

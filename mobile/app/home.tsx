@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMobileConfig } from '../hooks/useMobileConfig';
 import { useProducts, useCategories, useDiscountedProducts, useMostLikedProducts, useBlogs } from '../hooks/useProducts';
 import { Colors, Spacing } from '../constants/theme';
-import { SectionHeader, SectionErrorCard, BannerCarousel, EditorialBannerRow, ProductCard, HorizontalProductGrid, BlogCard, DynamicBannerWidget } from '../components/ui';
+import { SectionHeader, SectionErrorCard, BannerCarousel, EditorialBannerRow, ProductCard, FavoriteButton, HorizontalProductGrid, BlogCard, DynamicBannerWidget } from '../components/ui';
 import { storage } from '../lib/storage';
 import { useAuthStore } from '../store/authStore';
 import { useRoleModeStore } from '../store/roleModeStore';
@@ -299,7 +299,7 @@ const GEO_BADGE_LOGOS = {
 } as const;
 const TILE_META: Record<string, { icon: AppIconName; color: string; route: string }> = {
   'home-tile-buy-now': { icon: 'bag-handle', color: Colors.primary, route: '/buy-now' },
-  'home-tile-auction': { icon: 'pricetags-outline', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
+  'home-tile-auction': { icon: 'hammer', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
 };
 export default function HomeScreen() {
   const router = useRouter();
@@ -309,9 +309,8 @@ export default function HomeScreen() {
   const fetchRecentlyViewed = useRecentlyViewedStore((state) => state.fetchRecentlyViewed);
   const recentlyViewedItems = useRecentlyViewedStore((state) => state.items);
 
-  React.useEffect(() => {
-    fetchRecentlyViewed(1, 3).catch(console.error);
-  }, [fetchRecentlyViewed]);
+  // Not: mount'ta ayrı fetch kaldırıldı — recently-viewed'i _layout açılışta
+  // çekip paylaşımlı store'a yazıyor; home yalnız store'dan okur (duplicate istek yok).
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -559,7 +558,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={[styles.searchActionButton, styles.profileActionButton]}
                   activeOpacity={0.85}
-                  onPress={() => router.push('/(tabs)/profile')}
+                  onPress={() => router.push(isLoggedIn ? '/(tabs)/profile' : '/(auth)/login')}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.profile')}
                 >
@@ -624,7 +623,7 @@ export default function HomeScreen() {
                   onPress={() => router.push((tile.cta.route || meta.route) as never)}
                 >
                   <View style={[styles.tileIcon, { backgroundColor: meta.color }]}>
-                    <AppIcon name={meta.icon} size={28} color={Colors.white} />
+                    <AppIcon name={meta.icon} size={22} color={Colors.white} />
                   </View>
                   <Text style={styles.tileTitle}>
                     {resolveLocalizedText(tile.title, mobileLocale, t('home.buyNow'))}
@@ -716,6 +715,7 @@ export default function HomeScreen() {
                           </View>
                         )
                       ) : null}
+                      {item?.id ? <FavoriteButton item={item} /> : null}
                     </View>
                     <View style={styles.listingBody}>
                       <Text style={styles.listingTitle} numberOfLines={2}>
@@ -902,6 +902,7 @@ export default function HomeScreen() {
                           </View>
                         )
                       ) : null}
+                      <FavoriteButton item={item} />
                     </View>
                     <View style={styles.recentBody}>
                       <Text style={styles.recentTitle} numberOfLines={2}>

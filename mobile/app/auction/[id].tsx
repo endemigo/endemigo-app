@@ -33,6 +33,7 @@ import {
 } from '../../hooks/useAuctions';
 import { useToggleFavorite } from '../../hooks/useSearch';
 import { useStartNegotiation } from '../../hooks/useNegotiations';
+import { useDebouncedCallback } from '../../hooks/useDebouncedCallback';
 import { CardVerificationModal } from '../../components/auction/CardVerificationModal';
 import { AuthRegisterWizardModal } from '../../components/auth/AuthRegisterWizardModal';
 import { BiddingLimitModal } from '../../components/auction/BiddingLimitModal';
@@ -70,6 +71,8 @@ export default function AuctionDetailScreen() {
   const { showModal, hideModal } = useModalStore();
   const { data: auction, isLoading, refetch } = useAuction(id);
   const { data: bids, refetch: refetchBids } = useAuctionBids(id);
+  // Canlı peylerde pey geçmişi refetch'i debounce — hızlı peyler tek çağrıda toplanır.
+  const debouncedRefetchBids = useDebouncedCallback(refetchBids, 1500);
   const { data: wallet } = useWalletBalance();
   const { data: walletHolds = [] } = useWalletHolds();
   const placeBid = usePlaceBid();
@@ -145,9 +148,10 @@ export default function AuctionDetailScreen() {
 
   useEffect(() => {
     if (socket.lastBid) {
-      refetchBids();
+      // Fiyat/sayı socket'ten; yalnız pey geçmişini debounce'lu yenile.
+      debouncedRefetchBids();
     }
-  }, [refetchBids, socket.lastBid]);
+  }, [debouncedRefetchBids, socket.lastBid]);
 
   useEffect(() => {
     if (socket.auctionEnded) {
@@ -799,10 +803,10 @@ export default function AuctionDetailScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               gap: 8,
-              marginHorizontal: Spacing.base,
-              marginTop: Spacing.sm,
+              marginHorizontal: Spacing.lg,
+              marginTop: Spacing.base,
               paddingHorizontal: Spacing.base,
-              paddingVertical: Spacing.sm,
+              paddingVertical: Spacing.md,
               borderRadius: 12,
               backgroundColor: Colors.secondaryContainer,
             }}
@@ -826,8 +830,9 @@ export default function AuctionDetailScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              paddingHorizontal: Spacing.base,
-              paddingVertical: Spacing.sm,
+              paddingHorizontal: Spacing.lg,
+              paddingVertical: Spacing.md,
+              marginTop: Spacing.xs,
             }}
           >
             <TouchableOpacity

@@ -38,10 +38,11 @@ import { resolveApiErrorMessage } from '../../../utils/apiError';
 import { formatAmount, formatCurrency } from '../../../utils/transactionFormatters';
 import { calculateAuctionBidEstimate } from '../../../utils/auctionBidConsole';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../../constants/theme';
-import { styles } from './event.styles';
+import { styles } from '../../../styles/auction/event.styles';
 import { useProduct } from '../../../hooks/useProducts';
 import { getProductImageUri } from '../../../utils/productImages';
 import { formatEstimateRange } from '../../../utils/auctionPresentation';
+import { useDebouncedCallback } from '../../../hooks/useDebouncedCallback';
 import { SUPPORT_PHONE_URL } from '../../../constants/support';
 import { AuctionBidComposer } from '../../../components/auction/AuctionBidComposer';
 import { CardVerificationModal } from '../../../components/auction/CardVerificationModal';
@@ -105,6 +106,9 @@ export default function LiveEventRoomScreen() {
 
   // Fetch bids for the active lot to synchronize initial bidder state on load
   const { data: activeLotBids, refetch: refetchBids } = useAuctionBids(activeLotId ?? '');
+  // Canlı peylerde socket zaten fiyat/sayıyı taşır; pey geçmişi listesini
+  // yenilemek için refetch'i debounce ederek hızlı peylerde storm'u önle.
+  const debouncedRefetchBids = useDebouncedCallback(refetchBids, 1500);
 
   // Ortak müzayede daveti (davetli tarafı): bu event için bekleyen davet.
   const { data: myInvitations } = useMyInvitations(Boolean(user?.isSeller));
@@ -192,10 +196,11 @@ export default function LiveEventRoomScreen() {
 
   useEffect(() => {
     if (socket.lastBid) {
-      refetchDetails();
-      refetchBids();
+      // refetchDetails kaldırıldı: fiyat/sayı socket'ten (currentPrice/bidCount)
+      // geliyor, lot listesi teklifle değişmiyor. Yalnız pey geçmişi debounce'lu.
+      debouncedRefetchBids();
     }
-  }, [refetchDetails, refetchBids, socket.lastBid]);
+  }, [debouncedRefetchBids, socket.lastBid]);
 
   useEffect(() => {
     if (socket.lotEnded) {
@@ -1188,7 +1193,7 @@ export default function LiveEventRoomScreen() {
 
         {/* Tab Contents */}
         {activeSubTab === 'catalog' && (
-          <View>
+          <View style={{ paddingHorizontal: Spacing.base, paddingTop: Spacing.sm }}>
             {registrationData?.registration ? (
               registrationData.registration.status === 'APPROVED' ? null : (
                 <TouchableOpacity

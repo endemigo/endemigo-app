@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -167,6 +167,48 @@ export default function ProfileScreen() {
     await logout();
   };
 
+  // Guest: profilin tamamı (cüzdan, menü, çıkış) anlamsız; giriş CTA'sı göster.
+  // Ayrıca null user ile karmaşık ağacı mount etmeyi de eler.
+  if (!user) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Colors.background,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 32,
+          gap: 12,
+        }}
+      >
+        <AppIcon name="person-circle-outline" size={72} color={Colors.slate300} />
+        <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.onSurface, textAlign: 'center' }}>
+          {t('profile.guestTitle', { defaultValue: 'Hesabına giriş yap' })}
+        </Text>
+        <Text style={{ fontSize: 14, color: Colors.slate500, textAlign: 'center' }}>
+          {t('profile.guestSubtitle', {
+            defaultValue: 'Profilini, siparişlerini ve cüzdanını görmek için giriş yapmalısın.',
+          })}
+        </Text>
+        <TouchableOpacity
+          style={{
+            marginTop: 8,
+            backgroundColor: Colors.primary,
+            paddingVertical: 14,
+            paddingHorizontal: 40,
+            borderRadius: 14,
+          }}
+          onPress={() => router.push('/(auth)/login')}
+          activeOpacity={0.85}
+        >
+          <Text style={{ color: Colors.white, fontWeight: '700', fontSize: 16 }}>
+            {t('auth.login', { defaultValue: 'Giriş Yap' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -193,7 +235,7 @@ export default function ProfileScreen() {
           onPress={() => router.push('/(tabs)/edit-profile')}
           activeOpacity={0.7}
         >
-          <Ionicons name="pencil" size={14} color={Colors.primary} />
+          <AppIcon name="pencil" size={14} color={Colors.primary} />
           <Text style={styles.editProfileText}>{t('profile.editProfile')}</Text>
         </TouchableOpacity>
       </View>
@@ -207,11 +249,11 @@ export default function ProfileScreen() {
         <View style={styles.walletHeader}>
           <View style={styles.walletHeaderLeft}>
             <View style={styles.walletIconBox}>
-              <Ionicons name="wallet-outline" size={18} color={Colors.primary} />
+              <AppIcon name="wallet-outline" size={18} color={Colors.primary} />
             </View>
             <Text style={styles.walletTitle}>{t('wallet.title')}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.slate400} style={styles.walletChevron} />
+          <AppIcon name="chevron-forward" size={18} color={Colors.slate400} style={styles.walletChevron} />
         </View>
 
         <Text style={styles.walletBalanceLabel}>{t('wallet.availableBalance')}</Text>
@@ -230,7 +272,7 @@ export default function ProfileScreen() {
               {wallet.held > 0 && (
                 <View style={[styles.walletFooterItem, { alignItems: 'flex-end' }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="lock-closed" size={10} color={Colors.accent} />
+                    <AppIcon name="lock-closed" size={10} color={Colors.accent} />
                     <Text style={styles.walletFooterLabel}>{t('wallet.heldBalance')}</Text>
                   </View>
                   <Text style={styles.walletHeldValue}>{formatCurrency(wallet.held)}</Text>
@@ -272,7 +314,7 @@ export default function ProfileScreen() {
               { backgroundColor: Colors.secondaryContainer },
             ]}
           >
-            <Ionicons name="hourglass-outline" size={22} color={Colors.onSecondaryContainer} />
+            <AppIcon name="hourglass-outline" size={22} color={Colors.onSecondaryContainer} />
             <View style={styles.sellerButtonContent}>
               <Text style={[styles.sellerButtonText, { color: Colors.onSecondaryContainer }]}>
                 {t('seller.applicationPendingTitle')}
@@ -288,7 +330,7 @@ export default function ProfileScreen() {
             onPress={() => router.push('/(tabs)/become-seller')}
             activeOpacity={0.8}
           >
-            <Ionicons name="storefront" size={22} color={Colors.white} />
+            <AppIcon name="storefront" size={22} color={Colors.white} />
             <View style={styles.sellerButtonContent}>
               <Text style={styles.sellerButtonText}>{t('profile.becomeSeller')}</Text>
               <Text style={styles.sellerButtonSub}>{t('profile.becomeSellerSub')}</Text>
@@ -299,7 +341,7 @@ export default function ProfileScreen() {
 
       {/* Logout Button */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-        <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+        <AppIcon name="log-out-outline" size={20} color={Colors.error} />
         <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
     </ScrollView>

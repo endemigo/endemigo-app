@@ -1,12 +1,15 @@
 import { StyleSheet, Dimensions } from 'react-native';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../../constants/theme';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    // Safe-area top inset (status bar strip) matches the white header so there
+    // is no tone step at the header boundary; the body keeps its grey via
+    // scrollContent below.
+    backgroundColor: Colors.white,
   },
   center: {
     flex: 1,
@@ -83,6 +86,7 @@ export const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 120,
+    backgroundColor: Colors.background,
   },
 
   // Active Lot Area
@@ -374,8 +378,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lotGridCard: {
-    width: '48.5%',
-    marginBottom: Spacing.base,
+    width: '47.5%',
+    marginBottom: Spacing.lg,
   },
   lotGridImageWrap: {
     width: '100%',

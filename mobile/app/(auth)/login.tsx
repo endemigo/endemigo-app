@@ -10,6 +10,8 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useModalStore } from '../../store/modalStore';
@@ -25,6 +27,7 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
   const { showModal } = useModalStore();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -48,6 +51,31 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Geri: guest tarayarak login'e itildiyse (canGoBack) dönebilsin.
+          Login kök ekransa (giriş zorunlu akış) buton gizli kalır. */}
+      {router.canGoBack() && (
+        <TouchableOpacity
+          style={{
+            position: 'absolute',
+            top: insets.top + 8,
+            left: 16,
+            zIndex: 10,
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: 'rgba(255,255,255,0.22)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onPress={() => router.back()}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', { defaultValue: 'Geri' })}
+        >
+          <AppIcon name="chevron-back" size={24} color={Colors.white} />
+        </TouchableOpacity>
+      )}
+
       {/* Header with gradient-like primary background */}
       <View style={styles.header}>
         <View style={styles.headerContent}>

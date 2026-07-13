@@ -16,6 +16,10 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.base,
   },
+  itemBordered: {
+    borderBottomColor: Colors.slate100,
+    borderBottomWidth: 1,
+  },
 
   text: {
     color: Colors.onSurface,
