@@ -6448,6 +6448,18 @@ export class AdminOperationsService {
           message: 'Hemen Al fiyatı açılış fiyatından büyük olmalıdır.',
         });
       }
+      // Tahmini değer aralığı opsiyonel; girildiyse üst sınır alt sınırdan
+      // küçük olamaz.
+      if (
+        item.estimatedValueMin != null &&
+        item.estimatedValueMax != null &&
+        Number(item.estimatedValueMax) < Number(item.estimatedValueMin)
+      ) {
+        throw new BadRequestException({
+          code: RC.VALIDATION_ERROR,
+          message: 'Tahmini değer üst sınırı alt sınırından küçük olamaz.',
+        });
+      }
     }
 
     const products = await this.productRepo.find({
@@ -6478,6 +6490,10 @@ export class AdminOperationsService {
       auction.startPrice = item.startingPrice;
       auction.minIncrement = item.minIncrement ?? 1.0;
       auction.buyItNowPrice = item.buyItNowPrice ?? null;
+      auction.estimatedValueMin =
+        item.estimatedValueMin != null ? Number(item.estimatedValueMin) : null;
+      auction.estimatedValueMax =
+        item.estimatedValueMax != null ? Number(item.estimatedValueMax) : null;
       auction.status = AuctionStatus.DRAFT;
       auction.approvalStatus = AuctionApprovalStatus.APPROVED;
       auction.startTime = event.startTime;
@@ -6596,6 +6612,7 @@ export class AdminOperationsService {
     const event = new AuctionEvent();
     event.title = payload.title;
     event.description = payload.description || null;
+    event.organizerName = payload.organizerName || null;
     event.coverImageUrl = payload.coverImageUrl || null;
     event.categoryId = payload.categoryId || null;
     event.status = requestedStatus;
@@ -6825,6 +6842,8 @@ export class AdminOperationsService {
     if (payload.title !== undefined) event.title = payload.title;
     if (payload.description !== undefined)
       event.description = payload.description;
+    if (payload.organizerName !== undefined)
+      event.organizerName = payload.organizerName || null;
     if (payload.coverImageUrl !== undefined)
       event.coverImageUrl = payload.coverImageUrl;
     if (payload.categoryId !== undefined) event.categoryId = payload.categoryId;

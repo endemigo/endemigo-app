@@ -68,6 +68,12 @@ export class AuctionEvent extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  // Alıcıya gösterilen düzenleyen/kreatör markası (müzayede evi/organizatör).
+  // Serbest metin — ownerId/auctioneerId kullanıcı ilişkilerinden ayrı, kamuya
+  // dönük etiket. Boşsa modalda satır gizlenir.
+  @Column({ type: 'varchar', nullable: true })
+  organizerName: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   coverImageUrl: string | null;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import type { TFunction } from 'i18next';
 
 import { Colors } from '../../constants/theme';
@@ -29,6 +29,10 @@ type AuctionHeroProps = {
   auctionType?: string;
   auctionTypeLabel: string;
   onBack: () => void;
+  // Üst-sağ aksiyonlar: paylaş + favori. Handler verilmezse ilgili buton gizlenir.
+  onShare?: () => void;
+  onToggleFavorite?: () => void;
+  isFavorited?: boolean;
   t: TFunction;
 };
 
@@ -51,6 +55,9 @@ export function AuctionHero({
   auctionType,
   auctionTypeLabel,
   onBack,
+  onShare,
+  onToggleFavorite,
+  isFavorited,
   t,
 }: AuctionHeroProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -104,8 +111,27 @@ export function AuctionHero({
         onPress={onBack}
         activeOpacity={0.85}
       >
-        <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+        <AppIcon name="arrow-back" size={22} color={Colors.onSurface} />
       </TouchableOpacity>
+
+      {(onShare || onToggleFavorite) ? (
+        <View style={styles.topRightActions}>
+          {onShare ? (
+            <TouchableOpacity style={styles.heroActionButton} onPress={onShare} activeOpacity={0.85}>
+              <AppIcon name="share-outline" size={20} color={Colors.onSurface} />
+            </TouchableOpacity>
+          ) : null}
+          {onToggleFavorite ? (
+            <TouchableOpacity style={styles.heroActionButton} onPress={onToggleFavorite} activeOpacity={0.85}>
+              <AppIcon
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={20}
+                color={isFavorited ? Colors.accent : Colors.onSurface}
+              />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.topMetaRow}>
         <View style={styles.topMetaGroup}>
@@ -113,7 +139,7 @@ export function AuctionHero({
             {isActive ? <View style={styles.liveDot} /> : null}
             {showStartCountdown && startCountdown ? (
               <>
-                <Ionicons name="time-outline" size={13} color={Colors.white} />
+                <AppIcon name="time-outline" size={13} color={Colors.white} />
                 <Text style={styles.statusText}>
                   {t('auction.startCountdownPrefix')}: {startCountdown}
                 </Text>
@@ -124,7 +150,7 @@ export function AuctionHero({
           </View>
         </View>
         <View style={styles.audienceBadge}>
-          <Ionicons name="eye" size={14} color={Colors.white} />
+          <AppIcon name="eye" size={14} color={Colors.white} />
           <Text style={styles.audienceText}>
             {t('auction.viewersLabel', { count: viewerCount })}
           </Text>
@@ -143,13 +169,13 @@ export function AuctionHero({
         <View style={styles.chipRow}>
           {categoryName ? (
             <View style={styles.chip}>
-              <Ionicons name="pricetag" size={14} color={Colors.white} />
+              <AppIcon name="pricetag" size={14} color={Colors.white} />
               <Text style={styles.chipText}>{categoryName}</Text>
             </View>
           ) : null}
           {showAuctionTypeChip ? (
             <View style={styles.chip}>
-              <Ionicons name="time" size={14} color={Colors.white} />
+              <AppIcon name="time" size={14} color={Colors.white} />
               <Text style={styles.chipText}>{auctionTypeLabel}</Text>
             </View>
           ) : null}
@@ -160,7 +186,7 @@ export function AuctionHero({
 
         <View style={styles.sellerRow}>
           <View style={styles.sellerPill}>
-            <Ionicons name="storefront" size={16} color={Colors.primary} />
+            <AppIcon name="storefront" size={16} color={Colors.primary} />
             <View>
               <Text style={styles.sellerLabel}>{t('auction.heroSellerLabel')}</Text>
               <Text style={styles.sellerValue}>

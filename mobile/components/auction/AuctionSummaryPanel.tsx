@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import type { TFunction } from 'i18next';
 
 import { CountdownTimer } from './CountdownTimer';
@@ -16,7 +16,6 @@ type AuctionSummaryPanelProps = {
   minBid: number;
   bidCount: number;
   viewerCount: number;
-  walletAvailable?: number;
   endTime: string;
   startTime?: string;
   serverTime: string;
@@ -51,7 +50,6 @@ export function AuctionSummaryPanel({
   minBid,
   bidCount,
   viewerCount,
-  walletAvailable,
   endTime,
   startTime,
   serverTime,
@@ -144,7 +142,7 @@ export function AuctionSummaryPanel({
           </Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('auction.bidCountLabel', { count: bidCount })}</Text>
+          <Text style={styles.metricLabel}>{t('auction.bidCountMetric', { defaultValue: 'Teklif' })}</Text>
           <Text style={styles.metricValue}>{bidCount}</Text>
         </View>
         <View style={styles.metricCard}>
@@ -155,7 +153,7 @@ export function AuctionSummaryPanel({
 
       {lastBid && isActive ? (
         <View style={styles.activityStrip}>
-          <Ionicons name="flash" size={18} color={Colors.accent} />
+          <AppIcon name="flash" size={18} color={Colors.accent} />
           <View style={styles.activityTextWrap}>
             <Text style={styles.activityTitle}>{t('auction.latestBidTitle')}</Text>
             <Text style={styles.activityBody}>
@@ -201,20 +199,10 @@ export function AuctionSummaryPanel({
         </View>
       ) : null}
 
-      {typeof walletAvailable === 'number' && !isSeller && isActive ? (
-        <View style={styles.walletStrip}>
-          <View>
-            <Text style={styles.walletLabel}>{t('auction.walletAvailableLabel')}</Text>
-            <Text style={styles.walletValue}>{formatCurrency(walletAvailable)}</Text>
-          </View>
-          <Ionicons name="wallet" size={20} color={Colors.secondary} />
-        </View>
-      ) : null}
-
       {isSeller ? (
         <View style={[styles.calloutCard, styles.sellerModeCard]}>
           <View style={styles.calloutHeader}>
-            <Ionicons name="shield-checkmark" size={18} color={Colors.primary} />
+            <AppIcon name="shield-checkmark" size={18} color={Colors.primary} />
             <Text style={styles.calloutTitle}>{t('auction.ownerModeTitle')}</Text>
           </View>
           <Text style={styles.calloutBody}>{t('auction.ownerModeDescription')}</Text>
@@ -224,7 +212,7 @@ export function AuctionSummaryPanel({
       {isEnded && isWinner ? (
         <View style={[styles.calloutCard, styles.winnerCard]}>
           <View style={styles.calloutHeader}>
-            <Ionicons name="trophy" size={18} color={Colors.secondary} />
+            <AppIcon name="trophy" size={18} color={Colors.secondary} />
             <Text style={styles.calloutTitle}>{t('auction.winnerTitle')}</Text>
           </View>
           <Text style={styles.calloutBody}>
@@ -238,7 +226,7 @@ export function AuctionSummaryPanel({
       {showLoserState ? (
         <View style={[styles.calloutCard, styles.loserCard]}>
           <View style={styles.calloutHeader}>
-            <Ionicons name="close-circle" size={18} color={Colors.error} />
+            <AppIcon name="close-circle" size={18} color={Colors.error} />
             <Text style={styles.calloutTitle}>{t('auction.auctionEnded')}</Text>
           </View>
           <Text style={styles.calloutBody}>{t('auction.loserMessage')}</Text>
@@ -272,7 +260,7 @@ export function AuctionSummaryPanel({
               borderWidth: 1,
               borderColor: Colors.slate100,
             }}>
-              <Ionicons name="trophy-outline" size={14} color={Colors.secondary} />
+              <AppIcon name="trophy-outline" size={14} color={Colors.secondary} />
               <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>
                 {winnerName}
               </Text>

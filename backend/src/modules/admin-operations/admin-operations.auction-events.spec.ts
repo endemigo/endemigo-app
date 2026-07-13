@@ -256,6 +256,58 @@ describe('AdminOperationsService — auction event guards', () => {
       expect(result.code).toBe(RC.SUCCESS);
       expect(repos[AUCTION].save).toHaveBeenCalled();
     });
+
+    it('rejects an estimate range with max below min', async () => {
+      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent });
+      await expect(
+        service.addLotsToEvent(
+          'event-1',
+          dto({
+            items: [
+              {
+                productId: 'p1',
+                startingPrice: 100,
+                lotOrder: 1,
+                estimatedValueMin: 500,
+                estimatedValueMax: 300,
+              },
+            ],
+          }),
+          adminActor,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('persists the estimate range on a valid lot', async () => {
+      repos[AUCTION_EVENT].findOne.mockResolvedValueOnce({ ...openEvent });
+      repos[PRODUCT].find.mockResolvedValueOnce([
+        { id: 'p1', sellerId: 'seller-9' },
+      ]);
+      await service.addLotsToEvent(
+        'event-1',
+        dto({
+          items: [
+            {
+              productId: 'p1',
+              startingPrice: 100,
+              minIncrement: 5,
+              lotOrder: 1,
+              estimatedValueMin: 500,
+              estimatedValueMax: 800,
+            },
+          ],
+        }),
+        adminActor,
+      );
+      expect(repos[AUCTION].save).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            estimatedValueMin: 500,
+            estimatedValueMax: 800,
+          }),
+        ]),
+      );
+    });
   });
 
   describe('listAssignableAuctioneers (Faz 6)', () => {

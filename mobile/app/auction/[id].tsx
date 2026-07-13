@@ -9,12 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Share,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuctionStatus } from '@endemigo/shared';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import ENV from '../../lib/config';
 
 import {
@@ -31,6 +32,7 @@ import {
   useAuctionEventDetails,
 } from '../../hooks/useAuctions';
 import { useToggleFavorite } from '../../hooks/useSearch';
+import { useStartNegotiation } from '../../hooks/useNegotiations';
 import { CardVerificationModal } from '../../components/auction/CardVerificationModal';
 import { AuthRegisterWizardModal } from '../../components/auth/AuthRegisterWizardModal';
 import { BiddingLimitModal } from '../../components/auction/BiddingLimitModal';
@@ -44,12 +46,14 @@ import { formatAmount, formatCurrency } from '../../utils/transactionFormatters'
 import { calculateAuctionBidEstimate } from '../../utils/auctionBidConsole';
 import { Colors, Spacing } from '../../constants/theme';
 import { styles } from '../../styles/auction/_id.styles';
-import { useProduct } from '../../hooks/useProducts';
+import { Image } from 'expo-image';
+import { useProduct, useInfiniteProducts } from '../../hooks/useProducts';
 import { getProductImageUri } from '../../utils/productImages';
 import {
   getAuctionConditionLabel,
   getAuctionStatusLabel,
   getAuctionTypeLabel,
+  formatEstimateRange,
 } from '../../utils/auctionPresentation';
 import { SUPPORT_PHONE_URL } from '../../constants/support';
 import { AuctionHero } from '../../components/auction/AuctionHero';
@@ -85,8 +89,13 @@ export default function AuctionDetailScreen() {
   const auctionCurrency = auction?.currency || 'TRY';
   const socket = useAuctionSocket(id, auctionCurrency);
   const { data: product } = useProduct(auction?.productId ?? '');
+  // İlgili ürünler: aynı kategori (öneri endpoint'i yok — kategori listesinden).
+  const { data: relatedData } = useInfiniteProducts({
+    categoryId: product?.categoryId ?? auction?.categoryId ?? undefined,
+  });
   const { data: eventDetails } = useAuctionEventDetails(auction?.eventId ?? '');
   const toggleFavorite = useToggleFavorite();
+  const startNegotiation = useStartNegotiation();
   const [favoriteActive, setFavoriteActive] = useState<boolean | null>(null);
   const insets = useSafeAreaInsets();
   const [bidAmount, setBidAmount] = useState('');
@@ -689,6 +698,20 @@ export default function AuctionDetailScreen() {
       ? sortedEventLots[currentLotIndex + 1]
       : null;
 
+  const handleShare = async () => {
+    const shareTitle = auction?.productTitle || product?.title || t('auction.placeholderImage');
+    const url = `https://endemigo.com/auctions/${id}`;
+    try {
+      await Share.share({
+        title: shareTitle,
+        message: Platform.OS === 'ios' ? shareTitle : `${shareTitle}\n${url}`,
+        url,
+      });
+    } catch {
+      // paylaşım iptali/hatası sessiz geçilir
+    }
+  };
+
   const isFavoriteActive = favoriteActive ?? Boolean(product?.isFavorited);
   const handleToggleFavorite = async () => {
     if (!auction?.productId) return;
@@ -698,6 +721,42 @@ export default function AuctionDetailScreen() {
     } catch {
       // sessiz geç — favori değişimi kritik akış değil
     }
+  };
+
+  // Soru Sor: moderasyonlu soru-only kanal (müzayede lotunda teklif kapalı,
+  // her lotta açık). Ürün ekranındaki "Soru Sor" ile aynı akış.
+  const handleAskQuestion = () => {
+    if (!auction?.productId) return;
+    if (!user) {
+      showModal({
+        title: t('auth.loginRequired', { defaultValue: 'Giriş Gerekli' }),
+        message: t('auth.loginRequiredMessage', { defaultValue: 'Soru sormak için lütfen önce giriş yapın.' }),
+        type: 'info',
+        confirmText: t('auth.login', { defaultValue: 'Giriş Yap' }),
+        cancelText: t('common.cancel', { defaultValue: 'İptal' }),
+        onConfirm: () => {
+          hideModal();
+          router.push('/(auth)/login');
+        },
+      });
+      return;
+    }
+    const productId = auction.productId;
+    startNegotiation.mutate(
+      { productId, amount: null, quantity: 1 },
+      {
+        onSuccess: (negotiation) => {
+          router.push(`/negotiation/${negotiation.id}` as never);
+        },
+        onError: () => {
+          showModal({
+            title: t('common.error'),
+            message: t('negotiation.askQuestion.error', { defaultValue: 'Soru sorma işlemi başlatılamadı.' }),
+            type: 'error',
+          });
+        },
+      },
+    );
   };
 
   // Auction state remains the source of truth for pricing and timing,
@@ -727,6 +786,9 @@ export default function AuctionDetailScreen() {
           auctionType={auction.auctionType}
           auctionTypeLabel={auctionTypeLabel}
           onBack={() => router.back()}
+          onShare={handleShare}
+          onToggleFavorite={handleToggleFavorite}
+          isFavorited={isFavoriteActive}
           t={t}
         />
 
@@ -747,14 +809,14 @@ export default function AuctionDetailScreen() {
             activeOpacity={0.8}
             onPress={() => router.push(`/auction/event/${auction.eventId}` as never)}
           >
-            <Ionicons name="albums-outline" size={16} color={Colors.onSecondaryContainer} />
+            <AppIcon name="albums-outline" size={16} color={Colors.onSecondaryContainer} />
             <Text
               style={{ flex: 1, color: Colors.onSecondaryContainer, fontWeight: '600', fontSize: 13 }}
               numberOfLines={1}
             >
               {eventDetails.event.title}
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={Colors.onSecondaryContainer} />
+            <AppIcon name="chevron-forward" size={14} color={Colors.onSecondaryContainer} />
           </TouchableOpacity>
         ) : null}
 
@@ -774,7 +836,7 @@ export default function AuctionDetailScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', opacity: prevLot ? 1 : 0.35 }}
               activeOpacity={0.7}
             >
-              <Ionicons name="chevron-back" size={18} color={Colors.primary} />
+              <AppIcon name="chevron-back" size={18} color={Colors.primary} />
               <Text style={{ color: Colors.primary, fontWeight: '600' }}>
                 {t('auction.previousLot', { defaultValue: 'Önceki' })}
               </Text>
@@ -795,7 +857,7 @@ export default function AuctionDetailScreen() {
               <Text style={{ color: Colors.primary, fontWeight: '600' }}>
                 {t('auction.nextLot', { defaultValue: 'Sonraki' })}
               </Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+              <AppIcon name="chevron-forward" size={18} color={Colors.primary} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -808,7 +870,6 @@ export default function AuctionDetailScreen() {
             minBid={minBid}
             bidCount={bidCount}
             viewerCount={socket.viewerCount}
-            walletAvailable={wallet?.available}
             endTime={endTime}
             startTime={auction.startTime}
             serverTime={serverTime}
@@ -828,6 +889,47 @@ export default function AuctionDetailScreen() {
             t={t}
           />
 
+          {(() => {
+            const est = formatEstimateRange(
+              auction.estimatedValueMin,
+              auction.estimatedValueMax,
+              auctionCurrency,
+            );
+            if (!est) return null;
+            return (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: Spacing.base,
+                  paddingVertical: Spacing.sm,
+                  paddingHorizontal: Spacing.base,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: Colors.slate200,
+                  backgroundColor: Colors.white,
+                }}
+              >
+                <AppIcon name="pricetags-outline" size={15} color={Colors.slate600} />
+                <Text style={{ fontSize: 13, color: Colors.slate500 }}>
+                  {t('auction.estimatedValue', { defaultValue: 'Tahmini Değer' })}
+                </Text>
+                <Text
+                  style={{
+                    flex: 1,
+                    textAlign: 'right',
+                    fontSize: 15,
+                    fontWeight: '700',
+                    color: Colors.onSurface,
+                  }}
+                >
+                  {est}
+                </Text>
+              </View>
+            );
+          })()}
+
           <AuctionRulesPanel
             sellerName={auction.sellerName}
             categoryName={product?.categoryName}
@@ -845,41 +947,308 @@ export default function AuctionDetailScreen() {
             t={t}
           />
 
+          {(() => {
+            const origin = [product?.originCountry, product?.originRegion]
+              .filter((p) => p && String(p).trim())
+              .join(' / ');
+            const shipFrom = [product?.shippingProvince, product?.shippingDistrict]
+              .filter((p) => p && String(p).trim())
+              .join(' / ');
+            const rows = [
+              {
+                key: 'organizer',
+                label: t('auction.organizerLabel', { defaultValue: 'Düzenleyen' }),
+                value: eventDetails?.event?.organizerName,
+              },
+              {
+                key: 'seller',
+                label: t('auction.sellerLabel', { defaultValue: 'Satıcı' }),
+                value: auction.sellerName,
+              },
+              {
+                key: 'brand',
+                label: t('listing.brand', { defaultValue: 'Marka' }),
+                value: product?.brand,
+              },
+              {
+                key: 'origin',
+                label: t('listing.originCountry', { defaultValue: 'Menşe' }),
+                value: origin,
+              },
+              {
+                key: 'shipping',
+                label: t('auction.shippingFromLabel', { defaultValue: 'Kargo / Gönderim' }),
+                value: shipFrom,
+              },
+            ].filter((r) => r.value && String(r.value).trim());
+            if (rows.length === 0) return null;
+            return (
+              <View style={{ marginTop: Spacing.base }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: Colors.slate400,
+                    textTransform: 'uppercase',
+                    letterSpacing: 1,
+                    marginBottom: Spacing.sm,
+                  }}
+                >
+                  {t('auction.auctionInfoTitle', { defaultValue: 'Müzayede Bilgileri' })}
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: Colors.slate50,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: Colors.slate100,
+                    paddingHorizontal: Spacing.base,
+                  }}
+                >
+                  {rows.map((row, idx) => (
+                    <View
+                      key={row.key}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: Spacing.base,
+                        paddingVertical: Spacing.sm,
+                        borderBottomWidth: idx === rows.length - 1 ? 0 : 1,
+                        borderBottomColor: Colors.slate100,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, color: Colors.slate400 }}>{row.label}</Text>
+                      <Text
+                        style={{
+                          flex: 1,
+                          textAlign: 'right',
+                          fontSize: 15,
+                          fontWeight: '600',
+                          color: Colors.slate800,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {row.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
+
+          {(() => {
+            const location = [
+              product?.shippingProvince,
+              product?.shippingDistrict,
+            ]
+              .filter((p) => p && String(p).trim())
+              .join(', ')
+              || [product?.originRegion, product?.originCountry]
+                .filter((p) => p && String(p).trim())
+                .join(', ');
+            return (
+              <View style={{ marginTop: Spacing.lg }}>
+                <Text
+                  style={{
+                    fontSize: 17,
+                    fontWeight: '700',
+                    color: Colors.onSurface,
+                    marginBottom: Spacing.sm,
+                  }}
+                >
+                  {t('auction.shippingPaymentTitle', { defaultValue: 'Kargo ve Ödeme' })}
+                </Text>
+                {location ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <AppIcon name="location-outline" size={16} color={Colors.slate500} />
+                    <Text style={{ fontSize: 14, color: Colors.slate700, flex: 1 }}>
+                      {t('auction.itemLocatedIn', { defaultValue: 'Ürün konumu' })}: {location}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <AppIcon name="card-outline" size={16} color={Colors.slate500} />
+                  <Text style={{ fontSize: 14, color: Colors.slate700, flex: 1 }}>
+                    {t('auction.acceptedPayments', {
+                      defaultValue: 'Kredi Kartı · Endemigo Cüzdan',
+                    })}
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
+
+          {!isSeller && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                marginTop: Spacing.base,
+                paddingVertical: 14,
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: Colors.auctionGreen,
+                backgroundColor: Colors.white,
+              }}
+              onPress={handleAskQuestion}
+              disabled={startNegotiation.isPending}
+              activeOpacity={0.85}
+            >
+              <AppIcon name="chatbubble-ellipses-outline" size={18} color={Colors.auctionGreen} />
+              <Text style={{ color: Colors.auctionGreen, fontWeight: '700', fontSize: 15 }}>
+                {t('product.askQuestion', { defaultValue: 'Soru Sor' })}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <AuctionBidHistory bids={bids ?? []} t={t} />
+
+          <View style={{ marginTop: Spacing.lg }}>
+            {eventDetails?.event?.description ? (
+              <Text style={{ fontSize: 14, color: Colors.slate600, lineHeight: 21, marginBottom: Spacing.md }}>
+                {eventDetails.event.description}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 14,
+                borderTopWidth: 1,
+                borderTopColor: Colors.slate100,
+              }}
+              onPress={() => router.push('/legal/auction-terms' as never)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.onSurface }}>
+                {t('auction.termsAndInfo', { defaultValue: 'Müzayede Şartları ve Bilgi' })}
+              </Text>
+              <AppIcon name="chevron-forward" size={18} color={Colors.slate400} />
+            </TouchableOpacity>
+
+            {auction.eventId && eventDetails?.event?.title ? (
+              <>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 14,
+                    borderTopWidth: 1,
+                    borderTopColor: Colors.slate100,
+                  }}
+                  onPress={() => router.push(`/auction/event/${auction.eventId}` as never)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.onSurface }}>
+                    {t('auction.viewCatalog', { defaultValue: 'Kataloğu Görüntüle' })}
+                  </Text>
+                  <AppIcon name="chevron-forward" size={18} color={Colors.slate400} />
+                </TouchableOpacity>
+                <View style={{ paddingTop: Spacing.sm }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface }}>
+                    {eventDetails.event.title}
+                  </Text>
+                  {(eventDetails.event.organizerName || auction.sellerName) ? (
+                    <Text style={{ fontSize: 14, color: Colors.slate600, marginTop: 2 }}>
+                      {eventDetails.event.organizerName || auction.sellerName}
+                    </Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          {(() => {
+            const siblings = (eventDetails?.lots ?? []).filter((l) => l.id !== id);
+            if (siblings.length === 0) return null;
+            return (
+              <View style={{ marginTop: Spacing.lg }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
+                  {t('auction.moreFromAuction', { defaultValue: 'Bu Müzayededen Diğer Ürünler' })}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {siblings.map((lot) => {
+                    const ended =
+                      lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED;
+                    const priceText = ended
+                      ? `${t('auction.soldForShort', { defaultValue: 'Satıldı' })} ${formatCurrency(Number(lot.currentPrice), auctionCurrency)}`
+                      : formatCurrency(Number(lot.startPrice), auctionCurrency);
+                    return (
+                      <TouchableOpacity
+                        key={lot.id}
+                        style={{ width: 150, marginRight: 12 }}
+                        activeOpacity={0.8}
+                        onPress={() => router.push(`/auction/${lot.id}`)}
+                      >
+                        <Image
+                          source={{ uri: lot.productImage || 'https://placehold.co/150x150' }}
+                          style={{ width: 150, height: 150, borderRadius: 12, backgroundColor: Colors.slate50 }}
+                          contentFit="cover"
+                        />
+                        <Text numberOfLines={2} style={{ fontSize: 13, color: Colors.onSurface, marginTop: 6 }}>
+                          {lot.productTitle}
+                        </Text>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.onSurface, marginTop: 2 }}>
+                          {priceText}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            );
+          })()}
+
+          {(() => {
+            const related = (relatedData?.pages?.[0]?.items ?? [])
+              .filter((p) => p.id !== product?.id)
+              .slice(0, 12);
+            if (related.length === 0) return null;
+            return (
+              <View style={{ marginTop: Spacing.lg }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
+                  {t('auction.relatedItems', { defaultValue: 'İlgili Ürünler' })}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {related.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={{ width: 150, marginRight: 12 }}
+                      activeOpacity={0.8}
+                      onPress={() => router.push(`/product/${p.id}`)}
+                    >
+                      <Image
+                        source={{ uri: getProductImageUri(p, 'https://placehold.co/150x150') }}
+                        style={{ width: 150, height: 150, borderRadius: 12, backgroundColor: Colors.slate50 }}
+                        contentFit="cover"
+                      />
+                      <Text numberOfLines={2} style={{ fontSize: 13, color: Colors.onSurface, marginTop: 6 }}>
+                        {p.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            );
+          })()}
         </View>
       </ScrollView>
 
       {isActive && !isSeller ? (
         <View style={[styles.stickyComposer, { paddingBottom: Math.max(Spacing.base, insets.bottom) }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-            <TouchableOpacity
-              style={[styles.openComposerButton, { flex: 1 }]}
-              onPress={handleOpenComposerClick}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleToggleFavorite}
-              activeOpacity={0.7}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: Colors.slate200,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: Colors.white,
-              }}
-            >
-              <Ionicons
-                name={isFavoriteActive ? 'heart' : 'heart-outline'}
-                size={24}
-                color={isFavoriteActive ? Colors.accent : Colors.onSurface}
-              />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.openComposerButton}
+            onPress={handleOpenComposerClick}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.openComposerButtonText}>{t('auction.placeBid')}</Text>
+          </TouchableOpacity>
           {bidState === 'leading' ? (
             <TouchableOpacity
               style={styles.withdrawButton}
@@ -907,7 +1276,7 @@ export default function AuctionDetailScreen() {
               <ActivityIndicator size="small" color={Colors.white} />
             ) : (
               <>
-                <Ionicons name="card" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+                <AppIcon name="card" size={18} color={Colors.white} style={{ marginRight: 8 }} />
                 <Text style={styles.openComposerButtonText}>
                   {t('auction.completePayment')}
                 </Text>
@@ -940,7 +1309,7 @@ export default function AuctionDetailScreen() {
               onPress={handleAddToCalendar}
               activeOpacity={0.85}
             >
-              <Ionicons name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+              <AppIcon name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
               <Text style={styles.openComposerButtonText}>
                 {t('auction.addToCalendar', { defaultValue: 'Takvime Ekle (Hatırlatıcı)' })}
               </Text>
@@ -953,7 +1322,7 @@ export default function AuctionDetailScreen() {
               onPress={handleAddToCalendar}
               activeOpacity={0.85}
             >
-              <Ionicons name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
+              <AppIcon name="calendar-outline" size={18} color={Colors.white} style={{ marginRight: 8 }} />
               <Text style={[styles.openComposerButtonText, { fontSize: 14 }]}>
                 {t('auction.addToCalendarShort', { defaultValue: 'Takvime Ekle' })}
               </Text>
@@ -963,30 +1332,10 @@ export default function AuctionDetailScreen() {
               onPress={handleOpenComposerClick}
               activeOpacity={0.85}
             >
-              <Ionicons name="pricetag-outline" size={18} color={Colors.white} style={{ marginBottom: 4 }} />
+              <AppIcon name="pricetag-outline" size={18} color={Colors.white} style={{ marginBottom: 4 }} />
               <Text style={[styles.openComposerButtonText, { fontSize: 14 }]}>
                 {t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleToggleFavorite}
-              activeOpacity={0.7}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: Colors.slate200,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: Colors.white,
-              }}
-            >
-              <Ionicons
-                name={isFavoriteActive ? 'heart' : 'heart-outline'}
-                size={24}
-                color={isFavoriteActive ? Colors.accent : Colors.onSurface}
-              />
             </TouchableOpacity>
           </View>
         )

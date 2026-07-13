@@ -307,6 +307,11 @@
                   <textarea class="input" rows="4" v-model="wizardForm.description" placeholder="Müzayede hakkında kısa açıklama"></textarea>
                 </div>
                 <div class="wizard-field">
+                  <label>Düzenleyen / Organizatör Marka</label>
+                  <input class="input" v-model="wizardForm.organizerName" placeholder="Örn. Endemigo Müzayede Evi" />
+                  <small class="cover-hint">Alıcıya lot detayında gösterilir. Boş bırakılabilir.</small>
+                </div>
+                <div class="wizard-field">
                   <label>Kapak Görseli</label>
                   <div v-if="wizardForm.coverImageUrl" class="cover-preview">
                     <img :src="wizardForm.coverImageUrl" alt="Kapak görseli" />
@@ -680,6 +685,7 @@ function generateFormFields(row: any | null): DrawerField[] {
   const fields: DrawerField[] = [
     { key: 'title', label: 'Müzayede Başlığı', required: true, value: row?.title || '', fullWidth: true },
     { key: 'description', label: 'Açıklama / Detaylar', type: 'textarea', value: row?.description || '' },
+    { key: 'organizerName', label: 'Düzenleyen / Organizatör Marka', value: row?.organizerName || '' },
     { key: 'coverImageUrl', label: 'Kapak Görseli URL', type: 'image', value: row?.coverImageUrl || '' },
     {
       key: 'status',
@@ -799,6 +805,7 @@ const wizardSubmitting = ref(false);
 const wizardForm = reactive({
   title: '',
   description: '',
+  organizerName: '',
   coverImageUrl: '',
   startTime: '',
   endTime: '',
@@ -881,6 +888,7 @@ function handleNewEventClick() {
   Object.assign(wizardForm, {
     title: '',
     description: '',
+    organizerName: '',
     coverImageUrl: '',
     startTime: '',
     endTime: '',
@@ -920,6 +928,7 @@ async function submitWizard() {
   const metadata: Record<string, any> = {
     title: wizardForm.title,
     description: wizardForm.description,
+    organizerName: wizardForm.organizerName,
     coverImageUrl: wizardForm.coverImageUrl,
     status: 'DRAFT',
     startTime: wizardForm.startTime,

@@ -111,6 +111,14 @@ export class NegotiationService {
         message: 'Kendi ürününüz için fiyat görüşmesi başlatamazsınız',
       });
     }
+    // Müzayede lotu yalnızca soru-sor kanalıdır; teklif (amount) reddedilir.
+    if (product.listingType === ListingType.AUCTION && dto.amount) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message:
+          'Müzayede lotunda fiyat teklifi verilemez; yalnızca soru sorabilirsiniz.',
+      });
+    }
 
     let conversation = await this.conversationRepository.findOne({
       where: {
@@ -292,6 +300,15 @@ export class NegotiationService {
       conversationId,
     );
     this.assertConversationOpen(conversation);
+
+    // Müzayede lotu konuşması soru-sor kanalıdır; fiyat teklifi açılamaz.
+    if (conversation.product?.listingType === ListingType.AUCTION) {
+      throw new BadRequestException({
+        code: RC.VALIDATION_ERROR,
+        message:
+          'Müzayede lotunda fiyat teklifi verilemez; yalnızca soru sorabilirsiniz.',
+      });
+    }
 
     const expiryHours =
       dto.expiryHours ?? dto.expiresInHours ?? DEFAULT_OFFER_EXPIRY_HOURS;
@@ -681,10 +698,15 @@ export class NegotiationService {
     }
 
     // Tedarikçi ürün bazında karar verir: fiyat sor VEYA soru sor açık olmalı.
+    // Müzayede lotları: soru-sor kanalı her lotta açıktır (askQuestionEnabled'a
+    // bakılmaz); fiyat sorma/teklif ise müzayedeyi baypas edeceği için kapalıdır
+    // ve createConversation/createOffer içinde ayrıca engellenir.
+    const isAuctionLot = product.listingType === ListingType.AUCTION;
     if (
       product.status !== ProductStatus.ACTIVE ||
-      product.listingType === ListingType.AUCTION ||
-      (product.askPriceEnabled !== true && product.askQuestionEnabled !== true)
+      (!isAuctionLot &&
+        product.askPriceEnabled !== true &&
+        product.askQuestionEnabled !== true)
     ) {
       throw new BadRequestException({
         code: RC.ASK_PRICE_NOT_ENABLED,

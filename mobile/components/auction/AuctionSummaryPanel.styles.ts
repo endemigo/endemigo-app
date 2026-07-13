@@ -173,26 +173,6 @@ export const styles = StyleSheet.create({
     fontSize: FontSize.caption,
     fontFamily: FontFamily.body,
   },
-  walletStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.base,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: `${Colors.secondary}14`,
-    padding: Spacing.base,
-  },
-  walletLabel: {
-    color: Colors.onSurfaceVariant,
-    fontSize: FontSize.caption,
-    fontFamily: FontFamily.body,
-  },
-  walletValue: {
-    color: Colors.secondary,
-    fontSize: FontSize.bodyXl,
-    fontFamily: FontFamily.price,
-    fontWeight: '400',
-  },
   calloutCard: {
     borderRadius: BorderRadius['2xl'],
     padding: Spacing.base,

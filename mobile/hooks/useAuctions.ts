@@ -18,6 +18,8 @@ interface Auction {
   currentPrice: number;
   minIncrement: number;
   reservePrice?: number | null;
+  estimatedValueMin?: number | null;
+  estimatedValueMax?: number | null;
   reserveMet?: boolean;
   buyerPremiumRate: number;
   currency?: string;
@@ -234,6 +236,7 @@ interface AuctionEvent {
   id: string;
   title: string;
   description: string | null;
+  organizerName?: string | null;
   coverImageUrl: string | null;
   status: string;
   auctionType: string;

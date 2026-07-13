@@ -238,6 +238,58 @@ describe('NegotiationService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('allows a question-only conversation on an auction lot even without askQuestionEnabled', async () => {
+    const auctionProduct = {
+      ...product,
+      listingType: ListingType.AUCTION,
+      askPriceEnabled: false,
+      askQuestionEnabled: false,
+    };
+    productRepo.findOne.mockResolvedValue(auctionProduct);
+    conversationRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(
+        conversation({ product: auctionProduct as never }),
+      );
+
+    const result = await service.createConversation('buyer-1', {
+      productId: 'product-1',
+    });
+
+    expect(result.code).toBe(RC.NEGOTIATION_CREATED);
+  });
+
+  it('rejects a price offer on an auction lot at conversation creation', async () => {
+    productRepo.findOne.mockResolvedValue({
+      ...product,
+      listingType: ListingType.AUCTION,
+      askPriceEnabled: false,
+      askQuestionEnabled: true,
+    });
+
+    await expect(
+      service.createConversation('buyer-1', {
+        productId: 'product-1',
+        amount: 500,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects createOffer on an auction lot conversation', async () => {
+    conversationRepo.findOne.mockResolvedValue(
+      conversation({
+        product: { ...product, listingType: ListingType.AUCTION } as never,
+      }),
+    );
+
+    await expect(
+      service.createOffer('buyer-1', 'conversation-1', {
+        amount: 500,
+        quantity: 1,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('blocks and logs off-platform messages', async () => {
     conversationRepo.findOne.mockResolvedValue(conversation());
 

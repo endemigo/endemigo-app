@@ -11,10 +11,10 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { AuctionStatus, AuctionPaymentStatus } from '@endemigo/shared';
 import * as SecureStore from 'expo-secure-store';
 
@@ -23,7 +23,6 @@ import {
   usePlaceBid,
   useWithdrawBid,
   useAuctionBids,
-  useAuctionResult,
   useAuctionRegistrationStatus,
   useRegisterToAuction,
   useSavedCards,
@@ -42,7 +41,6 @@ import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../../co
 import { styles } from './event.styles';
 import { useProduct } from '../../../hooks/useProducts';
 import { getProductImageUri } from '../../../utils/productImages';
-import { getAuctionConditionLabel } from '../../../utils/auctionPresentation';
 import { SUPPORT_PHONE_URL } from '../../../constants/support';
 import { AuctionBidComposer } from '../../../components/auction/AuctionBidComposer';
 import { CardVerificationModal } from '../../../components/auction/CardVerificationModal';
@@ -59,7 +57,6 @@ export default function LiveEventRoomScreen() {
   const locale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const { user } = useAuthStore();
   const { showModal, hideModal } = useModalStore();
-  const insets = useSafeAreaInsets();
 
   const { data: eventDetails, isLoading: isDetailsLoading, refetch: refetchDetails } = useAuctionEventDetails(id);
   const eventCurrency = eventDetails?.event?.currency || 'TRY';
@@ -92,8 +89,6 @@ export default function LiveEventRoomScreen() {
     checkLockStatus();
   }, []);
 
-  // Selected upcoming lot to view in preview modal
-  const [selectedLotForPreview, setSelectedLotForPreview] = useState<string | null>(null);
   const [biddingLotId, setBiddingLotId] = useState<string | null>(null);
 
   // Local state for ticking countdown timer
@@ -191,17 +186,6 @@ export default function LiveEventRoomScreen() {
     const lastInitial = lastName ? lastName.charAt(0) + '.' : '';
     return `${firstName} ${lastInitial}`.trim();
   };
-
-  const previewedLot = eventDetails?.lots.find((lot) => lot.id === selectedLotForPreview);
-  const isPreviewedLotEnded = previewedLot
-    ? previewedLot.status === AuctionStatus.ENDED ||
-      previewedLot.status === AuctionStatus.COMPLETED ||
-      (previewedLot.endTime ? new Date(previewedLot.endTime).getTime() <= getSynchronizedTime() : false)
-    : false;
-  const { data: previewedProduct } = useProduct(previewedLot?.productId ?? '');
-  const { data: previewedResult } = useAuctionResult(
-    selectedLotForPreview && isPreviewedLotEnded ? selectedLotForPreview : ''
-  );
 
   useEffect(() => {
     if (socket.lastBid) {
@@ -823,7 +807,7 @@ export default function LiveEventRoomScreen() {
       return (
         <View style={styles.timerContainer}>
           <View style={styles.timerTextRow}>
-            <Ionicons name="infinite-outline" size={16} color={Colors.slate500} />
+            <AppIcon name="infinite-outline" size={16} color={Colors.slate500} />
             <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
           </View>
           <Text style={styles.countdownValue}>
@@ -837,7 +821,7 @@ export default function LiveEventRoomScreen() {
       return (
         <View style={styles.timerContainer}>
           <View style={styles.timerTextRow}>
-            <Ionicons name="time-outline" size={16} color={Colors.slate500} />
+            <AppIcon name="time-outline" size={16} color={Colors.slate500} />
             <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
           </View>
           <Text style={[styles.countdownValue, { color: Colors.error }]}>
@@ -859,7 +843,7 @@ export default function LiveEventRoomScreen() {
     return (
       <View style={styles.timerContainer}>
         <View style={styles.timerTextRow}>
-          <Ionicons name="time-outline" size={16} color={Colors.slate500} />
+          <AppIcon name="time-outline" size={16} color={Colors.slate500} />
           <Text style={styles.timerText}>{t('auction.timeLeftLabel')}:</Text>
         </View>
         <Text style={[styles.countdownValue, timeLeftSeconds <= 15 && { color: Colors.error }]}>
@@ -878,7 +862,7 @@ export default function LiveEventRoomScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={20} color={Colors.onSurface} />
+          <AppIcon name="arrow-back" size={20} color={Colors.onSurface} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
@@ -894,7 +878,7 @@ export default function LiveEventRoomScreen() {
 
         <View style={styles.headerMetrics}>
           <View style={styles.metricBadge}>
-            <Ionicons name="people-outline" size={14} color={Colors.slate500} />
+            <AppIcon name="people-outline" size={14} color={Colors.slate500} />
             <Text style={styles.metricText}>{socket.viewerCount}</Text>
           </View>
           {socket.isConnected ? (
@@ -930,7 +914,7 @@ export default function LiveEventRoomScreen() {
               <Text style={styles.transitionLotTitle}>{socket.productTitle}</Text>
               
               <View style={styles.transitionTimerContainer}>
-                <Ionicons name="time-outline" size={24} color="#0097D8" style={{ marginRight: 8 }} />
+                <AppIcon name="time-outline" size={24} color="#0097D8" style={{ marginRight: 8 }} />
                 <Text style={styles.transitionTimerText}>
                   {t('auction.startingInSeconds', { defaultValue: '{{count}} saniye sonra başlıyor', count: transitionLeftSeconds })}
                 </Text>
@@ -990,7 +974,7 @@ export default function LiveEventRoomScreen() {
                   <Text style={styles.priceValue}>{formatCurrency(currentLotPrice, eventCurrency)}</Text>
                   {bidState === 'leading' && (
                     <View style={styles.leaderBadge}>
-                      <Ionicons name="checkmark-circle" size={12} color={Colors.white} />
+                      <AppIcon name="checkmark-circle" size={12} color={Colors.white} />
                       <Text style={styles.leaderBadgeText}>{t('auction.leaderBadge', { defaultValue: 'Lider' })}</Text>
                     </View>
                   )}
@@ -1002,7 +986,7 @@ export default function LiveEventRoomScreen() {
               {/* Bid Status Feedback Alerts */}
               {bidState === 'leading' && (
                 <View style={[styles.statusAlertCard, { backgroundColor: `${Colors.auctionGreen}10` }]}>
-                  <Ionicons name="checkmark-circle" size={18} color={Colors.auctionGreen} />
+                  <AppIcon name="checkmark-circle" size={18} color={Colors.auctionGreen} />
                   <Text style={[styles.statusAlertText, { color: Colors.auctionGreen }]}>
                     {t('auction.leaderStateLeading')}
                   </Text>
@@ -1010,7 +994,7 @@ export default function LiveEventRoomScreen() {
               )}
               {bidState === 'outbid' && (
                 <View style={[styles.statusAlertCard, { backgroundColor: `${Colors.error}1A` }]}>
-                  <Ionicons name="alert-circle" size={18} color={Colors.error} />
+                  <AppIcon name="alert-circle" size={18} color={Colors.error} />
                   <Text style={[styles.statusAlertText, { color: Colors.error }]}>
                     {t('auction.leaderStateOutbid')}
                   </Text>
@@ -1036,7 +1020,7 @@ export default function LiveEventRoomScreen() {
               })}
             </Text>
             <View style={[styles.statusAlertCard, { backgroundColor: Colors.slate100 }]}>
-              <Ionicons name="information-circle-outline" size={18} color={Colors.slate500} />
+              <AppIcon name="information-circle-outline" size={18} color={Colors.slate500} />
               <Text style={styles.statusAlertText}>
                 {t('auctions.waiting', { defaultValue: 'Müzayede henüz başlamadı. Katalogu aşağıdan inceleyebilirsiniz.' })}
               </Text>
@@ -1059,7 +1043,7 @@ export default function LiveEventRoomScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="mail-unread" size={18} color={Colors.accent} />
+              <AppIcon name="mail-unread" size={18} color={Colors.accent} />
               <Text style={{ fontWeight: '700', color: Colors.onSurface, flex: 1 }}>
                 {t('auction.invitationBannerTitle', {
                   defaultValue: 'Bu ortak müzayedeye davetlisiniz',
@@ -1164,7 +1148,7 @@ export default function LiveEventRoomScreen() {
                     gap: 8,
                   }}
                 >
-                  <Ionicons
+                  <AppIcon
                     name={
                       registrationData.registration.status === 'REJECTED'
                         ? 'close-circle'
@@ -1207,7 +1191,7 @@ export default function LiveEventRoomScreen() {
                 <TouchableOpacity
                   key={lot.id}
                   style={[styles.lotItem, isLotActive && styles.lotItemActive]}
-                  onPress={() => setSelectedLotForPreview(lot.id)}
+                  onPress={() => router.push(`/auction/${lot.id}`)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.lotSeqContainer}>
@@ -1263,7 +1247,7 @@ export default function LiveEventRoomScreen() {
           <View style={styles.feedContainer}>
             {!socket.activityFeed || socket.activityFeed.length === 0 ? (
               <View style={styles.feedEmpty}>
-                <Ionicons name="chatbubbles-outline" size={36} color={Colors.slate300} />
+                <AppIcon name="chatbubbles-outline" size={36} color={Colors.slate300} />
                 <Text style={styles.feedEmptyText}>
                   {t('auction.noBidsYet', { defaultValue: 'Canlı hareket bulunmuyor.' })}
                 </Text>
@@ -1279,7 +1263,7 @@ export default function LiveEventRoomScreen() {
                 return (
                   <View key={item.id} style={styles.feedItem}>
                     <View style={[styles.feedIcon, { backgroundColor: `${getToneColor()}1A` }]}>
-                      <Ionicons
+                      <AppIcon
                         name={
                           item.tone === 'accent'
                             ? 'hammer'
@@ -1368,7 +1352,7 @@ export default function LiveEventRoomScreen() {
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons
+                <AppIcon
                   name={isBidLocked ? "lock-closed" : "lock-open"}
                   size={20}
                   color={isBidLocked ? Colors.slate500 : Colors.primary}
@@ -1435,197 +1419,6 @@ export default function LiveEventRoomScreen() {
             )}
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Lot Preview Modal */}
-      <Modal
-        visible={selectedLotForPreview !== null}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setSelectedLotForPreview(null)}
-      >
-        <View style={{ flex: 1, backgroundColor: Colors.white, paddingTop: insets.top }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {t('moreDetails', { defaultValue: 'Ürün Detayları' })}
-            </Text>
-            <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSelectedLotForPreview(null)}>
-              <Ionicons name="close" size={20} color={Colors.onSurface} />
-            </TouchableOpacity>
-          </View>
-
-          {previewedLot && (
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.imageContainer}>
-                  <ProductImageCarousel
-                    images={previewedProduct?.images}
-                    fallbackImage={previewedLot.productImage || 'https://placehold.co/300x150'}
-                    height={280}
-                  />
-                  {previewedLot.sequenceNumber && (
-                    <View style={styles.imageBadge}>
-                      <Text style={styles.imageBadgeText}>#{previewedLot.sequenceNumber}</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={{ paddingHorizontal: Spacing.base, paddingBottom: Spacing.xl }}>
-                  <Text style={styles.previewTitle}>
-                    {previewedLot.productTitle}
-                  </Text>
-
-                  <View style={styles.badgesContainer}>
-                    <View style={styles.detailBadge}>
-                      <Ionicons name="bookmark-outline" size={14} color={Colors.slate500} />
-                      <Text style={styles.detailBadgeText}>
-                        Lot: {previewedLot.lotNumber || '-'}
-                      </Text>
-                    </View>
-                    {isPreviewedLotEnded ? (
-                      <View style={styles.detailBadge}>
-                        <Ionicons name="trophy-outline" size={14} color={Colors.secondary} />
-                        <Text style={styles.detailBadgeText}>
-                          {t('auction.finalPrice')}: <Text style={[styles.detailBadgePriceText, { color: Colors.secondary }]}>{formatCurrency(Number(previewedLot.currentPrice), eventCurrency)}</Text>
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.detailBadge}>
-                        <Ionicons name="cash-outline" size={14} color={Colors.auctionGreen} />
-                        <Text style={styles.detailBadgeText}>
-                          {t('auction.openingPrice')}: <Text style={styles.detailBadgePriceText}>{formatCurrency(Number(previewedLot.startPrice), eventCurrency)}</Text>
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {previewedProduct ? (
-                    <View>
-                      {isPreviewedLotEnded && (
-                        <View style={{
-                          backgroundColor: `${Colors.secondary}10`,
-                          borderRadius: BorderRadius.xl,
-                          padding: Spacing.base,
-                          marginBottom: Spacing.base,
-                          borderWidth: 1,
-                          borderColor: `${Colors.secondary}30`,
-                        }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
-                            <Ionicons name="trophy" size={18} color={Colors.secondary} />
-                            <Text style={{ fontSize: FontSize.bodyXl, fontFamily: FontFamily.bodyBold, color: Colors.secondary, fontWeight: '700' }}>
-                              {t('auction.resultTitleEnded', { defaultValue: 'Müzayede Sonucu' })}
-                            </Text>
-                          </View>
-
-                          {previewedResult ? (
-                            <View style={{ gap: Spacing.sm }}>
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.body, color: Colors.slate500 }}>
-                                  {t('auction.finalPrice', { defaultValue: 'Son Fiyat' })}:
-                                </Text>
-                                <Text style={{ fontSize: FontSize.bodyXl, fontFamily: FontFamily.price, color: Colors.onSurface, fontWeight: '700' }}>
-                                  {formatCurrency(previewedResult.finalPrice, eventCurrency)}
-                                </Text>
-                              </View>
-                              
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.body, color: Colors.slate500 }}>
-                                  {t('auction.totalBids', { defaultValue: 'Toplam Pey' })}:
-                                </Text>
-                                <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.bodySemiBold, color: Colors.onSurface }}>
-                                  {previewedResult.bidCount}
-                                </Text>
-                              </View>
-
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.body, color: Colors.slate500 }}>
-                                  {t('auction.winner', { defaultValue: 'Kazanan' })}:
-                                </Text>
-                                {previewedResult.winner ? (
-                                  <View style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    backgroundColor: Colors.slate50,
-                                    paddingHorizontal: Spacing.sm,
-                                    paddingVertical: 4,
-                                    borderRadius: BorderRadius.md,
-                                  }}>
-                                    <Ionicons name="person" size={12} color={Colors.slate500} />
-                                    <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.bodySemiBold, color: Colors.slate700 }}>
-                                      {previewedResult.winner.id === user?.id
-                                        ? t('auction.you', { defaultValue: 'Siz' })
-                                        : maskBidderName(previewedResult.winner.name)}
-                                    </Text>
-                                  </View>
-                                ) : (
-                                  <Text style={{ fontSize: FontSize.body, fontFamily: FontFamily.bodyMedium, color: Colors.slate500 }}>
-                                    {t('auction.resultTitleNoBid', { defaultValue: 'Teklif Alınamadı' })}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-                          ) : (
-                            <ActivityIndicator size="small" color={Colors.secondary} />
-                          )}
-                        </View>
-                      )}
-
-                      <Text style={styles.sectionHeader}>
-                        {t('product.descriptionTitle', { defaultValue: 'Ürün Açıklaması' })}
-                      </Text>
-                      <Text style={styles.descriptionText}>
-                        {previewedProduct.description || t('product.noDescription', { defaultValue: 'Açıklama bulunmuyor.' })}
-                      </Text>
-
-                      <Text style={styles.sectionHeader}>
-                        {t('product.specifications', { defaultValue: 'Özellikler' })}
-                      </Text>
-                      
-                      <View style={styles.specGrid}>
-                        <View style={styles.specTile}>
-                          <Text style={styles.specTileLabel}>
-                            {t('auction.categoryLabel', { defaultValue: 'Kategori' })}
-                          </Text>
-                          <Text style={styles.specTileValue} numberOfLines={1}>
-                            {previewedProduct.categoryName || '-'}
-                          </Text>
-                        </View>
-
-                        <View style={styles.specTile}>
-                          <Text style={styles.specTileLabel}>
-                            {t('auction.conditionLabel', { defaultValue: 'Durum' })}
-                          </Text>
-                          <Text style={styles.specTileValue} numberOfLines={1}>
-                            {getAuctionConditionLabel(previewedProduct.condition, t)}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  ) : (
-                    <ActivityIndicator size="small" color={Colors.auctionGreen} style={{ marginVertical: Spacing.xl }} />
-                  )}
-                </View>
-              </ScrollView>
-            )}
-          {previewedLot && !isPreviewedLotEnded && user?.id !== previewedLot.sellerId && (
-            <View style={[styles.previewFooter, { paddingBottom: Math.max(Spacing.md, insets.bottom) }]}>
-              <TouchableOpacity
-                style={styles.previewPreBidButton}
-                onPress={() => {
-                  setSelectedLotForPreview(null);
-                  handleOpenComposerClick(previewedLot.id, false);
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.previewPreBidButtonText}>
-                  {previewedLot.id === activeLotId
-                    ? t('auction.placeBid')
-                    : t('auction.placePreBid', { defaultValue: 'Ön Teklif Ver' })}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
       </Modal>
 
       <Modal

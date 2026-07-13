@@ -41,6 +41,14 @@ export class Auction extends BaseEntity {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   reservePrice: number | null;
 
+  // Tahmini değer aralığı (müzayede evi ekspertizi) — alıcıya gösterilir,
+  // pey/tahsilat mantığına girmez. Boş bırakılabilir; min<=max beklenir.
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  estimatedValueMin: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  estimatedValueMax: number | null;
+
   @Column({ default: false })
   reserveMet: boolean;
 

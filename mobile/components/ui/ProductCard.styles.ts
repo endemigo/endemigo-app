@@ -198,4 +198,15 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     top: Spacing.sm,
   },
+  favoriteButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: BorderRadius.full,
+    height: 32,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: Spacing.sm,
+    top: Spacing.sm,
+    width: 32,
+  },
 });

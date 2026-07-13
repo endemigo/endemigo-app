@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { useTranslation } from 'react-i18next';
 import { getDefaultMobileExperienceConfig } from '@endemigo/shared';
 import type { Product } from '@/types';
@@ -15,6 +15,7 @@ import {
   resolveMobileAudience,
 } from '../../utils/mobileConfig';
 import { getProductImageUri } from '../../utils/productImages';
+import { useToggleFavorite } from '../../hooks/useSearch';
 import { formatCurrency } from '../../utils/transactionFormatters';
 import { formatProductPrice } from '../../utils/productPriceFormatter';
 import { styles } from './ProductCard.styles';
@@ -65,6 +66,35 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
     .filter(Boolean)
     .slice(0, 3);
 
+  // Favori: kart üzeri optimistic override; API isFavorited baz alınır.
+  const toggleFavorite = useToggleFavorite();
+  const [favoriteActive, setFavoriteActive] = useState<boolean | null>(null);
+  const isFavorited = favoriteActive ?? Boolean(item.isFavorited);
+  const handleToggleFavorite = async () => {
+    try {
+      const res = await toggleFavorite.mutateAsync(item.id);
+      setFavoriteActive(res.isFavorited);
+    } catch {
+      // sessiz geç — favori değişimi kritik akış değil
+    }
+  };
+
+  const favoriteButton = (
+    <TouchableOpacity
+      style={styles.favoriteButton}
+      onPress={handleToggleFavorite}
+      disabled={toggleFavorite.isPending}
+      activeOpacity={0.8}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+    >
+      <AppIcon
+        name={isFavorited ? 'heart' : 'heart-outline'}
+        size={18}
+        color={isFavorited ? Colors.accent : Colors.white}
+      />
+    </TouchableOpacity>
+  );
+
   if (variant === 'square') {
     return (
       <TouchableOpacity style={styles.squareCard} onPress={onPress} activeOpacity={0.75}>
@@ -85,11 +115,12 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
               </View>
             ) : (
               <View style={styles.geoBadge}>
-                <Ionicons name="ribbon" size={12} color={Colors.white} />
+                <AppIcon name="ribbon" size={12} color={Colors.white} />
                 <Text style={styles.geoBadgeText}>{t('product.geoIndicationBadge')}</Text>
               </View>
             )
           ) : null}
+          {favoriteButton}
         </View>
         <View style={styles.squareBody}>
           {productBadge ? <Text style={styles.squareBadge}>{productBadge}</Text> : null}
@@ -97,7 +128,7 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
           <View style={styles.squareFooter}>
             {isAskPrice ? (
               <View style={styles.squareAskPriceBadge}>
-                <Ionicons name="cash-outline" size={12} color={Colors.primary} />
+                <AppIcon name="cash-outline" size={12} color={Colors.primary} />
                 <Text style={styles.squareAskPriceText}>
                   {productCardConfig.showAskPriceBadge ? t('product.askPrice') : productCtaLabel}
                 </Text>
@@ -132,11 +163,12 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
             </View>
           ) : (
             <View style={styles.geoBadge}>
-              <Ionicons name="ribbon" size={12} color={Colors.white} />
+              <AppIcon name="ribbon" size={12} color={Colors.white} />
               <Text style={styles.geoBadgeText}>{t('product.geoIndicationBadge')}</Text>
             </View>
           )
         ) : null}
+        {favoriteButton}
       </View>
       <View style={styles.gridBody}>
         {productBadge ? <Text style={styles.gridBadge}>{productBadge}</Text> : null}
@@ -147,7 +179,7 @@ export function ProductCard({ item, onPress, variant = 'grid' }: Props) {
         <View style={styles.gridFooter}>
           {isAskPrice ? (
             <View style={styles.gridAskPriceButton}>
-              <Ionicons name="cash-outline" size={14} color={Colors.white} />
+              <AppIcon name="cash-outline" size={14} color={Colors.white} />
               <Text style={styles.gridAskPriceText}>
                 {productCardConfig.showAskPriceBadge ? t('product.askPrice') : productCtaLabel}
               </Text>

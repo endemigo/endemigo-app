@@ -3207,6 +3207,16 @@ export class AuctionService implements OnApplicationBootstrap {
         auction.reservePrice !== null && auction.reservePrice !== undefined
           ? Number(auction.reservePrice)
           : null,
+      estimatedValueMin:
+        auction.estimatedValueMin !== null &&
+        auction.estimatedValueMin !== undefined
+          ? Number(auction.estimatedValueMin)
+          : null,
+      estimatedValueMax:
+        auction.estimatedValueMax !== null &&
+        auction.estimatedValueMax !== undefined
+          ? Number(auction.estimatedValueMax)
+          : null,
       reserveMet: auction.reserveMet,
       buyerPremiumRate: 0,
       // Event'e bağlı lotlar event para biriminde peylenir; bağımsız

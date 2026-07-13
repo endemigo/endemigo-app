@@ -10,6 +10,10 @@
           <i class="pi pi-refresh" aria-hidden="true" />
           Yenile
         </button>
+        <button class="button" type="button" @click="router.push(`/auction-events/${props.id}/dashboard`)">
+          <i class="pi pi-chart-bar" aria-hidden="true" />
+          Pano & Rapor
+        </button>
         <button class="button" type="button" @click="router.back()">
           <i class="pi pi-arrow-left" aria-hidden="true" />
           Geri
@@ -660,6 +664,8 @@
                   <th>Açılış (₺)</th>
                   <th>Artış (₺)</th>
                   <th>Hemen Al (₺)</th>
+                  <th>Tahmini Alt (₺)</th>
+                  <th>Tahmini Üst (₺)</th>
                 </tr>
               </thead>
               <tbody>
@@ -712,14 +718,38 @@
                     <span v-else class="text-muted">-</span>
                   </td>
                   <td>
-                    <input 
-                      v-if="selectedProductIds.includes(product.id)" 
-                      type="number" 
-                      v-model="product.buyItNowPrice" 
-                      class="form-control font-mono" 
+                    <input
+                      v-if="selectedProductIds.includes(product.id)"
+                      type="number"
+                      v-model="product.buyItNowPrice"
+                      class="form-control font-mono"
                       style="width: 110px; padding: 0.25rem 0.5rem;"
                       placeholder="Opsiyonel"
                       :min="(product.startingPrice || 1) + 1"
+                    />
+                    <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <input
+                      v-if="selectedProductIds.includes(product.id)"
+                      type="number"
+                      v-model="product.estimatedValueMin"
+                      class="form-control font-mono"
+                      style="width: 110px; padding: 0.25rem 0.5rem;"
+                      placeholder="Opsiyonel"
+                      min="0"
+                    />
+                    <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <input
+                      v-if="selectedProductIds.includes(product.id)"
+                      type="number"
+                      v-model="product.estimatedValueMax"
+                      class="form-control font-mono"
+                      style="width: 110px; padding: 0.25rem 0.5rem;"
+                      placeholder="Opsiyonel"
+                      :min="product.estimatedValueMin || 0"
                     />
                     <span v-else class="text-muted">-</span>
                   </td>
@@ -800,6 +830,14 @@
               <label class="field">
                 <span>Hemen Al Fiyatı (₺)</span>
                 <input v-model="quickCreateForm.buyItNowPrice" class="input font-mono" type="number" min="0" placeholder="Opsiyonel" />
+              </label>
+              <label class="field">
+                <span>Tahmini Değer Alt (₺)</span>
+                <input v-model="quickCreateForm.estimatedValueMin" class="input font-mono" type="number" min="0" placeholder="Opsiyonel" />
+              </label>
+              <label class="field">
+                <span>Tahmini Değer Üst (₺)</span>
+                <input v-model="quickCreateForm.estimatedValueMax" class="input font-mono" type="number" min="0" placeholder="Opsiyonel" />
               </label>
             </div>
 
@@ -1247,6 +1285,8 @@ const quickCreateForm = ref({
   startingPrice: null as number | null,
   minIncrement: 1,
   buyItNowPrice: null as number | null,
+  estimatedValueMin: null as number | null,
+  estimatedValueMax: null as number | null,
 });
 const quickCreateImages = ref<string[]>([]);
 const quickCreateImageInput = ref<HTMLInputElement | null>(null);
@@ -1270,6 +1310,8 @@ function openQuickCreateModal() {
     startingPrice: null,
     minIncrement: 1,
     buyItNowPrice: null,
+    estimatedValueMin: null,
+    estimatedValueMax: null,
   };
   quickCreateImages.value = [];
 }
@@ -1325,7 +1367,16 @@ async function submitQuickCreate() {
   if (!quickCreateForm.value.minIncrement || quickCreateForm.value.minIncrement < 1) return;
   // K3: buyItNowPrice > startingPrice kontrolü
   if (quickCreateForm.value.buyItNowPrice != null && quickCreateForm.value.buyItNowPrice > 0 && quickCreateForm.value.buyItNowPrice <= quickCreateForm.value.startingPrice) return;
-  
+  // Tahmini değer: üst sınır alt sınırdan küçük olamaz
+  if (
+    quickCreateForm.value.estimatedValueMin != null &&
+    quickCreateForm.value.estimatedValueMax != null &&
+    quickCreateForm.value.estimatedValueMax < quickCreateForm.value.estimatedValueMin
+  ) {
+    quickCreateError.value = 'Tahmini değer üst sınırı alt sınırından küçük olamaz.';
+    return;
+  }
+
   // Eğer hata varsa (örn. ownerId eksik) işleme izin verme
   if (quickCreateError.value && quickCreateError.value.includes('Uyarı:')) return;
 
@@ -1362,6 +1413,8 @@ async function submitQuickCreate() {
             startingPrice: quickCreateForm.value.startingPrice,
             minIncrement: quickCreateForm.value.minIncrement || 1,
             buyItNowPrice: quickCreateForm.value.buyItNowPrice || null,
+            estimatedValueMin: quickCreateForm.value.estimatedValueMin || null,
+            estimatedValueMax: quickCreateForm.value.estimatedValueMax || null,
           }
         ]
       }
@@ -1562,6 +1615,8 @@ async function openAddLotModal() {
         startingPrice: p.price || 1,
         minIncrement: 1,
         buyItNowPrice: null,
+        estimatedValueMin: null,
+        estimatedValueMax: null,
       }));
     }
   } catch (e) {
@@ -1581,6 +1636,13 @@ const addLotValidationError = computed(() => {
     if (prod.buyItNowPrice != null && prod.buyItNowPrice > 0 && prod.buyItNowPrice <= prod.startingPrice) {
       return 'Hemen Al fiyatı açılış fiyatından büyük olmalıdır.';
     }
+    if (
+      prod.estimatedValueMin != null &&
+      prod.estimatedValueMax != null &&
+      Number(prod.estimatedValueMax) < Number(prod.estimatedValueMin)
+    ) {
+      return 'Tahmini değer üst sınırı alt sınırından küçük olamaz.';
+    }
   }
   return null;
 });
@@ -1598,6 +1660,8 @@ async function submitAddLots() {
         startingPrice: prod?.startingPrice || 1,
         minIncrement: prod?.minIncrement || 1.0,
         buyItNowPrice: prod?.buyItNowPrice || null,
+        estimatedValueMin: prod?.estimatedValueMin || null,
+        estimatedValueMax: prod?.estimatedValueMax || null,
       };
     });
 

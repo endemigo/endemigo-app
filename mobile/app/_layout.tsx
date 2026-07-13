@@ -19,7 +19,7 @@ import { Colors } from '../constants/theme';
 import { BackendUnavailableScreen, GlobalModal, GlobalToast } from '../components/ui';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { styles } from '../styles/_layout.styles';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon, appIconFont } from '../components/ui/AppIcon';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
 import { createLaunchSplashImageItems } from '../utils/launchSplashImages';
 import { useOneSignal } from '../hooks/useOneSignal';
@@ -137,6 +137,7 @@ export default function RootLayout() {
   const shouldShowFloatingCart = !showLaunchSplash && cartCount > 0 && isShoppingRoute && !isCartRoute;
 
   const [fontsLoaded] = useFonts({
+    ...appIconFont,
     'OpenSans-Regular': OpenSans_400Regular,
     'OpenSans-SemiBold': OpenSans_600SemiBold,
     'Oxygen-Light': Oxygen_300Light,
@@ -262,6 +263,10 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
+                {/* Lot detay: önceki/sonraki lota geçiş router.replace ile aynı
+                    ekranı yeniler; yön-duyarsız fade, "hep sağa kayma" hissini
+                    giderir (swipe pager ileride cihazda ayarlanacak). */}
+                <Stack.Screen name="auction/[id]" options={{ animation: 'fade' }} />
                 <Stack.Screen
                   name="cart"
                   options={{
@@ -280,7 +285,7 @@ export default function RootLayout() {
                   }
                 >
                   <Animated.View style={shakeStyle}>
-                    <Ionicons name="cart" size={18} color={Colors.white} />
+                    <AppIcon name="cart" size={18} color={Colors.white} />
                   </Animated.View>
                   {cartCount > 0 ? (
                     <View style={styles.globalCartBadge}>
