@@ -17,8 +17,8 @@ export const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-    gap: Spacing.xl,
+    paddingTop: Spacing.lg,
+    gap: Spacing.lg,
   },
   stickyComposer: {
     position: 'absolute',
@@ -30,7 +30,7 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.auctionGreen,
     marginHorizontal: Spacing.lg,
     marginVertical: Spacing.base,
-    paddingVertical: 16,
+    paddingVertical: 13,
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
@@ -95,7 +95,7 @@ export const styles = StyleSheet.create({
   upcomingCalendarButton: {
     backgroundColor: Colors.primary,
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 13,
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
@@ -103,8 +103,8 @@ export const styles = StyleSheet.create({
   },
   upcomingPreBidButton: {
     backgroundColor: Colors.auctionGreen,
-    flex: 1,
-    paddingVertical: 16,
+    flex: 1.8,
+    paddingVertical: 13,
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',

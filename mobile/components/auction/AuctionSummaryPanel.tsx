@@ -1,15 +1,12 @@
 import React from 'react';
-import { Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { AppIcon } from '@/components/ui/AppIcon';
+import { Text, View, ActivityIndicator } from 'react-native';
 import type { TFunction } from 'i18next';
 
 import { CountdownTimer } from './CountdownTimer';
 import { Colors } from '../../constants/theme';
 import { formatCurrency } from '../../utils/transactionFormatters';
-import { styles } from './AuctionSummaryPanel.styles';
 
 type AuctionSummaryPanelProps = {
-  // Lot fiyatlarının para birimi (cüzdan alanı TL kalır).
   currency?: string;
   currentPrice: number;
   startPrice: number;
@@ -19,7 +16,6 @@ type AuctionSummaryPanelProps = {
   endTime: string;
   startTime?: string;
   serverTime: string;
-  // Süresiz lot: geri sayım yerine "Süresiz" rozeti (kapanış panelden).
   isUntimed?: boolean;
   isActive: boolean;
   isUpcoming?: boolean;
@@ -43,237 +39,120 @@ type AuctionSummaryPanelProps = {
   t: TFunction;
 };
 
+// Minimal / düz fiyat özeti: ağır kart + gri metrik kutuları yerine
+// büyük fiyat metni + sade zaman/next-bid satırı. Yalnız tekil lot ekranında.
 export function AuctionSummaryPanel({
   currency = 'TRY',
   currentPrice,
   startPrice,
   minBid,
   bidCount,
-  viewerCount,
   endTime,
   startTime,
   serverTime,
   isUntimed,
-  isActive,
   isUpcoming,
   isEnded,
-  isSeller,
   isWinner,
   showLoserState,
-  showResultButton,
   finalPrice,
-  lastBid,
-  activityFeed = [],
-  onViewResult,
   winnerName,
   onTimeExpired,
   t,
 }: AuctionSummaryPanelProps) {
-  const summaryTitle = isEnded ? t('auction.resultTitleEnded') : t('auction.overviewTitle');
-  const leadMetricLabel = isEnded ? t('auction.finalBid') : t('auction.nextBid');
-  const leadMetricValue = isEnded ? Number(finalPrice ?? currentPrice) : minBid;
-
   const isUpcomingAuction =
     isUpcoming ||
     (startTime &&
       new Date(startTime).getTime() >
         new Date(serverTime || Date.now()).getTime());
   const timerTarget = isUpcomingAuction ? startTime : endTime;
-  const timerBadgeText = isUpcomingAuction
+  const timerLabel = isUpcomingAuction
     ? t('auction.startsInLabel')
-    : isEnded
-      ? t('auction.auctionEnded')
-      : t('auction.timeLeftLabel');
-  const timerActive = (isActive || isUpcomingAuction) && timerTarget;
+    : t('auction.timeLeftLabel');
+
+  const priceLabel = isEnded
+    ? winnerName
+      ? t('auction.soldForLabel', { defaultValue: 'Satıldı' })
+      : t('auction.resultTitleNoBid', { defaultValue: 'Teklif Alınamadı' })
+    : bidCount > 0
+      ? t('auction.currentPrice')
+      : t('auction.startingBid');
+  const priceValue = isEnded ? Number(finalPrice ?? currentPrice) : currentPrice;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.overline}>{summaryTitle}</Text>
-          <Text style={styles.currentPriceLabel}>{bidCount > 0 ? t('auction.currentPrice') : t('auction.startingBid')}</Text>
-          <Text style={styles.currentPriceValue}>{formatCurrency(currentPrice, currency)}</Text>
+    <View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 12, color: Colors.slate400 }}>{priceLabel}</Text>
+          <Text
+            style={{
+              fontSize: 30,
+              fontWeight: '700',
+              color: Colors.onSurface,
+              letterSpacing: -0.5,
+              marginTop: 2,
+            }}
+          >
+            {formatCurrency(priceValue, currency)}
+          </Text>
         </View>
 
-        {/* Başlama sayacı artık hero çipinde. Upcoming'de bu kutu gizlenir. */}
-        {isUpcomingAuction ? null : (
-          <View style={styles.timerShell}>
-            <View style={[styles.timerBadge, isEnded && styles.timerBadgeEnded]}>
-              <Text
-                style={[
-                  styles.timerBadgeText,
-                  isEnded && styles.timerBadgeTextEnded,
-                ]}
-              >
-                {timerBadgeText}
-              </Text>
-            </View>
-            {isUntimed && !isEnded ? (
-              <Text style={styles.timerEndedText}>
+        {!isEnded ? (
+          <View style={{ alignItems: 'flex-end', marginLeft: 12 }}>
+            {!isUntimed ? (
+              <Text style={{ fontSize: 11, color: Colors.slate400, marginBottom: 2 }}>{timerLabel}</Text>
+            ) : null}
+            {isUntimed ? (
+              <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.error }}>
                 {t('auctions.untimed', { defaultValue: 'Süresiz' })}
               </Text>
-            ) : timerActive ? (
-              <CountdownTimer
-                endTime={timerTarget}
-                serverTime={serverTime}
-                onExpired={onTimeExpired}
-              />
-            ) : (
-              <Text style={styles.timerEndedText}>00:00:00</Text>
-            )}
+            ) : timerTarget ? (
+              <CountdownTimer endTime={timerTarget} serverTime={serverTime} onExpired={onTimeExpired} />
+            ) : null}
           </View>
-        )}
+        ) : null}
       </View>
 
-      <View style={styles.metricsGrid}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('auction.openingPrice')}</Text>
-          <Text style={styles.metricValue}>{formatCurrency(startPrice, currency)}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{leadMetricLabel}</Text>
-          <Text
-            style={[
-              styles.metricValue,
-              !isEnded && styles.metricValueAccent,
-            ]}
-          >
-            {formatCurrency(leadMetricValue, currency)}
+      {!isEnded ? (
+        <Text style={{ fontSize: 13, color: Colors.slate500, marginTop: 10, lineHeight: 19 }}>
+          {t('auction.nextBid')}:{' '}
+          <Text style={{ color: Colors.auctionGreen, fontWeight: '700' }}>
+            {formatCurrency(minBid, currency)}
           </Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('auction.bidCountMetric', { defaultValue: 'Teklif' })}</Text>
-          <Text style={styles.metricValue}>{bidCount}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('auction.viewerCountMetric')}</Text>
-          <Text style={styles.metricValue}>{viewerCount}</Text>
-        </View>
-      </View>
-
-      {lastBid && isActive ? (
-        <View style={styles.activityStrip}>
-          <AppIcon name="flash" size={18} color={Colors.accent} />
-          <View style={styles.activityTextWrap}>
-            <Text style={styles.activityTitle}>{t('auction.latestBidTitle')}</Text>
-            <Text style={styles.activityBody}>
-              {t('auction.latestBidMessage', {
-                bidder: lastBid.bidderName,
-                amount: formatCurrency(lastBid.amount, currency),
-              })}
-            </Text>
-          </View>
-        </View>
+          {'   ·   '}
+          {t('auction.openingPrice')}: {formatCurrency(startPrice, currency)}
+          {'   ·   '}
+          {t('auction.bidCountMetric', { defaultValue: 'Teklif' })}: {bidCount}
+        </Text>
       ) : null}
 
-      {activityFeed.length ? (
-        <View style={styles.feedCard}>
-          <Text style={styles.feedTitle}>{t('auction.activityFeedTitle')}</Text>
-          <View style={styles.feedList}>
-            {activityFeed.map((item) => (
-              <View key={item.id} style={styles.feedItem}>
-                <View
-                  style={[
-                    styles.feedDot,
-                    item.tone === 'error'
-                      ? styles.feedDotError
-                      : item.tone === 'accent'
-                        ? styles.feedDotAccent
-                        : styles.feedDotPrimary,
-                  ]}
-                />
-                <View style={styles.feedTextWrap}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.feedItemTitle, { flexShrink: 1 }]}>{item.title}</Text>
-                    {item.at ? (
-                      <Text style={{ fontSize: 11, color: Colors.slate400, marginLeft: 8 }}>
-                        {new Date(item.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.feedItemBody}>{item.body}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {isSeller ? (
-        <View style={[styles.calloutCard, styles.sellerModeCard]}>
-          <View style={styles.calloutHeader}>
-            <AppIcon name="shield-checkmark" size={18} color={Colors.primary} />
-            <Text style={styles.calloutTitle}>{t('auction.ownerModeTitle')}</Text>
-          </View>
-          <Text style={styles.calloutBody}>{t('auction.ownerModeDescription')}</Text>
-        </View>
-      ) : null}
-
-      {isEnded && isWinner ? (
-        <View style={[styles.calloutCard, styles.winnerCard]}>
-          <View style={styles.calloutHeader}>
-            <AppIcon name="trophy" size={18} color={Colors.secondary} />
-            <Text style={styles.calloutTitle}>{t('auction.winnerTitle')}</Text>
-          </View>
-          <Text style={styles.calloutBody}>
-            {t('auction.winnerMessage', {
-              amount: formatCurrency(finalPrice ?? currentPrice, currency),
-            })}
-          </Text>
-        </View>
-      ) : null}
-
-      {showLoserState ? (
-        <View style={[styles.calloutCard, styles.loserCard]}>
-          <View style={styles.calloutHeader}>
-            <AppIcon name="close-circle" size={18} color={Colors.error} />
-            <Text style={styles.calloutTitle}>{t('auction.auctionEnded')}</Text>
-          </View>
-          <Text style={styles.calloutBody}>{t('auction.loserMessage')}</Text>
-        </View>
-      ) : null}
-
-      {isEnded && (
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          backgroundColor: Colors.slate50,
-          padding: 12,
-          borderRadius: 12,
-          marginTop: 16,
-          borderWidth: 1,
-          borderColor: Colors.slate100,
-        }}>
-          <Text style={{ fontSize: 14, color: Colors.slate500 }}>
+      {isEnded ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+          <Text style={{ fontSize: 13, color: Colors.slate500 }}>
             {t('auction.winner', { defaultValue: 'Kazanan' })}:
           </Text>
           {winnerName ? (
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              backgroundColor: Colors.white,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: 6,
-              borderWidth: 1,
-              borderColor: Colors.slate100,
-            }}>
-              <AppIcon name="trophy-outline" size={14} color={Colors.secondary} />
-              <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate700 }}>
-                {winnerName}
-              </Text>
-            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.slate700 }}>{winnerName}</Text>
           ) : winnerName === undefined ? (
             <ActivityIndicator size="small" color={Colors.secondary} />
           ) : (
-            <Text style={{ fontSize: 14, color: Colors.slate500 }}>
+            <Text style={{ fontSize: 13, color: Colors.slate500 }}>
               {t('auction.resultTitleNoBid', { defaultValue: 'Teklif Alınamadı' })}
             </Text>
           )}
         </View>
-      )}
+      ) : null}
+
+      {isEnded && isWinner ? (
+        <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.auctionGreen, marginTop: 6 }}>
+          {t('auction.winnerTitle')}
+        </Text>
+      ) : null}
+      {showLoserState ? (
+        <Text style={{ fontSize: 13, color: Colors.slate500, marginTop: 6 }}>
+          {t('auction.loserMessage')}
+        </Text>
+      ) : null}
     </View>
   );
 }

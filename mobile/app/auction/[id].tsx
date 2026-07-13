@@ -805,22 +805,22 @@ export default function AuctionDetailScreen() {
               gap: 8,
               marginHorizontal: Spacing.lg,
               marginTop: Spacing.base,
-              paddingHorizontal: Spacing.base,
-              paddingVertical: Spacing.md,
-              borderRadius: 12,
-              backgroundColor: Colors.secondaryContainer,
+              paddingVertical: Spacing.sm,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: Colors.slate100,
             }}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
             onPress={() => router.push(`/auction/event/${auction.eventId}` as never)}
           >
-            <AppIcon name="albums-outline" size={16} color={Colors.onSecondaryContainer} />
+            <AppIcon name="albums-outline" size={16} color={Colors.slate500} />
             <Text
-              style={{ flex: 1, color: Colors.onSecondaryContainer, fontWeight: '600', fontSize: 13 }}
+              style={{ flex: 1, color: Colors.slate700, fontWeight: '600', fontSize: 13 }}
               numberOfLines={1}
             >
               {eventDetails.event.title}
             </Text>
-            <AppIcon name="chevron-forward" size={14} color={Colors.onSecondaryContainer} />
+            <AppIcon name="chevron-forward" size={14} color={Colors.slate400} />
           </TouchableOpacity>
         ) : null}
 
@@ -906,29 +906,13 @@ export default function AuctionDetailScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: 6,
-                  marginTop: Spacing.base,
-                  paddingVertical: Spacing.sm,
-                  paddingHorizontal: Spacing.base,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: Colors.slate200,
-                  backgroundColor: Colors.white,
+                  justifyContent: 'space-between',
                 }}
               >
-                <AppIcon name="pricetags-outline" size={15} color={Colors.slate600} />
                 <Text style={{ fontSize: 13, color: Colors.slate500 }}>
                   {t('auction.estimatedValue', { defaultValue: 'Tahmini Değer' })}
                 </Text>
-                <Text
-                  style={{
-                    flex: 1,
-                    textAlign: 'right',
-                    fontSize: 15,
-                    fontWeight: '700',
-                    color: Colors.onSurface,
-                  }}
-                >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.slate800 }}>
                   {est}
                 </Text>
               </View>
@@ -988,57 +972,38 @@ export default function AuctionDetailScreen() {
             ].filter((r) => r.value && String(r.value).trim());
             if (rows.length === 0) return null;
             return (
-              <View style={{ marginTop: Spacing.base }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '700',
-                    color: Colors.slate400,
-                    textTransform: 'uppercase',
-                    letterSpacing: 1,
-                    marginBottom: Spacing.sm,
-                  }}
-                >
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginBottom: 2 }}>
                   {t('auction.auctionInfoTitle', { defaultValue: 'Müzayede Bilgileri' })}
                 </Text>
-                <View
-                  style={{
-                    backgroundColor: Colors.slate50,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: Colors.slate100,
-                    paddingHorizontal: Spacing.base,
-                  }}
-                >
-                  {rows.map((row, idx) => (
-                    <View
-                      key={row.key}
+                {rows.map((row, idx) => (
+                  <View
+                    key={row.key}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 16,
+                      paddingVertical: 11,
+                      borderBottomWidth: idx === rows.length - 1 ? 0 : 1,
+                      borderBottomColor: Colors.slate100,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: Colors.slate500 }}>{row.label}</Text>
+                    <Text
                       style={{
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: Spacing.base,
-                        paddingVertical: Spacing.sm,
-                        borderBottomWidth: idx === rows.length - 1 ? 0 : 1,
-                        borderBottomColor: Colors.slate100,
+                        flex: 1,
+                        textAlign: 'right',
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: Colors.slate800,
                       }}
+                      numberOfLines={2}
                     >
-                      <Text style={{ fontSize: 13, color: Colors.slate400 }}>{row.label}</Text>
-                      <Text
-                        style={{
-                          flex: 1,
-                          textAlign: 'right',
-                          fontSize: 15,
-                          fontWeight: '600',
-                          color: Colors.slate800,
-                        }}
-                        numberOfLines={2}
-                      >
-                        {row.value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                      {row.value}
+                    </Text>
+                  </View>
+                ))}
               </View>
             );
           })()}
@@ -1053,34 +1018,52 @@ export default function AuctionDetailScreen() {
               || [product?.originRegion, product?.originCountry]
                 .filter((p) => p && String(p).trim())
                 .join(', ');
+            const delivery = product?.deliveryTemplateDomestic?.trim();
+            const desi = product?.desiDomestic?.trim();
+            const lines: { icon: string; text: string }[] = [];
+            if (location) {
+              lines.push({
+                icon: 'location-outline',
+                text: `${t('auction.itemLocatedIn', { defaultValue: 'Ürün konumu' })}: ${location}`,
+              });
+            }
+            if (delivery) {
+              lines.push({
+                icon: 'cube-outline',
+                text: `${t('auction.deliveryLabel', { defaultValue: 'Teslimat' })}: ${delivery}`,
+              });
+            }
+            if (desi) {
+              lines.push({
+                icon: 'resize-outline',
+                text: `${t('auction.desiLabel', { defaultValue: 'Desi (yurt içi)' })}: ${desi}`,
+              });
+            }
+            lines.push({
+              icon: 'card-outline',
+              text: t('auction.acceptedPayments', {
+                defaultValue: 'Kredi Kartı · Endemigo Cüzdan',
+              }),
+            });
             return (
-              <View style={{ marginTop: Spacing.lg }}>
-                <Text
-                  style={{
-                    fontSize: 17,
-                    fontWeight: '700',
-                    color: Colors.onSurface,
-                    marginBottom: Spacing.sm,
-                  }}
-                >
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginBottom: 8 }}>
                   {t('auction.shippingPaymentTitle', { defaultValue: 'Kargo ve Ödeme' })}
                 </Text>
-                {location ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <AppIcon name="location-outline" size={16} color={Colors.slate500} />
-                    <Text style={{ fontSize: 14, color: Colors.slate700, flex: 1 }}>
-                      {t('auction.itemLocatedIn', { defaultValue: 'Ürün konumu' })}: {location}
-                    </Text>
+                {lines.map((line, idx) => (
+                  <View
+                    key={line.icon}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'flex-start',
+                      gap: 6,
+                      marginBottom: idx === lines.length - 1 ? 0 : 6,
+                    }}
+                  >
+                    <AppIcon name={line.icon} size={16} color={Colors.slate500} style={{ marginTop: 1 }} />
+                    <Text style={{ fontSize: 14, color: Colors.slate700, flex: 1 }}>{line.text}</Text>
                   </View>
-                ) : null}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <AppIcon name="card-outline" size={16} color={Colors.slate500} />
-                  <Text style={{ fontSize: 14, color: Colors.slate700, flex: 1 }}>
-                    {t('auction.acceptedPayments', {
-                      defaultValue: 'Kredi Kartı · Endemigo Cüzdan',
-                    })}
-                  </Text>
-                </View>
+                ))}
               </View>
             );
           })()}
@@ -1092,19 +1075,18 @@ export default function AuctionDetailScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                marginTop: Spacing.base,
                 paddingVertical: 14,
-                borderRadius: 14,
-                borderWidth: 1.5,
-                borderColor: Colors.auctionGreen,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: Colors.slate300,
                 backgroundColor: Colors.white,
               }}
               onPress={handleAskQuestion}
               disabled={startNegotiation.isPending}
               activeOpacity={0.85}
             >
-              <AppIcon name="chatbubble-ellipses-outline" size={18} color={Colors.auctionGreen} />
-              <Text style={{ color: Colors.auctionGreen, fontWeight: '700', fontSize: 15 }}>
+              <AppIcon name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
+              <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: 15 }}>
                 {t('product.askQuestion', { defaultValue: 'Soru Sor' })}
               </Text>
             </TouchableOpacity>
@@ -1173,8 +1155,8 @@ export default function AuctionDetailScreen() {
             const siblings = (eventDetails?.lots ?? []).filter((l) => l.id !== id);
             if (siblings.length === 0) return null;
             return (
-              <View style={{ marginTop: Spacing.lg }}>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
                   {t('auction.moreFromAuction', { defaultValue: 'Bu Müzayededen Diğer Ürünler' })}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1216,8 +1198,8 @@ export default function AuctionDetailScreen() {
               .slice(0, 12);
             if (related.length === 0) return null;
             return (
-              <View style={{ marginTop: Spacing.lg }}>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginBottom: Spacing.sm }}>
                   {t('auction.relatedItems', { defaultValue: 'İlgili Ürünler' })}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>

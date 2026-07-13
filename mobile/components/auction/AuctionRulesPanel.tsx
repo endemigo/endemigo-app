@@ -1,11 +1,9 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import type { TFunction } from 'i18next';
 
 import { Colors } from '../../constants/theme';
 import { formatCurrency } from '../../utils/transactionFormatters';
-import { styles } from './AuctionRulesPanel.styles';
 
 type AuctionRulesPanelProps = {
   sellerName?: string | null;
@@ -24,9 +22,9 @@ type AuctionRulesPanelProps = {
   t: TFunction;
 };
 
+// Minimal / düz kurallar paneli: story kartı + metrik grid yerine düz açıklama
+// metni + ince-ayraçlı etiket/değer satırları. Yalnız tekil lot ekranında.
 export function AuctionRulesPanel({
-  sellerName,
-  categoryName,
   conditionLabel,
   description,
   auctionTypeLabel,
@@ -40,21 +38,14 @@ export function AuctionRulesPanel({
   culturalAssetRestricted,
   t,
 }: AuctionRulesPanelProps) {
-  const rules = [
+  const rows = [
+    { key: 'condition', label: t('auction.conditionLabel'), value: conditionLabel },
+    { key: 'type', label: t('auction.ruleAuctionType'), value: auctionTypeLabel },
+    { key: 'increment', label: t('auction.ruleIncrement'), value: formatCurrency(minIncrement) },
     {
-      icon: 'time-outline' as const,
-      title: t('auction.ruleAuctionType'),
-      body: auctionTypeLabel,
-    },
-    {
-      icon: 'trending-up-outline' as const,
-      title: t('auction.ruleIncrement'),
-      body: formatCurrency(minIncrement),
-    },
-    {
-      icon: 'flag-outline' as const,
-      title: t('auction.ruleReserve'),
-      body: reservePrice
+      key: 'reserve',
+      label: t('auction.ruleReserve'),
+      value: reservePrice
         ? t('auction.reserveDetail', {
             amount: formatCurrency(reservePrice),
             status: reserveMet ? t('auction.reserveMet') : t('auction.reserveNotMet'),
@@ -62,9 +53,9 @@ export function AuctionRulesPanel({
         : t('auction.reserveDisabled'),
     },
     {
-      icon: 'refresh-circle-outline' as const,
-      title: t('auction.ruleExtensions'),
-      body: antiSnipingEnabled
+      key: 'extensions',
+      label: t('auction.ruleExtensions'),
+      value: antiSnipingEnabled
         ? t('auction.extensionDetail', {
             seconds: extensionSeconds ?? 0,
             current: currentExtensions ?? 0,
@@ -73,63 +64,46 @@ export function AuctionRulesPanel({
         : t('auction.extensionDisabled'),
     },
     {
-      icon: 'alert-circle-outline' as const,
-      title: t('auction.ruleRestriction'),
-      body: culturalAssetRestricted
+      key: 'restriction',
+      label: t('auction.ruleRestriction'),
+      value: culturalAssetRestricted
         ? t('auction.restrictionEnabled')
         : t('auction.restrictionDisabled'),
     },
   ];
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{t('auction.storyTitle')}</Text>
-        <Text style={styles.sectionBody}>{t('auction.storySubtitle')}</Text>
-      </View>
+    <View>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginBottom: 6 }}>
+        {t('auction.storyTitle')}
+      </Text>
+      <Text style={{ fontSize: 14, color: Colors.slate600, lineHeight: 21 }}>
+        {description || t('auction.storyFallback')}
+      </Text>
 
-      <View style={styles.storyCard}>
-        <Text style={styles.description}>
-          {description || t('auction.storyFallback')}
-        </Text>
-
-        <View style={styles.metaGrid}>
-          <View style={styles.metaCard}>
-            <Text style={styles.metaLabel}>{t('auction.heroSellerLabel')}</Text>
-            <Text style={styles.metaValue}>
-              {sellerName || t('product.unknownSeller')}
+      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.onSurface, marginTop: 20, marginBottom: 2 }}>
+        {t('auction.rulesTitle')}
+      </Text>
+      <View>
+        {rows.map((row, idx) => (
+          <View
+            key={row.key}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 16,
+              paddingVertical: 11,
+              borderBottomWidth: idx === rows.length - 1 ? 0 : 1,
+              borderBottomColor: Colors.slate100,
+            }}
+          >
+            <Text style={{ fontSize: 14, color: Colors.slate500 }}>{row.label}</Text>
+            <Text
+              style={{ flex: 1, textAlign: 'right', fontSize: 14, fontWeight: '600', color: Colors.slate800 }}
+            >
+              {row.value}
             </Text>
-          </View>
-          <View style={styles.metaCard}>
-            <Text style={styles.metaLabel}>{t('auction.categoryLabel')}</Text>
-            <Text style={styles.metaValue}>
-              {categoryName || t('auction.categoryFallback')}
-            </Text>
-          </View>
-          <View style={styles.metaCard}>
-            <Text style={styles.metaLabel}>{t('auction.conditionLabel')}</Text>
-            <Text style={styles.metaValue}>{conditionLabel}</Text>
-          </View>
-          <View style={styles.metaCard}>
-            <Text style={styles.metaLabel}>{t('auction.ruleAuctionType')}</Text>
-            <Text style={styles.metaValue}>{auctionTypeLabel}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{t('auction.rulesTitle')}</Text>
-        <Text style={styles.sectionBody}>{t('auction.rulesSubtitle')}</Text>
-      </View>
-
-      <View style={styles.rulesGrid}>
-        {rules.map((rule) => (
-          <View key={rule.title} style={styles.ruleCard}>
-            <View style={styles.ruleIconWrap}>
-              <Ionicons name={rule.icon} size={18} color={Colors.primary} />
-            </View>
-            <Text style={styles.ruleTitle}>{rule.title}</Text>
-            <Text style={styles.ruleBody}>{rule.body}</Text>
           </View>
         ))}
       </View>
