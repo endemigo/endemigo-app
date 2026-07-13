@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Keyboard } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/theme';
 import { useModalStore } from '../../store/modalStore';
@@ -26,6 +26,9 @@ export function GlobalModal() {
     let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (isVisible) {
+      // Klavye açıkken modal ortalanınca alt yarısı (butonlar) klavye altında
+      // kalıyordu; alert için klavye gereksiz — kapatıp tam ekranda ortalarız.
+      Keyboard.dismiss();
       opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) });
     } else {
       opacity.value = withTiming(0, { duration: 200, easing: Easing.in(Easing.ease) });
@@ -56,12 +59,12 @@ export function GlobalModal() {
   const getIcon = () => {
     switch (options.type) {
       case 'success':
-        return <Ionicons name="checkmark-circle" size={48} color={Colors.auctionGreen} />;
+        return <AppIcon name="checkmark-circle" size={48} color={Colors.auctionGreen} />;
       case 'error':
-        return <Ionicons name="close-circle" size={48} color={Colors.error} />;
+        return <AppIcon name="close-circle" size={48} color={Colors.error} />;
       case 'info':
       default:
-        return <Ionicons name="information-circle" size={48} color={Colors.primary} />;
+        return <AppIcon name="information-circle" size={48} color={Colors.primary} />;
     }
   };
 

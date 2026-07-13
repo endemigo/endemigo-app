@@ -7,7 +7,7 @@ import {
 } from '@endemigo/shared';
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, RefreshControl, ScrollView, TextInput, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { Redirect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -202,7 +202,7 @@ function HomeLiveAuctionsSection({
                   {event.title}
                 </Text>
                 <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>
-                  <Ionicons name="time-outline" size={11} color={Colors.primary} />
+                  <AppIcon name="time-outline" size={11} color={Colors.primary} />
                   {' '}{formatStartsIn(new Date(event.startTime).getTime(), now, locale, t)}
                 </Text>
                 {event.lotCount !== undefined && (
@@ -297,9 +297,9 @@ const GEO_BADGE_LOGOS = {
   PGI: require('../assets/images/geo-indications/pgi.png'),
   TSG: require('../assets/images/geo-indications/tsg.png'),
 } as const;
-const TILE_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; route: string }> = {
+const TILE_META: Record<string, { icon: AppIconName; color: string; route: string }> = {
   'home-tile-buy-now': { icon: 'bag-handle', color: Colors.primary, route: '/buy-now' },
-  'home-tile-auction': { icon: 'hammer', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
+  'home-tile-auction': { icon: 'pricetags-outline', color: Colors.auctionGreen, route: '/(tabs)/auctions' },
 };
 export default function HomeScreen() {
   const router = useRouter();
@@ -541,6 +541,19 @@ export default function HomeScreen() {
                     router.push({ pathname: '/(tabs)/explore', params: { q } });
                   }}
                 />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.search', { defaultValue: 'Ara' })}
+                  onPress={() => {
+                    const q = searchQuery.trim();
+                    setSearchQuery('');
+                    router.push({ pathname: '/(tabs)/explore', params: q ? { q } : {} });
+                  }}
+                >
+                  <AppIcon name="search-outline" size={20} color={Colors.slate400} />
+                </TouchableOpacity>
               </View>
               <View style={styles.searchActions}>
                 <TouchableOpacity
@@ -550,7 +563,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.profile')}
                 >
-                  <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+                  <AppIcon name="person-circle-outline" size={20} color={Colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.searchActionButton, styles.notificationActionButton]}
@@ -578,7 +591,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.notifications')}
                 >
-                  <Ionicons name="notifications-outline" size={19} color={Colors.primary} />
+                  <AppIcon name="notifications-outline" size={19} color={Colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -601,7 +614,7 @@ export default function HomeScreen() {
                 color: Colors.primary,
                 route: tile.cta.route,
               };
-              const isAuctionTile = meta.icon === 'hammer';
+              const isAuctionTile = tile.id === 'home-tile-auction';
 
               return (
                 <TouchableOpacity
@@ -611,7 +624,7 @@ export default function HomeScreen() {
                   onPress={() => router.push((tile.cta.route || meta.route) as never)}
                 >
                   <View style={[styles.tileIcon, { backgroundColor: meta.color }]}>
-                    <Ionicons name={meta.icon} size={28} color={Colors.white} />
+                    <AppIcon name={meta.icon} size={28} color={Colors.white} />
                   </View>
                   <Text style={styles.tileTitle}>
                     {resolveLocalizedText(tile.title, mobileLocale, t('home.buyNow'))}
@@ -698,7 +711,7 @@ export default function HomeScreen() {
                           </View>
                         ) : (
                           <View style={styles.listingGeoBadge}>
-                            <Ionicons name="ribbon" size={10} color={Colors.white} />
+                            <AppIcon name="ribbon" size={10} color={Colors.white} />
                             <Text style={styles.listingGeoBadgeText}>{t('product.geoIndicationBadge')}</Text>
                           </View>
                         )
@@ -724,7 +737,7 @@ export default function HomeScreen() {
               <Text style={styles.listingSeeAllText}>
                 {resolveLocalizedText(listingsSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               </Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              <AppIcon name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
 
           </React.Fragment>
@@ -775,7 +788,7 @@ export default function HomeScreen() {
                       />
                     ) : (
                       <View style={styles.categoryIcon}>
-                        <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color={color} />
+                        <AppIcon name={icon as AppIconName} size={24} color={color} />
                       </View>
                     )}
                     <Text style={styles.categoryName}>{cat.name}</Text>
@@ -884,7 +897,7 @@ export default function HomeScreen() {
                           </View>
                         ) : (
                           <View style={styles.recentGeoBadge}>
-                            <Ionicons name="ribbon" size={10} color={Colors.white} />
+                            <AppIcon name="ribbon" size={10} color={Colors.white} />
                             <Text style={styles.recentGeoBadgeText}>{t('product.geoIndicationBadge')}</Text>
                           </View>
                         )
@@ -938,7 +951,7 @@ export default function HomeScreen() {
               <Text style={styles.discountedSeeAllText}>
                 {resolveLocalizedText(discountedSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               </Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              <AppIcon name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>
         ) : null;
@@ -976,7 +989,7 @@ export default function HomeScreen() {
               <Text style={styles.discountedSeeAllText}>
                 {resolveLocalizedText(mostLikedSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               </Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+              <AppIcon name="arrow-forward" size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>
         ) : null;
@@ -985,7 +998,7 @@ export default function HomeScreen() {
           <View key={moduleId} style={styles.trustBar}>
             <View style={styles.trustItem}>
               <View style={[styles.trustIcon, { backgroundColor: `${Colors.secondary}1A` }]}>
-                <Ionicons name="flash" size={18} color={Colors.secondary} />
+                <AppIcon name="flash" size={18} color={Colors.secondary} />
               </View>
               <View>
                 <Text style={styles.trustTitle}>{t('home.trustFast')}</Text>
@@ -995,7 +1008,7 @@ export default function HomeScreen() {
             <View style={styles.trustDivider} />
             <View style={styles.trustItem}>
               <View style={[styles.trustIcon, { backgroundColor: `${Colors.primary}1A` }]}>
-                <Ionicons name="shield-checkmark" size={18} color={Colors.primary} />
+                <AppIcon name="shield-checkmark" size={18} color={Colors.primary} />
               </View>
               <View>
                 <Text style={styles.trustTitle}>{t('home.trustOriginal')}</Text>
@@ -1005,7 +1018,7 @@ export default function HomeScreen() {
             <View style={styles.trustDivider} />
             <View style={styles.trustItem}>
               <View style={[styles.trustIcon, { backgroundColor: `${Colors.accent}1A` }]}>
-                <Ionicons name="heart" size={18} color={Colors.accent} />
+                <AppIcon name="heart" size={18} color={Colors.accent} />
               </View>
               <View>
                 <Text style={styles.trustTitle}>{t('home.trustFair')}</Text>
@@ -1072,7 +1085,7 @@ export default function HomeScreen() {
               <Text style={styles.seeAllBlogsText}>
                 {resolveLocalizedText(blogSection.seeAllLabel, mobileLocale, t('home.seeAll'))}
               </Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
+              <AppIcon name="arrow-forward" size={16} color={Colors.primary} />
             </TouchableOpacity>
           </View>
         ) : null;
@@ -1090,7 +1103,7 @@ export default function HomeScreen() {
                 <View style={styles.trustChipWrap}>
                   {TRUST_POINT_KEYS.slice(0, 4).map((key) => (
                     <View key={key} style={styles.trustChip}>
-                      <Ionicons name="checkmark-circle" size={14} color={Colors.secondary} />
+                      <AppIcon name="checkmark-circle" size={14} color={Colors.secondary} />
                       <Text style={styles.trustChipText}>{t(key)}</Text>
                     </View>
                   ))}
@@ -1120,7 +1133,7 @@ export default function HomeScreen() {
                     router.push(targetRoute as never);
                   }}
                 >
-                  <Ionicons name="notifications-outline" size={18} color={Colors.white} />
+                  <AppIcon name="notifications-outline" size={18} color={Colors.white} />
                   <Text style={styles.notifyButtonText}>
                     {resolveLocalizedText(trustBlock.cta?.label, mobileLocale, t('home.notifyMe'))}
                   </Text>

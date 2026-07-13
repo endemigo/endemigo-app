@@ -13,7 +13,7 @@ export const styles = StyleSheet.create({
   },
   globalFloatingCartButton: {
     position: 'absolute',
-    bottom: 82,
+    bottom: 100,
     right: 15,
     backgroundColor: Colors.primary,
     width: 44,

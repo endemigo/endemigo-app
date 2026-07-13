@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, Modal, type ImageSourcePropType, Dimensions, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import Animated, {
   Easing,
@@ -111,15 +112,15 @@ function TopBar({
   return (
     <View style={styles.topBar}>
       <TouchableOpacity style={styles.topBarIconButton} activeOpacity={0.8} onPress={onBack}>
-        <Ionicons name="chevron-back" size={20} color={Colors.onSurface} />
+        <AppIcon name="chevron-back" size={20} color={Colors.onSurface} />
       </TouchableOpacity>
       <Text style={styles.topBarTitle} numberOfLines={1}>{title}</Text>
       <View style={styles.topBarActions}>
         <TouchableOpacity style={styles.topBarIconButton} activeOpacity={0.8} onPress={onShare}>
-          <Ionicons name="share-outline" size={18} color={Colors.onSurface} />
+          <AppIcon name="share-outline" size={18} color={Colors.onSurface} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarIconButton} activeOpacity={0.8} onPress={onFavorite}>
-          <Ionicons
+          <AppIcon
             name={isFavoriteActive ? 'heart' : 'heart-outline'}
             size={18}
             color={isFavoriteActive ? Colors.accent : Colors.onSurface}
@@ -192,29 +193,29 @@ function PurchasePanel({
 
       {isAskPrice ? (
         <TouchableOpacity style={styles.primaryActionButton} activeOpacity={0.85} onPress={onAskPrice}>
-          <Ionicons name="cash-outline" size={16} color={Colors.white} />
+          <AppIcon name="cash-outline" size={16} color={Colors.white} />
           <Text style={styles.primaryActionText}>{t('product.askPrice')}</Text>
         </TouchableOpacity>
       ) : cartQuantity > 0 ? (
         <View style={styles.inlineQuantityStepper}>
           <TouchableOpacity style={styles.inlineQuantityButton} activeOpacity={0.85} onPress={onDecreaseQuantity}>
-            <Ionicons name="remove" size={16} color={Colors.white} />
+            <AppIcon name="remove" size={16} color={Colors.white} />
           </TouchableOpacity>
           <Text style={styles.inlineQuantityValue}>{`${cartQuantity} ${cartUnitLabel} ${t('product.inCartSuffix')}`}</Text>
           <TouchableOpacity style={styles.inlineQuantityButton} activeOpacity={0.85} onPress={onIncreaseQuantity}>
-            <Ionicons name="add" size={16} color={Colors.white} />
+            <AppIcon name="add" size={16} color={Colors.white} />
           </TouchableOpacity>
         </View>
       ) : (
         <TouchableOpacity style={styles.primaryActionButton} activeOpacity={0.85} onPress={onAddToCart}>
-          <Ionicons name="cart-outline" size={16} color={Colors.white} />
+          <AppIcon name="cart-outline" size={16} color={Colors.white} />
           <Text style={styles.primaryActionText}>{t('product.addToCart')}</Text>
         </TouchableOpacity>
       )}
 
       {Boolean(product.askQuestionEnabled) && (
         <TouchableOpacity style={styles.secondaryActionButton} activeOpacity={0.85} onPress={onAskQuestion}>
-          <Ionicons name="chatbubble-outline" size={16} color={Colors.onSurface} />
+          <AppIcon name="chatbubble-outline" size={16} color={Colors.onSurface} />
           <Text style={styles.secondaryActionText}>{t('product.askQuestion', { defaultValue: 'Soru Sor' })}</Text>
         </TouchableOpacity>
       )}
@@ -225,6 +226,7 @@ function PurchasePanel({
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { data: product, isLoading } = useProduct(id);
   const { data: auction } = useAuctionByProduct(id, product?.listingType === ListingType.AUCTION);
@@ -408,7 +410,7 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
+        <AppIcon name="alert-circle-outline" size={48} color={Colors.error} />
         <Text style={styles.errorText}>{t('product.notFound')}</Text>
       </View>
     );
@@ -743,7 +745,7 @@ export default function ProductDetailScreen() {
             }
           }}
         >
-          <Ionicons
+          <AppIcon
             name={auction.status === AuctionStatus.ACTIVE ? 'radio-outline' : 'time-outline'}
             size={16}
             color={Colors.white}
@@ -756,12 +758,12 @@ export default function ProductDetailScreen() {
             {eventDetails?.event?.title ? `${eventDetails.event.title} | ` : ''}
             {t('auction.lotNumber', { defaultValue: 'Lot Kodu' })}: {auction.lotNumber}
           </Text>
-          <Ionicons name="chevron-forward" size={14} color={Colors.white} />
+          <AppIcon name="chevron-forward" size={14} color={Colors.white} />
         </TouchableOpacity>
       )}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollView}
+        contentContainerStyle={[styles.scrollView, { paddingBottom: insets.bottom + 24 }]}
         scrollEventThrottle={16}
         onScroll={({ nativeEvent }) => {
           // Ask-price ürünlerde de sticky CTA gösterilir ("Fiyat Sor" varyantı) —
@@ -799,7 +801,7 @@ export default function ProductDetailScreen() {
             <Text style={styles.title}>{product.title}</Text>
             {(product.favoriteCount ?? 0) > 0 ? (
               <View style={styles.favoriteMeta}>
-                <Ionicons name="heart" size={13} color={Colors.accent} />
+                <AppIcon name="heart" size={13} color={Colors.accent} />
                 <Text style={styles.favoriteMetaText}>
                   {t('product.favoriteCount', {
                     count: product.favoriteCount ?? 0,
@@ -823,7 +825,7 @@ export default function ProductDetailScreen() {
                 <Text style={styles.brandCardLabel}>{t('listing.brand')}</Text>
                 <Text style={styles.brandCardValue} numberOfLines={1}>{brandName}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.onSurfaceVariant} />
+              <AppIcon name="chevron-forward" size={16} color={Colors.onSurfaceVariant} />
             </TouchableOpacity>
           ) : null}
 
@@ -832,7 +834,7 @@ export default function ProductDetailScreen() {
               <View style={styles.geoInfoHeader}>
                 <View style={styles.geoInfoTitleRow}>
                   <View style={styles.geoInfoTitleIconWrap}>
-                    <Ionicons name="ribbon-outline" size={14} color={Colors.primary} />
+                    <AppIcon name="ribbon-outline" size={14} color={Colors.primary} />
                   </View>
                   <Text style={styles.geoInfoTitle}>{t('product.geoInfoTitle')}</Text>
                 </View>
@@ -877,7 +879,7 @@ export default function ProductDetailScreen() {
                     }
                   }}
                 >
-                  <Ionicons name="chevron-back" size={14} color={Colors.onSurfaceVariant} />
+                  <AppIcon name="chevron-back" size={14} color={Colors.onSurfaceVariant} />
                   <Text style={styles.lotNavButtonText}>{t('common.previous', { defaultValue: 'Önceki' })}</Text>
                 </TouchableOpacity>
 
@@ -896,7 +898,7 @@ export default function ProductDetailScreen() {
                   }}
                 >
                   <Text style={styles.lotNavButtonText}>{t('common.next', { defaultValue: 'Sonraki' })}</Text>
-                  <Ionicons name="chevron-forward" size={14} color={Colors.onSurfaceVariant} />
+                  <AppIcon name="chevron-forward" size={14} color={Colors.onSurfaceVariant} />
                 </TouchableOpacity>
               </View>
 
@@ -923,7 +925,7 @@ export default function ProductDetailScreen() {
                   }
                 }}
               >
-                <Ionicons name="hammer-outline" size={16} color={Colors.white} />
+                <AppIcon name="hammer-outline" size={16} color={Colors.white} />
                 <Text style={styles.auctionBidActionText}>{t('auction.placeBid', { defaultValue: 'Teklif Ver' })}</Text>
               </TouchableOpacity>
 
@@ -932,7 +934,7 @@ export default function ProductDetailScreen() {
                 activeOpacity={0.85}
                 onPress={handleToggleFavorite}
               >
-                <Ionicons
+                <AppIcon
                   name={favoriteActive ? 'heart' : 'heart-outline'}
                   size={16}
                   color={favoriteActive ? Colors.accent : Colors.onSurface}
@@ -947,7 +949,7 @@ export default function ProductDetailScreen() {
             // sepet paneli yerine bilgilendirme gösterilir.
             <View style={styles.purchaseCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="hammer-outline" size={18} color={Colors.primary} />
+                <AppIcon name="hammer-outline" size={18} color={Colors.primary} />
                 <Text style={{ flex: 1, color: Colors.onSurfaceVariant, fontSize: 14 }}>
                   {t('product.auctionOnlyNotice', {
                     defaultValue: 'Bu ürün yalnızca müzayede etkinliği üzerinden satılır.',
@@ -1108,7 +1110,7 @@ export default function ProductDetailScreen() {
               pointerEvents="none"
               style={[styles.tabsScrollHint, tabsHintDirection === 'left' ? styles.tabsScrollHintLeft : styles.tabsScrollHintRight]}
             >
-              <Ionicons
+              <AppIcon
                 name={tabsHintDirection === 'left' ? 'chevron-back' : 'chevron-forward'}
                 size={14}
                 color={Colors.onSurfaceVariant}
@@ -1129,7 +1131,7 @@ export default function ProductDetailScreen() {
               {hasDisplayValue(currentLocationText(product)) ? (
                 <View style={styles.metaCard}>
                   <View style={styles.metaIconBadge}>
-                    <Ionicons name="location-outline" size={15} color={Colors.secondary} />
+                    <AppIcon name="location-outline" size={15} color={Colors.secondary} />
                   </View>
                   <View>
                     <Text style={styles.metaTitle}>{toTurkishUppercase(t('product.metaProductionPlace'))}</Text>
@@ -1142,7 +1144,7 @@ export default function ProductDetailScreen() {
               {hasDisplayValue(resolvePrimaryProductionSeason(product, t)) ? (
                 <View style={styles.metaCard}>
                   <View style={styles.metaIconBadge}>
-                    <Ionicons name="calendar-outline" size={15} color={Colors.primary} />
+                    <AppIcon name="calendar-outline" size={15} color={Colors.primary} />
                   </View>
                   <View>
                     <Text style={styles.metaTitle}>{toTurkishUppercase(t('product.metaProductionSeason'))}</Text>
@@ -1169,7 +1171,7 @@ export default function ProductDetailScreen() {
                 <Text style={styles.reviewScoreText}>{reviewRatingText}</Text>
                 <View style={styles.reviewStarsRow}>
                   {Array.from({ length: 5 }).map((_, index) => (
-                    <Ionicons
+                    <AppIcon
                       key={`rating-star-${index}`}
                       name={normalizedRating !== null && index < Math.floor(normalizedRating) ? 'star' : 'star-outline'}
                       size={16}
@@ -1198,7 +1200,7 @@ export default function ProductDetailScreen() {
               onPress={() => router.push(`/seller/${product.sellerId}` as never)}
             >
               <View style={styles.sellerInfoIconWrap}>
-                <Ionicons name="person-circle-outline" size={20} color={Colors.primary} />
+                <AppIcon name="person-circle-outline" size={20} color={Colors.primary} />
               </View>
               <View style={styles.sellerInfoTextWrap}>
                 <Text style={styles.sellerInfoLabel}>{t('product.seller')}</Text>
@@ -1208,7 +1210,7 @@ export default function ProductDetailScreen() {
               </View>
               <View style={styles.sellerInfoCtaWrap}>
                 <Text style={styles.sellerInfoCtaText}>{t('product.viewSellerProfile')}</Text>
-                <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+                <AppIcon name="chevron-forward" size={16} color={Colors.primary} />
               </View>
             </TouchableOpacity>
           ) : null}
@@ -1247,7 +1249,7 @@ export default function ProductDetailScreen() {
                 activeOpacity={0.8}
                 onPress={() => setReviewModalVisible(false)}
               >
-                <Ionicons name="close" size={18} color={Colors.onSurface} />
+                <AppIcon name="close" size={18} color={Colors.onSurface} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -1255,7 +1257,7 @@ export default function ProductDetailScreen() {
                 <View key={item.id ?? `${item.comment}-${index}`} style={styles.reviewModalItem}>
                   <View style={styles.reviewModalStarsRow}>
                     {Array.from({ length: 5 }).map((_, starIndex) => (
-                      <Ionicons
+                      <AppIcon
                         key={`modal-star-${index}-${starIndex}`}
                         name={starIndex < Math.floor(Math.max(0, Math.min(5, item.rating))) ? 'star' : 'star-outline'}
                         size={14}
@@ -1287,7 +1289,7 @@ export default function ProductDetailScreen() {
                 activeOpacity={0.8}
                 onPress={() => setBadgeModalVisible(false)}
               >
-                <Ionicons name="close" size={18} color={Colors.onSurface} />
+                <AppIcon name="close" size={18} color={Colors.onSurface} />
               </TouchableOpacity>
             </View>
             {selectedBadge ? (
@@ -1305,7 +1307,7 @@ export default function ProductDetailScreen() {
       {product.listingType !== ListingType.AUCTION && (
         <Animated.View
           pointerEvents={showStickyAddToCart ? 'auto' : 'none'}
-          style={[styles.stickyCartCtaWrap, stickyCtaAnimatedStyle]}
+          style={[styles.stickyCartCtaWrap, { bottom: insets.bottom + Spacing.base }, stickyCtaAnimatedStyle]}
         >
           <View style={styles.stickyCartCtaRow}>
             <TouchableOpacity
@@ -1313,14 +1315,14 @@ export default function ProductDetailScreen() {
               activeOpacity={0.85}
               onPress={() => showToast({ message: t('common.comingSoon', { defaultValue: 'Yakında' }), type: 'info' })}
             >
-              <Ionicons name="share-outline" size={18} color={Colors.onSurfaceVariant} />
+              <AppIcon name="share-outline" size={18} color={Colors.onSurfaceVariant} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.stickyCartUtilityButton}
               activeOpacity={0.85}
               onPress={handleToggleFavorite}
             >
-              <Ionicons
+              <AppIcon
                 name={favoriteActive ? 'heart' : 'heart-outline'}
                 size={18}
                 color={favoriteActive ? Colors.accent : Colors.onSurfaceVariant}
@@ -1328,22 +1330,22 @@ export default function ProductDetailScreen() {
             </TouchableOpacity>
             {isAskPrice ? (
               <TouchableOpacity style={styles.stickyCartCtaButton} activeOpacity={0.85} onPress={handleAskPrice}>
-                <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.white} />
+                <AppIcon name="chatbubble-ellipses-outline" size={16} color={Colors.white} />
                 <Text style={styles.stickyCartCtaText}>{t('product.askPrice')}</Text>
               </TouchableOpacity>
             ) : cartQuantity > 0 ? (
               <View style={styles.stickyQuantityStepper}>
                 <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleDecreaseQuantity}>
-                  <Ionicons name="remove" size={16} color={Colors.white} />
+                  <AppIcon name="remove" size={16} color={Colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.stickyQuantityValue}>{`${cartQuantity} ${cartUnitLabel} ${t('product.inCartSuffix')}`}</Text>
                 <TouchableOpacity style={styles.stickyQuantityButton} activeOpacity={0.85} onPress={handleIncreaseQuantity}>
-                  <Ionicons name="add" size={16} color={Colors.white} />
+                  <AppIcon name="add" size={16} color={Colors.white} />
                 </TouchableOpacity>
               </View>
             ) : (
               <TouchableOpacity style={styles.stickyCartCtaButton} activeOpacity={0.85} onPress={handleAddToCart}>
-                <Ionicons name="cart-outline" size={16} color={Colors.white} />
+                <AppIcon name="cart-outline" size={16} color={Colors.white} />
                 <Text style={styles.stickyCartCtaText}>{t('product.addToCart')}</Text>
               </TouchableOpacity>
             )}

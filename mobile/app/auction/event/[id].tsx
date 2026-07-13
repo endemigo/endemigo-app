@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Text,
@@ -41,6 +41,7 @@ import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../../co
 import { styles } from './event.styles';
 import { useProduct } from '../../../hooks/useProducts';
 import { getProductImageUri } from '../../../utils/productImages';
+import { formatEstimateRange } from '../../../utils/auctionPresentation';
 import { SUPPORT_PHONE_URL } from '../../../constants/support';
 import { AuctionBidComposer } from '../../../components/auction/AuctionBidComposer';
 import { CardVerificationModal } from '../../../components/auction/CardVerificationModal';
@@ -90,6 +91,8 @@ export default function LiveEventRoomScreen() {
   }, []);
 
   const [biddingLotId, setBiddingLotId] = useState<string | null>(null);
+  // "Kayıt Ol" akışında auth/kart modalı composer açmasın diye bayrak.
+  const registerOnlyRef = useRef(false);
 
   // Local state for ticking countdown timer
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(0);
@@ -770,6 +773,67 @@ export default function LiveEventRoomScreen() {
     });
   };
 
+  // "Müzayedeye Kayıt Ol" akışı — pey composer'ı açmadan yalnız kayıt.
+  // Auth/kart modalları composer açtığı için bu bayrakla bastırılır.
+  const showRegistrationOutcome = (status?: string) => {
+    if (status === 'APPROVED') {
+      showModal({
+        title: t('auction.registrationApprovedTitle', { defaultValue: 'Kaydınız Onaylandı' }),
+        message: t('auction.registrationApprovedMessage', {
+          defaultValue: 'Artık bu müzayedede pey verebilirsiniz.',
+        }),
+        type: 'success',
+        confirmText: t('common.ok'),
+        onConfirm: () => hideModal(),
+      });
+    } else {
+      showModal({
+        title: t('auction.registrationPending', { defaultValue: 'Katılım Onayı Bekleniyor' }),
+        message: t('auction.registrationSubmittedMessage', {
+          defaultValue:
+            'Katılım talebiniz alındı. Onaylandığında bildirim alacaksınız ve pey verebileceksiniz.',
+        }),
+        type: 'info',
+        confirmText: t('common.ok'),
+        onConfirm: () => hideModal(),
+      });
+    }
+  };
+
+  const handleRegisterForAuction = async () => {
+    if (!user) {
+      registerOnlyRef.current = true;
+      setShowAuthWizardModal(true);
+      return;
+    }
+    const hasSavedCard = cardsData?.cards && cardsData.cards.length > 0;
+    if (!hasSavedCard) {
+      registerOnlyRef.current = true;
+      setShowCardModal(true);
+      return;
+    }
+    if (!registrationLotId) return;
+    try {
+      showModal({
+        title: t('common.loading', { defaultValue: 'Yükleniyor...' }),
+        message: t('auction.registeringWithSavedCard', {
+          defaultValue: 'Kayıtlı kartınızla müzayede kaydı oluşturuluyor...',
+        }),
+        type: 'info',
+      });
+      const regRes = await registerMutation.mutateAsync({ auctionId: registrationLotId });
+      await refetchRegistrationStatus();
+      hideModal();
+      showRegistrationOutcome(regRes?.registration?.status);
+    } catch (err) {
+      showModal({
+        title: t('common.error'),
+        message: resolveApiErrorMessage(err, t, 'common.genericError'),
+        type: 'error',
+      });
+    }
+  };
+
   const handleWithdrawBid = () => {
     if (!activeLotId) return;
 
@@ -1125,7 +1189,7 @@ export default function LiveEventRoomScreen() {
         {/* Tab Contents */}
         {activeSubTab === 'catalog' && (
           <View>
-            {user && registrationData?.registration ? (
+            {registrationData?.registration ? (
               registrationData.registration.status === 'APPROVED' ? null : (
                 <TouchableOpacity
                   onPress={
@@ -1180,66 +1244,71 @@ export default function LiveEventRoomScreen() {
                   </Text>
                 </TouchableOpacity>
               )
-            ) : null}
+            ) : (
+              <TouchableOpacity
+                style={styles.registerButton}
+                onPress={handleRegisterForAuction}
+                disabled={registerMutation.isPending}
+                activeOpacity={0.85}
+              >
+                <AppIcon name="add-circle-outline" size={20} color={Colors.white} />
+                <Text style={styles.registerButtonText}>
+                  {t('auction.registerForAuction', { defaultValue: 'Müzayedeye Kayıt Ol' })}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            {sortedLots.map((lot, index) => {
-              const isTimeEnded = lot.endTime ? new Date(lot.endTime).getTime() <= getSynchronizedTime() : false;
-              const isLotEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED || isTimeEnded;
-              const isLotActive = lot.id === activeLotId && !isLotEnded;
+            <View style={styles.lotGrid}>
+              {sortedLots.map((lot, index) => {
+                const isTimeEnded = lot.endTime ? new Date(lot.endTime).getTime() <= getSynchronizedTime() : false;
+                const isLotEnded = lot.status === AuctionStatus.ENDED || lot.status === AuctionStatus.COMPLETED || isTimeEnded;
+                const isLotActive = lot.id === activeLotId && !isLotEnded;
+                const est = formatEstimateRange(lot.estimatedValueMin, lot.estimatedValueMax, eventCurrency);
+                const statusBg = isLotActive
+                  ? Colors.error
+                  : isLotEnded
+                    ? 'rgba(0,0,0,0.6)'
+                    : Colors.accent;
+                const statusLabel = isLotActive
+                  ? t('auctions.live')
+                  : isLotEnded
+                    ? t('auctions.ended')
+                    : t('auctions.waiting');
 
-              return (
-                <TouchableOpacity
-                  key={lot.id}
-                  style={[styles.lotItem, isLotActive && styles.lotItemActive]}
-                  onPress={() => router.push(`/auction/${lot.id}`)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.lotSeqContainer}>
-                    <Text style={[styles.lotSeqText, isLotActive && styles.lotSeqTextActive]}>
-                      #{lot.sequenceNumber ?? (index + 1)}
+                return (
+                  <TouchableOpacity
+                    key={lot.id}
+                    style={styles.lotGridCard}
+                    onPress={() => router.push(`/auction/${lot.id}`)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.lotGridImageWrap, isLotActive && styles.lotGridImageActive]}>
+                      <Image
+                        source={{ uri: lot.productImage || 'https://placehold.co/300x300' }}
+                        style={styles.lotGridImage}
+                      />
+                      <View style={styles.lotGridSeqBadge}>
+                        <Text style={styles.lotGridSeqText}>#{lot.sequenceNumber ?? (index + 1)}</Text>
+                      </View>
+                      <View style={[styles.lotGridStatusBadge, { backgroundColor: statusBg }]}>
+                        <Text style={[styles.lotStatusText, { color: Colors.white }]}>{statusLabel}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.lotGridTitle} numberOfLines={2}>
+                      {lot.productTitle}
                     </Text>
-                  </View>
-                  <Image
-                    source={{ uri: lot.productImage || 'https://placehold.co/100x100' }}
-                    style={styles.lotThumb}
-                  />
-                  <View style={styles.lotDetails}>
-                    <View style={styles.lotTitleRow}>
-                      <Text style={styles.lotItemTitle} numberOfLines={1}>
-                        {lot.productTitle}
+                    {est ? (
+                      <Text style={styles.lotGridEst}>
+                        {t('auction.estimatedValueShort', { defaultValue: 'Tahmini' })}: {est}
                       </Text>
-                      <Text style={styles.lotPrice}>
-                        {formatCurrency(Number(lot.currentPrice), eventCurrency)}
-                      </Text>
-                    </View>
-                    <View style={styles.lotStatusRow}>
-                      {isLotActive ? (
-                        <View style={[styles.lotStatusBadge, { backgroundColor: `${Colors.error}1A` }]}>
-                          <Text style={[styles.lotStatusText, { color: Colors.error }]}>
-                            {t('auctions.live')}
-                          </Text>
-                        </View>
-                      ) : isLotEnded ? (
-                        <View style={[styles.lotStatusBadge, { backgroundColor: Colors.slate100 }]}>
-                          <Text style={[styles.lotStatusText, { color: Colors.slate500 }]}>
-                            {t('auctions.ended')}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.lotStatusBadge, { backgroundColor: `${Colors.accent}1A` }]}>
-                          <Text style={[styles.lotStatusText, { color: Colors.accent }]}>
-                            {t('auctions.waiting')}
-                          </Text>
-                        </View>
-                      )}
-                      {lot.lotNumber && (
-                        <Text style={styles.lotNumberText}>Lot: {lot.lotNumber}</Text>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    ) : null}
+                    <Text style={styles.lotGridPrice}>
+                      {formatCurrency(Number(lot.currentPrice), eventCurrency)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -1441,13 +1510,18 @@ export default function LiveEventRoomScreen() {
               onClose={() => setShowCardModal(false)}
               onVerify={async (cardDetails) => {
                 try {
-                  await registerMutation.mutateAsync({
-                    auctionId: biddingLotId ?? activeLotId ?? '',
+                  const regRes = await registerMutation.mutateAsync({
+                    auctionId: biddingLotId ?? activeLotId ?? registrationLotId,
                     cardDetails,
                   });
                   await refetchRegistrationStatus();
                   setShowCardModal(false);
-                  setShowComposer(true);
+                  if (registerOnlyRef.current) {
+                    registerOnlyRef.current = false;
+                    showRegistrationOutcome(regRes?.registration?.status);
+                  } else {
+                    setShowComposer(true);
+                  }
                 } catch (error) {
                   showModal({
                     title: t('common.error'),
@@ -1483,13 +1557,18 @@ export default function LiveEventRoomScreen() {
               onClose={() => setShowAuthWizardModal(false)}
               onVerifyAndRegister={async (cardDetails) => {
                 try {
-                  await registerMutation.mutateAsync({
-                    auctionId: biddingLotId ?? activeLotId ?? '',
+                  const regRes = await registerMutation.mutateAsync({
+                    auctionId: biddingLotId ?? activeLotId ?? registrationLotId,
                     cardDetails,
                   });
                   await refetchRegistrationStatus();
                   setShowAuthWizardModal(false);
-                  setShowComposer(true);
+                  if (registerOnlyRef.current) {
+                    registerOnlyRef.current = false;
+                    showRegistrationOutcome(regRes?.registration?.status);
+                  } else {
+                    setShowComposer(true);
+                  }
                 } catch (error) {
                   showModal({
                     title: t('common.error'),

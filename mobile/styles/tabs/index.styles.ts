@@ -214,7 +214,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.base,
     gap: Spacing.base,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
   },
   tile: {
     flex: 1,
